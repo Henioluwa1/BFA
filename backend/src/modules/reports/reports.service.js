@@ -1,0 +1,191 @@
+const pool = require('../../db/pool');
+const PDFDocument = require('pdfkit');
+
+class ReportsService {
+  /**
+   * Convert JSON rows to RFC 4180 compliant CSV string
+   */
+  static toCSV(headers, rows) {
+    const escapeField = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const headerLine = headers.map((h) => escapeField(h.label)).join(',');
+    const bodyLines = rows.map((row) =>
+      headers.map((h) => escapeField(h.getter ? h.getter(row) : row[h.key])).join(',')
+    );
+
+    return [headerLine, ...bodyLines].join('\r\n');
+  }
+
+  /**
+   * Reservations Report Data
+   */
+  static async getReservationsReport({ propertyId, fromDate, toDate, userRole = 'ADMIN', agentId = null } = {}) {
+    let sql = `
+      SELECT r.*, p.name as property_name, p.code as property_code,
+             a.unit_number, a.unit_name, ag.name as agent_name
+      FROM reservations r
+      JOIN properties p ON p.id = r.property_id
+      JOIN apartments a ON a.id = r.apartment_id
+      LEFT JOIN agents ag ON ag.id = r.agent_id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (userRole === 'AGENT') {
+      sql += ' AND r.agent_id = ?';
+      params.push(agentId || 1);
+    }
+    if (propertyId && propertyId !== 'all') {
+      sql += ' AND r.property_id = ?';
+      params.push(propertyId);
+    }
+    if (fromDate) {
+      sql += ' AND r.check_in_date >= ?';
+      params.push(fromDate);
+    }
+    if (toDate) {
+      sql += ' AND r.check_in_date <= ?';
+      params.push(toDate);
+    }
+
+    sql += ' ORDER BY r.check_in_date DESC;';
+    return pool.query(sql, params);
+  }
+
+  /**
+   * Financial Summary Report Data
+   */
+  static async getFinancialReport({ propertyId, fromDate, toDate } = {}) {
+    const reservations = await this.getReservationsReport({ propertyId, fromDate, toDate });
+
+    const totalRevenue = reservations.reduce((acc, r) => acc + parseFloat(r.total_amount || 0), 0);
+    const totalCollected = reservations.reduce((acc, r) => acc + parseFloat(r.paid_amount || 0), 0);
+    const totalOutstanding = totalRevenue - totalCollected;
+
+    // Maintenance costs as an operational expense component
+    let mntSql = 'SELECT SUM(cost) as total_maintenance FROM maintenance_requests WHERE 1=1';
+    const mntParams = [];
+    if (propertyId && propertyId !== 'all') {
+      mntSql += ' AND property_id = ?';
+      mntParams.push(propertyId);
+    }
+    const [mntRows] = await pool.query(mntSql, mntParams);
+    const totalMaintenanceExpenses = parseFloat(mntRows?.total_maintenance || 0);
+
+    const netProfit = totalCollected - totalMaintenanceExpenses;
+
+    return {
+      summary: {
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        totalCollected: Math.round(totalCollected * 100) / 100,
+        totalOutstanding: Math.round(totalOutstanding * 100) / 100,
+        totalExpenses: Math.round(totalMaintenanceExpenses * 100) / 100,
+        netProfit: Math.round(netProfit * 100) / 100,
+        reservationCount: reservations.length,
+      },
+      reservations,
+    };
+  }
+
+  /**
+   * Generate Executive Financial PDF Document stream
+   */
+  static generateFinancialPDF(financialData, propertyName = 'All Properties') {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+
+    // Header styling in Grey and Rust Orange aesthetic
+    doc
+      .fillColor('#c25e2e')
+      .fontSize(22)
+      .font('Helvetica-Bold')
+      .text('BFA APARTMENTS MANAGEMENT SYSTEM', 50, 50);
+
+    doc
+      .fillColor('#555f6b')
+      .fontSize(10)
+      .font('Helvetica')
+      .text(`Executive Financial Summary Report • Scoped: ${propertyName}`, 50, 78)
+      .text(`Generated: ${new Date().toISOString()}`, 50, 92);
+
+    doc.moveTo(50, 110).lineTo(545, 110).strokeColor('#c25e2e').lineWidth(2).stroke();
+
+    // Summary Box
+    doc.rect(50, 125, 495, 90).fillAndStroke('#f4f5f7', '#d0d5dd');
+
+    const s = financialData.summary;
+    doc
+      .fillColor('#1a1d21')
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .text('KEY FINANCIAL METRICS', 65, 140);
+
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor('#333942')
+      .text(`Total Booked Value: $${s.totalRevenue.toFixed(2)}`, 65, 160)
+      .text(`Total Collected: $${s.totalCollected.toFixed(2)}`, 65, 175)
+      .text(`Total Outstanding: $${s.totalOutstanding.toFixed(2)}`, 65, 190)
+      .text(`Operational Expenses: $${s.totalExpenses.toFixed(2)}`, 280, 160)
+      .text(`Net Operating Profit: $${s.netProfit.toFixed(2)}`, 280, 175)
+      .text(`Total Stays (1 Night Policy): ${s.reservationCount}`, 280, 190);
+
+    // Reservations Detail Table Header
+    doc
+      .fillColor('#1a1d21')
+      .fontSize(12)
+      .font('Helvetica-Bold')
+      .text('Authoritative Booking Audit Trail', 50, 240);
+
+    let y = 265;
+    doc.rect(50, y, 495, 20).fill('#242830');
+    doc
+      .fillColor('#ffffff')
+      .fontSize(9)
+      .font('Helvetica-Bold')
+      .text('CODE', 55, y + 5)
+      .text('PROPERTY', 140, y + 5)
+      .text('TENANT', 240, y + 5)
+      .text('CHECK-IN', 360, y + 5)
+      .text('AMOUNT', 430, y + 5)
+      .text('STATUS', 490, y + 5);
+
+    y += 20;
+
+    doc.font('Helvetica').fontSize(8);
+    financialData.reservations.slice(0, 15).forEach((r, idx) => {
+      const bg = idx % 2 === 0 ? '#ffffff' : '#f8f9fa';
+      doc.rect(50, y, 495, 18).fill(bg);
+      doc
+        .fillColor('#22262c')
+        .text(r.reservation_code, 55, y + 4)
+        .text(r.property_name.substring(0, 18), 140, y + 4)
+        .text(r.tenant_name.substring(0, 22), 240, y + 4)
+        .text(r.check_in_date, 360, y + 4)
+        .text(`$${parseFloat(r.total_amount).toFixed(2)}`, 430, y + 4)
+        .text(r.status, 490, y + 4);
+
+      y += 18;
+    });
+
+    // Footer
+    doc
+      .fontSize(8)
+      .fillColor('#8c96a3')
+      .text(
+        'BFA Property Management Platform • Non-Negotiable 1-Night Reservation Standard Applied',
+        50,
+        780,
+        { align: 'center', width: 495 }
+      );
+
+    doc.end();
+    return doc;
+  }
+}
+
+module.exports = ReportsService;

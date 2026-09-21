@@ -1,0 +1,82 @@
+/* ==========================================================================
+   ROLE-SPECIFIC VISUAL ARRANGEMENTS (Section 20 & 21)
+   STRICTLY USING GREY, WHITE & RUST ORANGE ONLY
+   ========================================================================== */
+
+/* 1. ADMIN: Grey Dominant + Bold Rust Primary Accents + Charcoal Depth */
+[data-role="admin"] {
+  --role-sidebar-bg: #14171c;
+  --role-topbar-border: var(--rust-border);
+  --role-badge-bg: var(--rust-primary);
+  --role-badge-text: #ffffff;
+  --role-card-border: var(--grey-700);
+  --role-accent-glow: 0 0 12px rgba(194, 94, 46, 0.35);
+  --role-nav-active-bg: rgba(194, 94, 46, 0.15);
+  --role-nav-active-border: var(--rust-primary);
+  --role-tag: "ADMIN • SYSTEM CONTROL";
+}
+
+/* 2. MANAGER: White-Dominant Surfaces + Slate Navigation + Rust Header Accents */
+[data-role="manager"] {
+  --role-sidebar-bg: #1a1e24;
+  --role-topbar-border: var(--grey-600);
+  --role-badge-bg: #222730;
+  --role-badge-text: var(--white-pure);
+  --role-card-border: var(--grey-600);
+  --role-accent-glow: none;
+  --role-nav-active-bg: rgba(255, 255, 255, 0.08);
+  --role-nav-active-border: var(--white-pure);
+  --role-tag: "MANAGER • OPERATIONS";
+}
+
+/* 3. RECEPTIONIST: Grey Navigation + Crisp White Cards + Rust Operational Actions */
+[data-role="receptionist"] {
+  --role-sidebar-bg: #161a20;
+  --role-topbar-border: var(--rust-primary);
+  --role-badge-bg: var(--rust-dim);
+  --role-badge-text: var(--rust-light);
+  --role-card-border: var(--grey-700);
+  --role-accent-glow: 0 0 8px rgba(194, 94, 46, 0.2);
+  --role-nav-active-bg: rgba(194, 94, 46, 0.12);
+  --role-nav-active-border: var(--rust-light);
+  --role-tag: "RECEPTIONIST • FRONT DESK";
+}
+
+/* 4. STAFF: Clean Grey/White Workspace + Slate Navigation + Rust Status Borders */
+[data-role="staff"] {
+  --role-sidebar-bg: #1e2229;
+  --role-topbar-border: var(--grey-700);
+  --role-badge-bg: #2d3440;
+  --role-badge-text: var(--grey-200);
+  --role-card-border: var(--grey-700);
+  --role-accent-glow: none;
+  --role-nav-active-bg: rgba(194, 94, 46, 0.1);
+  --role-nav-active-border: var(--grey-400);
+  --role-tag: "STAFF • MAINTENANCE & SERVICE";
+}
+
+/* 5. AGENT: Subtle Slate Surfaces + White Navigation Cards + Rust Client Badges */
+[data-role="agent"] {
+  --role-sidebar-bg: #121417;
+  --role-topbar-border: var(--rust-border);
+  --role-badge-bg: var(--rust-primary);
+  --role-badge-text: var(--white-pure);
+  --role-card-border: var(--grey-700);
+  --role-accent-glow: none;
+  --role-nav-active-bg: rgba(194, 94, 46, 0.14);
+  --role-nav-active-border: var(--rust-primary);
+  --role-tag: "AGENT • CLIENT PARTNER";
+}
+
+/* 6. OWNER: Deep Executive Slate + Rust-Framed Executive Cards + Crisp White Data */
+[data-role="owner"] {
+  --role-sidebar-bg: #101216;
+  --role-topbar-border: var(--rust-primary);
+  --role-badge-bg: linear-gradient(135deg, var(--rust-primary), var(--rust-dark));
+  --role-badge-text: #ffffff;
+  --role-card-border: var(--rust-border);
+  --role-accent-glow: 0 0 20px rgba(194, 94, 46, 0.3);
+  --role-nav-active-bg: linear-gradient(90deg, rgba(194, 94, 46, 0.22) 0%, rgba(194, 94, 46, 0.04) 100%);
+  --role-nav-active-border: var(--rust-light);
+  --role-tag: "OWNER • EXECUTIVE LEADERSHIP";
+}

@@ -10,7 +10,7 @@ The system strictly adheres to the non-negotiable multi-property domain model:
 BFA Company 
  └── Properties/Buildings (dynamic: 1 to many)
       └── Apartments/Units (dynamic: 1 to many per property)
-           └── Reservations (booking & stay records)
+           └── Reservations (booking & stay records — strictly 1 night maximum)
                 ├── Tenants/Guests (staying profiles)
                 ├── Payments (traceable financial records)
                 ├── Inspections (pre/post-stay assessments)
@@ -21,12 +21,35 @@ Each apartment/unit belongs to **exactly one property/building**. The system nev
 
 ---
 
-## 🛠️ Technology Stack
+## 🎨 Visual System Standard
 
-- **Backend**: Node.js (v24+), Express 4, MySQL 8 / MariaDB (via `mysql2/promise`), Helmet, CORS, Rate Limiting, Winston/Morgan, Zod
-- **Frontend**: React 18, Vite, React Router v6, Axios, Vanilla CSS Custom Design System (obsidian & warm gold executive hospitality aesthetic)
-- **Database**: MySQL (`bfa_apartments_db`) with transactional migration runner
-- **Security & RBAC**: 6 Roles (Admin, Manager, Receptionist, Staff, Agent, Owner), authoritative backend authorization, granular permissions
+The user interface strictly adheres to a three-color luxury minimalist corporate palette:
+- **Base**: Crisp Dark Slate Grey / Charcoal (`#1a1f26`, `#14181d`, `#262d38`)
+- **Neutral**: Crisp Pure White (`#ffffff`) and Soft Slate Off-White (`#f8fafc`)
+- **Accent**: **Rust Orange** (`#c25e2e` primary, `#d36531` hover, `#a8481d` active)
+
+*No blues, greens, yellows, or champagne gold are permitted.*
+
+---
+
+## 🛠️ Technology Stack & Modular Monolith
+
+- **Backend**:
+  - Node.js (v24+), Express 4, MySQL 8 / MariaDB (via `mysql2/promise`)
+  - **Modular Monolith Layout**: Foundational `core/` (errors, logging, audit, security, middleware) and autonomous `modules/` (properties, apartments, reservations, search, reports, audit)
+  - Standardized RESTful versioned endpoints (`/api/v1/`) with backward-compatible aliases
+  - Structured Winston logging with sensitive parameter scrubbing (`[REDACTED]`)
+  - Immutable audit trail with `X-Request-Id` correlation
+  - Reporting: RFC 4180 CSV export and programmatic executive PDF generation via `pdfkit`
+- **Frontend**:
+  - React 18, Vite, React Router v6, Axios
+  - Strict Grey/White/Rust design system with centralized role-specific arrangements (`roleThemes.css`)
+  - Global Categorized Search modal with `Ctrl+K` shortcut and RBAC isolation
+  - Interactive Property Switcher and Role Switcher (`X-User-Role` client injection)
+- **1-Night Maximum Reservation Rule**:
+  - Database level: `CONSTRAINT chk_one_night CHECK (DATEDIFF(check_out_date, check_in_date) = 1)`
+  - Backend API: Validates duration = 1 night, rejects invalid spans with HTTP 422 `VALIDATION_ERROR`
+  - Frontend UI: Automatic calculation and locking of check-out date to check-in + 1 day
 
 ---
 
@@ -34,7 +57,7 @@ Each apartment/unit belongs to **exactly one property/building**. The system nev
 
 ### 1. Prerequisites
 - Node.js v18+ and npm
-- MySQL running on port 3306 (e.g. XAMPP MySQL)
+- MySQL / MariaDB running on port 3306 (e.g. XAMPP MySQL)
 
 ### 2. Environment Setup
 The database `bfa_apartments_db` is configured in `backend/.env`.
@@ -57,21 +80,20 @@ npm run dev:backend   # Starts API on http://localhost:5000
 npm run dev:frontend  # Starts UI on http://localhost:5173
 ```
 
+### 5. Automated Tests
+```bash
+npm test
+```
+All 6 test suites and 20 tests pass out of the box (Health, Errors, One-Night Rule, Search, Reports, Audit).
+
 ---
 
-## 📋 12-Phase Development Roadmap
+## 📋 Role-Based Access Control (RBAC)
 
-| Phase | Title | Status | Description |
-|---|---|---|---|
-| **Phase 1** | **Foundation & Architecture** | **COMPLETED** | Project layout, environment, API & DB foundation, migration runner, UI architecture & multi-property context |
-| Phase 2 | Authentication, RBAC & User Access | Pending | 6 Roles, single-owner rule, granular permissions, audit logging |
-| Phase 3 | Properties, Apartments & Units | Pending | Dynamic properties, units, unit types, statuses, availability |
-| Phase 4 | Reservation Engine | Pending | Availability calculation, double-booking prevention, pricing, lifecycle |
-| Phase 5 | Calendar & Front Office | Pending | Month/week/day/timeline calendar, check-in, check-out |
-| Phase 6 | Tenants, Guests & Inspection | Pending | Guest profiles, directories, inspection workflows, damage evidence |
-| Phase 7 | Maintenance & Operations | Pending | Issue tracker, assignments, unit operational statuses |
-| Phase 8 | Financial Management | Pending | Payments, collections, expenses, net profit calculation |
-| Phase 9 | Agents & Commission Management | Pending | Agent profiles, client tracking, commission settlements |
-| Phase 10 | Analytics & Reporting | Pending | Revenue trends, occupancy metrics, apartment performance |
-| Phase 11 | Team, Settings & Integrations | Pending | User governance, settings, notification and external channels |
-| Phase 12 | Final Integration & Production Readiness | Pending | Security audit, end-to-end tests, performance tuning, hardening |
+The system is configured with 6 primary roles:
+1. **Admin**: System governance, security audit trails, and configuration.
+2. **Manager**: Operational oversight, financial metrics, and maintenance scheduling.
+3. **Receptionist**: Daily front-desk operations, 1-night check-ins, and guest arrivals.
+4. **Staff**: Housekeeping, unit turnover, and maintenance work orders.
+5. **Agent**: Third-party bookings, commission balances, and restricted queries.
+6. **Owner**: High-level portfolio ROI, net income yields, and asset performance.

@@ -1,4 +1,7 @@
-/* App Shell Layout */
+/* ==========================================================================
+   APP SHELL LAYOUT — GREY + WHITE + RUST ORANGE STANDARD
+   ========================================================================== */
+
 .app-shell {
   display: flex;
   min-height: 100vh;
@@ -8,7 +11,7 @@
 /* Sidebar Styles */
 .sidebar {
   width: var(--sidebar-width);
-  background: var(--bg-surface);
+  background: var(--role-sidebar-bg, var(--bg-surface));
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
@@ -17,7 +20,7 @@
   bottom: 0;
   left: 0;
   z-index: 100;
-  transition: width var(--transition-normal);
+  transition: width var(--transition-normal), background var(--transition-normal);
 }
 
 .sidebar.collapsed {
@@ -44,14 +47,14 @@
   width: 36px;
   height: 36px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--accent-gold), #92751f);
-  color: #0f172a;
+  background: linear-gradient(135deg, var(--rust-light), var(--rust-dark));
+  color: var(--white-pure);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
   font-size: 1.1rem;
-  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.35);
+  box-shadow: var(--rust-glow);
   flex-shrink: 0;
 }
 
@@ -67,8 +70,8 @@
 .brand-tag {
   font-size: 0.65rem;
   text-transform: uppercase;
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
+  background: var(--rust-dim);
+  color: var(--rust-light);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   font-weight: 700;
@@ -136,10 +139,10 @@
 }
 
 .nav-link.active {
-  background: linear-gradient(90deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.03) 100%);
-  color: var(--accent-gold);
+  background: var(--role-nav-active-bg, rgba(194, 94, 46, 0.15));
+  color: var(--rust-light);
   font-weight: 600;
-  border-left: 3px solid var(--accent-gold);
+  border-left: 3px solid var(--role-nav-active-border, var(--rust-primary));
 }
 
 .nav-icon {
@@ -163,7 +166,7 @@
 .sidebar-footer {
   padding: 1rem;
   border-top: 1px solid var(--border-subtle);
-  background: rgba(10, 15, 29, 0.5);
+  background: rgba(14, 16, 19, 0.6);
 }
 
 /* Main Layout Area */
@@ -185,7 +188,7 @@
   height: var(--topbar-height);
   background: var(--bg-glass);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--role-topbar-border, var(--border-subtle));
   position: sticky;
   top: 0;
   z-index: 90;
@@ -193,18 +196,49 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 2rem;
+  transition: border-color var(--transition-normal);
 }
 
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 1rem;
+}
+
+/* Search Input Trigger in Topbar */
+.topbar-search-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: var(--transition-normal);
+}
+
+.topbar-search-btn:hover {
+  border-color: var(--rust-primary);
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.search-kbd {
+  background: var(--grey-800);
+  border: 1px solid var(--grey-700);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  color: var(--grey-400);
 }
 
 /* Property Switcher in Topbar */
@@ -222,7 +256,7 @@
 .property-switcher-label {
   font-size: 0.75rem;
   text-transform: uppercase;
-  color: var(--accent-gold);
+  color: var(--rust-light);
   font-weight: 700;
   letter-spacing: 0.05em;
   display: flex;
@@ -235,12 +269,46 @@
   border: none;
   color: var(--text-primary);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   cursor: pointer;
   outline: none;
 }
 
 .property-select option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* Role Switcher in Topbar (Section 20 & 21) */
+.role-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-md);
+}
+
+.role-switcher-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--grey-400);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.role-select {
+  background: transparent;
+  border: none;
+  color: var(--rust-light);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.role-select option {
   background: var(--bg-surface);
   color: var(--text-primary);
 }
@@ -277,7 +345,7 @@
   margin-top: 0.25rem;
 }
 
-/* System Status Dot */
+/* Status Indicator Dot */
 .status-indicator {
   display: flex;
   align-items: center;
@@ -294,16 +362,15 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--status-available);
-  box-shadow: 0 0 8px var(--status-available);
+  background: var(--white-pure);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+.status-dot.connected {
+  background: var(--rust-light);
+  box-shadow: 0 0 8px var(--rust-light);
 }
 
 .status-dot.degraded {
-  background: var(--status-pending);
-  box-shadow: 0 0 8px var(--status-pending);
-}
-
-.status-dot.error {
-  background: var(--status-cancelled);
-  box-shadow: 0 0 8px var(--status-cancelled);
+  background: var(--grey-400);
 }

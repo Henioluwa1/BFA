@@ -1,4 +1,6 @@
-/* Reusable Component Library Styles */
+/* ==========================================================================
+   REUSABLE UI COMPONENTS — GREY + WHITE + RUST ORANGE ONLY
+   ========================================================================== */
 
 /* Buttons */
 .btn {
@@ -9,7 +11,7 @@
   padding: 0.6rem 1.25rem;
   border-radius: var(--radius-md);
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   cursor: pointer;
   transition: var(--transition-normal);
   border: 1px solid transparent;
@@ -17,65 +19,66 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-gold), #b8972c);
-  color: #0f172a;
-  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.25);
+  background: linear-gradient(135deg, var(--rust-light), var(--rust-dark));
+  color: var(--white-pure);
+  box-shadow: 0 2px 8px rgba(194, 94, 46, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--accent-gold-light), var(--accent-gold));
-  box-shadow: var(--shadow-glow);
+  background: linear-gradient(135deg, #e0713b, var(--rust-light));
+  box-shadow: var(--rust-glow);
   transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: var(--bg-card);
-  border-color: var(--border-default);
-  color: var(--text-primary);
+  background: var(--grey-800);
+  border-color: var(--grey-700);
+  color: var(--white-pure);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--bg-card-hover);
-  border-color: var(--text-muted);
+  background: var(--grey-700);
+  border-color: var(--grey-600);
 }
 
 .btn-outline {
   background: transparent;
-  border-color: var(--border-default);
-  color: var(--text-secondary);
+  border-color: var(--grey-700);
+  color: var(--grey-300);
 }
 
 .btn-outline:hover:not(:disabled) {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
+  border-color: var(--rust-primary);
+  color: var(--rust-light);
+  background: var(--rust-dim);
 }
 
 .btn-danger {
-  background: var(--status-cancelled-bg);
-  border-color: rgba(239, 68, 68, 0.4);
-  color: var(--status-cancelled);
+  background: var(--grey-850);
+  border-color: var(--rust-border);
+  color: var(--rust-light);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: var(--status-cancelled);
-  color: #ffffff;
+  background: var(--rust-dark);
+  color: var(--white-pure);
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
   transform: none !important;
 }
 
 .btn-sm {
-  padding: 0.4rem 0.85rem;
+  padding: 0.35rem 0.8rem;
   font-size: 0.82rem;
 }
 
 /* Cards */
 .card {
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--role-card-border, var(--border-subtle));
   border-radius: var(--radius-lg);
   padding: 1.5rem;
   box-shadow: var(--shadow-md);
@@ -104,7 +107,7 @@
   gap: 0.5rem;
 }
 
-/* Badges */
+/* Status Badges in Grey, White & Rust Orange ONLY */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -117,46 +120,48 @@
   text-transform: uppercase;
 }
 
-.badge-available, .badge-ready {
+.badge-available, .badge-ready, .badge-active {
   background: var(--status-available-bg);
-  color: var(--status-available);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--status-available-text);
+  border: 1px solid var(--status-available-border);
 }
 
 .badge-occupied, .badge-confirmed {
   background: var(--status-occupied-bg);
-  color: var(--status-occupied);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: var(--status-occupied-text);
+  border: 1px solid var(--status-occupied-border);
+  box-shadow: 0 1px 4px rgba(194, 94, 46, 0.3);
 }
 
 .badge-pending, .badge-reserved {
   background: var(--status-pending-bg);
-  color: var(--status-pending);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--status-pending-text);
+  border: 1px solid var(--status-pending-border);
 }
 
 .badge-dirty {
   background: var(--status-dirty-bg);
-  color: var(--status-dirty);
-  border: 1px solid rgba(249, 115, 22, 0.3);
+  color: var(--status-dirty-text);
+  border: 1px solid var(--status-dirty-border);
 }
 
 .badge-maintenance {
   background: var(--status-maintenance-bg);
-  color: var(--status-maintenance);
-  border: 1px solid rgba(236, 72, 153, 0.3);
+  color: var(--status-maintenance-text);
+  border: 1px solid var(--status-maintenance-border);
 }
 
-.badge-cancelled {
+.badge-cancelled, .badge-out-of-service {
   background: var(--status-cancelled-bg);
-  color: var(--status-cancelled);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--status-cancelled-text);
+  border: 1px solid var(--status-cancelled-border);
+  text-decoration: line-through;
 }
 
 .badge-neutral {
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-default);
+  background: var(--grey-800);
+  color: var(--grey-300);
+  border: 1px solid var(--grey-700);
 }
 
 /* Data Tables */
@@ -185,8 +190,8 @@
 }
 
 .table td {
-  padding: 1rem;
-  font-size: 0.9rem;
+  padding: 0.95rem 1rem;
+  font-size: 0.88rem;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-primary);
 }
@@ -195,12 +200,46 @@
   background: var(--bg-card-hover);
 }
 
+/* Search Categories & Items */
+.search-category-heading {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--rust-light);
+  letter-spacing: 0.06em;
+  margin-bottom: 0.4rem;
+  padding-left: 0.25rem;
+}
+
+.search-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.search-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  background: var(--grey-900);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-normal);
+}
+
+.search-item:hover {
+  border-color: var(--rust-primary);
+  background: var(--grey-800);
+}
+
 /* Modals */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 15, 29, 0.8);
-  backdrop-filter: blur(6px);
+  background: rgba(14, 16, 19, 0.82);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -254,7 +293,7 @@
   background: var(--bg-card);
 }
 
-/* Toast Notifications */
+/* Toast Notifications in Grey & Rust */
 .toast-container {
   position: fixed;
   bottom: 1.5rem;
@@ -292,19 +331,19 @@
 }
 
 .toast-success {
-  background: #064e3b;
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  color: #a7f3d0;
+  background: var(--grey-900);
+  border: 1px solid var(--white-pure);
+  color: var(--white-pure);
 }
 
 .toast-error {
-  background: #7f1d1d;
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #fecaca;
+  background: var(--grey-900);
+  border: 1px solid var(--rust-primary);
+  color: var(--rust-light);
 }
 
 .toast-info {
-  background: #1e3a8a;
-  border: 1px solid rgba(59, 130, 246, 0.4);
-  color: #bfdbfe;
+  background: var(--grey-850);
+  border: 1px solid var(--grey-600);
+  color: var(--grey-200);
 }
