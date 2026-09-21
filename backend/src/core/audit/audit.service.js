@@ -27,7 +27,7 @@ class AuditService {
       // Prefer actor from request context if available
       const finalActorId = actorId || req?.user?.id || null;
       const finalActorEmail = actorEmail || req?.user?.email || null;
-      const finalActorRole = actorRole || req?.user?.role || req?.headers?.['x-user-role'] || 'SYSTEM';
+      const finalActorRole = actorRole || req?.user?.role || 'SYSTEM';
 
       const sql = `
         INSERT INTO audit_logs 
@@ -129,5 +129,7 @@ class AuditService {
     return { logs: rows, total };
   }
 }
+
+AuditService.log = AuditService.record;
 
 module.exports = AuditService;

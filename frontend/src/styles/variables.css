@@ -1,95 +1,145 @@
-:root {
+:root,
+[data-portal-theme="default"] {
   /* ==========================================================================
-     BFA APARTMENTS MANAGEMENT SYSTEM — APPROVED VISUAL SYSTEM STANDARD
-     PALETTE: GREY + WHITE + RUST ORANGE ONLY (Section 18, 19, 22)
+     BFA APARTMENTS MANAGEMENT SYSTEM — DESIGN SYSTEM
+     STANDARD PORTAL THEME: CLEAN WHITE PRIMARY CANVAS (Section 5)
      ========================================================================== */
 
-  /* Rust Orange Family (Brand & Primary Accent) */
-  --rust-primary: #c25e2e;
-  --rust-light: #d36531;
-  --rust-dark: #a8481d;
-  --rust-hover: #aa4b1d;
-  --rust-dim: rgba(194, 94, 46, 0.12);
-  --rust-border: rgba(194, 94, 46, 0.35);
-  --rust-glow: 0 0 16px rgba(194, 94, 46, 0.25);
+  /* Brand / Executive Identity */
+  --brand-primary: #1e3a8a;
+  --brand-accent: #2563eb;
+  --brand-hover: #1d4ed8;
+  --brand-dark: #172554;
+  --brand-dim: rgba(37, 99, 235, 0.08);
+  --brand-border: rgba(37, 99, 235, 0.25);
+  --brand-glow: 0 0 16px rgba(37, 99, 235, 0.2);
 
-  /* White Family (Surfaces, Contrast, Highlights) */
-  --white-pure: #ffffff;
-  --white-off: #f8f9fa;
-  --white-dim: rgba(255, 255, 255, 0.85);
+  /* Surface Canvas & Elevation (Section 5: White as primary portal background) */
+  --bg-primary: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.92);
 
-  /* Grey Family (Backgrounds, Secondary Surfaces, Borders, Text) */
-  --grey-950: #0e1013;
-  --grey-900: #14171c;
-  --grey-850: #1a1e24;
-  --grey-800: #222730;
-  --grey-700: #2d3440;
-  --grey-600: #424b59;
-  --grey-500: #626f82;
-  --grey-400: #8b98aa;
-  --grey-300: #b8c3d1;
-  --grey-200: #e2e7ee;
-  --grey-100: #f1f4f8;
-
-  /* Standard Application Theming Slots */
-  --bg-primary: var(--grey-950);
-  --bg-surface: var(--grey-900);
-  --bg-card: var(--grey-850);
-  --bg-card-hover: var(--grey-800);
-  --bg-glass: rgba(20, 23, 28, 0.82);
-
-  --border-subtle: var(--grey-800);
-  --border-default: var(--grey-700);
-  --border-highlight: var(--rust-primary);
+  /* Borders */
+  --border-subtle: #f1f5f9;
+  --border-default: #e2e8f0;
+  --border-highlight: var(--brand-accent);
 
   /* Typography */
-  --text-primary: var(--white-pure);
-  --text-secondary: var(--grey-300);
-  --text-muted: var(--grey-500);
-  --text-inverse: var(--grey-950);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
 
   --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
-  /* Semantic Statuses Enforced In Grey + White + Rust Orange (NO blue/green/red) */
-  --status-available-bg: rgba(255, 255, 255, 0.08);
-  --status-available-text: var(--white-pure);
-  --status-available-border: var(--grey-500);
+  /* Executive Layout Dimensions */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 72px;
+  --topbar-height: 68px;
 
-  --status-occupied-bg: var(--rust-primary);
-  --status-occupied-text: var(--white-pure);
-  --status-occupied-border: var(--rust-dark);
+  /* Shell Components */
+  --sidebar-bg: #0f172a;
+  --sidebar-text: #f8fafc;
+  --sidebar-border: #1e293b;
+  --sidebar-hover: #1e293b;
+  --sidebar-active-bg: rgba(37, 99, 235, 0.15);
+  --sidebar-active-border: #3b82f6;
 
-  --status-pending-bg: var(--rust-dim);
-  --status-pending-text: var(--rust-light);
-  --status-pending-border: var(--rust-border);
+  --topbar-bg: #ffffff;
+  --topbar-border: #e2e8f0;
 
-  --status-dirty-bg: var(--grey-800);
-  --status-dirty-text: var(--grey-300);
-  --status-dirty-border: var(--rust-border);
+  /* Semantic Operational Statuses */
+  --status-available-bg: #ecfdf5;
+  --status-available-text: #065f46;
+  --status-available-border: #a7f3d0;
 
-  --status-maintenance-bg: rgba(194, 94, 46, 0.2);
-  --status-maintenance-text: var(--rust-light);
-  --status-maintenance-border: var(--rust-primary);
+  --status-occupied-bg: #fff1f2;
+  --status-occupied-text: #9f1239;
+  --status-occupied-border: #fecdd3;
 
-  --status-cancelled-bg: var(--grey-800);
-  --status-cancelled-text: var(--grey-500);
-  --status-cancelled-border: var(--grey-700);
+  --status-pending-bg: #fffbeb;
+  --status-pending-text: #92400e;
+  --status-pending-border: #fde68a;
 
-  /* Elevation Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.45), 0 2px 4px -2px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.55), 0 4px 6px -4px rgba(0, 0, 0, 0.55);
+  --status-maintenance-bg: #f5f3ff;
+  --status-maintenance-text: #5b21b6;
+  --status-maintenance-border: #ddd6fe;
 
-  /* Radii */
+  --status-cleaning-bg: #eff6ff;
+  --status-cleaning-text: #1e40af;
+  --status-cleaning-border: #bfdbfe;
+
+  /* Radius */
   --radius-sm: 6px;
   --radius-md: 10px;
-  --radius-lg: 16px;
+  --radius-lg: 14px;
   --radius-full: 9999px;
 
-  /* Layout */
-  --sidebar-width: 260px;
-  --sidebar-collapsed-width: 78px;
-  --topbar-height: 70px;
-  --transition-normal: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+   SUPER ADMIN PORTAL THEME: GREY PRIMARY BACKGROUND (Section 5 & 9)
+   Distinct System-Level Administrative Environment — Authenticated Only
+   ========================================================================== */
+[data-portal-theme="super_admin"] {
+  --brand-primary: #3b82f6;
+  --brand-accent: #60a5fa;
+  --brand-hover: #93c5fd;
+  --brand-dim: rgba(96, 165, 250, 0.15);
+  --brand-border: rgba(96, 165, 250, 0.35);
+
+  /* Grey primary canvas distinguishing system admin (Section 5) */
+  --bg-primary: #14181f;
+  --bg-surface: #1a2029;
+  --bg-card: #202733;
+  --bg-card-hover: #293241;
+  --bg-glass: rgba(26, 32, 41, 0.92);
+
+  --border-subtle: #293241;
+  --border-default: #374254;
+  --border-highlight: #60a5fa;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --text-inverse: #0f172a;
+
+  --sidebar-bg: #10141a;
+  --sidebar-text: #f8fafc;
+  --sidebar-border: #293241;
+  --sidebar-hover: #202733;
+  --sidebar-active-bg: rgba(96, 165, 250, 0.15);
+  --sidebar-active-border: #60a5fa;
+
+  --topbar-bg: #1a2029;
+  --topbar-border: #374254;
+
+  --status-available-bg: rgba(16, 185, 129, 0.15);
+  --status-available-text: #34d399;
+  --status-available-border: rgba(16, 185, 129, 0.3);
+
+  --status-occupied-bg: rgba(239, 68, 68, 0.15);
+  --status-occupied-text: #f87171;
+  --status-occupied-border: rgba(239, 68, 68, 0.3);
+
+  --status-pending-bg: rgba(245, 158, 11, 0.15);
+  --status-pending-text: #fbbf24;
+  --status-pending-border: rgba(245, 158, 11, 0.3);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
 }

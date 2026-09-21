@@ -5,6 +5,8 @@ const { authContext } = require('./core/middleware/authContext');
 const { errorHandler, notFoundHandler } = require('./core/middleware/errorHandler');
 
 // Domain Modules
+const authRoutes = require('./modules/auth/auth.routes');
+const publicRoutes = require('./modules/public/public.routes');
 const healthRoutes = require('./modules/health/health.routes');
 const systemRoutes = require('./modules/system/system.routes');
 const propertiesRoutes = require('./modules/properties/properties.routes');
@@ -29,7 +31,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Request tracing & logging
 app.use(requestLogger);
 
-// Auth context simulation & extraction
+// Auth context cryptographic token extraction
 app.use(authContext);
 
 // Rate limiter for API
@@ -38,6 +40,8 @@ app.use('/api/', apiLimiter);
 // API v1 Versioned Router
 const apiV1Router = express.Router();
 
+apiV1Router.use('/auth', authRoutes);
+apiV1Router.use('/public', publicRoutes);
 apiV1Router.use('/health', healthRoutes);
 apiV1Router.use('/system', systemRoutes);
 apiV1Router.use('/properties', propertiesRoutes);

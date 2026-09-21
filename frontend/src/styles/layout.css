@@ -1,18 +1,20 @@
 /* ==========================================================================
-   APP SHELL LAYOUT — GREY + WHITE + RUST ORANGE STANDARD
+   APP SHELL LAYOUT — CLEAN EXECUTIVE ARCHITECTURE (Section 5, 16)
    ========================================================================== */
 
 .app-shell {
   display: flex;
   min-height: 100vh;
   background-color: var(--bg-primary);
+  color: var(--text-primary);
+  position: relative;
 }
 
 /* Sidebar Styles */
 .sidebar {
   width: var(--sidebar-width);
-  background: var(--role-sidebar-bg, var(--bg-surface));
-  border-right: 1px solid var(--border-subtle);
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -20,11 +22,15 @@
   bottom: 0;
   left: 0;
   z-index: 100;
-  transition: width var(--transition-normal), background var(--transition-normal);
+  transition: width var(--transition-normal), transform var(--transition-normal);
 }
 
 .sidebar.collapsed {
   width: var(--sidebar-collapsed-width);
+}
+
+.sidebar-backdrop {
+  display: none;
 }
 
 .sidebar-brand {
@@ -33,7 +39,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--sidebar-border);
 }
 
 .brand-logo-wrap {
@@ -41,20 +47,21 @@
   align-items: center;
   gap: 0.75rem;
   overflow: hidden;
+  text-decoration: none;
 }
 
 .brand-icon {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--rust-light), var(--rust-dark));
-  color: var(--white-pure);
+  background: linear-gradient(135deg, var(--brand-accent), var(--brand-primary));
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 1.1rem;
-  box-shadow: var(--rust-glow);
+  font-size: 1.15rem;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
   flex-shrink: 0;
 }
 
@@ -62,7 +69,7 @@
   font-family: var(--font-heading);
   font-weight: 700;
   font-size: 1.1rem;
-  color: var(--text-primary);
+  color: #ffffff;
   white-space: nowrap;
   letter-spacing: 0.02em;
 }
@@ -70,8 +77,8 @@
 .brand-tag {
   font-size: 0.65rem;
   text-transform: uppercase;
-  background: var(--rust-dim);
-  color: var(--rust-light);
+  background: var(--brand-dim);
+  color: var(--brand-accent);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   font-weight: 700;
@@ -81,7 +88,7 @@
 
 .collapse-toggle {
   background: transparent;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--sidebar-border);
   color: var(--text-muted);
   width: 28px;
   height: 28px;
@@ -94,9 +101,9 @@
 }
 
 .collapse-toggle:hover {
-  color: var(--text-primary);
-  border-color: var(--border-default);
-  background: var(--bg-card);
+  color: #ffffff;
+  border-color: var(--brand-accent);
+  background: var(--sidebar-hover);
 }
 
 /* Sidebar Nav */
@@ -112,7 +119,7 @@
 .nav-heading {
   font-size: 0.7rem;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: #64748b;
   letter-spacing: 0.08em;
   font-weight: 700;
   padding: 0.75rem 0.75rem 0.25rem;
@@ -125,24 +132,24 @@
   gap: 0.75rem;
   padding: 0.65rem 0.85rem;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: #94a3b8;
   font-weight: 500;
   font-size: 0.92rem;
   transition: var(--transition-normal);
   white-space: nowrap;
-  position: relative;
+  text-decoration: none;
 }
 
 .nav-link:hover {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
+  background: var(--sidebar-hover);
+  color: #ffffff;
 }
 
 .nav-link.active {
-  background: var(--role-nav-active-bg, rgba(194, 94, 46, 0.15));
-  color: var(--rust-light);
+  background: var(--sidebar-active-bg);
+  color: #ffffff;
   font-weight: 600;
-  border-left: 3px solid var(--role-nav-active-border, var(--rust-primary));
+  border-left: 3px solid var(--sidebar-active-border);
 }
 
 .nav-icon {
@@ -151,25 +158,26 @@
   flex-shrink: 0;
 }
 
-.sidebar.collapsed .brand-text,
-.sidebar.collapsed .brand-tag,
-.sidebar.collapsed .nav-text,
+.sidebar.collapsed .nav-text {
+  display: none;
+}
+
 .sidebar.collapsed .nav-heading {
   display: none;
 }
 
-.sidebar.collapsed .nav-link {
-  justify-content: center;
-  padding: 0.75rem 0;
+.sidebar.collapsed .brand-text,
+.sidebar.collapsed .brand-tag {
+  display: none;
 }
 
 .sidebar-footer {
-  padding: 1rem;
-  border-top: 1px solid var(--border-subtle);
-  background: rgba(14, 16, 19, 0.6);
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--sidebar-border);
+  background: rgba(0, 0, 0, 0.15);
 }
 
-/* Main Layout Area */
+/* Main Content Area */
 .main-wrapper {
   flex: 1;
   margin-left: var(--sidebar-width);
@@ -177,6 +185,7 @@
   flex-direction: column;
   min-height: 100vh;
   transition: margin-left var(--transition-normal);
+  min-width: 0;
 }
 
 .main-wrapper.expanded {
@@ -186,23 +195,40 @@
 /* Topbar */
 .topbar {
   height: var(--topbar-height);
-  background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--role-topbar-border, var(--border-subtle));
-  position: sticky;
-  top: 0;
-  z-index: 90;
+  background: var(--topbar-bg);
+  border-bottom: 1px solid var(--topbar-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 2rem;
-  transition: border-color var(--transition-normal);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  backdrop-filter: blur(8px);
 }
 
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 1rem;
+}
+
+.mobile-nav-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.mobile-nav-toggle:hover {
+  background: var(--bg-card-hover);
 }
 
 .topbar-right {
@@ -211,53 +237,53 @@
   gap: 1rem;
 }
 
-/* Search Input Trigger in Topbar */
+/* Topbar Search Button */
 .topbar-search-btn {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-default);
-  padding: 0.45rem 0.9rem;
   border-radius: var(--radius-md);
+  padding: 0.5rem 0.85rem;
   color: var(--text-secondary);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: var(--transition-normal);
+  transition: var(--transition-fast);
 }
 
 .topbar-search-btn:hover {
-  border-color: var(--rust-primary);
+  border-color: var(--brand-accent);
   color: var(--text-primary);
-  background: var(--bg-card-hover);
+  background: var(--bg-surface);
 }
 
 .search-kbd {
-  background: var(--grey-800);
-  border: 1px solid var(--grey-700);
-  padding: 1px 5px;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
-  font-size: 0.72rem;
-  color: var(--grey-400);
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
-/* Property Switcher in Topbar */
+/* Property Switcher */
 .property-switcher {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  background: var(--bg-card);
+  gap: 0.4rem;
+  background: var(--bg-primary);
   border: 1px solid var(--border-default);
-  padding: 0.45rem 0.85rem;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  padding: 0.25rem 0.65rem;
 }
 
 .property-switcher-label {
   font-size: 0.75rem;
-  text-transform: uppercase;
-  color: var(--rust-light);
   font-weight: 700;
+  text-transform: uppercase;
+  color: var(--brand-accent);
   letter-spacing: 0.05em;
   display: flex;
   align-items: center;
@@ -268,10 +294,10 @@
   background: transparent;
   border: none;
   color: var(--text-primary);
+  font-size: 0.85rem;
   font-weight: 600;
-  font-size: 0.88rem;
-  cursor: pointer;
   outline: none;
+  cursor: pointer;
 }
 
 .property-select option {
@@ -279,45 +305,75 @@
   color: var(--text-primary);
 }
 
-/* Role Switcher in Topbar (Section 20 & 21) */
-.role-switcher {
+/* User Profile Pill & Actions */
+.user-profile-pill {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  background: var(--bg-card);
+  gap: 0.6rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-primary);
   border: 1px solid var(--border-default);
-  padding: 0.45rem 0.85rem;
-  border-radius: var(--radius-md);
 }
 
-.role-switcher-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  color: var(--grey-400);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-
-.role-select {
-  background: transparent;
-  border: none;
-  color: var(--rust-light);
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background: var(--brand-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 700;
   font-size: 0.85rem;
-  cursor: pointer;
-  outline: none;
 }
 
-.role-select option {
-  background: var(--bg-surface);
+.user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: 0.82rem;
+  font-weight: 600;
   color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.user-role-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--brand-accent);
+}
+
+.btn-logout {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-logout:hover {
+  background: #fef2f2;
+  border-color: #fecdd3;
+  color: #e11d48;
 }
 
 /* Content Viewport */
 .content-viewport {
   flex: 1;
   padding: 2rem;
-  max-width: 1600px;
+  max-width: 1540px;
   width: 100%;
   margin: 0 auto;
 }
@@ -325,52 +381,99 @@
 .page-header {
   margin-bottom: 2rem;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 
 .page-title {
+  font-family: var(--font-heading);
   font-size: 1.85rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text-primary);
+  letter-spacing: -0.02em;
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
 .page-subtitle {
-  font-size: 0.92rem;
   color: var(--text-secondary);
-  margin-top: 0.25rem;
+  font-size: 0.95rem;
+  margin-top: 0.35rem;
 }
 
-/* Status Indicator Dot */
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.35rem 0.75rem;
-  border-radius: var(--radius-full);
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+/* ==========================================================================
+   RESPONSIVE DESIGN SYSTEM — STRICT SPEC (Section 16, 27)
+   ========================================================================== */
+
+/* Tablet & Mobile Breakpoints */
+@media (max-width: 1024px) {
+  .sidebar {
+    transform: translateX(-100%);
+    width: 280px !important;
+    box-shadow: var(--shadow-xl);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 99;
+  }
+
+  .main-wrapper {
+    margin-left: 0 !important;
+  }
+
+  .mobile-nav-toggle {
+    display: flex;
+  }
+
+  .topbar {
+    padding: 0 1.25rem;
+  }
+
+  .content-viewport {
+    padding: 1.25rem;
+  }
+
+  .topbar-search-btn span:not(.search-kbd) {
+    display: none;
+  }
 }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--white-pure);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
-}
+@media (max-width: 768px) {
+  .topbar-right {
+    gap: 0.5rem;
+  }
 
-.status-dot.connected {
-  background: var(--rust-light);
-  box-shadow: 0 0 8px var(--rust-light);
-}
+  .property-switcher-label {
+    display: none;
+  }
 
-.status-dot.degraded {
-  background: var(--grey-400);
+  .user-details {
+    display: none;
+  }
+
+  .content-viewport {
+    padding: 1rem;
+  }
+
+  .page-title {
+    font-size: 1.45rem;
+  }
+
+  .search-kbd {
+    display: none;
+  }
 }

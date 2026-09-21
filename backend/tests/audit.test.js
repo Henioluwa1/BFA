@@ -1,16 +1,21 @@
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
 const app = require('../src/app');
 const pool = require('../src/db/pool');
+const config = require('../src/config');
 
 describe('Audit Trail & Logging Tests (Section 9, 10, 26)', () => {
   afterAll(async () => {
     await pool.closePool();
   });
 
+  const adminToken = jwt.sign({ id: 2, email: 'admin@bfa.com', role: 'ADMIN' }, config.security.jwtSecret);
+  const staffToken = jwt.sign({ id: 5, email: 'staff@bfa.com', role: 'STAFF' }, config.security.jwtSecret);
+
   it('should query administrative audit logs when role is Admin', async () => {
     const res = await request(app)
       .get('/api/v1/audit')
-      .set('X-User-Role', 'Admin');
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
@@ -21,7 +26,7 @@ describe('Audit Trail & Logging Tests (Section 9, 10, 26)', () => {
   it('should reject access to audit logs when role is Staff', async () => {
     const res = await request(app)
       .get('/api/v1/audit')
-      .set('X-User-Role', 'Staff');
+      .set('Authorization', `Bearer ${staffToken}`);
 
     expect(res.statusCode).toBe(403);
     expect(res.body.success).toBe(false);
@@ -29,10 +34,12 @@ describe('Audit Trail & Logging Tests (Section 9, 10, 26)', () => {
   });
 
   it('should correlate audit entry with X-Request-Id when action is performed', async () => {
-    const customRequestId = `req-trace-audit-${Date.now()}`;
-    const dynamicDay = Math.floor(Math.random() * 20) + 10;
-    const checkIn = `2035-08-${dynamicDay}`;
-    const checkOut = `2035-08-${dynamicDay + 1}`;
+    const customRequestId = `req-trace-audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const futureDays = 5000 + Math.floor(Math.random() * 3000);
+    const d = new Date(Date.now() + futureDays * 86400000);
+    const checkIn = d.toISOString().split('T')[0];
+    d.setDate(d.getDate() + 1);
+    const checkOut = d.toISOString().split('T')[0];
 
     // Create a 1-night reservation with custom requestId
     const createRes = await request(app)
@@ -53,7 +60,7 @@ describe('Audit Trail & Logging Tests (Section 9, 10, 26)', () => {
     // Query audit logs and verify entry has request_id
     const auditRes = await request(app)
       .get('/api/v1/audit?action=RESERVATION_CREATED')
-      .set('X-User-Role', 'Admin');
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(auditRes.statusCode).toBe(200);
     const traceEntry = auditRes.body.data.find((e) => e.request_id === customRequestId);

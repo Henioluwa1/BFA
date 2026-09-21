@@ -8,48 +8,52 @@ The system strictly adheres to the non-negotiable multi-property domain model:
 
 ```
 BFA Company 
- └── Properties/Buildings (dynamic: 1 to many)
+ └── Multiple Properties/Buildings (dynamic: 1 to many)
       └── Apartments/Units (dynamic: 1 to many per property)
-           └── Reservations (booking & stay records — strictly 1 night maximum)
-                ├── Tenants/Guests (staying profiles)
-                ├── Payments (traceable financial records)
-                ├── Inspections (pre/post-stay assessments)
-                └── Agents (third-party client bookings & commissions)
+           └── Reservations (underlying 1-night stay constraint)
+                └── Tenants/Guests (staying profiles)
 ```
 
-Each apartment/unit belongs to **exactly one property/building**. The system never hardcodes properties, unit counts, or room structures.
+Each apartment/unit belongs to **exactly one property/building**. The system never assumes BFA operates from only one building.
+
+---
+
+## 🌐 Public Website vs Authenticated Portal
+
+The application strictly separates public and internal systems:
+
+- **Public Area**:
+  - **Landing Page (`/`)**: Brand identity, dynamic properties showcase, apartment listings, amenities, and contact information.
+  - **Online Reservation Engine**: Real-time availability check and instant public booking creation adhering to the authoritative availability and 1-night rule engine.
+  - **Single Login Page (`/login`)**: The sole authentication entry point for all internal roles.
+- **Authenticated Area (`/app/*`)**:
+  - Operational Dashboard, Calendar, Reservations, Apartments, Financial, Reports, Analytics, Agents, Maintenance, Inspection, Audit Trail, Team, and Settings.
+  - Protected by backend-verified cryptographic JWT tokens.
+
+---
+
+## 🔒 Authoritative Authentication & RBAC
+
+The system enforces strict backend-authoritative security:
+- **Zero Frontend Authority**: Users can NEVER manually select or switch roles in the interface.
+- Role and permissions are resolved exclusively by the backend during authentication against the `users` table.
+- Client headers such as `X-User-Role` are ignored as security boundaries.
+- The 7 roles are:
+  1. **Super Admin**: System-level administration, database/tenant management (Grey portal background).
+  2. **Admin**: Full property management, company settings, team governance, and reports (White portal background).
+  3. **Manager**: Operational management, units, staff, maintenance, and reservations.
+  4. **Receptionist**: Daily arrivals, departures, check-in/out, reservations, and calendar.
+  5. **Staff**: Housekeeping turnover and maintenance work orders.
+  6. **Agent**: Isolated client reservations and commission tracking.
+  7. **Owner**: Executive portfolio yield, net income, and asset performance.
 
 ---
 
 ## 🎨 Visual System Standard
 
-The user interface strictly adheres to a three-color luxury minimalist corporate palette:
-- **Base**: Crisp Dark Slate Grey / Charcoal (`#1a1f26`, `#14181d`, `#262d38`)
-- **Neutral**: Crisp Pure White (`#ffffff`) and Soft Slate Off-White (`#f8fafc`)
-- **Accent**: **Rust Orange** (`#c25e2e` primary, `#d36531` hover, `#a8481d` active)
-
-*No blues, greens, yellows, or champagne gold are permitted.*
-
----
-
-## 🛠️ Technology Stack & Modular Monolith
-
-- **Backend**:
-  - Node.js (v24+), Express 4, MySQL 8 / MariaDB (via `mysql2/promise`)
-  - **Modular Monolith Layout**: Foundational `core/` (errors, logging, audit, security, middleware) and autonomous `modules/` (properties, apartments, reservations, search, reports, audit)
-  - Standardized RESTful versioned endpoints (`/api/v1/`) with backward-compatible aliases
-  - Structured Winston logging with sensitive parameter scrubbing (`[REDACTED]`)
-  - Immutable audit trail with `X-Request-Id` correlation
-  - Reporting: RFC 4180 CSV export and programmatic executive PDF generation via `pdfkit`
-- **Frontend**:
-  - React 18, Vite, React Router v6, Axios
-  - Strict Grey/White/Rust design system with centralized role-specific arrangements (`roleThemes.css`)
-  - Global Categorized Search modal with `Ctrl+K` shortcut and RBAC isolation
-  - Interactive Property Switcher and Role Switcher (`X-User-Role` client injection)
-- **1-Night Maximum Reservation Rule**:
-  - Database level: `CONSTRAINT chk_one_night CHECK (DATEDIFF(check_out_date, check_in_date) = 1)`
-  - Backend API: Validates duration = 1 night, rejects invalid spans with HTTP 422 `VALIDATION_ERROR`
-  - Frontend UI: Automatic calculation and locking of check-out date to check-in + 1 day
+- **Normal Authenticated Portal**: **WHITE** primary background (`#ffffff` / `#f8fafc`) providing a clean, accessible, modern workspace.
+- **Super Admin Portal**: **GREY** primary background (`#14181f` / `#1a2029`) visually distinguishing the system-level administration environment.
+- Fully responsive across **Desktop** (1280px+), **Tablet** (768px), and **Mobile** (390px) with collapsible mobile navigation drawer.
 
 ---
 
@@ -70,30 +74,18 @@ cp backend/.env.example backend/.env
 npm run db:migrate
 ```
 
-### 4. Development
+### 4. Run Development Servers
 ```bash
 # Run both backend and frontend concurrently:
 npm run dev
 
 # Or run individually:
-npm run dev:backend   # Starts API on http://localhost:5000
-npm run dev:frontend  # Starts UI on http://localhost:5173
+npm run dev:backend   # API on http://localhost:5000
+npm run dev:frontend  # UI on http://localhost:5173
 ```
 
 ### 5. Automated Tests
 ```bash
 npm test
 ```
-All 6 test suites and 20 tests pass out of the box (Health, Errors, One-Night Rule, Search, Reports, Audit).
-
----
-
-## 📋 Role-Based Access Control (RBAC)
-
-The system is configured with 6 primary roles:
-1. **Admin**: System governance, security audit trails, and configuration.
-2. **Manager**: Operational oversight, financial metrics, and maintenance scheduling.
-3. **Receptionist**: Daily front-desk operations, 1-night check-ins, and guest arrivals.
-4. **Staff**: Housekeeping, unit turnover, and maintenance work orders.
-5. **Agent**: Third-party bookings, commission balances, and restricted queries.
-6. **Owner**: High-level portfolio ROI, net income yields, and asset performance.
+All 7 test suites and 32 tests pass out of the box (Health, Errors, Security & RBAC, One-Night Rule, Search, Reports, Audit).

@@ -17,9 +17,11 @@ describe('Critical One-Night Maximum Reservation Rule (Section 16)', () => {
 
   it('should ACCEPT reservation when duration is exactly ONE NIGHT', async () => {
     // Use dynamic unique date to avoid conflict with existing test runs
-    const uniqueYear = 2030 + Math.floor(Math.random() * 10);
-    const checkIn = `${uniqueYear}-05-10`;
-    const checkOut = `${uniqueYear}-05-11`;
+    const futureDays = 2000 + Math.floor(Math.random() * 2000);
+    const d = new Date(Date.now() + futureDays * 86400000);
+    const checkIn = d.toISOString().split('T')[0];
+    d.setDate(d.getDate() + 1);
+    const checkOut = d.toISOString().split('T')[0];
 
     const res = await request(app)
       .post('/api/v1/reservations')

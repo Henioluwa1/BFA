@@ -2,63 +2,74 @@
 
 ## 1. Architectural Principles
 
-1. **Modular Monolith Architecture**:
-   - Organized into a shared foundational `src/core/` and autonomous domain `src/modules/`.
-   - Direct module coupling is prohibited; modules communicate via typed services or standard database queries.
-   - Unified routing mounts versioned RESTful endpoints under `/api/v1/`.
-   - Backward-compatible aliases retained under legacy roots (`/health`, `/api/health`, etc.).
+1. **Mandatory BFA Business Hierarchy**:
+   - The system strictly adheres to the non-negotiable multi-property hierarchy:
+     **BFA Company → Multiple Properties/Buildings → Apartments/Units → Reservations → Tenants/Guests**
+   - BFA is NOT a single-building system. Each property may contain a different number of apartments/units.
+   - Terminology is strictly standardized:
+     - Company
+     - Property/Building
+     - Apartment/Unit
+     - Reservation
+     - Tenant/Guest
 
-2. **Strict Multi-Property Scalability**:
-   - Company (`BFA`) owns/manages `1..N` physical Properties.
-   - Each Property contains `1..N` Apartments/Units.
-   - Every apartment belongs to exactly one property.
-   - Properties, units, and rooms are never hardcoded.
+2. **Backend-Authoritative Security & Authentication**:
+   - Single unified authentication entry point at `/login` for all roles.
+   - Credentials submitted to `POST /api/v1/auth/login`; validated against the `users` table with bcrypt password verification.
+   - Cryptographic JWT tokens issued by backend containing authoritative identity, role, and permissions dictionary.
+   - **Zero Trust on Client Role Selection**:
+     - Users can NEVER manually select or switch roles in the interface.
+     - `X-User-Role` headers, `localStorage.role`, or client role dropdowns are strictly ignored and eliminated.
+     - Backend authorization guards (`requireAuth`, `requireRoles`) serve as the authoritative security boundary.
 
-3. **Mandatory 1-Night Maximum Reservation Rule**:
-   - In accordance with business rules, reservations are strictly limited to **1 night only**.
-   - `check_out_date` MUST equal `check_in_date + 1 day`.
-   - Multi-layered defense:
-     - **Database Layer**: `CONSTRAINT chk_one_night CHECK (DATEDIFF(check_out_date, check_in_date) = 1)`
-     - **Service/Backend Layer**: Validates `DATEDIFF === 1` and throws HTTP 422 `VALIDATION_ERROR`.
-     - **Frontend UI Layer**: Auto-calculates and disables/locks the check-out date field when check-in is selected.
+3. **Portal Theming & Visual Distinction (White vs Grey)**:
+   - **White Primary Background**: Standard for normal authenticated operational roles (`ADMIN`, `MANAGER`, `RECEPTIONIST`, `STAFF`, `AGENT`, `OWNER`).
+   - **Grey Primary Background**: Exclusively reserved for `SUPER_ADMIN` to visually delineate the system-level administrative console (`data-portal-theme="super_admin"`).
+   - This distinction is non-user-controllable and derived solely from the authenticated user's backend identity.
+   - The former strict Grey/White/Rust Orange global palette constraint has been removed in favor of a modern, accessible, executive hospitality design system.
 
-4. **Categorized Global Search Engine**:
-   - Endpoint: `GET /api/v1/search?q=:query&property_id=:propertyId`
-   - Real-time categorized results across: Properties, Apartments, Reservations, Maintenance, and Agents.
-   - **Role-Based Access Control (RBAC) Isolation**:
-     - Agents only receive agent-scoped data (e.g. own profile, restricted queries).
-     - Staff/Receptionist cannot access sensitive owner-level financial data.
-     - Admin/Manager have full multi-entity search scope.
-   - Multi-property scoping: when a property is active in the context, search results prioritize or filter by property.
+4. **Public vs Authenticated Systems**:
+   - **Public Area**:
+     - Public Landing Page (`/`): Introduces BFA properties, apartments, amenities, and contact information.
+     - Online Reservation Engine: Allows public visitors to select property, apartment, and check-in date with live availability verification and instant reservation creation.
+     - Single Login Page (`/login`).
+   - **Authenticated Area (`/app/*`)**:
+     - Operational Dashboard, Calendar, All Reservations, Apartments, Financial, Analytics, Agents, Maintenance, Inspection, Audit Trail, Team, Settings.
+     - Protected by cryptographic authentication guard (`ProtectedRoute`).
 
-5. **Security, Sensitive Data Redaction & Correlation**:
-   - Structured JSON logging via Winston with automatic redaction of sensitive keys (`password`, `token`, `jwt`, `secret`, `authorization`, `creditcard`, `api_key`).
-   - Every request is tagged with a unique `X-Request-Id` (UUID v4), correlated across logger metadata and audit logs.
-   - Client-provided roles in `X-User-Role` validated by `authContext` middleware against authorized role definitions: `admin`, `manager`, `receptionist`, `staff`, `agent`, `owner`.
+5. **Operational BFA Dashboard**:
+   - Built to answer: *"What is happening across BFA right now?"*
+   - Real-time operational indicators:
+     - Today's Arrivals & Departures
+     - Current In-House Tenants / Guests
+     - Available vs Occupied Units
+     - Confirmed vs Pending Reservations
+     - Revenue & Outstanding Balances
+     - Open & Critical Maintenance Issues
+     - Multi-Property Filtering (`All Properties` vs individual building selection)
+   - The one-night reservation rule remains strictly enforced as an underlying backend constraint, with special dashboard branding and test engine cards completely removed.
 
-6. **Immutable Correlated Audit Trail**:
-   - Dedicated `src/core/audit/audit.service.js` records actions synchronously or asynchronously into `audit_logs`.
-   - Stored fields: `actor_id`, `actor_email`, `actor_role`, `action`, `entity_type`, `entity_id`, `old_values`, `new_values`, `request_id`, `ip_address`, `user_agent`.
-   - Query endpoint: `GET /api/v1/audit` with RBAC restriction (Admin, Manager, Owner only).
+6. **Underlying 1-Night Maximum Reservation Rule**:
+   - Stays are strictly limited to **1 night only** (`check_out_date = check_in_date + 1 day`).
+   - **Database Layer**: `CONSTRAINT chk_one_night CHECK (DATEDIFF(check_out_date, check_in_date) = 1)` in `reservations` table.
+   - **Backend Service Layer**: Validates `DATEDIFF === 1` and throws HTTP 422 `VALIDATION_ERROR` for invalid spans.
+   - **Public & Internal UI**: Automatically calculates and locks checkout date to check-in + 1 day.
 
-7. **Financial & Operational Reporting Engine**:
-   - Endpoint: `GET /api/v1/reports/reservations?format=csv&property_id=...`
-     - Strictly formatted RFC 4180 CSV export with proper escaping and quotes.
-   - Endpoint: `GET /api/v1/reports/financial?format=pdf&property_id=...`
-     - Clean, programmatic, executive PDF generation powered by `pdfkit` (revenue, ADR, occupancy, property breakdown).
+7. **Categorized Global Search & RBAC Data Isolation**:
+   - Endpoint: `GET /api/v1/search?q=:query&propertyId=:propertyId`
+   - Real-time search across: Properties, Apartments, Reservations, Maintenance, Agents.
+   - Strict agent isolation (agents cannot view other agents or unauthorized records).
+   - Staff roles prevented from viewing executive financials.
 
-8. **Strict Visual System Standard (Grey, White, Rust Orange ONLY)**:
-   - Zero tolerance for blues, greens, yellows, or champagne gold.
-   - Base Palette: High-contrast Dark Grey / Slate Charcoal (`#1a1f26`, `#14181d`, `#262d38`).
-   - Surface Palette: Clean Crisp White (`#ffffff`) and Soft Off-White (`#f8fafc`).
-   - Accent / Brand Palette: **Rust Orange** (`#c25e2e` primary, `#d36531` hover, `#a8481d` active).
-   - Centralized Role Styling (`frontend/src/styles/roleThemes.css`) using `[data-role="..."]` for tailored dashboard arrangements:
-     - `admin`: Full system oversight, audit trails, and user management.
-     - `manager`: Operational KPIs, financial digests, and maintenance queues.
-     - `receptionist`: Daily front-desk arrivals, departures, and 1-night check-ins.
-     - `staff`: Housekeeping and operational maintenance task lists.
-     - `agent`: Commission balances, assigned bookings, and client reservations.
-     - `owner`: Portfolio ROI, net income yields, and property asset overviews.
+8. **Correlated Audit Trail & Reporting Engine**:
+   - `src/core/audit/audit.service.js` records actions correlated with HTTP `X-Request-Id`.
+   - Accessible only to authorized roles (`SUPER_ADMIN`, `ADMIN`, `MANAGER`, `OWNER`) at `/api/v1/audit`.
+   - Reporting module provides RFC 4180 CSV exports and programmatic PDF generation via `pdfkit`.
+
+9. **Strict Responsive Design Across Viewports**:
+   - Desktop (1200px+): Full navigation sidebar and comprehensive multi-column dashboard.
+   - Tablet (768px - 1024px): Responsive reflow, collapsible drawer navigation, and responsive cards.
+   - Mobile (<768px): Vertical stacked layouts, touch-friendly tap targets, horizontal scroll table wrappers, and zero horizontal page overflow.
 
 ---
 
@@ -73,11 +84,13 @@ c:\xamp\htdocs\BFA\
 │   │   ├── core/                        # Shared monolith foundation
 │   │   │   ├── audit/                   # Correlated audit logging service
 │   │   │   ├── errors/                  # Standard ApiError envelopes
-│   │   │   ├── logging/                 # Winston logger with sensitive redaction
-│   │   │   ├── middleware/              # Request ID, AuthContext, RequestLogger, ErrorHandler
+│   │   │   ├── logging/                 # Winston logger with sensitive parameter redaction
+│   │   │   ├── middleware/              # Request ID tracing, AuthContext, RequestLogger, ErrorHandler
 │   │   │   └── security/                # Helmet, CORS, Rate Limiting
-│   │   ├── db/                          # Database pool & migrations (001, 002, 003)
+│   │   ├── db/                          # Database pool & migrations (001, 002, 003, 004)
 │   │   ├── modules/                     # Autonomous domain modules
+│   │   │   ├── auth/                    # Single Login & JWT Auth (/api/v1/auth)
+│   │   │   ├── public/                  # Public landing & online booking (/api/v1/public)
 │   │   │   ├── apartments/              # Apartments REST API (/api/v1/apartments)
 │   │   │   ├── audit/                   # Audit explorer REST API (/api/v1/audit)
 │   │   │   ├── properties/              # Properties REST API (/api/v1/properties)
@@ -86,9 +99,10 @@ c:\xamp\htdocs\BFA\
 │   │   │   └── search/                  # Global categorized search engine (/api/v1/search)
 │   │   ├── app.js                       # Express app assembling core & modules
 │   │   └── server.js                    # Server bootstrap
-│   └── tests/                           # Automated Jest test suites (20 tests)
+│   └── tests/                           # 7 Automated Jest test suites (32 tests)
 │       ├── health.test.js
 │       ├── errors.test.js
+│       ├── security.test.js             # Role manipulation, auth & security tests
 │       ├── oneNightRule.test.js
 │       ├── search.test.js
 │       ├── reports.test.js
@@ -96,54 +110,23 @@ c:\xamp\htdocs\BFA\
 └── frontend/
     ├── src/
     │   ├── components/
-    │   │   ├── common/                  # Modals, toasts, buttons
-    │   │   ├── layout/                  # Sidebar, Topbar with Property & Role Switchers
-    │   │   └── search/                  # GlobalSearchModal with Ctrl+K shortcut
+    │   │   ├── auth/                    # ProtectedRoute guard
+    │   │   ├── common/                  # Buttons, badges, cards, modals
+    │   │   ├── layout/                  # Responsive AppLayout, Sidebar, Topbar
+    │   │   └── search/                  # GlobalSearchModal (Ctrl+K)
     │   ├── context/
+    │   │   ├── AuthContext.jsx          # Authoritative session, JWT, theme derivation
     │   │   ├── PropertyContext.jsx      # Global property selector
-    │   │   ├── RoleContext.jsx          # Role switcher & X-User-Role injection
     │   │   └── ToastContext.jsx         # System alert toasts
-    │   ├── pages/                       # 11 Core system views + Reports & Audit
+    │   ├── pages/
+    │   │   ├── LandingPage.jsx          # Public landing page & online booking engine
+    │   │   ├── LoginPage.jsx            # Single unified login page
+    │   │   ├── DashboardPage.jsx        # Restored BFA operational dashboard
+    │   │   └── ... (10 core module views)
     │   ├── services/
-    │   │   └── api.js                   # Axios client with request/response interceptors
+    │   │   └── api.js                   # Axios client with Bearer token interceptor
     │   └── styles/
-    │       ├── variables.css            # Strict Grey, White, Rust Orange design tokens
-    │       ├── roleThemes.css           # Centralized role arrangements
-    │       ├── layout.css               # Grid, shell, sidebar, topbar
-    │       └── components.css           # Cards, tables, badges, modals
-```
-
----
-
-## 3. Standardized API Envelope
-
-Every API response follows the established contract:
-
-### Success Response
-```json
-{
-  "success": true,
-  "message": "Operation completed successfully",
-  "data": { ... },
-  "meta": {
-    "timestamp": "2026-09-21T15:00:00.000Z",
-    "requestId": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
-  }
-}
-```
-
-### Error Response
-```json
-{
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Reservations are strictly limited to exactly 1 night. Check-out must be 2026-10-16 for check-in 2026-10-15.",
-    "details": null
-  },
-  "meta": {
-    "timestamp": "2026-09-21T15:00:00.000Z",
-    "requestId": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
-  }
-}
+    │       ├── variables.css            # White normal portal & Grey Super Admin variables
+    │       ├── layout.css               # Responsive drawer, shell, topbar
+    │       └── components.css           # Cards, responsive tables, modals
 ```

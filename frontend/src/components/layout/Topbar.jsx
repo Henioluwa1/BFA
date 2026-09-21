@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useProperty } from '../../context/PropertyContext';
-import { useRole } from '../../context/RoleContext';
+import { useAuth } from '../../context/AuthContext';
 import { systemService } from '../../services/api';
 import Breadcrumbs from './Breadcrumbs';
 import GlobalSearchModal from '../search/GlobalSearchModal';
 
-export default function Topbar() {
+export default function Topbar({ onToggleMobileNav }) {
   const { properties, activePropertyId, setActivePropertyId } = useProperty();
-  const { currentRole, setCurrentRole, activeRoleObj, roles } = useRole();
+  const { user, logout, isSuperAdmin } = useAuth();
   const [apiHealth, setApiHealth] = useState({ status: 'checking', dbStatus: 'checking' });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
@@ -42,15 +42,31 @@ export default function Topbar() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
+
   return (
     <>
       <header className="topbar">
         <div className="topbar-left">
+          {/* Mobile hamburger toggle (Section 16) */}
+          <button
+            type="button"
+            className="mobile-nav-toggle"
+            onClick={onToggleMobileNav}
+            title="Toggle Navigation Menu"
+            aria-label="Toggle navigation drawer"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
           <Breadcrumbs />
         </div>
 
         <div className="topbar-right">
-          {/* Global Search Trigger (Section 5 & 6) */}
+          {/* Global Search Trigger (Section 19) */}
           <button
             className="topbar-search-btn"
             onClick={() => setIsSearchOpen(true)}
@@ -64,7 +80,7 @@ export default function Topbar() {
             <span className="search-kbd">Ctrl K</span>
           </button>
 
-          {/* Global Multi-Property Selector (Section 1, 7, 24) */}
+          {/* Global Multi-Property Selector (Section 1 & 18) */}
           <div className="property-switcher" title="Active Property Scope">
             <span className="property-switcher-label">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -79,76 +95,49 @@ export default function Topbar() {
               id="property-switcher-select"
             >
               <option value="all">✦ All Properties</option>
-              {properties.map((prop) => (
+              {(properties || []).map((prop) => (
                 <option key={prop.id} value={prop.id}>
-                  🏢 {prop.name} ({prop.unitCount} Units)
+                  🏢 {prop.name} ({prop.unitCount || 0} Units)
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Centralized Role Switcher (Section 20 & 21) */}
-          <div className="role-switcher" title="Simulate / Switch Operational User Role">
-            <span className="role-switcher-label">Role:</span>
-            <select
-              className="role-select"
-              value={currentRole}
-              onChange={(e) => setCurrentRole(e.target.value)}
-              id="role-switcher-select"
-            >
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Backend & DB Health Indicator */}
-          <div className="status-indicator" title={`API: ${apiHealth.status} | DB: ${apiHealth.dbStatus}`}>
-            <div
-              className={`status-dot ${
-                apiHealth.status === 'connected' ? 'connected' : 'degraded'
-              }`}
-            />
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              {apiHealth.status === 'connected' ? 'Connected' : 'Connecting...'}
-            </span>
-          </div>
-
-          {/* User Role Badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-            <div
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '50%',
-                background: 'var(--role-badge-bg, var(--rust-primary))',
-                border: '1px solid var(--border-default)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 700,
-                fontSize: '0.8rem',
-                color: 'var(--role-badge-text, #ffffff)',
-              }}
-            >
-              {activeRoleObj.name.substring(0, 2).toUpperCase()}
+          {/* Authenticated User Profile Pill (Section 6 & 7: Role derived from Backend) */}
+          <div className="user-profile-pill" title={`Logged in as ${user?.name} (${user?.role})`}>
+            <div className="user-avatar" style={{ background: isSuperAdmin ? '#3b82f6' : 'var(--brand-primary)' }}>
+              {userInitial}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-              <span style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--text-primary)' }}>
-                {activeRoleObj.label}
-              </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--rust-light)', fontWeight: 700, letterSpacing: '0.04em' }}>
-                {activeRoleObj.name.toUpperCase()}
+            <div className="user-details">
+              <span className="user-name">{user?.name || 'Authorized User'}</span>
+              <span className="user-role-tag">
+                {isSuperAdmin ? '👑 SUPER ADMIN' : user?.role || 'AUTHENTICATED'}
               </span>
             </div>
           </div>
+
+          {/* Logout Action */}
+          <button
+            type="button"
+            className="btn-logout"
+            onClick={logout}
+            title="Sign out of BFA portal"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Logout</span>
+          </button>
         </div>
       </header>
 
-      {/* Global Search Modal */}
-      <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+      {/* Global Categorized Search Modal */}
+      <GlobalSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
     </>
   );
 }
