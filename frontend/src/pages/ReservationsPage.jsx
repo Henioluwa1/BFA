@@ -130,25 +130,27 @@ export default function ReservationsPage() {
         </div>
       </div>
 
-      {/* Policy Notice Card */}
+      {/* Policy Notice Card (Section 16) */}
       <div
         style={{
-          background: 'var(--grey-900)',
-          border: '1px solid var(--rust-border)',
+          background: 'var(--brand-dim)',
+          border: '1px solid var(--brand-border)',
           borderRadius: 'var(--radius-lg)',
-          padding: '1.25rem 1.5rem',
+          padding: 'clamp(1rem, 3vw, 1.25rem)',
           marginBottom: '1.5rem',
           display: 'flex',
           alignItems: 'center',
           gap: '1rem',
+          flexWrap: 'wrap',
+          boxSizing: 'border-box',
         }}
       >
-        <div style={{ fontSize: '1.8rem', color: 'var(--rust-light)' }}>ℹ</div>
-        <div>
-          <div style={{ fontWeight: 700, color: 'var(--rust-light)' }}>
+        <div style={{ fontSize: '1.8rem', color: 'var(--brand-accent)', flexShrink: 0 }}>ℹ</div>
+        <div style={{ flex: 1, minWidth: '240px' }}>
+          <div style={{ fontWeight: 700, color: 'var(--brand-accent)' }}>
             Mandatory Business Policy: 1-Night Maximum Duration (Section 16)
           </div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--grey-300)', marginTop: '0.2rem' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem', lineHeight: 1.5 }}>
             All BFA apartments and units are strictly bookable for exactly one night (<code>check_out_date = check_in_date + 1 day</code>).
             Multi-night stays and same-day checkouts are strictly rejected by the backend engine and database constraints.
           </div>
@@ -171,7 +173,7 @@ export default function ReservationsPage() {
         onClose={() => setIsModalOpen(false)}
         title="Create 1-Night Reservation"
         footer={
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <Button variant="outline" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
@@ -185,7 +187,7 @@ export default function ReservationsPage() {
           <div>
             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Select Apartment / Unit:</label>
             <select
-              style={{ width: '100%', padding: '0.6rem', background: 'var(--grey-850)', border: '1px solid var(--grey-700)', color: 'var(--white-pure)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem' }}
+              style={{ width: '100%', padding: '0.65rem 0.85rem', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem', minHeight: '42px', boxSizing: 'border-box' }}
               value={formData.apartment_id}
               onChange={(e) => setFormData({ ...formData, apartment_id: e.target.value })}
               required
@@ -206,11 +208,11 @@ export default function ReservationsPage() {
               required
               value={formData.tenant_name}
               onChange={(e) => setFormData({ ...formData, tenant_name: e.target.value })}
-              style={{ width: '100%', padding: '0.6rem', background: 'var(--grey-850)', border: '1px solid var(--grey-700)', color: 'var(--white-pure)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem' }}
+              style={{ width: '100%', padding: '0.65rem 0.85rem', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem', minHeight: '42px', boxSizing: 'border-box' }}
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '0.75rem' }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Email Address:</label>
               <input
@@ -219,7 +221,7 @@ export default function ReservationsPage() {
                 required
                 value={formData.tenant_email}
                 onChange={(e) => setFormData({ ...formData, tenant_email: e.target.value })}
-                style={{ width: '100%', padding: '0.6rem', background: 'var(--grey-850)', border: '1px solid var(--grey-700)', color: 'var(--white-pure)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem' }}
+                style={{ width: '100%', padding: '0.65rem 0.85rem', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem', minHeight: '42px', boxSizing: 'border-box' }}
               />
             </div>
             <div>
@@ -230,12 +232,12 @@ export default function ReservationsPage() {
                 required
                 value={formData.tenant_phone}
                 onChange={(e) => setFormData({ ...formData, tenant_phone: e.target.value })}
-                style={{ width: '100%', padding: '0.6rem', background: 'var(--grey-850)', border: '1px solid var(--grey-700)', color: 'var(--white-pure)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem' }}
+                style={{ width: '100%', padding: '0.65rem 0.85rem', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem', minHeight: '42px', boxSizing: 'border-box' }}
               />
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '0.75rem' }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Check-In Date:</label>
               <input
@@ -243,18 +245,18 @@ export default function ReservationsPage() {
                 required
                 value={formData.check_in_date}
                 onChange={(e) => setFormData({ ...formData, check_in_date: e.target.value })}
-                style={{ width: '100%', padding: '0.6rem', background: 'var(--grey-850)', border: '1px solid var(--grey-700)', color: 'var(--white-pure)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem' }}
+                style={{ width: '100%', padding: '0.65rem 0.85rem', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem', minHeight: '42px', boxSizing: 'border-box' }}
               />
             </div>
             <div>
-              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--rust-light)' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--brand-accent)' }}>
                 Check-Out Date (Auto 1-Night Lock):
               </label>
               <input
                 type="date"
                 disabled
                 value={calculatedCheckout}
-                style={{ width: '100%', padding: '0.6rem', background: 'var(--grey-900)', border: '1px solid var(--rust-border)', color: 'var(--rust-light)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem', fontWeight: 700 }}
+                style={{ width: '100%', padding: '0.65rem 0.85rem', background: 'var(--bg-card-hover)', border: '1px solid var(--border-default)', color: 'var(--brand-accent)', borderRadius: 'var(--radius-md)', marginTop: '0.25rem', minHeight: '42px', fontWeight: 700, boxSizing: 'border-box' }}
               />
             </div>
           </div>

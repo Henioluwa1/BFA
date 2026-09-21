@@ -13,6 +13,9 @@
   --brand-dim: rgba(37, 99, 235, 0.08);
   --brand-border: rgba(37, 99, 235, 0.25);
   --brand-glow: 0 0 16px rgba(37, 99, 235, 0.2);
+  --accent-gold: #d97706;
+  --accent-gold-dim: rgba(217, 119, 6, 0.1);
+  --touch-target-min: 44px;
 
   /* Surface Canvas & Elevation (Section 5: White as primary portal background) */
   --bg-primary: #f8fafc;
@@ -99,6 +102,9 @@
   --brand-hover: #93c5fd;
   --brand-dim: rgba(96, 165, 250, 0.15);
   --brand-border: rgba(96, 165, 250, 0.35);
+  --accent-gold: #fbbf24;
+  --accent-gold-dim: rgba(251, 191, 36, 0.15);
+  --touch-target-min: 44px;
 
   /* Grey primary canvas distinguishing system admin (Section 5) */
   --bg-primary: #14181f;

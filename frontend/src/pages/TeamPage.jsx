@@ -30,7 +30,7 @@ export default function TeamPage() {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
           {[
             { role: 'Admin', desc: 'Highest administrative authority. Full system, user, and settings control.' },
             { role: 'Manager', desc: 'Operational control of properties, units, staff, reservations. Cannot manage Admin.' },

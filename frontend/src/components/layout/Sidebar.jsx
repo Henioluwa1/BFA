@@ -139,6 +139,23 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, onCloseMo
   const { user } = useAuth();
   const userRole = (user?.role || 'STAFF').toUpperCase();
 
+  // Close drawer on Escape key and lock body scroll on mobile (Section 8)
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && mobileOpen) {
+        onCloseMobile();
+      }
+    };
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileOpen, onCloseMobile]);
+
   // Filter modules according to authenticated role permissions (Section 24)
   const authorizedNavItems = navItems.filter(
     (item) => item.roles.includes(userRole) || userRole === 'SUPER_ADMIN'
@@ -156,15 +173,28 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, onCloseMo
             <span className="brand-text">BFA APARTS</span>
             <span className="brand-tag">ERP</span>
           </Link>
-          <button
-            type="button"
-            className="collapse-toggle"
-            onClick={() => setCollapsed(!collapsed)}
-            title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-            aria-label="Toggle Sidebar"
-          >
-            {collapsed ? '→' : '←'}
-          </button>
+          {mobileOpen ? (
+            <button
+              type="button"
+              className="collapse-toggle"
+              onClick={onCloseMobile}
+              title="Close Menu"
+              aria-label="Close navigation drawer"
+              style={{ minWidth: '34px', minHeight: '34px', fontSize: '1.1rem' }}
+            >
+              ✕
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="collapse-toggle"
+              onClick={() => setCollapsed(!collapsed)}
+              title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+              aria-label="Toggle Sidebar"
+            >
+              {collapsed ? '→' : '←'}
+            </button>
+          )}
         </div>
 
         <nav className="sidebar-nav">

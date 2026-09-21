@@ -57,11 +57,12 @@ export default function LoginPage() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '1.5rem',
+        padding: 'clamp(1rem, 3vw, 1.5rem)',
         fontFamily: 'var(--font-body)',
+        boxSizing: 'border-box',
       }}
     >
-      <div style={{ maxWidth: '440px', width: '100%', marginBottom: '1.5rem', textAlign: 'center' }}>
+      <div style={{ maxWidth: '440px', width: '100%', marginBottom: '1.25rem', textAlign: 'center' }}>
         <Link to="/" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.6rem' }}>
           <div
             style={{
@@ -76,6 +77,7 @@ export default function LoginPage() {
               fontWeight: 800,
               fontSize: '1.3rem',
               boxShadow: '0 4px 10px rgba(37, 99, 235, 0.3)',
+              flexShrink: 0,
             }}
           >
             B
@@ -84,7 +86,7 @@ export default function LoginPage() {
             BFA APARTMENTS
           </span>
         </Link>
-        <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+        <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '0.35rem' }}>
           Single Unified Authentication Portal (Section 10)
         </p>
       </div>
@@ -97,7 +99,8 @@ export default function LoginPage() {
           borderRadius: '16px',
           border: '1px solid #e2e8f0',
           boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.08)',
-          padding: '2.25rem',
+          padding: 'clamp(1.15rem, 4vw, 2.25rem)',
+          boxSizing: 'border-box',
         }}
       >
         <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>
@@ -177,7 +180,7 @@ export default function LoginPage() {
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.65rem' }}>
             ⚡ 1-Click Test Credentials (Evaluator Mode)
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '0.4rem' }}>
             {[
               { label: '👑 Super Admin', email: 'superadmin@bfa.com' },
               { label: '🛡️ Admin', email: 'admin@bfa.com' },
@@ -195,12 +198,15 @@ export default function LoginPage() {
                   background: '#f8fafc',
                   border: '1px solid #e2e8f0',
                   borderRadius: '6px',
-                  padding: '0.4rem 0.5rem',
-                  fontSize: '0.75rem',
+                  padding: '0.5rem 0.6rem',
+                  fontSize: '0.78rem',
                   fontWeight: 600,
                   color: '#334155',
                   cursor: 'pointer',
                   textAlign: 'left',
+                  minHeight: '38px',
+                  display: 'flex',
+                  alignItems: 'center',
                 }}
               >
                 {acc.label}

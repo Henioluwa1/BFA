@@ -28,6 +28,7 @@ export default function LandingPage() {
   const [guestPhone, setGuestPhone] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -110,14 +111,14 @@ export default function LandingPage() {
   };
 
   return (
-    <div style={{ background: '#ffffff', minHeight: '100vh', color: '#0f172a', fontFamily: 'var(--font-body)' }}>
-      {/* 1. Public Top Navigation Bar */}
+    <div style={{ background: '#ffffff', minHeight: '100vh', color: '#0f172a', fontFamily: 'var(--font-body)', overflowX: 'hidden' }}>
+      {/* 1. Public Top Navigation Bar (Section 21) */}
       <header
         style={{
           borderBottom: '1px solid #e2e8f0',
           position: 'sticky',
           top: 0,
-          background: 'rgba(255, 255, 255, 0.95)',
+          background: 'rgba(255, 255, 255, 0.96)',
           backdropFilter: 'blur(8px)',
           zIndex: 100,
         }}
@@ -126,7 +127,7 @@ export default function LandingPage() {
           style={{
             maxWidth: '1240px',
             margin: '0 auto',
-            padding: '1rem 1.5rem',
+            padding: '0.85rem 1.25rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -145,12 +146,13 @@ export default function LandingPage() {
                 justifyContent: 'center',
                 fontWeight: 800,
                 fontSize: '1.2rem',
+                flexShrink: 0,
               }}
             >
               B
             </div>
             <div>
-              <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: '1.15rem', color: '#0f172a' }}>
+              <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: '1.15rem', color: '#0f172a', lineHeight: 1.2 }}>
                 BFA APARTMENTS
               </div>
               <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -159,7 +161,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          {/* Desktop Navigation */}
+          <nav className="landing-desktop-nav">
             <a href="#properties" style={{ textDecoration: 'none', color: '#475569', fontWeight: 600, fontSize: '0.9rem' }}>
               Properties
             </a>
@@ -188,14 +191,65 @@ export default function LandingPage() {
               Portal Login →
             </Link>
           </nav>
+
+          {/* Mobile Navigation Toggle Button */}
+          <button
+            type="button"
+            className="landing-mobile-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle Navigation Menu"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              {mobileMenuOpen ? (
+                <path d="M18 6L6 18M6 6l12 12" />
+              ) : (
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
         </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <div className="landing-mobile-menu">
+            <a href="#properties" onClick={() => setMobileMenuOpen(false)}>
+              🏢 Properties
+            </a>
+            <a href="#booking" onClick={() => setMobileMenuOpen(false)}>
+              📅 Online Booking
+            </a>
+            <a href="#features" onClick={() => setMobileMenuOpen(false)}>
+              ✨ Amenities
+            </a>
+            <Link
+              to="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                background: '#2563eb',
+                color: '#ffffff',
+                textDecoration: 'none',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                marginTop: '0.5rem',
+              }}
+            >
+              Portal Login →
+            </Link>
+          </div>
+        )}
       </header>
 
       {/* 2. Hero Section */}
       <section
         style={{
           background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)',
-          padding: '4.5rem 1.5rem 3.5rem',
+          padding: 'clamp(2.5rem, 6vw, 4.5rem) 1.25rem 3rem',
           textAlign: 'center',
           borderBottom: '1px solid #f1f5f9',
         }}
@@ -222,7 +276,7 @@ export default function LandingPage() {
           <h1
             style={{
               fontFamily: 'var(--font-heading)',
-              fontSize: 'clamp(2.2rem, 5vw, 3.4rem)',
+              fontSize: 'clamp(1.85rem, 5vw, 3.4rem)',
               fontWeight: 800,
               lineHeight: 1.15,
               color: '#0f172a',
@@ -232,11 +286,11 @@ export default function LandingPage() {
           >
             Refined Living Across Premier BFA Buildings
           </h1>
-          <p style={{ fontSize: '1.15rem', color: '#475569', lineHeight: 1.6, marginBottom: '2rem' }}>
+          <p style={{ fontSize: 'clamp(0.95rem, 2.5vw, 1.15rem)', color: '#475569', lineHeight: 1.6, marginBottom: '2rem' }}>
             BFA manages luxury apartments and serviced residences equipped with 24/7 guaranteed power,
             high-speed fiber optics, dedicated concierge, and exceptional comfort.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <div className="landing-hero-actions">
             <a
               href="#booking"
               style={{
@@ -289,11 +343,12 @@ export default function LandingPage() {
               borderRadius: '16px',
               border: '1px solid #e2e8f0',
               boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08)',
-              padding: '2rem',
+              padding: 'clamp(1.15rem, 4vw, 2rem)',
+              boxSizing: 'border-box',
             }}
           >
             <form onSubmit={handleCheckAvailability}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
                 {/* Property Selector */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#475569', marginBottom: '0.4rem' }}>
@@ -459,7 +514,7 @@ export default function LandingPage() {
                     <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#065f46', marginBottom: '0.75rem' }}>
                       Enter Guest Details to Confirm Reservation:
                     </h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                       <input
                         type="text"
                         placeholder="Full Name"
@@ -510,12 +565,12 @@ export default function LandingPage() {
       </section>
 
       {/* 4. Properties Showcase Section (Section 1 & 12) */}
-      <section id="properties" style={{ padding: '4.5rem 1.5rem', maxWidth: '1240px', margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+      <section id="properties" style={{ padding: 'clamp(2.5rem, 5vw, 4.5rem) 1.25rem', maxWidth: '1240px', margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Dynamic Portfolio
           </div>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '2.2rem', fontWeight: 800, color: '#0f172a' }}>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.75rem, 4vw, 2.2rem)', fontWeight: 800, color: '#0f172a' }}>
             BFA Managed Properties
           </h2>
           <p style={{ color: '#64748b', fontSize: '1rem', maxWidth: '600px', margin: '0.5rem auto 0' }}>
@@ -523,7 +578,7 @@ export default function LandingPage() {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1.75rem' }}>
           {properties.map((prop) => (
             <div
               key={prop.id}
@@ -588,10 +643,10 @@ export default function LandingPage() {
       </section>
 
       {/* 5. Features & Services Section */}
-      <section id="features" style={{ padding: '4.5rem 1.5rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
+      <section id="features" style={{ padding: 'clamp(2.5rem, 5vw, 4.5rem) 1.25rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
         <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '2.2rem', fontWeight: 800, color: '#0f172a' }}>
+          <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.75rem, 4vw, 2.2rem)', fontWeight: 800, color: '#0f172a' }}>
               Standard Across Every BFA Residence
             </h2>
             <p style={{ color: '#64748b', fontSize: '1rem' }}>
@@ -599,7 +654,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '1.5rem' }}>
             {[
               { icon: '⚡', title: '24/7 Guaranteed Power', desc: 'Dual-redundant generators and continuous uninterrupted solar-hybrid supply.' },
               { icon: '🌐', title: 'Enterprise Fiber Internet', desc: 'Ultra-low latency dedicated Wi-Fi 6 connectivity in every suite.' },
@@ -640,7 +695,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '3rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '1.75rem', flexWrap: 'wrap' }}>
             <div>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.75rem' }}>Navigation</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.85rem' }}>

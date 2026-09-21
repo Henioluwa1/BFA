@@ -18,7 +18,7 @@ export default function SettingsPage() {
       </div>
 
       <Card title="Company & System Settings Architecture (Section 22)">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '1rem' }}>
           <div style={{ background: 'var(--bg-card)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
             <h4 style={{ color: 'var(--accent-gold)', marginBottom: '0.5rem' }}>🏢 Company Profile</h4>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>

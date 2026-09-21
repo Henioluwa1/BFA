@@ -111,17 +111,18 @@ export default function DashboardPage() {
           background: 'var(--bg-card)',
           border: '1px solid var(--border-default)',
           borderRadius: 'var(--radius-lg)',
-          padding: '1.25rem 1.75rem',
-          marginBottom: '1.75rem',
+          padding: 'clamp(1rem, 3vw, 1.5rem)',
+          marginBottom: '1.5rem',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           boxShadow: 'var(--shadow-sm)',
           flexWrap: 'wrap',
           gap: '1rem',
+          boxSizing: 'border-box',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           <div
             style={{
               width: '46px',
@@ -133,18 +134,19 @@ export default function DashboardPage() {
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '1.4rem',
+              flexShrink: 0,
             }}
           >
             🏢
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--brand-accent)', fontWeight: 700 }}>
               Active Property Scope
             </div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.25 }}>
               {isAllProperties ? 'All BFA Properties (Portfolio-Wide Global View)' : activeProperty?.name}
             </div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
               {isAllProperties
                 ? `Monitoring operations across ${properties.length} active multi-unit properties`
                 : `Property Code: ${activeProperty?.code} • Location: ${activeProperty?.location} • ${activeProperty?.unitCount} Rentable Units`}
@@ -163,7 +165,7 @@ export default function DashboardPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
           gap: '1.25rem',
           marginBottom: '2rem',
         }}
@@ -314,7 +316,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 4. Operational Tables & Activity */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
         {/* Recent Reservations & Arrivals */}
         <Card
           title="Recent Reservations & Arrivals"

@@ -48,7 +48,7 @@ export default function AuditPage() {
       width: '120px',
       render: (val, row) => (
         <div>
-          <div style={{ fontWeight: 600, color: 'var(--rust-light)' }}>{val || 'SYSTEM'}</div>
+          <div style={{ fontWeight: 600, color: 'var(--brand-accent)' }}>{val || 'SYSTEM'}</div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{row.actor_email || 'internal'}</div>
         </div>
       ),
@@ -71,7 +71,7 @@ export default function AuditPage() {
       header: 'Trace Request ID',
       key: 'request_id',
       render: (val) => (
-        <code style={{ fontSize: '0.78rem', background: 'var(--grey-800)', padding: '2px 6px', borderRadius: '4px', color: 'var(--grey-300)' }}>
+        <code style={{ fontSize: '0.76rem', background: 'var(--bg-card-hover)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-primary)', wordBreak: 'break-all', display: 'inline-block', maxWidth: '180px' }}>
           {val || 'internal'}
         </code>
       ),
@@ -125,7 +125,7 @@ export default function AuditPage() {
               className="property-select"
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value)}
-              style={{ background: 'var(--grey-800)', padding: '4px 10px', borderRadius: '4px' }}
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
             >
               <option value="">All Actions</option>
               <option value="RESERVATION_CREATED">RESERVATION_CREATED</option>
@@ -134,7 +134,7 @@ export default function AuditPage() {
             </select>
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Total Audit Records: <strong style={{ color: 'var(--white-pure)' }}>{total}</strong>
+            Total Audit Records: <strong style={{ color: 'var(--text-primary)' }}>{total}</strong>
           </div>
         </div>
       </Card>

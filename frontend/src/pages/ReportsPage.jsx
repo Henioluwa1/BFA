@@ -110,14 +110,14 @@ export default function ReportsPage() {
           </div>
 
           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            Active Scope: <strong style={{ color: 'var(--rust-light)' }}>{isAllProperties ? 'All Properties' : activeProperty?.name}</strong>
+            Active Scope: <strong style={{ color: 'var(--brand-accent)' }}>{isAllProperties ? 'All Properties' : activeProperty?.name}</strong>
           </div>
         </div>
       </Card>
 
       {/* Financial Summary Card if financial selected */}
       {reportType === 'financial' && financialSummary && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
           <Card>
             <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Booked Value</div>
             <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.25rem' }}>
@@ -126,19 +126,19 @@ export default function ReportsPage() {
           </Card>
           <Card>
             <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Collected</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--white-pure)', marginTop: '0.25rem' }}>
+            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#16a34a', marginTop: '0.25rem' }}>
               ${financialSummary.totalCollected.toFixed(2)}
             </div>
           </Card>
           <Card>
             <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Outstanding</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--rust-light)', marginTop: '0.25rem' }}>
+            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#ef4444', marginTop: '0.25rem' }}>
               ${financialSummary.totalOutstanding.toFixed(2)}
             </div>
           </Card>
           <Card>
             <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Net Operating Profit</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--white-pure)', marginTop: '0.25rem' }}>
+            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--brand-accent)', marginTop: '0.25rem' }}>
               ${financialSummary.netProfit.toFixed(2)}
             </div>
           </Card>

@@ -15,12 +15,17 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
       setTimeout(() => inputRef.current?.focus(), 50);
     } else {
+      document.body.style.overflow = '';
       setQuery('');
       setResults(null);
       setError(null);
     }
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen]);
 
   // Debounced search query
@@ -63,7 +68,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div
         className="modal-content"
-        style={{ maxWidth: '650px', background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}
+        style={{ maxWidth: 'min(94vw, 650px)', background: 'var(--bg-card)', border: '1px solid var(--border-default)', boxSizing: 'border-box' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Bar */}
@@ -72,18 +77,18 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
-            padding: '1rem 1.25rem',
+            padding: '0.85rem 1.15rem',
             borderBottom: '1px solid var(--border-subtle)',
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--rust-primary)" strokeWidth="2.5">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--brand-accent)" strokeWidth="2.5" style={{ flexShrink: 0 }}>
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
             ref={inputRef}
             type="text"
             className="search-modal-input"
-            placeholder="Search properties, units, reservations, guests, maintenance... (Esc to close)"
+            placeholder="Search records, units, guests... (Esc)"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{
@@ -91,16 +96,19 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
               background: 'transparent',
               border: 'none',
               color: 'var(--text-primary)',
-              fontSize: '1.05rem',
+              fontSize: '1rem',
               outline: 'none',
+              minWidth: 0,
             }}
           />
-          {loading && <span style={{ color: 'var(--rust-light)', fontSize: '0.85rem' }}>Searching...</span>}
+          {loading && <span style={{ color: 'var(--brand-accent)', fontSize: '0.82rem', flexShrink: 0 }}>Searching...</span>}
           <button
+            type="button"
             className="collapse-toggle"
             onClick={onClose}
             title="Close Search"
-            style={{ width: '28px', height: '28px' }}
+            aria-label="Close Search"
+            style={{ width: '36px', height: '36px', minWidth: '36px', flexShrink: 0, fontSize: '1rem' }}
           >
             ✕
           </button>
