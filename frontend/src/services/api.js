@@ -86,6 +86,9 @@ export const apartmentService = {
   update: (id, data) => api.put(`/apartments/${id}`, data),
   updateStatus: (id, data) => api.patch(`/apartments/${id}/status`, data),
   checkAvailability: (id, params) => api.get(`/apartments/${id}/availability`, { params }),
+  getBlockedPeriods: (id) => api.get(`/apartments/${id}/blocked-periods`),
+  addBlockedPeriod: (id, data) => api.post(`/apartments/${id}/blocked-periods`, data),
+  deleteBlockedPeriod: (id, blockId) => api.delete(`/apartments/${id}/blocked-periods/${blockId}`),
 };
 
 export const reservationService = {

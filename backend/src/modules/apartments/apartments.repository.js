@@ -233,6 +233,54 @@ class ApartmentsRepository {
       checkInDate,
     };
   }
+
+  /**
+   * Add operational blocked period
+   */
+  static async addBlockedPeriod({ propertyId, apartmentId, startDate, endDate, reason, blockedById }) {
+    const result = await pool.query(
+      `INSERT INTO blocked_periods (property_id, apartment_id, start_date, end_date, reason, blocked_by_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [propertyId, apartmentId, startDate, endDate, reason, blockedById]
+    );
+    return result.insertId;
+  }
+
+  /**
+   * Get blocked periods for unit
+   */
+  static async getBlockedPeriods(apartmentId) {
+    return pool.query(
+      `SELECT bp.*, u.full_name as blocked_by_name
+       FROM blocked_periods bp
+       LEFT JOIN users u ON u.id = bp.blocked_by_id
+       WHERE bp.apartment_id = ?
+       ORDER BY bp.start_date DESC`,
+      [apartmentId]
+    );
+  }
+
+  /**
+   * Find blocked period by ID
+   */
+  static async findBlockedPeriodById(blockId) {
+    const [row] = await pool.query(
+      `SELECT bp.*, a.property_id
+       FROM blocked_periods bp
+       JOIN apartments a ON a.id = bp.apartment_id
+       WHERE bp.id = ?`,
+      [blockId]
+    );
+    return row || null;
+  }
+
+  /**
+   * Delete blocked period
+   */
+  static async deleteBlockedPeriod(blockId) {
+    const result = await pool.query(`DELETE FROM blocked_periods WHERE id = ?`, [blockId]);
+    return result.affectedRows > 0;
+  }
 }
 
 module.exports = ApartmentsRepository;

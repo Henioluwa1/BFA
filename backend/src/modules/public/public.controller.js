@@ -171,6 +171,7 @@ async function createPublicBooking(req, res, next) {
         tenant_email: guestEmail,
         tenant_phone: guestPhone,
         check_in_date: checkInDate,
+        check_out_date: req.body.checkOutDate || req.body.check_out_date,
         source: 'ONLINE',
         payment_method: finalPaymentMethod,
         payment_status: isPayAtProperty ? 'PAYMENT_PENDING' : 'PAYMENT_SUCCESS',

@@ -1,6 +1,7 @@
 const ApartmentsRepository = require('./apartments.repository');
 const PropertiesRepository = require('../properties/properties.repository');
 const AuditService = require('../../core/audit/audit.service');
+const pool = require('../../db/pool');
 const { ValidationError, ConflictError, NotFoundError, ForbiddenError } = require('../../core/errors/apiError');
 
 const VALID_OPERATIONAL_STATUSES = [
@@ -211,6 +212,161 @@ class ApartmentsService {
       throw new ValidationError('checkInDate is required in YYYY-MM-DD format.');
     }
     return ApartmentsRepository.checkAvailability(id, checkInDate);
+  }
+
+  /**
+   * Add operational blocked period for unit
+   */
+  static async addBlockedPeriod(id, { startDate, endDate, reason }, user, req = null) {
+    if (!startDate || !endDate || !reason) {
+      throw new ValidationError('startDate, endDate, and reason are required.');
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+      throw new ValidationError('Dates must be in YYYY-MM-DD format.');
+    }
+
+    if (startDate > endDate) {
+      throw new ValidationError('startDate cannot be after endDate.');
+    }
+
+    const trimmedReason = String(reason).trim();
+    if (trimmedReason.length < 3) {
+      throw new ValidationError('Reason must be at least 3 characters.');
+    }
+
+    const unit = await ApartmentsRepository.findById(id);
+    if (!unit) {
+      throw new NotFoundError(`Apartment unit #${id} not found.`);
+    }
+
+    this.validatePropertyScope(user, unit.property_id);
+
+    // Check for conflicting active reservations
+    const conflictingReservations = await pool.query(
+      `SELECT id, reservation_code, check_in_date, check_out_date, status
+       FROM reservations
+       WHERE apartment_id = ?
+         AND status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING')
+         AND check_in_date <= ? AND check_out_date > ?`,
+      [id, endDate, startDate]
+    );
+
+    if (conflictingReservations.length > 0) {
+      const conflict = conflictingReservations[0];
+      throw new ConflictError(
+        `Cannot block unit: active reservation #${conflict.reservation_code} exists from ${conflict.check_in_date} to ${conflict.check_out_date}.`
+      );
+    }
+
+    // Check for existing overlapping blocked periods
+    const overlappingBlocks = await pool.query(
+      `SELECT id, start_date, end_date, reason
+       FROM blocked_periods
+       WHERE apartment_id = ?
+         AND start_date <= ? AND end_date >= ?`,
+      [id, endDate, startDate]
+    );
+
+    if (overlappingBlocks.length > 0) {
+      const block = overlappingBlocks[0];
+      throw new ConflictError(
+        `A blocked period already overlaps with requested dates (${block.start_date} to ${block.end_date}: ${block.reason}).`
+      );
+    }
+
+    const insertId = await ApartmentsRepository.addBlockedPeriod({
+      propertyId: unit.property_id,
+      apartmentId: unit.id,
+      startDate,
+      endDate,
+      reason: trimmedReason,
+      blockedById: user?.id || null,
+    });
+
+    await AuditService.record({
+      req,
+      actorId: user?.id,
+      actorEmail: user?.email,
+      actorRole: user?.role,
+      action: 'BLOCKED_PERIOD_CREATED',
+      entityType: 'unit',
+      entityId: String(id),
+      newValues: {
+        id: insertId,
+        propertyId: unit.property_id,
+        apartmentId: unit.id,
+        unitNumber: unit.unit_number,
+        startDate,
+        endDate,
+        reason: trimmedReason,
+      },
+    });
+
+    return {
+      id: insertId,
+      property_id: unit.property_id,
+      apartment_id: unit.id,
+      start_date: startDate,
+      end_date: endDate,
+      reason: trimmedReason,
+      blocked_by_id: user?.id || null,
+    };
+  }
+
+  /**
+   * Get all blocked periods for unit
+   */
+  static async getBlockedPeriods(id, user = null) {
+    const unit = await ApartmentsRepository.findById(id);
+    if (!unit) {
+      throw new NotFoundError(`Apartment unit #${id} not found.`);
+    }
+
+    if (user) {
+      this.validatePropertyScope(user, unit.property_id);
+    }
+
+    return ApartmentsRepository.getBlockedPeriods(id);
+  }
+
+  /**
+   * Delete blocked period
+   */
+  static async deleteBlockedPeriod(id, blockId, user, req = null) {
+    const unit = await ApartmentsRepository.findById(id);
+    if (!unit) {
+      throw new NotFoundError(`Apartment unit #${id} not found.`);
+    }
+
+    this.validatePropertyScope(user, unit.property_id);
+
+    const block = await ApartmentsRepository.findBlockedPeriodById(blockId);
+    if (!block || String(block.apartment_id) !== String(id)) {
+      throw new NotFoundError(`Blocked period #${blockId} not found on unit #${id}.`);
+    }
+
+    await ApartmentsRepository.deleteBlockedPeriod(blockId);
+
+    await AuditService.record({
+      req,
+      actorId: user?.id,
+      actorEmail: user?.email,
+      actorRole: user?.role,
+      action: 'BLOCKED_PERIOD_DELETED',
+      entityType: 'unit',
+      entityId: String(id),
+      oldValues: {
+        id: block.id,
+        apartmentId: block.apartment_id,
+        startDate: block.start_date,
+        endDate: block.end_date,
+        reason: block.reason,
+      },
+    });
+
+    return { success: true, message: 'Blocked period removed successfully.' };
   }
 }
 

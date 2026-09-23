@@ -25,4 +25,21 @@ router.patch(
   ApartmentsController.updateStatus
 );
 
+// Operational Blocked Periods
+router.get(
+  '/:id/blocked-periods',
+  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN', 'STAFF', 'RECEPTIONIST'),
+  ApartmentsController.getBlockedPeriods
+);
+router.post(
+  '/:id/blocked-periods',
+  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN'),
+  ApartmentsController.addBlockedPeriod
+);
+router.delete(
+  '/:id/blocked-periods/:blockId',
+  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN'),
+  ApartmentsController.deleteBlockedPeriod
+);
+
 module.exports = router;

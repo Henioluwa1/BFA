@@ -174,6 +174,13 @@ class ReservationsService {
       }
       const apartment = aptRows[0];
 
+      // Validate that provided property_id matches apartment's actual property
+      if (data.property_id && parseInt(data.property_id, 10) !== parseInt(apartment.property_id, 10)) {
+        throw new ValidationError(
+          `Data Integrity Violation: Apartment unit #${data.apartment_id} does not belong to Property #${data.property_id}.`
+        );
+      }
+
       // 3. Property scope authorization
       this.validatePropertyScope(req?.user, apartment.property_id);
 
@@ -377,6 +384,9 @@ class ReservationsService {
       const targetCheckIn = data.check_in_date || existing.check_in_date;
 
       if (data.check_in_date && data.check_in_date !== existing.check_in_date) {
+        recheckAvailability = true;
+      }
+      if (data.check_out_date && data.check_out_date !== existing.check_out_date) {
         recheckAvailability = true;
       }
       if (data.apartment_id && parseInt(data.apartment_id, 10) !== existing.apartment_id) {

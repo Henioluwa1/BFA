@@ -11,8 +11,9 @@ import { formatNaira } from '../utils/currency';
 
 export default function CalendarPage() {
   const { properties, activePropertyId, setActivePropertyId } = useProperty();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const { addToast } = useToast();
+  const canManageBlocks = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'].includes(user?.role);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('month'); // 'month' | 'week' | 'day' | 'timeline'
@@ -30,6 +31,16 @@ export default function CalendarPage() {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Block Unit Modal State
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [submittingBlock, setSubmittingBlock] = useState(false);
+  const [blockForm, setBlockForm] = useState({
+    apartmentId: '',
+    startDate: '',
+    endDate: '',
+    reason: '',
+  });
 
   // Sync propertyFilter with PropertyContext
   useEffect(() => {
@@ -205,6 +216,47 @@ export default function CalendarPage() {
     }
   };
 
+  const handleCreateBlock = async () => {
+    if (!blockForm.apartmentId || !blockForm.startDate || !blockForm.endDate || !blockForm.reason) {
+      addToast('Please fill in all required block period fields.', 'warning');
+      return;
+    }
+    if (blockForm.startDate > blockForm.endDate) {
+      addToast('Start date cannot be after end date.', 'warning');
+      return;
+    }
+    setSubmittingBlock(true);
+    try {
+      await apartmentService.addBlockedPeriod(blockForm.apartmentId, {
+        startDate: blockForm.startDate,
+        endDate: blockForm.endDate,
+        reason: blockForm.reason,
+      });
+      addToast('Unit blocked period created successfully!', 'success');
+      setIsBlockModalOpen(false);
+      fetchCalendar();
+    } catch (err) {
+      addToast(`Error: ${err.message}`, 'error');
+    } finally {
+      setSubmittingBlock(false);
+    }
+  };
+
+  const handleDeleteBlock = async () => {
+    if (!selectedEvent || selectedEvent.type !== 'BLOCKED') return;
+    setActionLoading(true);
+    try {
+      await apartmentService.deleteBlockedPeriod(selectedEvent.apartmentId, selectedEvent.eventId);
+      addToast('Operational block removed successfully!', 'success');
+      setIsModalOpen(false);
+      fetchCalendar();
+    } catch (err) {
+      addToast(`Error: ${err.message}`, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Color helper for badges
   const getEventBadgeClass = (status) => {
     const s = String(status || '').toUpperCase();
@@ -281,6 +333,26 @@ export default function CalendarPage() {
             <Button variant="outline" size="sm" onClick={handleToday}>Today</Button>
             <Button variant="outline" size="sm" onClick={handleNext}>›</Button>
           </div>
+
+          {canManageBlocks && (
+            <Button
+              variant="outline"
+              size="sm"
+              style={{ borderColor: 'var(--rust-light)', color: 'var(--rust-light)', fontWeight: 600 }}
+              onClick={() => {
+                const today = new Date().toISOString().split('T')[0];
+                setBlockForm({
+                  apartmentId: apartments[0]?.id || '',
+                  startDate: today,
+                  endDate: today,
+                  reason: '',
+                });
+                setIsBlockModalOpen(true);
+              }}
+            >
+              🛑 + Block Unit
+            </Button>
+          )}
         </div>
       </div>
 
@@ -574,6 +646,18 @@ export default function CalendarPage() {
               <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '4px', color: '#b91c1c' }}>
                 Unit is blocked from bookings during this period for maintenance/operations.
               </div>
+              {canManageBlocks && (
+                <div style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border-default)', paddingTop: '0.75rem' }}>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    loading={actionLoading}
+                    onClick={handleDeleteBlock}
+                  >
+                    🗑 Remove Block Period
+                  </Button>
+                </div>
+              )}
             </div>
           ) : selectedReservation ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -647,6 +731,123 @@ export default function CalendarPage() {
           )}
         </Modal>
       )}
+
+      {/* Block Unit Modal */}
+      <Modal
+        isOpen={isBlockModalOpen}
+        onClose={() => setIsBlockModalOpen(false)}
+        title="Block Apartment Unit"
+        subtitle="Schedule an operational maintenance or owner hold period"
+        icon="🛑"
+        size="md"
+        footer={
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
+            <Button variant="outline" size="sm" onClick={() => setIsBlockModalOpen(false)} disabled={submittingBlock}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleCreateBlock} loading={submittingBlock}>
+              Confirm Block
+            </Button>
+          </div>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleCreateBlock();
+          }}
+          style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+        >
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
+              Apartment Unit *
+            </label>
+            <select
+              value={blockForm.apartmentId}
+              onChange={(e) => setBlockForm({ ...blockForm, apartmentId: e.target.value })}
+              required
+              style={{
+                width: '100%',
+                padding: '0.5rem 0.75rem',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <option value="" disabled>Select an apartment unit</option>
+              {apartments.map((a) => (
+                <option key={a.id} value={a.id}>
+                  Unit {a.unit_number} - {a.unit_name} ({a.property_name})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
+                Start Date *
+              </label>
+              <input
+                type="date"
+                value={blockForm.startDate}
+                onChange={(e) => setBlockForm({ ...blockForm, startDate: e.target.value })}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
+                End Date *
+              </label>
+              <input
+                type="date"
+                value={blockForm.endDate}
+                onChange={(e) => setBlockForm({ ...blockForm, endDate: e.target.value })}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--text-secondary)' }}>
+              Reason for Block *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Scheduled AC repair, deep sanitization, owner reservation"
+              value={blockForm.reason}
+              onChange={(e) => setBlockForm({ ...blockForm, reason: e.target.value })}
+              required
+              minLength={3}
+              style={{
+                width: '100%',
+                padding: '0.5rem 0.75rem',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-primary)',
+              }}
+            />
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

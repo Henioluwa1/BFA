@@ -95,6 +95,42 @@ class ApartmentsController {
       next(err);
     }
   }
+
+  static async addBlockedPeriod(req, res, next) {
+    try {
+      const data = await ApartmentsService.addBlockedPeriod(req.params.id, req.body, req.user, req);
+      return ApiResponse.created(res, {
+        message: 'Unit blocked period created successfully',
+        data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getBlockedPeriods(req, res, next) {
+    try {
+      const data = await ApartmentsService.getBlockedPeriods(req.params.id, req.user);
+      return ApiResponse.success(res, {
+        message: 'Blocked periods retrieved successfully',
+        data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async deleteBlockedPeriod(req, res, next) {
+    try {
+      const data = await ApartmentsService.deleteBlockedPeriod(req.params.id, req.params.blockId, req.user, req);
+      return ApiResponse.success(res, {
+        message: 'Blocked period removed successfully',
+        data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = ApartmentsController;
