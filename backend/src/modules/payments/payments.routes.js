@@ -20,4 +20,11 @@ router.get(
   PaymentsController.getPayments
 );
 
+// Refund / Reversal transaction (Manager, Admin, Owner, Super Admin)
+router.post(
+  '/:id/refund',
+  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN'),
+  PaymentsController.refund
+);
+
 module.exports = router;

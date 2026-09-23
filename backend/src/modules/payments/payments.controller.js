@@ -46,12 +46,22 @@ class PaymentsController {
 
   static async getById(req, res, next) {
     try {
-      const id = parseInt(req.params.id, 10);
-      const rows = await pool.query('SELECT * FROM payment_transactions WHERE id = ?', [id]);
-      if (rows.length === 0) throw new NotFoundError(`Payment #${id} not found.`);
+      const data = await PaymentsService.getPaymentById(req.params.id, req.user);
       return ApiResponse.success(res, {
         message: 'Payment transaction details retrieved.',
-        data: rows[0],
+        data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async refund(req, res, next) {
+    try {
+      const result = await PaymentsService.refundPayment(req.params.id, req.body, req.user, req);
+      return ApiResponse.success(res, {
+        message: result.message,
+        data: result,
       });
     } catch (err) {
       next(err);
@@ -60,13 +70,15 @@ class PaymentsController {
 
   static async getPayments(req, res, next) {
     try {
-      const { reservationId, propertyId, status, page, pageSize } = req.query;
+      const { reservationId, propertyId, status, page, pageSize, search, q } = req.query;
       const data = await PaymentsService.getPayments({
         reservationId: reservationId ? parseInt(reservationId, 10) : undefined,
         propertyId,
         status,
+        search: search || q,
         page,
         pageSize,
+        user: req.user,
       });
       return ApiResponse.success(res, {
         message: 'Payments list retrieved.',

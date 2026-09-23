@@ -30,6 +30,7 @@ class SearchService {
       agents: [],
       guests: [],
       inspections: [],
+      expenses: [],
     };
 
     // 1. Properties Search (Hidden from Agent role if restricted, visible to all operational staff)
@@ -162,6 +163,25 @@ class SearchService {
       categories.inspections = await pool.query(inspSql, inspParams);
     }
 
+    // 8. Expenses Search (Only visible to Admin, Manager, Owner, Super Admin)
+    if ((!type || type === 'expenses') && ['ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN'].includes(userRole)) {
+      let expSql = `
+        SELECT e.id, e.expense_code, e.category, e.description, e.amount, e.status,
+               p.name as property_name, 'expense' as entity_type
+        FROM expenses e
+        JOIN properties p ON p.id = e.property_id
+        WHERE (e.expense_code LIKE ? OR e.description LIKE ? OR e.vendor_payee LIKE ?)
+      `;
+      const expParams = [cleanQuery, cleanQuery, cleanQuery];
+      if (propertyId && propertyId !== 'all') {
+        expSql += ' AND e.property_id = ?';
+        expParams.push(propertyId);
+      }
+      expSql += ' LIMIT ?';
+      expParams.push(searchLimit);
+      categories.expenses = await pool.query(expSql, expParams);
+    }
+
     const totalResults =
       categories.properties.length +
       categories.apartments.length +
@@ -169,7 +189,8 @@ class SearchService {
       categories.maintenance.length +
       categories.agents.length +
       (categories.guests ? categories.guests.length : 0) +
-      (categories.inspections ? categories.inspections.length : 0);
+      (categories.inspections ? categories.inspections.length : 0) +
+      (categories.expenses ? categories.expenses.length : 0);
 
     return {
       query: query.trim(),

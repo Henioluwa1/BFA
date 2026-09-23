@@ -25,6 +25,9 @@ const calendarRoutes = require('./modules/calendar/calendar.routes');
 const frontOfficeRoutes = require('./modules/frontOffice/frontOffice.routes');
 const guestsRoutes = require('./modules/guests/guests.routes');
 const inspectionsRoutes = require('./modules/inspections/inspections.routes');
+const maintenanceRoutes = require('./modules/maintenance/maintenance.routes');
+const expensesRoutes = require('./modules/expenses/expenses.routes');
+const financialRoutes = require('./modules/financial/financial.routes');
 
 const app = express();
 
@@ -71,6 +74,9 @@ apiV1Router.use('/front-office', frontOfficeRoutes);
 apiV1Router.use('/guests', guestsRoutes);
 apiV1Router.use('/tenants', guestsRoutes); // Backward-compatible alias
 apiV1Router.use('/inspections', inspectionsRoutes);
+apiV1Router.use('/maintenance', maintenanceRoutes);
+apiV1Router.use('/expenses', expensesRoutes);
+apiV1Router.use('/financial', financialRoutes);
 
 app.use('/api/v1', apiV1Router);
 

@@ -67,24 +67,51 @@ class ReportsService {
     const totalCollected = reservations.reduce((acc, r) => acc + parseFloat(r.paid_amount || 0), 0);
     const totalOutstanding = totalRevenue - totalCollected;
 
-    // Maintenance costs as an operational expense component
-    let mntSql = 'SELECT SUM(cost) as total_maintenance FROM maintenance_requests WHERE 1=1';
+    // Operational expenses: approved expenses + unlinked maintenance costs
+    let expSql = `
+      SELECT COALESCE(SUM(amount), 0) as total_expenses 
+      FROM expenses 
+      WHERE status = 'APPROVED'
+    `;
+    const expParams = [];
+    if (propertyId && propertyId !== 'all') {
+      expSql += ' AND property_id = ?';
+      expParams.push(propertyId);
+    }
+    if (fromDate) {
+      expSql += ' AND expense_date >= ?';
+      expParams.push(fromDate);
+    }
+    if (toDate) {
+      expSql += ' AND expense_date <= ?';
+      expParams.push(toDate);
+    }
+    const [expRows] = await pool.query(expSql, expParams);
+    const approvedExpenses = parseFloat(expRows?.total_expenses || 0);
+
+    // Unlinked maintenance costs (maintenance records not tracked in expenses table)
+    let mntSql = `
+      SELECT COALESCE(SUM(cost), 0) as total_maintenance 
+      FROM maintenance_requests 
+      WHERE (id NOT IN (SELECT maintenance_id FROM expenses WHERE maintenance_id IS NOT NULL))
+    `;
     const mntParams = [];
     if (propertyId && propertyId !== 'all') {
       mntSql += ' AND property_id = ?';
       mntParams.push(propertyId);
     }
     const [mntRows] = await pool.query(mntSql, mntParams);
-    const totalMaintenanceExpenses = parseFloat(mntRows?.total_maintenance || 0);
+    const unlinkedMaintenanceExpenses = parseFloat(mntRows?.total_maintenance || 0);
 
-    const netProfit = totalCollected - totalMaintenanceExpenses;
+    const totalExpenses = approvedExpenses + unlinkedMaintenanceExpenses;
+    const netProfit = totalCollected - totalExpenses;
 
     return {
       summary: {
         totalRevenue: Math.round(totalRevenue * 100) / 100,
         totalCollected: Math.round(totalCollected * 100) / 100,
         totalOutstanding: Math.round(totalOutstanding * 100) / 100,
-        totalExpenses: Math.round(totalMaintenanceExpenses * 100) / 100,
+        totalExpenses: Math.round(totalExpenses * 100) / 100,
         netProfit: Math.round(netProfit * 100) / 100,
         reservationCount: reservations.length,
       },

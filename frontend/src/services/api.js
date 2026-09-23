@@ -197,7 +197,34 @@ export const paymentService = {
   getTransactions: (params) => api.get('/payments', { params }),
   getById: (id) => api.get(`/payments/${id}`),
   processPayment: (data) => api.post('/payments/process', data),
+  refund: (id, data) => api.post(`/payments/${id}/refund`, data),
   getGateways: () => api.get('/payments/gateways'),
+};
+
+export const maintenanceService = {
+  getAll: (params) => api.get('/maintenance', { params }),
+  getStats: (params) => api.get('/maintenance/stats', { params }),
+  getById: (id) => api.get(`/maintenance/${id}`),
+  create: (data) => api.post('/maintenance', data),
+  assign: (id, data) => api.post(`/maintenance/${id}/assign`, data),
+  start: (id) => api.post(`/maintenance/${id}/start`),
+  resolve: (id, data) => api.post(`/maintenance/${id}/resolve`, data),
+  cancel: (id, data) => api.post(`/maintenance/${id}/cancel`, data),
+};
+
+export const expenseService = {
+  getAll: (params) => api.get('/expenses', { params }),
+  getStats: (params) => api.get('/expenses/stats', { params }),
+  getById: (id) => api.get(`/expenses/${id}`),
+  create: (data) => api.post('/expenses', data),
+  update: (id, data) => api.put(`/expenses/${id}`, data),
+  approve: (id) => api.post(`/expenses/${id}/approve`),
+  void: (id, data) => api.post(`/expenses/${id}/void`, data),
+};
+
+export const financialService = {
+  getOverview: (params) => api.get('/financial/overview', { params }),
+  getLedger: (params) => api.get('/financial/ledger', { params }),
 };
 
 export const bookingAuthService = {
