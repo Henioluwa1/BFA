@@ -133,7 +133,7 @@ describe('Security, Authentication & Role Authorization Tests (Section 6, 7, 8, 
   test('12. Public Booking Endpoint creates valid 1-night reservation without requiring auth token', async () => {
     const testEmail = `public.guest.${Date.now()}@example.com`;
     // Use random future date to guarantee zero conflict with other test runs
-    const futureDays = 1000 + Math.floor(Math.random() * 500);
+    const futureDays = 8000 + Math.floor(Math.random() * 5000);
     const d = new Date(Date.now() + futureDays * 86400000);
     const checkInDate = d.toISOString().split('T')[0];
     d.setDate(d.getDate() + 1);

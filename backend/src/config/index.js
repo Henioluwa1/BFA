@@ -36,6 +36,11 @@ const config = {
     jwtSecret: process.env.JWT_SECRET || 'bfa_super_secret_default_key',
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
+  currency: {
+    default: process.env.DEFAULT_CURRENCY || 'NGN',
+    symbol: process.env.CURRENCY_SYMBOL || '₦',
+    locale: process.env.CURRENCY_LOCALE || 'en-NG',
+  },
 };
 
 module.exports = config;

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { publicService } from '../services/api';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import { formatNaira } from '../utils/currency';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -407,7 +408,7 @@ export default function LandingPage() {
                     ) : (
                       filteredApartments.map((a) => (
                         <option key={a.id} value={a.id}>
-                          Unit {a.unit_number} — {a.unit_name} (${parseFloat(a.rate_per_night)}/nt)
+                          Unit {a.unit_number} — {a.unit_name} ({formatNaira(a.rate_per_night)}/nt)
                         </option>
                       ))
                     )}
@@ -505,7 +506,7 @@ export default function LandingPage() {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Total Rate</div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>${availabilityResult.totalAmount}</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>{formatNaira(availabilityResult.totalAmount)}</div>
                   </div>
                 </div>
 
@@ -633,7 +634,7 @@ export default function LandingPage() {
                   </div>
                   <div>
                     <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Starting From</span>
-                    <div style={{ fontWeight: 800, color: '#2563eb', fontSize: '1.15rem' }}>${prop.starting_rate || '150'}/nt</div>
+                    <div style={{ fontWeight: 800, color: '#2563eb', fontSize: '1.15rem' }}>{formatNaira(prop.starting_rate || '150000')}/nt</div>
                   </div>
                 </div>
               </div>
@@ -781,7 +782,7 @@ export default function LandingPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
                 <span style={{ color: '#0f172a', fontWeight: 700 }}>Total Amount:</span>
-                <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#059669' }}>${confirmedBooking.totalAmount}</span>
+                <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#059669' }}>{formatNaira(confirmedBooking.totalAmount)}</span>
               </div>
             </div>
 

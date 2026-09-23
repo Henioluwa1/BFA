@@ -26,8 +26,8 @@ class ReportsController {
           { label: 'Check-In', key: 'check_in_date' },
           { label: 'Check-Out', key: 'check_out_date' },
           { label: 'Nights', key: 'nights' },
-          { label: 'Total Amount ($)', key: 'total_amount' },
-          { label: 'Paid Amount ($)', key: 'paid_amount' },
+          { label: 'Total Amount (NGN)', key: 'total_amount' },
+          { label: 'Paid Amount (NGN)', key: 'paid_amount' },
           { label: 'Status', key: 'status' },
         ];
 
@@ -60,8 +60,8 @@ class ReportsController {
           { label: 'Property', key: 'property_name' },
           { label: 'Tenant', key: 'tenant_name' },
           { label: 'Check-In', key: 'check_in_date' },
-          { label: 'Revenue ($)', key: 'total_amount' },
-          { label: 'Collected ($)', key: 'paid_amount' },
+          { label: 'Revenue (NGN)', key: 'total_amount' },
+          { label: 'Collected (NGN)', key: 'paid_amount' },
           { label: 'Status', key: 'status' },
         ];
 

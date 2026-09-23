@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { systemService, reservationService } from '../services/api';
 import { Link } from 'react-router-dom';
+import { formatNaira } from '../utils/currency';
 
 export default function DashboardPage() {
   const { activeProperty, isAllProperties, properties } = useProperty();
@@ -283,10 +284,10 @@ export default function DashboardPage() {
             <span style={{ fontSize: '1.25rem' }}>💵</span>
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-            ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatNaira(totalRevenue)}
           </div>
           <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            Outstanding: ${outstandingBalance.toFixed(2)}
+            Outstanding: {formatNaira(outstandingBalance)}
           </div>
         </div>
 
@@ -352,7 +353,7 @@ export default function DashboardPage() {
                         <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{r.check_in_date}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>1 night stay</div>
                       </td>
-                      <td style={{ fontWeight: 700 }}>${parseFloat(r.total_amount).toFixed(2)}</td>
+                      <td style={{ fontWeight: 700 }}>{formatNaira(r.total_amount)}</td>
                       <td>
                         <Badge status={r.status === 'CONFIRMED' ? 'available' : 'pending'}>
                           {r.status}

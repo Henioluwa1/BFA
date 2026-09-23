@@ -19,7 +19,7 @@ INSERT IGNORE INTO system_settings (category, setting_key, setting_value, descri
 ('company', 'company_name', 'BFA Apartments', 'Company Legal and Trading Name'),
 ('company', 'company_email', 'info@bfa-apartments.com', 'Primary operational email'),
 ('company', 'company_phone', '+234 800 BFA APARTS', 'Primary contact phone'),
-('company', 'default_currency', 'USD', 'Base operational currency'),
+('company', 'default_currency', 'NGN', 'Base operational currency'),
 ('general', 'system_timezone', 'UTC', 'System default timezone standard'),
 ('general', 'app_version', '1.0.0', 'Platform core version'),
 ('reservations', 'require_deposit_percentage', '20', 'Default deposit required upon reservation (%)'),

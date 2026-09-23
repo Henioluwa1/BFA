@@ -6,6 +6,7 @@ import Table from '../components/ui/Table';
 import { reportService } from '../services/api';
 import { useProperty } from '../context/PropertyContext';
 import { useToast } from '../context/ToastContext';
+import { formatNaira } from '../utils/currency';
 
 export default function ReportsPage() {
   const { activePropertyId, activeProperty, isAllProperties } = useProperty();
@@ -57,12 +58,12 @@ export default function ReportsPage() {
     {
       header: 'Total Amount',
       key: 'total_amount',
-      render: (val) => `$${parseFloat(val).toFixed(2)}`,
+      render: (val) => formatNaira(val),
     },
     {
       header: 'Paid',
       key: 'paid_amount',
-      render: (val) => `$${parseFloat(val).toFixed(2)}`,
+      render: (val) => formatNaira(val),
     },
     {
       header: 'Status',
@@ -121,25 +122,25 @@ export default function ReportsPage() {
           <Card>
             <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Booked Value</div>
             <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.25rem' }}>
-              ${financialSummary.totalRevenue.toFixed(2)}
+              {formatNaira(financialSummary.totalRevenue)}
             </div>
           </Card>
           <Card>
             <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Collected</div>
             <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#16a34a', marginTop: '0.25rem' }}>
-              ${financialSummary.totalCollected.toFixed(2)}
+              {formatNaira(financialSummary.totalCollected)}
             </div>
           </Card>
           <Card>
             <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Total Outstanding</div>
             <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#ef4444', marginTop: '0.25rem' }}>
-              ${financialSummary.totalOutstanding.toFixed(2)}
+              {formatNaira(financialSummary.totalOutstanding)}
             </div>
           </Card>
           <Card>
             <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Net Operating Profit</div>
             <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--brand-accent)', marginTop: '0.25rem' }}>
-              ${financialSummary.netProfit.toFixed(2)}
+              {formatNaira(financialSummary.netProfit)}
             </div>
           </Card>
         </div>

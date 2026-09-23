@@ -65,17 +65,52 @@ async function login({ email, password, ipAddress, userAgent, requestId }) {
   );
 
   if (!rows || rows.length === 0) {
+    await auditService.log({
+      actorEmail: email ? email.toLowerCase().trim() : 'unknown',
+      actorRole: 'ANONYMOUS',
+      action: 'USER_LOGIN_FAILED',
+      entityType: 'user',
+      entityId: null,
+      newValues: { reason: 'User not found', attemptedAt: new Date().toISOString() },
+      requestId,
+      ipAddress,
+      userAgent,
+    });
     throw new UnauthorizedError('Invalid credentials.');
   }
 
   const user = rows[0];
 
   if (user.status !== 'ACTIVE') {
+    await auditService.log({
+      actorId: user.id,
+      actorEmail: user.email,
+      actorRole: user.role,
+      action: 'USER_LOGIN_FAILED',
+      entityType: 'user',
+      entityId: String(user.id),
+      newValues: { reason: `Account is ${user.status}`, attemptedAt: new Date().toISOString() },
+      requestId,
+      ipAddress,
+      userAgent,
+    });
     throw new UnauthorizedError(`Account is ${user.status.toLowerCase()}. Please contact an administrator.`);
   }
 
   const isPasswordValid = await bcrypt.compare(password, user.password_hash);
   if (!isPasswordValid) {
+    await auditService.log({
+      actorId: user.id,
+      actorEmail: user.email,
+      actorRole: user.role,
+      action: 'USER_LOGIN_FAILED',
+      entityType: 'user',
+      entityId: String(user.id),
+      newValues: { reason: 'Incorrect password', attemptedAt: new Date().toISOString() },
+      requestId,
+      ipAddress,
+      userAgent,
+    });
     throw new UnauthorizedError('Invalid credentials.');
   }
 

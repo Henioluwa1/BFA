@@ -1,5 +1,6 @@
 const pool = require('../../db/pool');
 const PDFDocument = require('pdfkit');
+const { formatNaira } = require('../../utils/currency');
 
 class ReportsService {
   /**
@@ -97,17 +98,22 @@ class ReportsService {
   static generateFinancialPDF(financialData, propertyName = 'All Properties') {
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
+    const fs = require('fs');
+    const hasArial = fs.existsSync('C:/Windows/Fonts/arial.ttf');
+    const defaultFont = hasArial ? 'C:/Windows/Fonts/arial.ttf' : 'Helvetica';
+    const boldFont = hasArial ? 'C:/Windows/Fonts/arialbd.ttf' : 'Helvetica-Bold';
+
     // Header styling in Grey and Rust Orange aesthetic
     doc
       .fillColor('#c25e2e')
       .fontSize(22)
-      .font('Helvetica-Bold')
+      .font(fs.existsSync('C:/Windows/Fonts/arialbd.ttf') ? 'C:/Windows/Fonts/arialbd.ttf' : 'Helvetica-Bold')
       .text('BFA APARTMENTS MANAGEMENT SYSTEM', 50, 50);
 
     doc
       .fillColor('#555f6b')
       .fontSize(10)
-      .font('Helvetica')
+      .font(defaultFont)
       .text(`Executive Financial Summary Report • Scoped: ${propertyName}`, 50, 78)
       .text(`Generated: ${new Date().toISOString()}`, 50, 92);
 
@@ -120,25 +126,25 @@ class ReportsService {
     doc
       .fillColor('#1a1d21')
       .fontSize(11)
-      .font('Helvetica-Bold')
-      .text('KEY FINANCIAL METRICS', 65, 140);
+      .font(fs.existsSync('C:/Windows/Fonts/arialbd.ttf') ? 'C:/Windows/Fonts/arialbd.ttf' : 'Helvetica-Bold')
+      .text('KEY FINANCIAL METRICS (NGN / ₦)', 65, 140);
 
     doc
-      .font('Helvetica')
+      .font(defaultFont)
       .fontSize(10)
       .fillColor('#333942')
-      .text(`Total Booked Value: $${s.totalRevenue.toFixed(2)}`, 65, 160)
-      .text(`Total Collected: $${s.totalCollected.toFixed(2)}`, 65, 175)
-      .text(`Total Outstanding: $${s.totalOutstanding.toFixed(2)}`, 65, 190)
-      .text(`Operational Expenses: $${s.totalExpenses.toFixed(2)}`, 280, 160)
-      .text(`Net Operating Profit: $${s.netProfit.toFixed(2)}`, 280, 175)
+      .text(`Total Booked Value: ${formatNaira(s.totalRevenue)}`, 65, 160)
+      .text(`Total Collected: ${formatNaira(s.totalCollected)}`, 65, 175)
+      .text(`Total Outstanding: ${formatNaira(s.totalOutstanding)}`, 65, 190)
+      .text(`Operational Expenses: ${formatNaira(s.totalExpenses)}`, 280, 160)
+      .text(`Net Operating Profit: ${formatNaira(s.netProfit)}`, 280, 175)
       .text(`Total Stays (1 Night Policy): ${s.reservationCount}`, 280, 190);
 
     // Reservations Detail Table Header
     doc
       .fillColor('#1a1d21')
       .fontSize(12)
-      .font('Helvetica-Bold')
+      .font(fs.existsSync('C:/Windows/Fonts/arialbd.ttf') ? 'C:/Windows/Fonts/arialbd.ttf' : 'Helvetica-Bold')
       .text('Authoritative Booking Audit Trail', 50, 240);
 
     let y = 265;
@@ -146,17 +152,17 @@ class ReportsService {
     doc
       .fillColor('#ffffff')
       .fontSize(9)
-      .font('Helvetica-Bold')
+      .font(fs.existsSync('C:/Windows/Fonts/arialbd.ttf') ? 'C:/Windows/Fonts/arialbd.ttf' : 'Helvetica-Bold')
       .text('CODE', 55, y + 5)
       .text('PROPERTY', 140, y + 5)
       .text('TENANT', 240, y + 5)
-      .text('CHECK-IN', 360, y + 5)
-      .text('AMOUNT', 430, y + 5)
-      .text('STATUS', 490, y + 5);
+      .text('CHECK-IN', 350, y + 5)
+      .text('AMOUNT (₦)', 420, y + 5)
+      .text('STATUS', 495, y + 5);
 
     y += 20;
 
-    doc.font('Helvetica').fontSize(8);
+    doc.font(defaultFont).fontSize(8);
     financialData.reservations.slice(0, 15).forEach((r, idx) => {
       const bg = idx % 2 === 0 ? '#ffffff' : '#f8f9fa';
       doc.rect(50, y, 495, 18).fill(bg);
@@ -164,10 +170,10 @@ class ReportsService {
         .fillColor('#22262c')
         .text(r.reservation_code, 55, y + 4)
         .text(r.property_name.substring(0, 18), 140, y + 4)
-        .text(r.tenant_name.substring(0, 22), 240, y + 4)
-        .text(r.check_in_date, 360, y + 4)
-        .text(`$${parseFloat(r.total_amount).toFixed(2)}`, 430, y + 4)
-        .text(r.status, 490, y + 4);
+        .text(r.tenant_name.substring(0, 20), 240, y + 4)
+        .text(r.check_in_date, 350, y + 4)
+        .text(formatNaira(r.total_amount), 420, y + 4)
+        .text(r.status, 495, y + 4);
 
       y += 18;
     });

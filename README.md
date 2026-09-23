@@ -88,4 +88,32 @@ npm run dev:frontend  # UI on http://localhost:5173
 ```bash
 npm test
 ```
-All 7 test suites and 32 tests pass out of the box (Health, Errors, Security & RBAC, One-Night Rule, Search, Reports, Audit).
+All 8 test suites and 52 tests pass out of the box (Health, Errors, Security & RBAC, One-Night Rule, Search, Reports, Currency, Audit).
+
+---
+
+## 📜 Audit Trail Filtering & Server-Side Pagination
+
+The Audit Trail module (`/audit`) provides authoritative audit logging:
+- **Date & Time Filtering**: Filter by `From Date`, `To Date`, `From Time` (HH:mm), and `To Time` (HH:mm). Normalized to full database boundaries (`00:00:00` start, `23:59:59` end).
+- **Timezone Policy**: Authoritative database storage and timestamp operations run in **UTC** (`+00:00`). Timestamps are returned in ISO 8601 strings and displayed consistently.
+- **Action Filtering & Taxonomy**:
+  - `All Actions` returns every authorized record without accidental restrictions or blank filter dropping.
+  - Action taxonomy: `Login`, `Logout`, `Failed Login`, `Create`, `Update`, `Delete`, `View`, `Reservation Actions`, `Payment Actions`, `Expense Actions`, `User Actions`, `Property Actions`, `Apartment Actions`, `Maintenance Actions`, `Inspection Actions`, and `Settings Actions`.
+- **Server-Side Pagination**:
+  - Configurable page size: 50, 60, or 70 records per page (default: 50).
+  - Maximum ceiling clamped to 100 on the backend to protect database performance.
+  - Reset to page 1 automatically when any filter or page size changes.
+  - Deterministic sort order: newest first (`ORDER BY created_at DESC, id DESC`).
+- **Authorization**: Strictly restricted to authenticated `ADMIN`, `MANAGER`, and `OWNER` roles.
+
+---
+
+## ₦ Currency Localization (Nigerian Naira — NGN)
+
+- **Primary Currency**: The entire platform operates in **Nigerian Naira (₦ / NGN)**.
+- **Central Formatter**: Centralized currency utility (`formatNaira`) in both frontend (`frontend/src/utils/currency.js`) and backend (`backend/src/utils/currency.js`), using locale `en-NG`.
+- **System Settings**: Database migration `005_currency_settings.sql` sets `default_currency: 'NGN'`, `currency_symbol: '₦'`, and `currency_locale: 'en-NG'`.
+- **Integrity**: Pure numeric values in the database (`DECIMAL(10,2)`) are preserved without artificial exchange-rate math.
+- **Reporting**: Financial PDF exports display `₦` currency headers, and CSV reports designate `(NGN)`.
+

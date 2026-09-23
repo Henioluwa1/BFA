@@ -7,6 +7,7 @@ import Modal from '../components/ui/Modal';
 import { reservationService, api } from '../services/api';
 import { useProperty } from '../context/PropertyContext';
 import { useToast } from '../context/ToastContext';
+import { formatNaira } from '../utils/currency';
 
 export default function ReservationsPage() {
   const { activePropertyId, activeProperty, isAllProperties } = useProperty();
@@ -97,9 +98,9 @@ export default function ReservationsPage() {
       ),
     },
     {
-      header: 'Total ($)',
+      header: 'Total (₦)',
       key: 'total_amount',
-      render: (val) => `$${parseFloat(val).toFixed(2)}`,
+      render: (val) => formatNaira(val),
     },
     {
       header: 'Status',
@@ -194,7 +195,7 @@ export default function ReservationsPage() {
             >
               {apartments.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.property_name} — Unit {a.unit_number} ({a.unit_name}) - ${parseFloat(a.rate_per_night).toFixed(2)}/nt
+                  {a.property_name} — Unit {a.unit_number} ({a.unit_name}) - {formatNaira(a.rate_per_night)}/nt
                 </option>
               ))}
             </select>

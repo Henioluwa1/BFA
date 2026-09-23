@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { searchService } from '../../services/api';
 import { useProperty } from '../../context/PropertyContext';
 import Badge from '../ui/Badge';
+import { formatNaira } from '../../utils/currency';
 
 export default function GlobalSearchModal({ isOpen, onClose }) {
   const [query, setQuery] = useState('');
@@ -184,7 +185,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
                             Unit {a.unit_number} — {a.unit_name}
                           </div>
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                            {a.property_name} • {a.unit_type} • ${parseFloat(a.rate_per_night).toFixed(2)}/night
+                            {a.property_name} • {a.unit_type} • {formatNaira(a.rate_per_night)}/night
                           </div>
                         </div>
                         <Badge status={a.status}>{a.status}</Badge>
@@ -210,7 +211,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
                             {r.reservation_code} — {r.tenant_name}
                           </div>
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                            {r.property_name} (Unit {r.unit_number}) • {r.check_in_date} (1 Night) • ${parseFloat(r.total_amount).toFixed(2)}
+                            {r.property_name} (Unit {r.unit_number}) • {r.check_in_date} (1 Night) • {formatNaira(r.total_amount)}
                           </div>
                         </div>
                         <Badge status="occupied">{r.status}</Badge>
