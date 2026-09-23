@@ -555,7 +555,10 @@ export default function CalendarPage() {
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
+          size="md"
+          icon={selectedEvent.type === 'BLOCKED' ? '🛑' : '📅'}
           title={selectedEvent.type === 'BLOCKED' ? 'Blocked Operational Period' : `Reservation: ${selectedEvent.reservationCode || selectedEvent.title}`}
+          subtitle={selectedEvent.type === 'BLOCKED' ? 'Maintenance or operational hold active on unit' : 'Authoritative reservation details and front-desk actions'}
           footer={
             <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <Button variant="outline" onClick={() => setIsModalOpen(false)}>Close</Button>

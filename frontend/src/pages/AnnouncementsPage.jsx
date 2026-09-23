@@ -166,7 +166,10 @@ export default function AnnouncementsPage() {
       <Modal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
+        size="md"
+        icon="📢"
         title="Create New Announcement Banner"
+        subtitle="Configure a prominent broadcast banner across public landing or authenticated portal"
       >
         <form onSubmit={handleCreate}>
           <div className="form-group" style={{ marginBottom: '1rem' }}>

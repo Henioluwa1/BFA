@@ -814,7 +814,11 @@ export default function ReservationsPage() {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+        size="xl"
+        icon="📅"
         title="Create 1-Night Authoritative Booking"
+        subtitle="Transactional reservation creation with locked +1 day checkout and availability verification"
+        preventBackdropClose={true}
         footer={
           <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={actionLoading}>
@@ -1163,7 +1167,10 @@ export default function ReservationsPage() {
         <Modal
           isOpen={isDetailModalOpen}
           onClose={() => setIsDetailModalOpen(false)}
+          size="xl"
+          icon="📑"
           title={`Booking: ${selectedReservation.confirmation_code || selectedReservation.reservation_code}`}
+          subtitle="Authoritative stay details, security tokens, financial ledger, and operational status transitions"
           footer={
             <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>

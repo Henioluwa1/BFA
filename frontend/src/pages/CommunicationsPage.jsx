@@ -403,7 +403,10 @@ export default function CommunicationsPage() {
       <Modal
         isOpen={composeOpen}
         onClose={() => setComposeOpen(false)}
+        size="lg"
+        icon="✉️"
         title="Compose New Internal Communication"
+        subtitle="Draft or dispatch administrative memos, tenant notices, or operational alerts"
       >
         <form onSubmit={(e) => e.preventDefault()}>
           {/* Template Selector */}
@@ -507,7 +510,10 @@ export default function CommunicationsPage() {
       <Modal
         isOpen={!!viewDetailComm && !reviewModalOpen}
         onClose={() => setViewDetailComm(null)}
+        size="md"
+        icon="📄"
         title={viewDetailComm?.title || 'Communication Details'}
+        subtitle="Internal communication transmission log and audience scope"
       >
         {viewDetailComm && (
           <div>
@@ -518,8 +524,8 @@ export default function CommunicationsPage() {
             </div>
             <p><strong>Author:</strong> {viewDetailComm.author_name} ({viewDetailComm.author_role})</p>
             <p><strong>Date:</strong> {new Date(viewDetailComm.created_at).toLocaleString()}</p>
-            <hr style={{ borderColor: 'var(--border-color)', margin: '1rem 0' }} />
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '6px', whiteSpace: 'pre-wrap' }}>
+            <hr style={{ borderColor: 'var(--border-subtle)', margin: '1rem 0' }} />
+            <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', whiteSpace: 'pre-wrap' }}>
               {viewDetailComm.content}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
@@ -535,7 +541,10 @@ export default function CommunicationsPage() {
       <Modal
         isOpen={reviewModalOpen}
         onClose={() => setReviewModalOpen(false)}
+        size="md"
+        icon="⚖️"
         title={`Review Communication: ${viewDetailComm?.title}`}
+        subtitle="Editorial approval workflow for platform broadcasts"
       >
         <div>
           <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '4px', marginBottom: '1rem' }}>

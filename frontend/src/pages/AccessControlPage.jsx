@@ -395,15 +395,12 @@ export default function AccessControlPage() {
       <Modal
         isOpen={requestModalOpen}
         onClose={() => setRequestModalOpen(false)}
+        size="md"
+        icon="🛡️"
         title={`Owner Approval Required: ${selectedCap?.name}`}
+        subtitle="This capability is governed by OWNER_RESTRICTED policy. A notification will be dispatched to the Owner."
       >
         <form onSubmit={handleSendApprovalRequest}>
-          <div style={{ marginBottom: '1rem' }}>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-              This capability is governed by <strong>OWNER_RESTRICTED</strong> policy. To {targetAction ? 'enable' : 'disable'} this capability, please provide a business reason. A notification will be dispatched to the Owner.
-            </p>
-          </div>
-
           <div className="form-group" style={{ marginBottom: '1.25rem' }}>
             <label className="form-label" style={{ fontWeight: 600 }}>Business Justification / Reason *</label>
             <textarea
@@ -416,7 +413,7 @@ export default function AccessControlPage() {
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
             {isSuperAdmin && (
               <Button
                 type="button"
@@ -447,15 +444,19 @@ export default function AccessControlPage() {
       <Modal
         isOpen={overrideModalOpen}
         onClose={() => setOverrideModalOpen(false)}
-        title="🚨 CONFIRM EMERGENCY FORCE OVERRIDE"
+        size="md"
+        icon="🚨"
+        title="CONFIRM EMERGENCY FORCE OVERRIDE"
+        subtitle="Privileged security action bypassing standard Owner workflow. Logged in high-priority security audit trails."
+        preventBackdropClose={true}
       >
         <form onSubmit={handleExecuteForceOverride}>
-          <div style={{ padding: '0.75rem', background: 'rgba(239,68,68,0.15)', borderLeft: '4px solid #ef4444', borderRadius: '4px', marginBottom: '1rem' }}>
-            <strong style={{ color: '#ef4444', display: 'block', marginBottom: '0.25rem' }}>
-              SUPER ADMIN PRIVILEGED OVERRIDE
+          <div style={{ padding: '0.85rem', background: 'rgba(239,68,68,0.12)', borderLeft: '4px solid #ef4444', borderRadius: '4px', marginBottom: '1.25rem' }}>
+            <strong style={{ color: '#ef4444', display: 'block', marginBottom: '0.25rem', fontSize: '0.88rem' }}>
+              SUPER ADMIN PRIVILEGED ACTION
             </strong>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-              This action bypasses standard Owner approval. It is logged in high-priority security audit trails and broadcasts immediate alerts to management.
+              Broadcasts immediate emergency alerts to management and generates an immutable audit entry.
             </p>
           </div>
 
@@ -473,7 +474,7 @@ export default function AccessControlPage() {
 
           <div className="form-group" style={{ marginBottom: '1.25rem' }}>
             <label className="form-label" style={{ fontWeight: 600 }}>
-              Confirmation Phrase: Type <code style={{ color: '#ef4444', background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '3px' }}>CONFIRM_FORCE_OVERRIDE</code>
+              Confirmation Phrase: Type <code style={{ color: '#ef4444', background: 'var(--bg-surface)', padding: '2px 6px', borderRadius: '4px' }}>CONFIRM_FORCE_OVERRIDE</code>
             </label>
             <input
               type="text"
@@ -504,16 +505,21 @@ export default function AccessControlPage() {
       <Modal
         isOpen={reviewModalOpen}
         onClose={() => setReviewModalOpen(false)}
+        size="md"
+        icon="📋"
         title={`Review Request #${selectedRequest?.id}`}
+        subtitle="Executive review of requested capability modification"
       >
         <div>
-          <p><strong>Capability:</strong> {selectedRequest?.capability_name}</p>
-          <p><strong>Proposed State:</strong> {selectedRequest?.target_state ? 'ENABLED' : 'DISABLED'}</p>
-          <p><strong>Requester:</strong> {selectedRequest?.requester_name} ({selectedRequest?.requester_role})</p>
-          <p><strong>Justification:</strong> {selectedRequest?.justification}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1rem', padding: '0.85rem', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)' }}>
+            <div><span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Capability:</span> <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{selectedRequest?.capability_name}</div></div>
+            <div><span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Proposed State:</span> <div><Badge status={selectedRequest?.target_state ? 'available' : 'danger'}>{selectedRequest?.target_state ? 'ENABLED' : 'DISABLED'}</Badge></div></div>
+            <div><span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Requester:</span> <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{selectedRequest?.requester_name} ({selectedRequest?.requester_role})</div></div>
+            <div style={{ gridColumn: '1 / -1' }}><span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Justification:</span> <div style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '0.2rem' }}>{selectedRequest?.justification}</div></div>
+          </div>
 
           <div className="form-group" style={{ margin: '1rem 0' }}>
-            <label className="form-label">Reviewer Notes (Optional)</label>
+            <label className="form-label" style={{ fontWeight: 600 }}>Reviewer Notes (Optional)</label>
             <textarea
               className="form-control"
               rows={2}
@@ -528,10 +534,10 @@ export default function AccessControlPage() {
               Close
             </Button>
             <Button type="button" variant="danger" onClick={() => handleReviewRequest(false)}>
-              Reject
+              Reject Request
             </Button>
-            <Button type="button" variant="success" onClick={() => handleReviewRequest(true)}>
-              Approve
+            <Button type="button" variant="primary" onClick={() => handleReviewRequest(true)}>
+              Approve Request
             </Button>
           </div>
         </div>

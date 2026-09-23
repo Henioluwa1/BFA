@@ -338,7 +338,10 @@ export default function GuestsPage() {
           setIsAddModalOpen(false);
           setIsEditModalOpen(false);
         }}
+        size="lg"
+        icon="👤"
         title={isEditModalOpen ? `Edit Guest: ${formData.first_name} ${formData.last_name}` : 'Register New Guest Profile'}
+        subtitle="Authoritative guest and tenant profile directory with identity metadata"
         footer={
           <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
             <Button variant="outline" onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }}>Cancel</Button>
@@ -462,7 +465,10 @@ export default function GuestsPage() {
         <Modal
           isOpen={isDetailModalOpen}
           onClose={() => setIsDetailModalOpen(false)}
+          size="lg"
+          icon="📋"
           title={`Guest Profile: ${selectedGuest.display_name}`}
+          subtitle="Comprehensive guest particulars, emergency contact, and lifetime stay history"
           footer={
             <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
               <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>Close</Button>
@@ -480,7 +486,7 @@ export default function GuestsPage() {
               <Badge status={selectedGuest.status}>{selectedGuest.status}</Badge>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
               <div><strong>Nationality:</strong> {selectedGuest.nationality || 'Nigerian'}</div>
               <div><strong>City:</strong> {selectedGuest.city || 'Lagos'}</div>
               <div><strong>ID Reference:</strong> {selectedGuest.identification_type}: {selectedGuest.identification_number || '—'}</div>
@@ -531,7 +537,10 @@ export default function GuestsPage() {
         <Modal
           isOpen={isDuplicateModalOpen}
           onClose={() => setIsDuplicateModalOpen(false)}
-          title="Duplicate Guest Profile Detection"
+          size="md"
+          icon="👥"
+          title="Duplicate Profile Resolution & Merge"
+          subtitle="Merge duplicate guest records, re-assigning reservation ledger and preserving audit history"
           footer={
             <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
               <Button variant="outline" onClick={() => setIsDuplicateModalOpen(false)}>Close</Button>

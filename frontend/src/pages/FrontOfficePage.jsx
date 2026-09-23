@@ -454,7 +454,10 @@ export default function FrontOfficePage() {
         <Modal
           isOpen={!!noShowId}
           onClose={() => setNoShowId(null)}
+          size="sm"
+          icon="⚠️"
           title="Confirm Guest No-Show"
+          subtitle="Release unit availability and log the operational reason in the audit trail"
           footer={
             <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
               <Button variant="outline" onClick={() => setNoShowId(null)}>Cancel</Button>
@@ -468,10 +471,11 @@ export default function FrontOfficePage() {
             </p>
             <input
               type="text"
+              className="form-control"
               placeholder="Reason for no-show..."
               value={noShowReason}
               onChange={(e) => setNoShowReason(e.target.value)}
-              style={{ width: '100%', padding: '0.6rem', marginTop: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+              style={{ width: '100%', marginTop: '0.5rem' }}
             />
           </div>
         </Modal>
@@ -482,7 +486,10 @@ export default function FrontOfficePage() {
         <Modal
           isOpen={isDetailOpen}
           onClose={() => setIsDetailOpen(false)}
+          size="md"
+          icon="📋"
           title={`Booking: ${selectedReservation.reservation_code}`}
+          subtitle="Front-office reservation verification and guest particulars"
           footer={
             <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
               <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Close</Button>

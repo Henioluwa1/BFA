@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { searchService } from '../../services/api';
 import { useProperty } from '../../context/PropertyContext';
 import Badge from '../ui/Badge';
+import Modal from '../ui/Modal';
 import { formatNaira } from '../../utils/currency';
 
 export default function GlobalSearchModal({ isOpen, onClose }) {
@@ -16,17 +17,12 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = 'hidden';
       setTimeout(() => inputRef.current?.focus(), 50);
     } else {
-      document.body.style.overflow = '';
       setQuery('');
       setResults(null);
       setError(null);
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [isOpen]);
 
   // Debounced search query
@@ -66,12 +62,29 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
     results.totalResults > 0;
 
   return (
-    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div
-        className="modal-content"
-        style={{ maxWidth: 'min(94vw, 650px)', background: 'var(--bg-card)', border: '1px solid var(--border-default)', boxSizing: 'border-box' }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="lg"
+      ariaLabel="Global Search"
+      bodyClassName="search-modal-body"
+      footer={
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: '0.78rem',
+            color: 'var(--text-muted)',
+          }}
+        >
+          <span>Tip: Press <kbd style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-primary)' }}>Ctrl + K</kbd> anywhere</span>
+          <span style={{ color: 'var(--brand-accent)' }}>Role Isolation Active</span>
+        </div>
+      }
+    >
+      <div>
         {/* Search Input Bar */}
         <div
           style={{
@@ -274,22 +287,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
           )}
         </div>
 
-        {/* Footer shortcuts */}
-        <div
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: 'var(--bg-surface)',
-            borderTop: '1px solid var(--border-subtle)',
-            fontSize: '0.75rem',
-            color: 'var(--text-muted)',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>Tip: Use <kbd style={{ background: 'var(--grey-800)', padding: '2px 6px', borderRadius: '4px' }}>Ctrl + K</kbd> anywhere to open</span>
-          <span>Role Isolation Active</span>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -447,7 +447,10 @@ export default function InspectionPage() {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+        size="lg"
+        icon="📋"
         title="Schedule Unit Inspection"
+        subtitle="Initialize physical condition evaluation, checkout walkthrough, or damage assessment"
         footer={
           <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
             <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
@@ -539,7 +542,10 @@ export default function InspectionPage() {
         <Modal
           isOpen={isManageModalOpen}
           onClose={() => setIsManageModalOpen(false)}
+          size="xl"
+          icon="🔍"
           title={`Inspection Assessment: ${selectedInspection.inspection_code}`}
+          subtitle="Structured condition rating, itemized damage ledger in ₦, and completion sign-off"
           footer={
             <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <Button variant="outline" onClick={() => setIsManageModalOpen(false)}>Close</Button>

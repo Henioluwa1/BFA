@@ -583,7 +583,10 @@ export default function ApartmentsPage() {
       <Modal
         isOpen={isAddPropertyModalOpen}
         onClose={() => setIsAddPropertyModalOpen(false)}
+        size="lg"
+        icon="🏢"
         title="Add New Property / Building"
+        subtitle="Register a new serviced residential building or location into the BFA portfolio"
       >
         <form onSubmit={handleCreateProperty} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
@@ -714,7 +717,10 @@ export default function ApartmentsPage() {
       <Modal
         isOpen={isEditPropertyModalOpen}
         onClose={() => setIsEditPropertyModalOpen(false)}
+        size="lg"
+        icon="🏢"
         title={`Edit Property: ${selectedProperty?.name}`}
+        subtitle="Update property contact info, amenities, and operational configuration"
       >
         <form onSubmit={handleUpdateProperty} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
@@ -791,7 +797,14 @@ export default function ApartmentsPage() {
       </Modal>
 
       {/* 3. ADD APARTMENT UNIT MODAL */}
-      <Modal isOpen={isAddUnitModalOpen} onClose={() => setIsAddUnitModalOpen(false)} title="Add Apartment Unit">
+      <Modal
+        isOpen={isAddUnitModalOpen}
+        onClose={() => setIsAddUnitModalOpen(false)}
+        size="lg"
+        icon="🏠"
+        title="Add Apartment Unit"
+        subtitle="Create a new physical serviced apartment unit under an existing property"
+      >
         <form onSubmit={handleCreateUnit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
             <label className="form-label">Parent Property *</label>
@@ -947,7 +960,14 @@ export default function ApartmentsPage() {
       </Modal>
 
       {/* 4. EDIT UNIT MODAL */}
-      <Modal isOpen={isEditUnitModalOpen} onClose={() => setIsEditUnitModalOpen(false)} title={`Edit Unit: #${selectedUnit?.unit_number}`}>
+      <Modal
+        isOpen={isEditUnitModalOpen}
+        onClose={() => setIsEditUnitModalOpen(false)}
+        size="md"
+        icon="✏️"
+        title={`Edit Unit: #${selectedUnit?.unit_number}`}
+        subtitle="Modify unit details, floor, capacity, and nightly pricing"
+      >
         <form onSubmit={handleUpdateUnit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
             <div>
@@ -1056,7 +1076,10 @@ export default function ApartmentsPage() {
       <Modal
         isOpen={isStatusModalOpen}
         onClose={() => setIsStatusModalOpen(false)}
-        title={`Update Operational Status: Unit #${selectedUnit?.unit_number}`}
+        size="sm"
+        icon="🧹"
+        title={`Update Status: Unit #${selectedUnit?.unit_number}`}
+        subtitle="Transition physical unit state across housekeeping and maintenance"
       >
         <form onSubmit={handleUpdateStatus} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
@@ -1103,7 +1126,10 @@ export default function ApartmentsPage() {
       <Modal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
+        size="lg"
+        icon="🔍"
         title={`Unit Details: #${selectedUnit?.unit_number} - ${selectedUnit?.unit_name}`}
+        subtitle="Complete architectural specifications and operational profile"
       >
         {selectedUnit && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

@@ -962,7 +962,10 @@ export default function LandingPage() {
             setConfirmedBooking(null);
             setCopiedAuthCode(false);
           }}
-          title="Reservation Confirmed & Authenticated! 🎉"
+          size="md"
+          icon="🎉"
+          title="Reservation Confirmed & Authenticated!"
+          subtitle="Your booking is secured on the authoritative BFA ledger"
         >
           <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
             <div
@@ -1108,7 +1111,10 @@ export default function LandingPage() {
           setVerificationResult(null);
           setVerificationError('');
         }}
-        title="🔍 Cryptographic Booking Verification"
+        size="md"
+        icon="🔍"
+        title="Booking Authentication & Verification"
+        subtitle="Verify stay validity using reservation code or cryptographic auth token"
       >
         <div>
           <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
