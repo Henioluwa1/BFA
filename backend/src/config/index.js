@@ -12,6 +12,7 @@ const config = {
     url: process.env.APP_URL || 'http://localhost:5000',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
     isProduction: process.env.NODE_ENV === 'production',
+    isTest: process.env.NODE_ENV === 'test',
   },
   db: {
     host: process.env.DB_HOST || '127.0.0.1',

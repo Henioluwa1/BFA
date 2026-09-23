@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
-import { systemService } from '../../services/api';
+import { systemService, notificationService } from '../../services/api';
 import Breadcrumbs from './Breadcrumbs';
 import GlobalSearchModal from '../search/GlobalSearchModal';
 
@@ -10,6 +11,10 @@ export default function Topbar({ onToggleMobileNav }) {
   const { user, logout, isSuperAdmin } = useAuth();
   const [apiHealth, setApiHealth] = useState({ status: 'checking', dbStatus: 'checking' });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifsDropdownOpen, setNotifsDropdownOpen] = useState(false);
+  const [recentNotifs, setRecentNotifs] = useState([]);
+  const notifsRef = useRef(null);
 
   const checkConnection = async () => {
     try {
@@ -24,10 +29,43 @@ export default function Topbar({ onToggleMobileNav }) {
     }
   };
 
+  const fetchUnread = async () => {
+    try {
+      const res = await notificationService.getUnreadCount();
+      setUnreadCount(res.data?.unreadCount || 0);
+    } catch {
+      // Ignore background notification check failures
+    }
+  };
+
+  const fetchRecent = async () => {
+    try {
+      const res = await notificationService.getAll({ pageSize: 5 });
+      setRecentNotifs(res.data || []);
+    } catch {
+      // Ignore
+    }
+  };
+
   useEffect(() => {
     checkConnection();
-    const interval = setInterval(checkConnection, 15000);
+    fetchUnread();
+    const interval = setInterval(() => {
+      checkConnection();
+      fetchUnread();
+    }, 20000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Close notifications dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notifsRef.current && !notifsRef.current.contains(e.target)) {
+        setNotifsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Keyboard shortcut: Ctrl+K or Cmd+K to open search
@@ -41,6 +79,23 @@ export default function Topbar({ onToggleMobileNav }) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const handleToggleNotifs = () => {
+    if (!notifsDropdownOpen) {
+      fetchRecent();
+    }
+    setNotifsDropdownOpen((prev) => !prev);
+  };
+
+  const handleMarkAllReadQuick = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setUnreadCount(0);
+      setRecentNotifs((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
+    } catch {
+      // Ignore
+    }
+  };
 
   const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
 
@@ -101,6 +156,146 @@ export default function Topbar({ onToggleMobileNav }) {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Central Notification Bell */}
+          <div className="notif-wrapper" ref={notifsRef} style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className="topbar-icon-btn"
+              onClick={handleToggleNotifs}
+              title="Notifications"
+              aria-label="View notifications"
+              style={{
+                position: 'relative',
+                background: 'transparent',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '0.45rem',
+                cursor: 'pointer',
+                color: 'var(--text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    background: '#ef4444',
+                    color: '#fff',
+                    fontSize: '0.6875rem',
+                    fontWeight: 700,
+                    borderRadius: '10px',
+                    padding: '1px 5px',
+                    minWidth: '16px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notification Dropdown Panel */}
+            {notifsDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '115%',
+                  width: '320px',
+                  background: 'var(--card-bg, #1a202c)',
+                  border: '1px solid var(--border-color, #2d3748)',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                  zIndex: 1000,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.75rem 1rem',
+                    borderBottom: '1px solid var(--border-color)',
+                  }}
+                >
+                  <strong style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>Notifications</strong>
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleMarkAllReadQuick}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--brand-accent, #3b82f6)',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                  {recentNotifs.slice(0, 5).map((n) => (
+                    <div
+                      key={n.id}
+                      style={{
+                        padding: '0.75rem 1rem',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        background: n.is_read ? 'transparent' : 'rgba(59,130,246,0.06)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {n.title}
+                        </span>
+                        <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                          {n.category}
+                        </span>
+                      </div>
+                      <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                        {n.message?.length > 70 ? `${n.message.substring(0, 70)}...` : n.message}
+                      </p>
+                    </div>
+                  ))}
+                  {recentNotifs.length === 0 && (
+                    <div style={{ padding: '1.5rem', textAlign: 'center', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                      No new notifications
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    padding: '0.6rem 1rem',
+                    textAlign: 'center',
+                    borderTop: '1px solid var(--border-color)',
+                    background: 'rgba(0,0,0,0.15)',
+                  }}
+                >
+                  <Link
+                    to="/app/notifications"
+                    onClick={() => setNotifsDropdownOpen(false)}
+                    style={{ fontSize: '0.8125rem', color: 'var(--brand-accent)', textDecoration: 'none' }}
+                  >
+                    View all notifications ➔
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Authenticated User Profile Pill (Section 6 & 7: Role derived from Backend) */}

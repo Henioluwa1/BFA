@@ -9,6 +9,8 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [properties, setProperties] = useState([]);
   const [apartments, setApartments] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementDismissed, setAnnouncementDismissed] = useState(false);
   const [loadingProps, setLoadingProps] = useState(true);
 
   // Booking Form State
@@ -23,23 +25,38 @@ export default function LandingPage() {
   const [availabilityResult, setAvailabilityResult] = useState(null);
   const [availabilityError, setAvailabilityError] = useState('');
 
+  // Payment Control State
+  const [paymentOption, setPaymentOption] = useState('PAY_ONLINE'); // 'PAY_ONLINE' | 'PAY_AT_PROPERTY'
+  const [paymentChannel, setPaymentChannel] = useState('CARD'); // 'CARD' | 'BANK_TRANSFER' | 'USSD'
+
   // Guest Details State
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+  const [copiedAuthCode, setCopiedAuthCode] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Guest Verification / Lookup State
+  const [verifyModalOpen, setVerifyModalOpen] = useState(false);
+  const [verifyQuery, setVerifyQuery] = useState('');
+  const [verifyContact, setVerifyContact] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verificationResult, setVerificationResult] = useState(null);
+  const [verificationError, setVerificationError] = useState('');
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [propsRes, aptsRes] = await Promise.all([
+        const [propsRes, aptsRes, annRes] = await Promise.all([
           publicService.getProperties(),
           publicService.getApartments(),
+          publicService.getAnnouncements({ location: 'PUBLIC_LANDING' }).catch(() => ({ data: [] })),
         ]);
         setProperties(propsRes.data || []);
         setApartments(aptsRes.data || []);
+        setAnnouncements(annRes.data || []);
         if (propsRes.data?.length > 0) {
           setSelectedPropertyId(String(propsRes.data[0].id));
         }
@@ -101,6 +118,7 @@ export default function LandingPage() {
         guestEmail,
         guestPhone,
         checkInDate,
+        paymentMethod: paymentOption === 'PAY_AT_PROPERTY' ? 'PAY_AT_PROPERTY' : paymentChannel,
       });
       setConfirmedBooking(res.data);
       setAvailabilityResult(null);
@@ -108,6 +126,29 @@ export default function LandingPage() {
       alert(`Booking failed: ${err.message || 'Please try another unit or date.'}`);
     } finally {
       setBookingLoading(false);
+    }
+  };
+
+  const handleLookupVerification = async (e) => {
+    e.preventDefault();
+    if (!verifyQuery.trim()) {
+      setVerificationError('Please enter a booking reference or cryptographic authentication code.');
+      return;
+    }
+    setVerifyLoading(true);
+    setVerificationError('');
+    setVerificationResult(null);
+
+    try {
+      const res = await publicService.verifyBooking({
+        query: verifyQuery.trim(),
+        contact: verifyContact.trim() || undefined,
+      });
+      setVerificationResult(res.data);
+    } catch (err) {
+      setVerificationError(err.message || 'No matching confirmed reservation was found.');
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
@@ -173,6 +214,29 @@ export default function LandingPage() {
             <a href="#features" style={{ textDecoration: 'none', color: '#475569', fontWeight: 600, fontSize: '0.9rem' }}>
               Amenities
             </a>
+            <button
+              type="button"
+              onClick={() => {
+                setVerificationError('');
+                setVerificationResult(null);
+                setVerifyModalOpen(true);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.5rem 0.9rem',
+                borderRadius: '8px',
+                background: 'rgba(37, 99, 235, 0.08)',
+                color: '#2563eb',
+                border: '1px solid #bfdbfe',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+              }}
+            >
+              🔍 Verify Booking
+            </button>
             <Link
               to="/login"
               style={{
@@ -222,6 +286,30 @@ export default function LandingPage() {
             <a href="#features" onClick={() => setMobileMenuOpen(false)}>
               ✨ Amenities
             </a>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setVerificationError('');
+                setVerificationResult(null);
+                setVerifyModalOpen(true);
+              }}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                background: 'rgba(37, 99, 235, 0.08)',
+                color: '#2563eb',
+                border: '1px solid #bfdbfe',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                textAlign: 'center',
+                margin: '0.5rem 0',
+              }}
+            >
+              🔍 Verify Cryptographic Booking
+            </button>
             <Link
               to="/login"
               onClick={() => setMobileMenuOpen(false)}
@@ -237,7 +325,7 @@ export default function LandingPage() {
                 textDecoration: 'none',
                 fontWeight: 700,
                 fontSize: '0.95rem',
-                marginTop: '0.5rem',
+                marginTop: '0.25rem',
               }}
             >
               Portal Login →
@@ -245,6 +333,55 @@ export default function LandingPage() {
           </div>
         )}
       </header>
+
+      {/* Active Public Announcement Banner */}
+      {announcements.length > 0 && !announcementDismissed && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, #1e3a8a, #2563eb)',
+            color: '#ffffff',
+            padding: '0.75rem 1.25rem',
+            borderBottom: '1px solid rgba(255,255,255,0.15)',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: '1240px',
+              margin: '0 auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>📢</span>
+              <div style={{ fontSize: '0.875rem' }}>
+                <strong style={{ color: '#fed7aa', marginRight: '0.5rem' }}>
+                  {announcements[0].title}:
+                </strong>
+                <span>{announcements[0].message}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAnnouncementDismissed(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#bfdbfe',
+                cursor: 'pointer',
+                fontSize: '1.1rem',
+                padding: '0.2rem 0.5rem',
+              }}
+              title="Dismiss announcement"
+              aria-label="Dismiss banner"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. Hero Section */}
       <section
@@ -541,6 +678,100 @@ export default function LandingPage() {
                         style={{ padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1' }}
                       />
                     </div>
+
+                    {/* Payment Control Selector */}
+                    <div style={{ margin: '1rem 0', padding: '1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                      <label style={{ display: 'block', fontWeight: 700, fontSize: '0.82rem', color: '#334155', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                        💳 Payment Authorization Option
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.6rem',
+                            padding: '0.75rem',
+                            borderRadius: '8px',
+                            border: `2px solid ${paymentOption === 'PAY_ONLINE' ? '#2563eb' : '#e2e8f0'}`,
+                            background: paymentOption === 'PAY_ONLINE' ? '#eff6ff' : '#ffffff',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="paymentOption"
+                            value="PAY_ONLINE"
+                            checked={paymentOption === 'PAY_ONLINE'}
+                            onChange={() => setPaymentOption('PAY_ONLINE')}
+                          />
+                          <div>
+                            <strong style={{ fontSize: '0.875rem', color: '#0f172a', display: 'block' }}>Pay Online Now</strong>
+                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Instant Card, Bank Transfer, or USSD</span>
+                          </div>
+                        </label>
+
+                        <label
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.6rem',
+                            padding: '0.75rem',
+                            borderRadius: '8px',
+                            border: `2px solid ${paymentOption === 'PAY_AT_PROPERTY' ? '#2563eb' : '#e2e8f0'}`,
+                            background: paymentOption === 'PAY_AT_PROPERTY' ? '#eff6ff' : '#ffffff',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="paymentOption"
+                            value="PAY_AT_PROPERTY"
+                            checked={paymentOption === 'PAY_AT_PROPERTY'}
+                            onChange={() => setPaymentOption('PAY_AT_PROPERTY')}
+                          />
+                          <div>
+                            <strong style={{ fontSize: '0.875rem', color: '#0f172a', display: 'block' }}>Pay When You Arrive</strong>
+                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Front Desk Settlement (Policy Governed)</span>
+                          </div>
+                        </label>
+                      </div>
+
+                      {paymentOption === 'PAY_ONLINE' && (
+                        <div style={{ display: 'flex', gap: '1.25rem', marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
+                          <label style={{ fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                            <input
+                              type="radio"
+                              name="paymentChannel"
+                              value="CARD"
+                              checked={paymentChannel === 'CARD'}
+                              onChange={() => setPaymentChannel('CARD')}
+                            />
+                            💳 Card (Mastercard / Visa / Verve)
+                          </label>
+                          <label style={{ fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                            <input
+                              type="radio"
+                              name="paymentChannel"
+                              value="BANK_TRANSFER"
+                              checked={paymentChannel === 'BANK_TRANSFER'}
+                              onChange={() => setPaymentChannel('BANK_TRANSFER')}
+                            />
+                            🏦 Instant Bank Transfer
+                          </label>
+                          <label style={{ fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                            <input
+                              type="radio"
+                              name="paymentChannel"
+                              value="USSD"
+                              checked={paymentChannel === 'USSD'}
+                              onChange={() => setPaymentChannel('USSD')}
+                            />
+                            📱 USSD Banking
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       type="submit"
                       disabled={bookingLoading}
@@ -723,75 +954,291 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal with Cryptographic Authentication Code */}
       {confirmedBooking && (
         <Modal
           isOpen={!!confirmedBooking}
-          onClose={() => setConfirmedBooking(null)}
-          title="Reservation Confirmed! 🎉"
+          onClose={() => {
+            setConfirmedBooking(null);
+            setCopiedAuthCode(false);
+          }}
+          title="Reservation Confirmed & Authenticated! 🎉"
         >
-          <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+          <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
             <div
               style={{
-                width: '60px',
-                height: '60px',
+                width: '56px',
+                height: '56px',
                 borderRadius: '50%',
                 background: '#dcfce7',
                 color: '#15803d',
-                fontSize: '1.8rem',
+                fontSize: '1.75rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 1.25rem',
+                margin: '0 auto 1rem',
               }}
             >
               ✓
             </div>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
+            <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.35rem' }}>
               Thank You, {confirmedBooking.guestName}!
             </h3>
-            <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-              Your 1-night stay has been confirmed in our authoritative reservation registry.
+            <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.25rem' }}>
+              Your 1-night stay has been confirmed in the authoritative reservation registry.
             </p>
+
+            {/* Cryptographic Auth Box */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                color: '#ffffff',
+                borderRadius: '10px',
+                padding: '1rem',
+                marginBottom: '1.25rem',
+                textAlign: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              }}
+            >
+              <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8', marginBottom: '0.35rem' }}>
+                Official Cryptographic Authentication Code
+              </div>
+              <div style={{ fontSize: '1.45rem', fontWeight: 800, letterSpacing: '0.05em', color: '#60a5fa', fontFamily: 'monospace' }}>
+                {confirmedBooking.authenticationCode || 'BFA-AUTH-GENERATED'}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmedBooking.authenticationCode) {
+                    navigator.clipboard.writeText(confirmedBooking.authenticationCode);
+                    setCopiedAuthCode(true);
+                    setTimeout(() => setCopiedAuthCode(false), 3000);
+                  }
+                }}
+                style={{
+                  marginTop: '0.5rem',
+                  background: 'rgba(255,255,255,0.12)',
+                  border: 'none',
+                  color: '#ffffff',
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {copiedAuthCode ? '✓ Copied to Clipboard!' : '📋 Copy Auth Code'}
+              </button>
+            </div>
 
             <div
               style={{
                 background: '#f8fafc',
                 border: '1px solid #e2e8f0',
-                borderRadius: '12px',
-                padding: '1.25rem',
+                borderRadius: '10px',
+                padding: '1rem',
                 textAlign: 'left',
-                marginBottom: '1.5rem',
+                marginBottom: '1.25rem',
+                fontSize: '0.85rem',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Reservation Code:</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#64748b' }}>Reservation Reference:</span>
                 <span style={{ fontWeight: 800, color: '#2563eb' }}>{confirmedBooking.reservationCode}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Property:</span>
-                <span style={{ fontWeight: 600 }}>{confirmedBooking.propertyName}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#64748b' }}>Property & Unit:</span>
+                <span style={{ fontWeight: 600 }}>{confirmedBooking.propertyName} — {confirmedBooking.unitName} (#{confirmedBooking.unitNumber})</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Unit:</span>
-                <span style={{ fontWeight: 600 }}>{confirmedBooking.unitName} (#{confirmedBooking.unitNumber})</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#64748b' }}>Stay Period (1 Night):</span>
+                <span style={{ fontWeight: 600 }}>{confirmedBooking.checkInDate} ➔ {confirmedBooking.checkOutDate}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Stay Dates:</span>
-                <span style={{ fontWeight: 600 }}>{confirmedBooking.checkInDate} to {confirmedBooking.checkOutDate}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#64748b' }}>Payment Method:</span>
+                <span style={{ fontWeight: 700 }}>{confirmedBooking.paymentMethod || paymentOption}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
-                <span style={{ color: '#0f172a', fontWeight: 700 }}>Total Amount:</span>
-                <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#059669' }}>{formatNaira(confirmedBooking.totalAmount)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#64748b' }}>Payment Status:</span>
+                <span
+                  style={{
+                    fontWeight: 700,
+                    color: confirmedBooking.paymentStatus === 'PAID' ? '#16a34a' : '#d97706',
+                  }}
+                >
+                  {confirmedBooking.paymentStatus === 'PAID' ? '✓ PAID ONLINE' : '⏳ PENDING (AT PROPERTY)'}
+                </span>
+              </div>
+              {confirmedBooking.transactionRef && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <span style={{ color: '#64748b' }}>Transaction Ref:</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{confirmedBooking.transactionRef}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                <span style={{ color: '#0f172a', fontWeight: 700 }}>Total Authorized:</span>
+                <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#059669' }}>
+                  {formatNaira(confirmedBooking.totalAmount)}
+                </span>
               </div>
             </div>
 
-            <Button variant="primary" onClick={() => setConfirmedBooking(null)}>
-              Done
+            <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0 0 1rem 0' }}>
+              Please present your <strong>{confirmedBooking.authenticationCode}</strong> code at reception upon check-in.
+            </p>
+
+            <Button
+              variant="primary"
+              onClick={() => {
+                setConfirmedBooking(null);
+                setCopiedAuthCode(false);
+              }}
+            >
+              Complete
             </Button>
           </div>
         </Modal>
       )}
+
+      {/* Guest Cryptographic Booking Verification Modal */}
+      <Modal
+        isOpen={verifyModalOpen}
+        onClose={() => {
+          setVerifyModalOpen(false);
+          setVerificationResult(null);
+          setVerificationError('');
+        }}
+        title="🔍 Cryptographic Booking Verification"
+      >
+        <div>
+          <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '1rem' }}>
+            Verify your reservation authenticity using your BFA Reservation Code (e.g. <code>BFA-RES-XXXX</code>) or Cryptographic Authentication Code (<code>BFA-AUTH-XXXXXXXX</code>).
+          </p>
+
+          <form onSubmit={handleLookupVerification} style={{ marginBottom: '1.25rem' }}>
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: '#334155', marginBottom: '0.25rem' }}>
+                Booking Reference or Auth Code *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. BFA-RES-1234 or BFA-AUTH-ABC12345"
+                value={verifyQuery}
+                onChange={(e) => setVerifyQuery(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  fontFamily: 'monospace',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: '#334155', marginBottom: '0.25rem' }}>
+                Guest Email or Phone (Optional for identity verification)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. guest@example.com or 08012345678"
+                value={verifyContact}
+                onChange={(e) => setVerifyContact(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                }}
+              />
+            </div>
+
+            <Button type="submit" variant="primary" disabled={verifyLoading} style={{ width: '100%' }}>
+              {verifyLoading ? 'Verifying Cryptographic Record...' : 'Verify Reservation Authenticity'}
+            </Button>
+          </form>
+
+          {verificationError && (
+            <div
+              style={{
+                padding: '0.75rem',
+                borderRadius: '6px',
+                background: '#fef2f2',
+                border: '1px solid #fecdd3',
+                color: '#9f1239',
+                fontSize: '0.85rem',
+                marginBottom: '1rem',
+              }}
+            >
+              ✕ {verificationError}
+            </div>
+          )}
+
+          {verificationResult && (
+            <div
+              style={{
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: '8px',
+                padding: '1rem',
+                fontSize: '0.85rem',
+              }}
+            >
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  background: '#15803d',
+                  color: '#ffffff',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '9999px',
+                  textTransform: 'uppercase',
+                  marginBottom: '0.75rem',
+                }}
+              >
+                ✓ AUTHENTICATED & CRYPTOGRAPHICALLY VERIFIED
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <span style={{ color: '#475569' }}>Reservation Ref:</span>
+                <strong style={{ color: '#2563eb' }}>{verificationResult.reservationCode}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <span style={{ color: '#475569' }}>Auth Code:</span>
+                <code style={{ fontWeight: 800, color: '#0f172a' }}>{verificationResult.authenticationCode}</code>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <span style={{ color: '#475569' }}>Guest:</span>
+                <strong>{verificationResult.guestName}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <span style={{ color: '#475569' }}>Property / Unit:</span>
+                <span>{verificationResult.propertyName} (Unit {verificationResult.unitNumber})</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <span style={{ color: '#475569' }}>Stay Period (1 Night):</span>
+                <span>{verificationResult.checkInDate} to {verificationResult.checkOutDate}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <span style={{ color: '#475569' }}>Payment Status:</span>
+                <span style={{ fontWeight: 700, color: verificationResult.paymentStatus === 'PAID' ? '#16a34a' : '#d97706' }}>
+                  {verificationResult.paymentStatus}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #bbf7d0', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                <span style={{ fontWeight: 700 }}>Total Authorized:</span>
+                <strong style={{ fontSize: '1rem', color: '#059669' }}>
+                  {formatNaira(verificationResult.totalAmount)}
+                </strong>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

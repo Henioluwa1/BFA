@@ -15,6 +15,12 @@ const reservationsRoutes = require('./modules/reservations/reservations.routes')
 const searchRoutes = require('./modules/search/search.routes');
 const reportsRoutes = require('./modules/reports/reports.routes');
 const auditRoutes = require('./modules/audit/audit.routes');
+const accessRoutes = require('./modules/access/access.routes');
+const paymentsRoutes = require('./modules/payments/payments.routes');
+const bookingAuthRoutes = require('./modules/bookingAuth/bookingAuth.routes');
+const communicationsRoutes = require('./modules/communications/communications.routes');
+const notificationsRoutes = require('./modules/notifications/notifications.routes');
+const announcementsRoutes = require('./modules/announcements/announcements.routes');
 
 const app = express();
 
@@ -50,6 +56,12 @@ apiV1Router.use('/reservations', reservationsRoutes);
 apiV1Router.use('/search', searchRoutes);
 apiV1Router.use('/reports', reportsRoutes);
 apiV1Router.use('/audit', auditRoutes);
+apiV1Router.use('/access', accessRoutes);
+apiV1Router.use('/payments', paymentsRoutes);
+apiV1Router.use('/booking-authentication', bookingAuthRoutes);
+apiV1Router.use('/communications', communicationsRoutes);
+apiV1Router.use('/notifications', notificationsRoutes);
+apiV1Router.use('/announcements', announcementsRoutes);
 
 app.use('/api/v1', apiV1Router);
 

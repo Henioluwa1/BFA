@@ -1,6 +1,10 @@
 const db = require('../../db/pool');
 const { ValidationError, NotFoundError, ConflictError } = require('../../core/errors/apiError');
 const auditService = require('../../core/audit/audit.service');
+const AccessControlService = require('../../core/access/accessControl.service');
+const BookingAuthService = require('../bookingAuth/bookingAuth.service');
+const PaymentsService = require('../payments/payments.service');
+const NotificationsService = require('../notifications/notifications.service');
 
 // 1. Public Properties Showcase
 async function getPublicProperties(req, res, next) {
@@ -137,7 +141,15 @@ async function checkAvailability(req, res, next) {
 // 4. Public Online Booking Submission
 async function createPublicBooking(req, res, next) {
   try {
-    const { apartmentId, guestName, guestEmail, guestPhone, checkInDate } = req.body;
+    const {
+      apartmentId,
+      guestName,
+      guestEmail,
+      guestPhone,
+      checkInDate,
+      paymentOption = 'PAY_ONLINE',
+      paymentMethod = 'CARD',
+    } = req.body;
 
     if (!apartmentId || !guestName || !guestEmail || !guestPhone || !checkInDate) {
       throw new ValidationError('All booking fields are required (apartmentId, guestName, guestEmail, guestPhone, checkInDate).');
@@ -179,12 +191,61 @@ async function createPublicBooking(req, res, next) {
     const reservationCode = `BFA-PUB-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
     const totalAmount = parseFloat(unit.rate_per_night);
 
+    // Validate payment mode capability
+    const isPayAtProperty = paymentOption === 'PAY_AT_PROPERTY';
+    if (isPayAtProperty) {
+      const capCheck = await AccessControlService.canAccess(null, 'PAY_AT_PROPERTY');
+      if (!capCheck.allowed) {
+        throw new ValidationError(`Pay at Property is currently disabled by management (${capCheck.reason}). Please select Pay Online.`);
+      }
+    } else {
+      const capCheck = await AccessControlService.canAccess(null, 'ONLINE_PAYMENT');
+      if (!capCheck.allowed) {
+        throw new ValidationError(`Online payment is currently disabled (${capCheck.reason}).`);
+      }
+    }
+
+    const finalPaymentMethod = isPayAtProperty ? 'PAY_AT_PROPERTY' : (paymentMethod || 'CARD');
+
     const result = await db.query(
       `INSERT INTO reservations 
-       (reservation_code, property_id, apartment_id, tenant_name, tenant_email, tenant_phone, check_in_date, check_out_date, nights, total_amount, paid_amount, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0.00, 'CONFIRMED')`,
-      [reservationCode, unit.prop_id, unit.id, guestName.trim(), guestEmail.trim(), guestPhone.trim(), checkInStr, checkOutStr, totalAmount]
+       (reservation_code, property_id, apartment_id, tenant_name, tenant_email, tenant_phone, check_in_date, check_out_date, nights, total_amount, paid_amount, status, payment_status, payment_method)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0.00, 'CONFIRMED', 'PAYMENT_PENDING', ?)`,
+      [
+        reservationCode,
+        unit.prop_id,
+        unit.id,
+        guestName.trim(),
+        guestEmail.trim(),
+        guestPhone.trim(),
+        checkInStr,
+        checkOutStr,
+        totalAmount,
+        finalPaymentMethod,
+      ]
     );
+
+    const reservationId = result.insertId;
+
+    // Generate unique, unpredictable booking authentication code
+    const authCode = await BookingAuthService.registerBookingAuth({
+      reservationId,
+      guestEmail: guestEmail.trim(),
+      guestPhone: guestPhone.trim(),
+    });
+
+    // Record authoritative payment transaction
+    const paymentRes = await PaymentsService.processPayment({
+      reservationId,
+      paymentMethod: finalPaymentMethod,
+      amount: totalAmount,
+      currency: 'NGN',
+      provider: isPayAtProperty ? 'OFFLINE_COUNTER' : 'MOCK_GATEWAY',
+      req,
+    });
+
+    const currentPaymentStatus = isPayAtProperty ? 'PAYMENT_PENDING' : 'PAYMENT_SUCCESS';
+    const currentPaidAmount = isPayAtProperty ? 0.00 : totalAmount;
 
     await auditService.record({
       actorId: null,
@@ -192,14 +253,17 @@ async function createPublicBooking(req, res, next) {
       actorRole: 'PUBLIC_GUEST',
       action: 'PUBLIC_RESERVATION_CREATE',
       entityType: 'reservation',
-      entityId: String(result.insertId),
+      entityId: String(reservationId),
       newValues: {
         reservationCode,
+        authCode,
         propertyId: unit.prop_id,
         apartmentId: unit.id,
         checkInDate: checkInStr,
         checkOutDate: checkOutStr,
         totalAmount,
+        paymentStatus: currentPaymentStatus,
+        paymentMethod: finalPaymentMethod,
       },
       requestId: req.id,
       ipAddress: req.ip,
@@ -210,8 +274,9 @@ async function createPublicBooking(req, res, next) {
       success: true,
       message: 'Reservation created successfully! Your booking is confirmed.',
       data: {
-        id: result.insertId,
+        id: reservationId,
         reservationCode,
+        authCode,
         guestName,
         guestEmail,
         propertyName: unit.property_name,
@@ -221,8 +286,31 @@ async function createPublicBooking(req, res, next) {
         checkOutDate: checkOutStr,
         nights: 1,
         totalAmount,
+        paidAmount: currentPaidAmount,
+        outstandingBalance: Math.max(0, totalAmount - currentPaidAmount),
         status: 'CONFIRMED',
+        paymentStatus: currentPaymentStatus,
+        paymentMethod: finalPaymentMethod,
       },
+      meta: { timestamp: new Date().toISOString(), requestId: req.id },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// 5. Public Announcements
+async function getPublicAnnouncements(req, res, next) {
+  try {
+    const { location = 'PUBLIC_LANDING', propertyId } = req.query;
+    const data = await NotificationsService.getActiveAnnouncements({
+      displayLocation: location,
+      propertyId,
+    });
+    res.status(200).json({
+      success: true,
+      message: 'Active public announcements retrieved.',
+      data,
       meta: { timestamp: new Date().toISOString(), requestId: req.id },
     });
   } catch (err) {
@@ -235,4 +323,5 @@ module.exports = {
   getPublicApartments,
   checkAvailability,
   createPublicBooking,
+  getPublicAnnouncements,
 };

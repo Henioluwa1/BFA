@@ -24,6 +24,10 @@ import InspectionPage from './pages/InspectionPage';
 import AuditPage from './pages/AuditPage';
 import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
+import AccessControlPage from './pages/AccessControlPage';
+import CommunicationsPage from './pages/CommunicationsPage';
+import NotificationsPage from './pages/NotificationsPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function App() {
@@ -52,6 +56,10 @@ function App() {
                   <Route path="maintenance" element={<MaintenancePage />} />
                   <Route path="inspection" element={<InspectionPage />} />
                   <Route path="audit" element={<AuditPage />} />
+                  <Route path="access-control" element={<AccessControlPage />} />
+                  <Route path="communications" element={<CommunicationsPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="announcements" element={<AnnouncementsPage />} />
                   <Route path="team" element={<TeamPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="404" element={<NotFoundPage />} />

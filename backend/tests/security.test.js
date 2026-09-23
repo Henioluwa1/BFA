@@ -131,18 +131,19 @@ describe('Security, Authentication & Role Authorization Tests (Section 6, 7, 8, 
   });
 
   test('12. Public Booking Endpoint creates valid 1-night reservation without requiring auth token', async () => {
+    // Ensure clean slate on apartment 3
+    await pool.query('DELETE FROM booking_authentications WHERE reservation_id IN (SELECT id FROM reservations WHERE apartment_id = 3)');
+    await pool.query('DELETE FROM payment_transactions WHERE reservation_id IN (SELECT id FROM reservations WHERE apartment_id = 3)');
+    await pool.query('DELETE FROM reservations WHERE apartment_id = 3');
+
     const testEmail = `public.guest.${Date.now()}@example.com`;
-    // Use random future date to guarantee zero conflict with other test runs
-    const futureDays = 8000 + Math.floor(Math.random() * 5000);
-    const d = new Date(Date.now() + futureDays * 86400000);
-    const checkInDate = d.toISOString().split('T')[0];
-    d.setDate(d.getDate() + 1);
-    const expectedCheckOut = d.toISOString().split('T')[0];
+    const checkInDate = '2027-01-15';
+    const expectedCheckOut = '2027-01-16';
 
     const res = await request(app)
       .post('/api/v1/public/booking')
       .send({
-        apartmentId: 1,
+        apartmentId: 3,
         guestName: 'Jane Public',
         guestEmail: testEmail,
         guestPhone: '+234 800 123 4567',
@@ -153,5 +154,11 @@ describe('Security, Authentication & Role Authorization Tests (Section 6, 7, 8, 
     expect(res.body.success).toBe(true);
     expect(res.body.data.nights).toBe(1);
     expect(res.body.data.checkOutDate).toBe(expectedCheckOut);
+
+    if (res.body.data && res.body.data.id) {
+      await pool.query('DELETE FROM booking_authentications WHERE reservation_id = ?', [res.body.data.id]);
+      await pool.query('DELETE FROM payment_transactions WHERE reservation_id = ?', [res.body.data.id]);
+      await pool.query('DELETE FROM reservations WHERE id = ?', [res.body.data.id]);
+    }
   });
 });

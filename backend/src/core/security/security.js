@@ -28,6 +28,7 @@ const corsMiddleware = cors({
 const apiLimiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.max,
+  skip: () => config.app.isTest,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

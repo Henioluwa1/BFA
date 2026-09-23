@@ -55,6 +55,8 @@ export const publicService = {
   getApartments: (propertyId) => api.get('/public/apartments', { params: { propertyId } }),
   checkAvailability: (data) => api.post('/public/check-availability', data),
   createBooking: (data) => api.post('/public/booking', data),
+  getAnnouncements: (params) => api.get('/public/announcements', { params }),
+  verifyBooking: (data) => api.post('/public/booking-lookup', data),
 };
 
 export const systemService = {
@@ -84,7 +86,6 @@ export const reportService = {
       activePropertyId && activePropertyId !== 'all' ? `&propertyId=${activePropertyId}` : ''
     }`;
 
-    // Trigger browser file download with auth token in URL or fetch
     fetch(url, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
@@ -118,6 +119,60 @@ export const reportService = {
 
 export const auditService = {
   getLogs: (params) => api.get('/audit', { params }),
+};
+
+export const accessService = {
+  getCapabilities: (params) => api.get('/access/capabilities', { params }),
+  updateCapability: (key, data) => api.put(`/access/capabilities/${key}`, data),
+  getApprovalRequests: (params) => api.get('/access/approval-requests', { params }),
+  respondApprovalRequest: (id, data) => api.post(`/access/approval-requests/${id}/respond`, data),
+  forceOverride: (data) => api.post('/access/force-override', data),
+  getOverrides: (params) => api.get('/access/overrides', { params }),
+};
+
+export const paymentService = {
+  getTransactions: (params) => api.get('/payments', { params }),
+  getById: (id) => api.get(`/payments/${id}`),
+  processPayment: (data) => api.post('/payments/process', data),
+  getGateways: () => api.get('/payments/gateways'),
+};
+
+export const bookingAuthService = {
+  verifyBooking: (data) => api.post('/booking-authentication/verify', data),
+  lookupByQuery: (params) => api.get('/booking-authentication/lookup', { params }),
+};
+
+export const communicationService = {
+  getAll: (params) => api.get('/communications', { params }),
+  getById: (id) => api.get(`/communications/${id}`),
+  create: (data) => api.post('/communications', data),
+  update: (id, data) => api.put(`/communications/${id}`, data),
+  submit: (id) => api.post(`/communications/${id}/submit`),
+  approve: (id, data) => api.post(`/communications/${id}/approve`, data),
+  reject: (id, data) => api.post(`/communications/${id}/reject`, data),
+  send: (id) => api.post(`/communications/${id}/send`),
+  getTemplates: () => api.get('/communications/templates'),
+};
+
+export const notificationService = {
+  getAll: (params) => api.get('/notifications', { params }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllAsRead: () => api.post('/notifications/read-all'),
+  getPreferences: () => api.get('/notifications/preferences'),
+  updatePreferences: (data) => api.put('/notifications/preferences', data),
+};
+
+export const announcementService = {
+  getAll: (params) => api.get('/announcements', { params }),
+  getActive: (params) => api.get('/announcements/active', { params }),
+  create: (data) => api.post('/announcements', data),
+  toggle: (id, isActive) => api.patch(`/announcements/${id}/toggle`, { isActive }),
+};
+
+export const publicBookingService = {
+  getLandingAnnouncements: (params) => api.get('/public/announcements', { params }),
+  lookupBooking: (data) => api.post('/public/booking-lookup', data),
 };
 
 export { api };
