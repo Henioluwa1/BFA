@@ -1,26 +1,41 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+import { propertyService } from '../services/api';
+
 const PropertyContext = createContext();
 
 export function PropertyProvider({ children }) {
-  // Baseline initial property state (Phase 1 establishes the multi-property abstraction)
-  // Dynamic properties will be loaded from DB in Phase 3
-  const [properties, setProperties] = useState([
-    { id: 'prop-1', name: 'Grand Horizon Tower', code: 'GHT', unitCount: 14, location: 'Victoria Island' },
-    { id: 'prop-2', name: 'Azure Bay Residences', code: 'ABR', unitCount: 8, location: 'Ikoyi Waterfront' },
-    { id: 'prop-3', name: 'The Royal Palms Suites', code: 'RPS', unitCount: 12, location: 'Lekki Phase 1' },
-  ]);
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const [activePropertyId, setActivePropertyId] = useState(() => {
     return localStorage.getItem('bfa_active_property_id') || 'all';
   });
+
+  const fetchProperties = async () => {
+    setLoading(true);
+    try {
+      const res = await propertyService.getAll();
+      if (res.data && Array.isArray(res.data)) {
+        setProperties(res.data);
+      }
+    } catch {
+      // Fallback or unauthenticated
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProperties();
+  }, []);
 
   const handleSetProperty = (propertyId) => {
     setActivePropertyId(propertyId);
     localStorage.setItem('bfa_active_property_id', propertyId);
   };
 
-  const activeProperty = properties.find((p) => p.id === activePropertyId) || null;
+  const activeProperty = properties.find((p) => String(p.id) === String(activePropertyId)) || null;
 
   return (
     <PropertyContext.Provider
@@ -31,6 +46,8 @@ export function PropertyProvider({ children }) {
         setActivePropertyId: handleSetProperty,
         activeProperty,
         isAllProperties: activePropertyId === 'all',
+        loading,
+        refreshProperties: fetchProperties,
       }}
     >
       {children}

@@ -70,10 +70,35 @@ export const searchService = {
     api.get('/search', { params: { q: query, propertyId, type } }),
 };
 
+export const propertyService = {
+  getAll: (params) => api.get('/properties', { params }),
+  getById: (id) => api.get(`/properties/${id}`),
+  create: (data) => api.post('/properties', data),
+  update: (id, data) => api.put(`/properties/${id}`, data),
+  updateStatus: (id, data) => api.patch(`/properties/${id}/status`, data),
+  getApartments: (id) => api.get(`/properties/${id}/apartments`),
+};
+
+export const apartmentService = {
+  getAll: (params) => api.get('/apartments', { params }),
+  getById: (id) => api.get(`/apartments/${id}`),
+  create: (data) => api.post('/apartments', data),
+  update: (id, data) => api.put(`/apartments/${id}`, data),
+  updateStatus: (id, data) => api.patch(`/apartments/${id}/status`, data),
+  checkAvailability: (id, params) => api.get(`/apartments/${id}/availability`, { params }),
+};
+
 export const reservationService = {
   getAll: (params) => api.get('/reservations', { params }),
   getById: (id) => api.get(`/reservations/${id}`),
   create: (data) => api.post('/reservations', data),
+  update: (id, data) => api.put(`/reservations/${id}`, data),
+  confirm: (id) => api.post(`/reservations/${id}/confirm`),
+  cancel: (id, data) => api.post(`/reservations/${id}/cancel`, data),
+  checkIn: (id) => api.post(`/reservations/${id}/check-in`),
+  checkOut: (id) => api.post(`/reservations/${id}/check-out`),
+  noShow: (id, data) => api.post(`/reservations/${id}/no-show`, data),
+  getHistory: (id) => api.get(`/reservations/${id}/history`),
 };
 
 export const reportService = {

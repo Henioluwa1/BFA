@@ -15,14 +15,16 @@ class BookingAuthService {
   /**
    * Register a new booking authentication code for a confirmed reservation
    */
-  static async registerBookingAuth({ reservationId, guestEmail, guestPhone, expiresAt = null }) {
+  static async registerBookingAuth({ reservationId, guestEmail, guestPhone, expiresAt = null }, conn = null) {
+    const executor = conn || pool;
     let authCode = this.generateAuthCode();
     let collision = true;
     let attempts = 0;
 
     while (collision && attempts < 5) {
-      const existing = await pool.query('SELECT id FROM booking_authentications WHERE auth_code = ?', [authCode]);
-      if (existing.length === 0) {
+      const existing = await executor.query('SELECT id FROM booking_authentications WHERE auth_code = ?', [authCode]);
+      const rows = existing[0] && Array.isArray(existing[0]) ? existing[0] : existing;
+      if (!rows || rows.length === 0) {
         collision = false;
       } else {
         authCode = this.generateAuthCode();
@@ -30,7 +32,7 @@ class BookingAuthService {
       }
     }
 
-    await pool.query(
+    await executor.query(
       `INSERT INTO booking_authentications (reservation_id, auth_code, guest_email, guest_phone, status, expires_at)
        VALUES (?, ?, ?, ?, 'ACTIVE', ?)
        ON DUPLICATE KEY UPDATE auth_code = VALUES(auth_code), guest_email = VALUES(guest_email), guest_phone = VALUES(guest_phone), status = 'ACTIVE'`,
