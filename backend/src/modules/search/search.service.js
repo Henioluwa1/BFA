@@ -28,6 +28,8 @@ class SearchService {
       reservations: [],
       maintenance: [],
       agents: [],
+      guests: [],
+      inspections: [],
     };
 
     // 1. Properties Search (Hidden from Agent role if restricted, visible to all operational staff)
@@ -129,12 +131,45 @@ class SearchService {
       categories.agents = await pool.query(agtSql, [cleanQuery, cleanQuery, cleanQuery, searchLimit]);
     }
 
+    // 6. Guests Search
+    if (!type || type === 'guests') {
+      let guestSql = `
+        SELECT id, display_name, email, phone, status, 'guest' as entity_type
+        FROM guests
+        WHERE (display_name LIKE ? OR email LIKE ? OR phone LIKE ?)
+        LIMIT ?;
+      `;
+      categories.guests = await pool.query(guestSql, [cleanQuery, cleanQuery, cleanQuery, searchLimit]);
+    }
+
+    // 7. Inspections Search
+    if (!type || type === 'inspections') {
+      let inspSql = `
+        SELECT i.id, i.inspection_code, i.inspection_type, i.condition_rating, i.status,
+               p.name as property_name, a.unit_number, 'inspection' as entity_type
+        FROM inspections i
+        JOIN properties p ON p.id = i.property_id
+        JOIN apartments a ON a.id = i.apartment_id
+        WHERE (i.inspection_code LIKE ? OR a.unit_number LIKE ? OR p.name LIKE ?)
+      `;
+      const inspParams = [cleanQuery, cleanQuery, cleanQuery];
+      if (propertyId && propertyId !== 'all') {
+        inspSql += ' AND i.property_id = ?';
+        inspParams.push(propertyId);
+      }
+      inspSql += ' LIMIT ?';
+      inspParams.push(searchLimit);
+      categories.inspections = await pool.query(inspSql, inspParams);
+    }
+
     const totalResults =
       categories.properties.length +
       categories.apartments.length +
       categories.reservations.length +
       categories.maintenance.length +
-      categories.agents.length;
+      categories.agents.length +
+      (categories.guests ? categories.guests.length : 0) +
+      (categories.inspections ? categories.inspections.length : 0);
 
     return {
       query: query.trim(),

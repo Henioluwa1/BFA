@@ -101,6 +101,41 @@ export const reservationService = {
   getHistory: (id) => api.get(`/reservations/${id}/history`),
 };
 
+export const calendarService = {
+  getEvents: (params) => api.get('/calendar', { params }),
+  getAvailability: (params) => api.get('/calendar/availability', { params }),
+};
+
+export const frontOfficeService = {
+  getArrivals: (params) => api.get('/front-office/arrivals', { params }),
+  getDepartures: (params) => api.get('/front-office/departures', { params }),
+  getCurrentGuests: (params) => api.get('/front-office/current-guests', { params }),
+  getStats: (params) => api.get('/front-office/stats', { params }),
+  checkIn: (id) => api.post(`/front-office/reservations/${id}/check-in`),
+  checkOut: (id) => api.post(`/front-office/reservations/${id}/check-out`),
+  noShow: (id, data) => api.post(`/front-office/reservations/${id}/no-show`, data),
+};
+
+export const guestService = {
+  getAll: (params) => api.get('/guests', { params }),
+  getById: (id) => api.get(`/guests/${id}`),
+  getReservations: (id) => api.get(`/guests/${id}/reservations`),
+  create: (data) => api.post('/guests', data),
+  update: (id, data) => api.put(`/guests/${id}`, data),
+  getDuplicates: () => api.get('/guests/duplicates'),
+  merge: (data) => api.post('/guests/merge', data),
+};
+
+export const tenantService = guestService; // Backward-compatible alias
+
+export const inspectionService = {
+  getAll: (params) => api.get('/inspections', { params }),
+  getById: (id) => api.get(`/inspections/${id}`),
+  create: (data) => api.post('/inspections', data),
+  update: (id, data) => api.put(`/inspections/${id}`, data),
+  complete: (id, data) => api.post(`/inspections/${id}/complete`, data),
+};
+
 export const reportService = {
   getFinancial: (params) => api.get('/reports/financial', { params }),
   getReservations: (params) => api.get('/reports/reservations', { params }),

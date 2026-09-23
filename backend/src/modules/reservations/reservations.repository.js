@@ -24,12 +24,14 @@ class ReservationsRepository {
              a.unit_number, a.unit_name, a.unit_type,
              ag.name as agent_name,
              ba.auth_code,
+             g.display_name as guest_display_name, g.status as guest_status,
              GREATEST(0, r.total_amount - r.paid_amount) as outstanding_balance
       FROM reservations r
       JOIN properties p ON p.id = r.property_id
       JOIN apartments a ON a.id = r.apartment_id
       LEFT JOIN agents ag ON ag.id = r.agent_id
       LEFT JOIN booking_authentications ba ON ba.reservation_id = r.id
+      LEFT JOIN guests g ON g.id = r.guest_id
       WHERE 1=1
     `;
     const params = [];
@@ -123,12 +125,15 @@ class ReservationsRepository {
              a.unit_number, a.unit_name, a.unit_type, a.rate_per_night,
              ag.name as agent_name, ag.email as agent_email,
              ba.auth_code,
+             g.display_name as guest_display_name, g.status as guest_status,
+             g.identification_type as guest_id_type, g.identification_number as guest_id_number,
              GREATEST(0, r.total_amount - r.paid_amount) as outstanding_balance
       FROM reservations r
       JOIN properties p ON p.id = r.property_id
       JOIN apartments a ON a.id = r.apartment_id
       LEFT JOIN agents ag ON ag.id = r.agent_id
       LEFT JOIN booking_authentications ba ON ba.reservation_id = r.id
+      LEFT JOIN guests g ON g.id = r.guest_id
       WHERE r.id = ?;
     `;
     const rows = await pool.query(sql, [id]);
@@ -207,16 +212,17 @@ class ReservationsRepository {
     const executor = conn || pool;
     const sql = `
       INSERT INTO reservations (
-        reservation_code, property_id, apartment_id, tenant_name,
+        reservation_code, property_id, apartment_id, guest_id, tenant_name,
         tenant_email, tenant_phone, agent_id, source, check_in_date,
         check_out_date, nights, total_amount, paid_amount, status,
         payment_status, payment_method, special_requests, notes, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const params = [
       data.reservation_code,
       data.property_id,
       data.apartment_id,
+      data.guest_id || null,
       data.tenant_name.trim(),
       data.tenant_email.trim().toLowerCase(),
       data.tenant_phone.trim(),
@@ -248,7 +254,7 @@ class ReservationsRepository {
     const params = [];
 
     const allowed = [
-      'property_id', 'apartment_id', 'tenant_name', 'tenant_email', 'tenant_phone',
+      'property_id', 'apartment_id', 'guest_id', 'tenant_name', 'tenant_email', 'tenant_phone',
       'agent_id', 'source', 'check_in_date', 'check_out_date', 'nights',
       'total_amount', 'paid_amount', 'status', 'payment_status', 'payment_method',
       'special_requests', 'notes', 'cancellation_reason', 'cancelled_at',

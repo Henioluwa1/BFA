@@ -161,11 +161,18 @@ class ReservationsService {
       // 1. Validate mandatory 1-night stay
       const { checkInDate, checkOutDate } = this.validateOneNightStay(data.check_in_date, data.check_out_date);
 
-      // 2. Fetch and validate unit
-      const apartment = await ApartmentsRepository.findById(data.apartment_id);
-      if (!apartment) {
+      // 2. Fetch and lock unit with exclusive row lock to serialize concurrent bookings
+      const [aptRows] = await conn.query(
+        `SELECT a.*, p.name as property_name, p.status as property_status, p.code as property_code 
+         FROM apartments a 
+         JOIN properties p ON p.id = a.property_id 
+         WHERE a.id = ? FOR UPDATE`,
+        [data.apartment_id]
+      );
+      if (!aptRows || aptRows.length === 0) {
         throw new NotFoundError(`Apartment unit #${data.apartment_id} not found.`);
       }
+      const apartment = aptRows[0];
 
       // 3. Property scope authorization
       this.validatePropertyScope(req?.user, apartment.property_id);
@@ -224,14 +231,38 @@ class ReservationsService {
       const paymentStatus = data.payment_status || (paidAmount >= totalAmount ? 'PAYMENT_SUCCESS' : 'PAYMENT_PENDING');
       const paymentMethod = data.payment_method || 'PAY_AT_PROPERTY';
 
+      // 10b. Authoritative Guest Profile Linkage & Resolution
+      let guestId = data.guest_id || null;
+      const tenantEmail = (data.tenant_email || data.guest_email || '').trim().toLowerCase();
+      const tenantPhone = (data.tenant_phone || data.guest_phone || '').trim();
+      const tenantName = (data.tenant_name || data.guest_name || 'Guest').trim();
+
+      if (!guestId && tenantEmail) {
+        const [existingGuests] = await conn.query('SELECT id FROM guests WHERE email = ?', [tenantEmail]);
+        if (existingGuests && existingGuests.length > 0) {
+          guestId = existingGuests[0].id;
+        } else {
+          const parts = tenantName.split(' ');
+          const firstName = parts[0] || 'Guest';
+          const lastName = parts.slice(1).join(' ') || 'Tenant';
+          const [newGuest] = await conn.query(
+            `INSERT INTO guests (first_name, last_name, display_name, email, phone, created_by)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [firstName, lastName, tenantName, tenantEmail, tenantPhone, req?.user?.id || null]
+          );
+          guestId = newGuest.insertId;
+        }
+      }
+
       // 11. Insert reservation record within transaction
       const newReservationData = {
         reservation_code: reservationCode,
         property_id: apartment.property_id,
         apartment_id: apartment.id,
-        tenant_name: (data.tenant_name || data.guest_name || '').trim(),
-        tenant_email: (data.tenant_email || data.guest_email || '').trim().toLowerCase(),
-        tenant_phone: (data.tenant_phone || data.guest_phone || '').trim(),
+        guest_id: guestId,
+        tenant_name: tenantName,
+        tenant_email: tenantEmail,
+        tenant_phone: tenantPhone,
         agent_id: agentId,
         source: data.source || (req?.user ? 'DIRECT' : 'ONLINE'),
         check_in_date: checkInDate,

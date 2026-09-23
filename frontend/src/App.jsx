@@ -12,8 +12,10 @@ import LoginPage from './pages/LoginPage';
 
 // Authenticated Pages
 import DashboardPage from './pages/DashboardPage';
+import FrontOfficePage from './pages/FrontOfficePage';
 import CalendarPage from './pages/CalendarPage';
 import ReservationsPage from './pages/ReservationsPage';
+import GuestsPage from './pages/GuestsPage';
 import ApartmentsPage from './pages/ApartmentsPage';
 import FinancialPage from './pages/FinancialPage';
 import ReportsPage from './pages/ReportsPage';
@@ -46,8 +48,11 @@ function App() {
                 <Route path="/app" element={<AppLayout />}>
                   <Route index element={<Navigate to="/app/dashboard" replace />} />
                   <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="front-office" element={<FrontOfficePage />} />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="reservations" element={<ReservationsPage />} />
+                  <Route path="guests" element={<GuestsPage />} />
+                  <Route path="tenants" element={<GuestsPage />} />
                   <Route path="apartments" element={<ApartmentsPage />} />
                   <Route path="financial" element={<FinancialPage />} />
                   <Route path="reports" element={<ReportsPage />} />
@@ -68,8 +73,11 @@ function App() {
 
               {/* Legacy / Direct Route Compatibility Redirects */}
               <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
+              <Route path="/front-office" element={<Navigate to="/app/front-office" replace />} />
               <Route path="/calendar" element={<Navigate to="/app/calendar" replace />} />
               <Route path="/reservations" element={<Navigate to="/app/reservations" replace />} />
+              <Route path="/guests" element={<Navigate to="/app/guests" replace />} />
+              <Route path="/tenants" element={<Navigate to="/app/guests" replace />} />
               <Route path="/apartments" element={<Navigate to="/app/apartments" replace />} />
               <Route path="/financial" element={<Navigate to="/app/financial" replace />} />
               <Route path="/reports" element={<Navigate to="/app/reports" replace />} />
