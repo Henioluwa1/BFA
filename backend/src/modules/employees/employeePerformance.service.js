@@ -59,7 +59,7 @@ class EmployeePerformanceService {
       // Inspections completed
       const [inspRows] = await pool.query(
         `SELECT COUNT(id) AS count 
-         FROM apartment_inspections 
+         FROM inspections 
          WHERE inspector_id = ? AND status = 'COMPLETED' AND DATE(created_at) >= ? AND DATE(created_at) <= ?`,
         [employee.user_id, fromStr, toStr]
       );

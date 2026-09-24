@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Table({ columns = [], data = [], keyField = 'id', emptyMessage = 'No records found', children, className = '', ...props }) {
+export default function Table({ columns = [], data = [], keyField = 'id', emptyMessage = 'No records found', children, className = '', loading, ...props }) {
   if (children) {
     return (
       <div className="table-container">

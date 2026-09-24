@@ -155,6 +155,7 @@ export default function NotificationsPage() {
           {notifications.map((notif) => (
             <div
               key={notif.id}
+              className="notification-item"
               onClick={() => handleNotificationClick(notif)}
               style={{
                 display: 'flex',

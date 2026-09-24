@@ -1,5 +1,6 @@
 const AccessControlService = require('../../core/access/accessControl.service');
 const ApiResponse = require('../../utils/apiResponse');
+const pool = require('../../db/pool');
 
 class AccessController {
   static async getCapabilities(req, res, next) {
