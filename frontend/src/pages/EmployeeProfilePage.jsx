@@ -740,38 +740,33 @@ export default function EmployeeProfilePage({ isSelf = false }) {
           </div>
         }
       >
-        <form onSubmit={handleUploadPhotoSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
-            Upload a clear passport photograph (JPEG, PNG, or WebP up to 5 MB).
+        <form onSubmit={handleUploadPhotoSubmit} className="photo-upload-wrapper">
+          <p className="photo-upload-meta" style={{ margin: 0 }}>
+            Upload a high-resolution portrait photograph for official employee credentials, digital security badge, and audit logs.
           </p>
 
-          {/* Preview Box */}
-          <div
-            style={{
-              width: '130px',
-              height: '130px',
-              borderRadius: '50%',
-              border: '3px dashed var(--border-default)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-              background: 'var(--bg-card)',
-            }}
-          >
+          {/* Preview Ring */}
+          <div className="photo-preview-ring">
             {photoPreview ? (
-              <img src={photoPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={photoPreview} alt="Preview" className="photo-preview-img" />
             ) : (
-              <span style={{ fontSize: '2.5rem', color: 'var(--text-muted)' }}>📷</span>
+              <span style={{ fontSize: '2.75rem', opacity: 0.6 }}>📷</span>
             )}
           </div>
 
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={handlePhotoFileChange}
-            style={{ fontSize: '0.85rem' }}
-          />
+          <div style={{ width: '100%' }}>
+            <input
+              type="file"
+              id="employee-photo-file-input"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handlePhotoFileChange}
+              className="form-control"
+              style={{ fontSize: '0.82rem', padding: '0.45rem' }}
+            />
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.4rem', textAlign: 'center' }}>
+              JPG, PNG, or WebP • Max 5 MB • Square aspect ratio recommended
+            </div>
+          </div>
         </form>
       </Modal>
 
@@ -792,109 +787,129 @@ export default function EmployeeProfilePage({ isSelf = false }) {
           </div>
         }
       >
-        <form onSubmit={handleSavePersonalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Phone Number *</label>
+        <form onSubmit={handleSavePersonalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {/* Section: Contact & Residential */}
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>📞</span> Contact & Location
+            </span>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Phone Number *</label>
             <input
               type="tel"
               required
+              className="form-control"
               value={personalForm.phone}
               onChange={(e) => setPersonalForm({ ...personalForm, phone: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '0.55rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
+              placeholder="+234 800..."
             />
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Address</label>
+          <div className="form-group">
+            <label className="form-label">Residential Address</label>
             <input
               type="text"
+              className="form-control"
               value={personalForm.address}
               onChange={(e) => setPersonalForm({ ...personalForm, address: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '0.55rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
+              placeholder="House/Apt number, Street name"
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Emergency Contact Name</label>
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">City</label>
               <input
                 type="text"
-                value={personalForm.emergency_contact_name}
-                onChange={(e) => setPersonalForm({ ...personalForm, emergency_contact_name: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
+                className="form-control"
+                value={personalForm.city}
+                onChange={(e) => setPersonalForm({ ...personalForm, city: e.target.value })}
+                placeholder="e.g. Lagos"
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Emergency Phone</label>
+            <div className="form-group">
+              <label className="form-label">State / Region</label>
               <input
-                type="tel"
-                value={personalForm.emergency_contact_phone}
-                onChange={(e) => setPersonalForm({ ...personalForm, emergency_contact_phone: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
+                type="text"
+                className="form-control"
+                value={personalForm.state}
+                onChange={(e) => setPersonalForm({ ...personalForm, state: e.target.value })}
+                placeholder="e.g. Lagos State"
               />
             </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Qualifications</label>
-            <textarea
-              rows="2"
-              value={personalForm.qualifications}
-              onChange={(e) => setPersonalForm({ ...personalForm, qualifications: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '0.55rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
+          {/* Section: Emergency Contact */}
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>🚨</span> Emergency Contact Details
+            </span>
+          </div>
+
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Emergency Contact Name</label>
+              <input
+                type="text"
+                className="form-control"
+                value={personalForm.emergency_contact_name}
+                onChange={(e) => setPersonalForm({ ...personalForm, emergency_contact_name: e.target.value })}
+                placeholder="Full legal name"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Emergency Phone</label>
+              <input
+                type="tel"
+                className="form-control"
+                value={personalForm.emergency_contact_phone}
+                onChange={(e) => setPersonalForm({ ...personalForm, emergency_contact_phone: e.target.value })}
+                placeholder="+234 800..."
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Emergency Relationship</label>
+            <input
+              type="text"
+              className="form-control"
+              value={personalForm.emergency_contact_relation}
+              onChange={(e) => setPersonalForm({ ...personalForm, emergency_contact_relation: e.target.value })}
+              placeholder="Spouse / Parent / Next of Kin"
             />
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Skills</label>
+          {/* Section: Qualifications & Skills */}
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>🎓</span> Professional Information
+            </span>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Qualifications & Certifications</label>
             <textarea
               rows="2"
+              className="form-textarea"
+              value={personalForm.qualifications}
+              onChange={(e) => setPersonalForm({ ...personalForm, qualifications: e.target.value })}
+              placeholder="Degrees, licenses, certifications..."
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Core Skills & Specializations</label>
+            <textarea
+              rows="2"
+              className="form-textarea"
               value={personalForm.skills}
               onChange={(e) => setPersonalForm({ ...personalForm, skills: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '0.55rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
+              placeholder="Technical competencies, languages, domain skills..."
             />
           </div>
         </form>

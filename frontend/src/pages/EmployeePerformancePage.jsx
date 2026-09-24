@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useProperty } from '../context/PropertyContext';
 import { employeeService } from '../services/api';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
 import {
   Award,
   TrendingUp,
@@ -14,15 +18,18 @@ import {
   AlertCircle,
   Search,
   ArrowUpRight,
-  ShieldAlert
+  ShieldAlert,
+  CreditCard,
 } from '../components/ui/Icons';
 
 export default function EmployeePerformancePage() {
+  const { id: routeEmpId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { currentProperty } = useProperty();
 
   const [employees, setEmployees] = useState([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(routeEmpId ? parseInt(routeEmpId, 10) : null);
   const [performanceData, setPerformanceData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -40,15 +47,22 @@ export default function EmployeePerformancePage() {
         params.property_id = currentProperty.id;
       }
       const res = await employeeService.getEmployees(params);
-      const list = res.data?.employees || res.data || [];
+      const list = res.data?.employees || res.data?.data || res.data || [];
       setEmployees(list);
-      if (list.length > 0 && !selectedEmployeeId) {
-        setSelectedEmployeeId(list[0].id);
+
+      if (list.length > 0) {
+        if (routeEmpId) {
+          const matched = list.find((e) => e.id === parseInt(routeEmpId, 10));
+          if (matched) setSelectedEmployeeId(matched.id);
+          else setSelectedEmployeeId(list[0].id);
+        } else if (!selectedEmployeeId) {
+          setSelectedEmployeeId(list[0].id);
+        }
       }
     } catch (err) {
       console.error('Failed to load employee directory for performance:', err);
     }
-  }, [currentProperty, selectedEmployeeId]);
+  }, [currentProperty, routeEmpId, selectedEmployeeId]);
 
   // Fetch performance for selected employee
   const fetchPerformance = useCallback(async (empId) => {
@@ -60,10 +74,10 @@ export default function EmployeePerformancePage() {
       if (periodStart) params.period_start = periodStart;
       if (periodEnd) params.period_end = periodEnd;
       const res = await employeeService.getEmployeePerformance(empId, params);
-      setPerformanceData(res.data);
+      setPerformanceData(res.data?.data || res.data);
     } catch (err) {
       console.error('Failed to fetch employee performance data:', err);
-      setError(err.response?.data?.error?.message || 'Failed to retrieve performance metrics.');
+      setError(err.response?.data?.error?.message || err.message || 'Failed to retrieve performance metrics.');
       setPerformanceData(null);
     } finally {
       setLoading(false);
@@ -82,338 +96,589 @@ export default function EmployeePerformancePage() {
 
   const filteredEmployees = employees.filter((emp) => {
     const q = searchQuery.toLowerCase();
-    return (
-      emp.first_name?.toLowerCase().includes(q) ||
-      emp.last_name?.toLowerCase().includes(q) ||
-      emp.staff_code?.toLowerCase().includes(q) ||
-      emp.job_title?.toLowerCase().includes(q) ||
-      emp.department?.toLowerCase().includes(q)
-    );
+    const name = `${emp.first_name || ''} ${emp.last_name || ''}`.toLowerCase();
+    const code = (emp.staff_code || emp.employee_code || '').toLowerCase();
+    const title = (emp.job_title || '').toLowerCase();
+    const dept = (emp.department || '').toLowerCase();
+    return name.includes(q) || code.includes(q) || title.includes(q) || dept.includes(q);
   });
 
   const selectedEmp = employees.find((e) => e.id === selectedEmployeeId);
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div
+        className="page-header"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}
+      >
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-7 h-7 text-indigo-600" />
-            Employee Performance & Operations Analytics
+          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span>Operations & Performance Analytics</span>
+            <Badge status="info">AUDIT VERIFIED</Badge>
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Objective system operational activity juxtaposed against formal manager evaluation scores
+          <p className="page-subtitle">
+            System-logged operational metrics juxtaposed against formal supervisor evaluations and performance criteria.
           </p>
         </div>
+        {selectedEmployeeId && (
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/app/employees/${selectedEmployeeId}`)}
+            >
+              Staff Profile
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/app/employees/${selectedEmployeeId}/id-card`)}
+            >
+              ID Badge
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate(`/app/evaluations`)}
+            >
+              Evaluations Hub
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Main Grid: Left selector, Right performance dashboards */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(280px, 320px) 1fr',
+          gap: '1.5rem',
+          alignItems: 'start',
+        }}
+        className="performance-grid"
+      >
         {/* Left Column: Staff Selector & Filters */}
-        <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-              <User className="w-4 h-4 text-gray-500" />
-              Staff Directory
-            </h2>
-            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
-              {filteredEmployees.length}
-            </span>
-          </div>
-
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search staff..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-600 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5" /> Date Range Filter
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                value={periodStart}
-                onChange={(e) => setPeriodStart(e.target.value)}
-                className="w-full text-xs p-1.5 border border-gray-300 rounded-md"
-              />
-              <input
-                type="date"
-                value={periodEnd}
-                onChange={(e) => setPeriodEnd(e.target.value)}
-                className="w-full text-xs p-1.5 border border-gray-300 rounded-md"
-              />
+        <Card>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <User style={{ width: '16px', height: '16px', color: 'var(--brand-accent)' }} />
+                <span>Staff Directory</span>
+              </div>
+              <Badge status="neutral">{filteredEmployees.length} staff</Badge>
             </div>
-            {(periodStart || periodEnd) && (
-              <button
-                onClick={() => {
-                  setPeriodStart('');
-                  setPeriodEnd('');
-                }}
-                className="text-xs text-indigo-600 hover:text-indigo-800"
-              >
-                Clear date filters
-              </button>
-            )}
-          </div>
 
-          {/* List of staff cards */}
-          <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
-            {filteredEmployees.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-6">No staff members found.</p>
-            ) : (
-              filteredEmployees.map((emp) => {
-                const isSelected = emp.id === selectedEmployeeId;
-                return (
-                  <button
-                    key={emp.id}
-                    onClick={() => setSelectedEmployeeId(emp.id)}
-                    className={`w-full text-left p-2.5 rounded-lg border transition-all text-xs ${
-                      isSelected
-                        ? 'bg-indigo-50/80 border-indigo-300 shadow-sm'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="font-semibold text-gray-900 truncate">
-                      {emp.first_name} {emp.last_name}
+            {/* Search Input */}
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Search staff by name, ID, role..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="form-control"
+                style={{ fontSize: '0.85rem', minHeight: '38px', paddingLeft: '2rem' }}
+              />
+              <span style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: '0.85rem' }}>
+                🔍
+              </span>
+            </div>
+
+            {/* Date Range Filter */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Filter Analysis Window
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <input
+                  type="date"
+                  value={periodStart}
+                  onChange={(e) => setPeriodStart(e.target.value)}
+                  className="form-control"
+                  style={{ fontSize: '0.75rem', minHeight: '34px', padding: '0.35rem 0.5rem' }}
+                />
+                <input
+                  type="date"
+                  value={periodEnd}
+                  onChange={(e) => setPeriodEnd(e.target.value)}
+                  className="form-control"
+                  style={{ fontSize: '0.75rem', minHeight: '34px', padding: '0.35rem 0.5rem' }}
+                />
+              </div>
+              {(periodStart || periodEnd) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPeriodStart('');
+                    setPeriodEnd('');
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--brand-accent)',
+                    fontSize: '0.75rem',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    padding: 0,
+                    marginTop: '0.2rem',
+                  }}
+                >
+                  Clear date window
+                </button>
+              )}
+            </div>
+
+            {/* Staff Member List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '520px', overflowY: 'auto' }}>
+              {filteredEmployees.length === 0 ? (
+                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
+                  No staff members match active criteria.
+                </div>
+              ) : (
+                filteredEmployees.map((emp) => {
+                  const isSelected = emp.id === selectedEmployeeId;
+                  const fullName = emp.full_name || `${emp.first_name || ''} ${emp.last_name || ''}`;
+                  const code = emp.staff_code || emp.employee_code || `EMP-${emp.id}`;
+                  return (
+                    <div
+                      key={emp.id}
+                      onClick={() => setSelectedEmployeeId(emp.id)}
+                      style={{
+                        padding: '0.75rem',
+                        borderRadius: 'var(--radius-md)',
+                        border: isSelected ? '1px solid var(--brand-accent)' : '1px solid var(--border-default)',
+                        background: isSelected ? 'var(--brand-dim, rgba(37, 99, 235, 0.08))' : 'var(--bg-surface)',
+                        cursor: 'pointer',
+                        transition: 'var(--transition-fast)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                          {fullName}
+                        </strong>
+                        <span style={{ fontSize: '0.72rem', fontFamily: 'monospace', color: 'var(--brand-accent)' }}>
+                          {code}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                        {emp.job_title || 'Staff'} • {emp.department?.replace('_', ' ') || 'Operations'}
+                      </div>
                     </div>
-                    <div className="text-gray-500 flex items-center justify-between mt-0.5">
-                      <span className="font-mono text-[11px] text-indigo-600">{emp.staff_code}</span>
-                      <span className="truncate max-w-[120px]">{emp.department || 'Operations'}</span>
-                    </div>
-                  </button>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
+        </Card>
 
         {/* Right Column: Performance Analytics Dashboard */}
-        <div className="lg:col-span-3 space-y-6">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <div
+              style={{
+                padding: '1rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#dc2626',
+                fontSize: '0.86rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              <AlertCircle style={{ width: '18px', height: '18px', flexShrink: 0 }} />
               <span>{error}</span>
             </div>
           )}
 
           {loading ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center text-gray-500">
-              <Activity className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-2" />
-              <p className="text-sm font-medium">Computing operational metrics and evaluation trends...</p>
-            </div>
+            <Card>
+              <div style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚡</div>
+                <div>Computing operational metrics and evaluation audit logs...</div>
+              </div>
+            </Card>
           ) : !performanceData ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center text-gray-400">
-              <User className="w-10 h-10 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Select an employee from the directory to inspect performance analytics.</p>
-            </div>
+            <Card>
+              <div style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>👤</div>
+                <h4>Select a Staff Member</h4>
+                <p style={{ fontSize: '0.86rem', margin: '0.5rem 0 0' }}>
+                  Choose an employee from the staff directory to view verified system performance and evaluation trends.
+                </p>
+              </div>
+            </Card>
           ) : (
             <>
               {/* Selected Employee Summary Card */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-bold flex items-center justify-center text-lg shadow-sm">
-                    {selectedEmp?.first_name?.[0] || 'E'}
-                    {selectedEmp?.last_name?.[0] || 'M'}
+              <Card>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '1rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div
+                      style={{
+                        width: '54px',
+                        height: '54px',
+                        borderRadius: '50%',
+                        background: 'var(--bg-card)',
+                        border: '2px solid var(--border-default)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '1.25rem',
+                        color: 'var(--brand-accent)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {selectedEmp?.photo_url ? (
+                        <img
+                          src={`/api/v1/employees/${selectedEmp.id}/photo`}
+                          alt={selectedEmp.full_name}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        `${selectedEmp?.first_name?.[0] || 'E'}${selectedEmp?.last_name?.[0] || 'M'}`
+                      )}
+                    </div>
+
+                    <div>
+                      <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                        {selectedEmp?.full_name || `${selectedEmp?.first_name || ''} ${selectedEmp?.last_name || ''}`}
+                      </h2>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', marginTop: '0.25rem', fontSize: '0.78rem' }}>
+                        <span style={{ fontFamily: 'monospace', color: 'var(--brand-accent)', fontWeight: 600 }}>
+                          {selectedEmp?.staff_code || selectedEmp?.employee_code || `EMP-${selectedEmp?.id}`}
+                        </span>
+                        <span style={{ color: 'var(--text-muted)' }}>•</span>
+                        <span>{selectedEmp?.job_title || 'Staff Member'}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>•</span>
+                        <span>{selectedEmp?.department?.replace('_', ' ') || 'Operations'}</span>
+                        <Badge status="success">
+                          {selectedEmp?.employment_status || 'ACTIVE'}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">
-                      {selectedEmp?.first_name} {selectedEmp?.last_name}
-                    </h2>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-0.5">
-                      <span className="font-mono text-indigo-600 font-semibold">{selectedEmp?.staff_code}</span>
-                      <span>•</span>
-                      <span>{selectedEmp?.job_title || 'Staff Member'}</span>
-                      <span>•</span>
-                      <span className="capitalize">{selectedEmp?.department || 'Operations'}</span>
-                      <span>•</span>
-                      <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
-                        {selectedEmp?.employment_status || 'ACTIVE'}
-                      </span>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                      Observation Window
+                    </div>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {performanceData.period?.start} to {performanceData.period?.end}
                     </div>
                   </div>
                 </div>
+              </Card>
 
-                <div className="text-right">
-                  <span className="text-xs text-gray-400 block">Performance Window</span>
-                  <span className="text-xs font-medium text-gray-700">
-                    {performanceData.period?.start} to {performanceData.period?.end}
+              {/* Observed System Operational Metrics */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                  <h3 style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Activity style={{ width: '15px', height: '15px', color: 'var(--brand-accent)' }} />
+                    System Observed Operational Metrics
+                  </h3>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    Audit-backed operational logs
                   </span>
                 </div>
-              </div>
 
-              {/* Top KPI Cards (Rule 2: System Observed Metrics) */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-indigo-500" />
-                    Observed System Operational Metrics
-                  </h3>
-                  <span className="text-[11px] text-gray-400 italic">Audit-backed system logs</span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                    <span className="text-xs text-gray-500 block">Total Activities</span>
-                    <div className="text-2xl font-bold text-gray-900 mt-1">
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '1rem',
+                  }}
+                >
+                  <Card>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+                      Total System Actions
+                    </div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.25rem' }}>
                       {performanceData.system_metrics?.total_activities || 0}
                     </div>
-                    <span className="text-[11px] text-gray-400">Executed actions</span>
-                  </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                      Operational events recorded
+                    </div>
+                  </Card>
 
-                  <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                    <span className="text-xs text-gray-500 block">Active Work Days</span>
-                    <div className="text-2xl font-bold text-indigo-600 mt-1">
+                  <Card>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+                      Active Work Days
+                    </div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--brand-accent)', marginTop: '0.25rem' }}>
                       {performanceData.system_metrics?.active_days || 0}
                     </div>
-                    <span className="text-[11px] text-gray-400">Days with activity</span>
-                  </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                      Days with recorded activity
+                    </div>
+                  </Card>
 
-                  <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                    <span className="text-xs text-gray-500 block">Attendance Rate</span>
-                    <div className="text-2xl font-bold text-emerald-600 mt-1">
+                  <Card>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+                      Estimated Attendance
+                    </div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10b981', marginTop: '0.25rem' }}>
                       {performanceData.system_metrics?.estimated_attendance_rate}%
                     </div>
-                    <span className="text-[11px] text-gray-400">Activity ratio</span>
-                  </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                      Active days vs schedule ratio
+                    </div>
+                  </Card>
 
-                  <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                    <span className="text-xs text-gray-500 block">Ops Tasks Finished</span>
-                    <div className="text-2xl font-bold text-purple-600 mt-1">
+                  <Card>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+                      Ops Work Items Closed
+                    </div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#8b5cf6', marginTop: '0.25rem' }}>
                       {(performanceData.system_metrics?.maintenance_resolved || 0) +
                         (performanceData.system_metrics?.inspections_completed || 0)}
                     </div>
-                    <span className="text-[11px] text-gray-400">Maintenance & inspection</span>
-                  </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                      Maintenance & inspections
+                    </div>
+                  </Card>
                 </div>
               </div>
 
-              {/* Manager Evaluation vs System Operations Split */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Manager Evaluation Summary */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                      <Award className="w-4 h-4 text-amber-500" />
-                      Formal Manager Evaluation
-                    </h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700">
-                      Evaluated by Supervisor
-                    </span>
-                  </div>
-
+              {/* Manager Evaluation vs Operations Breakdown */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                  gap: '1.5rem',
+                }}
+              >
+                {/* Formal Manager Evaluation Card */}
+                <Card
+                  title={
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Award style={{ width: '18px', height: '18px', color: '#f59e0b' }} />
+                      <span>Formal Manager Evaluation</span>
+                    </div>
+                  }
+                  headerAction={
+                    <Badge status="neutral">
+                      {performanceData.manager_evaluation?.has_evaluation ? 'FINALIZED' : 'NO REVIEW'}
+                    </Badge>
+                  }
+                >
                   {performanceData.manager_evaluation?.has_evaluation ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between bg-amber-50/50 p-3 rounded-lg border border-amber-200">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '1rem',
+                          background: 'rgba(245, 158, 11, 0.08)',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid rgba(245, 158, 11, 0.25)',
+                        }}
+                      >
                         <div>
-                          <span className="text-xs text-amber-800 font-medium block">Overall Rating</span>
-                          <span className="text-2xl font-black text-amber-700">
+                          <div style={{ fontSize: '0.75rem', color: '#b45309', fontWeight: 600, textTransform: 'uppercase' }}>
+                            Overall Manager Rating
+                          </div>
+                          <div style={{ fontSize: '2rem', fontWeight: 900, color: '#b45309' }}>
                             {performanceData.manager_evaluation.average_score}%
-                          </span>
+                          </div>
                         </div>
-                        <div className="text-right text-xs text-gray-500">
-                          <div>Evaluated: {performanceData.manager_evaluation.finalized_at?.slice(0, 10) || 'Recent'}</div>
-                          <div>By: {performanceData.manager_evaluation.evaluator_name || 'Management'}</div>
+
+                        <div style={{ textAlign: 'right', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          <div>Finalized: {performanceData.manager_evaluation.finalized_at?.slice(0, 10) || 'Recent'}</div>
+                          <div>Evaluator: {performanceData.manager_evaluation.evaluator_name || 'Management'}</div>
                         </div>
                       </div>
 
                       {/* Dimension breakdown */}
-                      <div className="space-y-2 pt-1">
-                        <span className="text-xs font-semibold text-gray-600 block">Evaluated Dimensions</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                          Evaluated Dimension Breakdown
+                        </div>
+
                         {performanceData.manager_evaluation.dimension_scores?.length > 0 ? (
                           performanceData.manager_evaluation.dimension_scores.map((dim, idx) => (
-                            <div key={idx} className="space-y-1">
-                              <div className="flex justify-between text-xs">
-                                <span className="text-gray-700 font-medium">{dim.criteria_name}</span>
-                                <span className="font-semibold text-gray-900">{dim.score_percentage}%</span>
+                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{dim.criteria_name}</span>
+                                <span
+                                  style={{
+                                    fontWeight: 700,
+                                    color: dim.score_percentage >= 80 ? '#10b981' : dim.score_percentage >= 60 ? 'var(--brand-accent)' : '#f59e0b',
+                                  }}
+                                >
+                                  {dim.score_percentage}%
+                                </span>
                               </div>
-                              <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                              <div style={{ width: '100%', height: '6px', background: 'var(--bg-surface)', borderRadius: '3px', overflow: 'hidden' }}>
                                 <div
-                                  className={`h-full rounded-full ${
-                                    dim.score_percentage >= 80
-                                      ? 'bg-emerald-500'
-                                      : dim.score_percentage >= 60
-                                      ? 'bg-indigo-500'
-                                      : 'bg-amber-500'
-                                  }`}
-                                  style={{ width: `${dim.score_percentage}%` }}
+                                  style={{
+                                    width: `${dim.score_percentage}%`,
+                                    height: '100%',
+                                    background: dim.score_percentage >= 80 ? '#10b981' : dim.score_percentage >= 60 ? 'var(--brand-accent)' : '#f59e0b',
+                                  }}
                                 />
                               </div>
                             </div>
                           ))
                         ) : (
-                          <p className="text-xs text-gray-400 italic">No dimension scores recorded.</p>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            No individual dimension scores found.
+                          </div>
                         )}
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-gray-400 space-y-2">
-                      <AlertCircle className="w-8 h-8 mx-auto opacity-40" />
-                      <p className="text-xs">No finalized manager evaluation for this employee in this period.</p>
+                    <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <AlertCircle style={{ width: '28px', height: '28px', margin: '0 auto 0.5rem', opacity: 0.4 }} />
+                      <div style={{ fontSize: '0.86rem' }}>
+                        No finalized manager evaluation exists for this employee in the selected window.
+                      </div>
+                      <Button
+                        variant="primary"
+                        size="small"
+                        onClick={() => navigate('/app/evaluations')}
+                        style={{ marginTop: '1rem' }}
+                      >
+                        Create Evaluation
+                      </Button>
                     </div>
                   )}
-                </div>
+                </Card>
 
                 {/* Operations & Module Distribution */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                      <BarChart2 className="w-4 h-4 text-indigo-500" />
-                      Operational Breakdown
-                    </h3>
-                    <span className="text-xs text-gray-400">System Records</span>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center text-xs p-2 rounded-lg bg-gray-50 border border-gray-100">
-                      <span className="font-medium text-gray-700">Reservations Handled</span>
-                      <span className="font-bold text-indigo-600">
+                <Card
+                  title={
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <BarChart2 style={{ width: '18px', height: '18px', color: 'var(--brand-accent)' }} />
+                      <span>Operational Module Breakdown</span>
+                    </div>
+                  }
+                  headerAction={<Badge status="neutral">SYSTEM LOGS</Badge>}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0.75rem 1rem',
+                        background: 'var(--bg-surface)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-default)',
+                        fontSize: '0.84rem',
+                      }}
+                    >
+                      <span style={{ color: 'var(--text-secondary)' }}>Reservations Processed</span>
+                      <strong style={{ color: 'var(--brand-accent)', fontSize: '1rem' }}>
                         {performanceData.system_metrics?.reservations_handled || 0}
-                      </span>
+                      </strong>
                     </div>
 
-                    <div className="flex justify-between items-center text-xs p-2 rounded-lg bg-gray-50 border border-gray-100">
-                      <span className="font-medium text-gray-700">Maintenance Work Orders Resolved</span>
-                      <span className="font-bold text-emerald-600">
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0.75rem 1rem',
+                        background: 'var(--bg-surface)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-default)',
+                        fontSize: '0.84rem',
+                      }}
+                    >
+                      <span style={{ color: 'var(--text-secondary)' }}>Maintenance Orders Resolved</span>
+                      <strong style={{ color: '#10b981', fontSize: '1rem' }}>
                         {performanceData.system_metrics?.maintenance_resolved || 0}
-                      </span>
+                      </strong>
                     </div>
 
-                    <div className="flex justify-between items-center text-xs p-2 rounded-lg bg-gray-50 border border-gray-100">
-                      <span className="font-medium text-gray-700">Inspections Completed</span>
-                      <span className="font-bold text-purple-600">
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0.75rem 1rem',
+                        background: 'var(--bg-surface)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-default)',
+                        fontSize: '0.84rem',
+                      }}
+                    >
+                      <span style={{ color: 'var(--text-secondary)' }}>Inspections Completed</span>
+                      <strong style={{ color: '#8b5cf6', fontSize: '1rem' }}>
                         {performanceData.system_metrics?.inspections_completed || 0}
-                      </span>
+                      </strong>
                     </div>
 
                     {/* Breakdown by Category */}
-                    <div className="pt-2">
-                      <span className="text-xs font-semibold text-gray-600 block mb-2">Activities by Category</span>
-                      <div className="space-y-1.5">
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                        Activity Breakdown by Category
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {performanceData.activity_breakdown &&
                         Object.keys(performanceData.activity_breakdown).length > 0 ? (
                           Object.entries(performanceData.activity_breakdown).map(([category, count]) => (
-                            <div key={category} className="flex justify-between items-center text-xs">
-                              <span className="text-gray-600 capitalize">{category.toLowerCase().replace('_', ' ')}</span>
-                              <span className="font-semibold text-gray-800 bg-gray-100 px-2 py-0.5 rounded-full">
+                            <div
+                              key={category}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '0.4rem 0.6rem',
+                                borderRadius: '4px',
+                                background: 'var(--bg-surface)',
+                                fontSize: '0.8rem',
+                              }}
+                            >
+                              <span style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                                {category.toLowerCase().replace('_', ' ')}
+                              </span>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  background: 'var(--bg-card)',
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  fontSize: '0.75rem',
+                                  color: 'var(--text-primary)',
+                                  border: '1px solid var(--border-default)',
+                                }}
+                              >
                                 {count}
                               </span>
                             </div>
                           ))
                         ) : (
-                          <p className="text-xs text-gray-400 italic">No activity categories recorded.</p>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            No logged operational activities in this window.
+                          </div>
                         )}
                       </div>
                     </div>
                   </div>
-                </div>
+                </Card>
               </div>
             </>
           )}

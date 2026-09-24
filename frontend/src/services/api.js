@@ -293,30 +293,52 @@ export const analyticsService = {
 
 export const employeeService = {
   getAll: (params) => api.get('/employees', { params }),
+  getEmployees: (params) => api.get('/employees', { params }),
   getStats: (params) => api.get('/employees/stats', { params }),
   getById: (id) => api.get(`/employees/${id}`),
   create: (data) => api.post('/employees', data),
   update: (id, data) => api.put(`/employees/${id}`, data),
-  updateStatus: (id, status) => api.patch(`/employees/${id}/status`, { status }),
+  updateStatus: (id, statusOrData) => {
+    const payload = typeof statusOrData === 'string' ? { employment_status: statusOrData } : statusOrData;
+    return api.put(`/employees/${id}/status`, payload);
+  },
   uploadPhoto: (id, data) => api.post(`/employees/${id}/photo`, data),
   getPerformance: (id, params) => api.get(`/employees/${id}/performance`, { params }),
-  getActivities: (id, params) => api.get(`/employees/${id}/activities`, { params }),
-  getEvaluations: (id, params) => api.get(`/employees/${id}/evaluations`, { params }),
+  getEmployeePerformance: (id, params) => api.get(`/employees/${id}/performance`, { params }),
+  getEvaluations: (arg1, arg2) => {
+    if (typeof arg1 === 'object' || arg1 === undefined) {
+      return api.get('/employees/evaluations', { params: arg1 });
+    }
+    return api.get(`/employees/${arg1}/evaluations`, { params: arg2 });
+  },
+  getEvaluationById: (id) => api.get(`/employees/evaluations/${id}`),
   getEvaluationCriteria: () => api.get('/employees/evaluation-criteria'),
   createEvaluation: (data) => api.post('/employees/evaluations', data),
   updateEvaluation: (evalId, data) => api.put(`/employees/evaluations/${evalId}`, data),
-  submitEvaluation: (evalId) => api.patch(`/employees/evaluations/${evalId}/submit`),
-  finalizeEvaluation: (evalId) => api.patch(`/employees/evaluations/${evalId}/finalize`),
+  submitEvaluation: (evalId) => api.put(`/employees/evaluations/${evalId}/submit`),
+  finalizeEvaluation: (evalId) => api.put(`/employees/evaluations/${evalId}/finalize`),
   getIdCards: (params) => api.get('/employees/id-cards', { params }),
-  generateIdCard: (data) => api.post('/employees/id-cards/generate', data),
-  reissueIdCard: (cardId, data) => api.patch(`/employees/id-cards/${cardId}/reissue`, data),
-  revokeIdCard: (cardId, data) => api.patch(`/employees/id-cards/${cardId}/revoke`, data),
-  downloadIdCardPDF: (cardId) => {
-    return api.get(`/employees/id-cards/${cardId}/pdf`, { responseType: 'blob' }).then((res) => {
-      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-      window.open(url, '_blank');
-    });
+  getEmployeeIdCard: (id) => api.get(`/employees/${id}/id-card`),
+  generateIdCard: (empIdOrData, payload = {}) => {
+    if (typeof empIdOrData === 'object' && empIdOrData !== null) {
+      return api.post('/employees/id-cards/generate', empIdOrData);
+    }
+    return api.post(`/employees/${empIdOrData}/id-card`, payload);
   },
+  reissueIdCard: (id, data = {}) => api.post(`/employees/${id}/id-card/reissue`, data),
+  revokeIdCard: (arg1, arg2, arg3 = {}) => {
+    if (arg3 && typeof arg3 === 'object' && Object.keys(arg3).length > 0) {
+      // Called as revokeIdCard(empId, cardId, data)
+      return api.put(`/employees/${arg1}/id-card/${arg2}/revoke`, arg3);
+    }
+    if (typeof arg2 === 'object') {
+      // Called as revokeIdCard(cardId, data)
+      return api.put(`/employees/id-cards/${arg1}/revoke`, arg2);
+    }
+    return api.put(`/employees/id-cards/${arg1}/revoke`, {});
+  },
+  downloadIdCardPdf: (id) => api.get(`/employees/${id}/id-card/pdf`, { responseType: 'blob' }),
+  downloadIdCardPDF: (id) => api.get(`/employees/${id}/id-card/pdf`, { responseType: 'blob' }),
   verifyIdCardToken: (token) => api.get(`/employees/verify-id-card/${token}`),
   getMyProfile: () => api.get('/employees/me/profile'),
   updateMyProfile: (data) => api.put('/employees/me/profile', data),

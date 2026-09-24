@@ -25,11 +25,13 @@ export default function EmployeeEvaluationPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modals
+  // Modals & Confirmation Dialogs
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedEvaluation, setSelectedEvaluation] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [confirmSubmitEval, setConfirmSubmitEval] = useState(null);
+  const [confirmFinalizeEval, setConfirmFinalizeEval] = useState(null);
 
   // Form State
   const initialForm = {
@@ -133,10 +135,9 @@ export default function EmployeeEvaluationPage() {
   // Open Details Modal
   const handleOpenDetails = async (evaluation) => {
     try {
-      const res = await employeeService.getEvaluations({ id: evaluation.id });
-      // Or by ID
-      const single = await employeeService.getEvaluationCriteria(); // fallback
-      setSelectedEvaluation(evaluation);
+      const res = await employeeService.getEvaluationById(evaluation.id);
+      const single = res.data?.data || res.data || evaluation;
+      setSelectedEvaluation(single);
       setIsDetailsModalOpen(true);
     } catch {
       setSelectedEvaluation(evaluation);
@@ -480,13 +481,13 @@ export default function EmployeeEvaluationPage() {
                           <Button variant="outline" size="small" onClick={() => handleOpenEdit(ev)} disabled={actionLoading}>
                             Edit
                           </Button>
-                          <Button variant="primary" size="small" onClick={() => handleSubmitEvaluation(ev)} disabled={actionLoading}>
+                          <Button variant="primary" size="small" onClick={() => setConfirmSubmitEval(ev)} disabled={actionLoading}>
                             Submit
                           </Button>
                         </>
                       )}
                       {ev.status === 'SUBMITTED' && (
-                        <Button variant="primary" size="small" onClick={() => handleFinalizeEvaluation(ev)} disabled={actionLoading}>
+                        <Button variant="primary" size="small" onClick={() => setConfirmFinalizeEval(ev)} disabled={actionLoading}>
                           Finalize
                         </Button>
                       )}
@@ -524,26 +525,23 @@ export default function EmployeeEvaluationPage() {
           </div>
         }
       >
-        <form onSubmit={handleSaveDraft} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Employee & Period Setup */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Select Employee *
-              </label>
+        <form onSubmit={handleSaveDraft} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {/* Section: Employee & Evaluation Period */}
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>📋</span> Review Assignment & Period
+            </span>
+          </div>
+
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Employee Under Review *</label>
               <select
                 required
                 disabled={isEditMode}
+                className="form-select"
                 value={form.employeeId}
                 onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               >
                 <option value="">Select Employee...</option>
                 {employees.map((emp) => (
@@ -554,193 +552,172 @@ export default function EmployeeEvaluationPage() {
               </select>
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Evaluation Period Label *
-              </label>
+            <div className="form-group">
+              <label className="form-label">Evaluation Period Label *</label>
               <input
                 type="text"
                 required
+                className="form-control"
                 value={form.evaluationPeriodLabel}
                 onChange={(e) => setForm({ ...form, evaluationPeriodLabel: e.target.value })}
                 placeholder="e.g. Q3 2026 Performance Review"
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Period Start Date *
-              </label>
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Period Start Date *</label>
               <input
                 type="date"
                 required
+                className="form-control"
                 value={form.periodStart}
                 onChange={(e) => setForm({ ...form, periodStart: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Period End Date *
-              </label>
+            <div className="form-group">
+              <label className="form-label">Period End Date *</label>
               <input
                 type="date"
                 required
+                className="form-control"
                 value={form.periodEnd}
                 onChange={(e) => setForm({ ...form, periodEnd: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
           </div>
 
           {/* 9 Dimensions Criteria Scoring Section */}
-          <div
-            style={{
-              padding: '0.5rem 0.75rem',
-              background: 'var(--bg-card)',
-              borderRadius: 'var(--radius-md)',
-              fontWeight: 600,
-              fontSize: '0.82rem',
-              color: 'var(--brand-accent, #ca8a04)',
-            }}
-          >
-            📊 9-Dimension Manager Assessment Scoring (0 - 100%)
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>📊</span> 9-Dimension Criteria Assessment (0 - 100%)
+            </span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             {criteria.map((c) => {
               const currentScore = form.scores[c.id]?.score ?? 80;
               return (
-                <div
-                  key={c.id}
-                  style={{
-                    padding: '0.75rem',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'var(--bg-surface)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <div key={c.id} className="criterion-card">
+                  <div className="criterion-header">
                     <div>
-                      <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{c.name}</strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                        ({c.description})
-                      </span>
+                      <span className="criterion-title">{c.name}</span>
+                      <span className="criterion-desc">({c.description})</span>
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: currentScore >= 80 ? '#10b981' : '#f59e0b' }}>
+                    <span
+                      className="criterion-score-badge"
+                      style={{
+                        background: currentScore >= 80 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                        color: currentScore >= 80 ? '#10b981' : '#f59e0b',
+                        borderColor: currentScore >= 80 ? '#10b981' : '#f59e0b',
+                      }}
+                    >
                       {currentScore}%
                     </span>
                   </div>
 
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={currentScore}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setForm({
-                        ...form,
-                        scores: {
-                          ...form.scores,
-                          [c.id]: {
-                            ...form.scores[c.id],
-                            score: val,
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.4rem' }}>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={currentScore}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setForm({
+                          ...form,
+                          scores: {
+                            ...form.scores,
+                            [c.id]: {
+                              ...form.scores[c.id],
+                              score: val,
+                            },
                           },
-                        },
-                      });
-                    }}
-                    style={{ width: '100%', accentColor: 'var(--brand-accent)' }}
-                  />
+                        });
+                      }}
+                      style={{ flex: 1, accentColor: 'var(--brand-accent)' }}
+                    />
+
+                    {/* Quick Preset Buttons */}
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      {[60, 75, 85, 100].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            setForm({
+                              ...form,
+                              scores: {
+                                ...form.scores,
+                                [c.id]: {
+                                  ...form.scores[c.id],
+                                  score: preset,
+                                },
+                              },
+                            });
+                          }}
+                          style={{
+                            fontSize: '0.72rem',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border-default)',
+                            background: currentScore === preset ? 'var(--brand-accent)' : 'var(--bg-surface)',
+                            color: currentScore === preset ? '#ffffff' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {preset}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Comments & Feedback */}
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Core Strengths Observed
-            </label>
-            <textarea
-              rows="2"
-              value={form.strengths}
-              onChange={(e) => setForm({ ...form, strengths: e.target.value })}
-              placeholder="Highlight notable achievements, punctuality, excellence..."
-              style={{
-                width: '100%',
-                padding: '0.55rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
-            />
+          {/* Comments & Qualitative Feedback */}
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>✍️</span> Qualitative Review & Recommendations
+            </span>
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Areas for Improvement
-            </label>
-            <textarea
-              rows="2"
-              value={form.areasForImprovement}
-              onChange={(e) => setForm({ ...form, areasForImprovement: e.target.value })}
-              placeholder="Growth goals, training needs, speed or communication refinements..."
-              style={{
-                width: '100%',
-                padding: '0.55rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
-            />
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Core Strengths Observed</label>
+              <textarea
+                rows="2"
+                className="form-textarea"
+                value={form.strengths}
+                onChange={(e) => setForm({ ...form, strengths: e.target.value })}
+                placeholder="Highlight notable achievements, punctuality, excellence..."
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Areas for Improvement</label>
+              <textarea
+                rows="2"
+                className="form-textarea"
+                value={form.areasForImprovement}
+                onChange={(e) => setForm({ ...form, areasForImprovement: e.target.value })}
+                placeholder="Growth goals, training needs, speed or communication refinements..."
+              />
+            </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Evaluator Summary Comments
-            </label>
+          <div className="form-group">
+            <label className="form-label">Evaluator Summary Comments</label>
             <textarea
               rows="2"
+              className="form-textarea"
               value={form.evaluatorComments}
               onChange={(e) => setForm({ ...form, evaluatorComments: e.target.value })}
               placeholder="Overall feedback for official HR performance record..."
-              style={{
-                width: '100%',
-                padding: '0.55rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
             />
           </div>
         </form>
@@ -763,49 +740,175 @@ export default function EmployeeEvaluationPage() {
         {selectedEvaluation && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Header pill strip */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'var(--bg-card)',
+                padding: '1rem 1.25rem',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+                flexWrap: 'wrap',
+                gap: '1rem',
+              }}
+            >
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>EMPLOYEE</div>
-                <strong style={{ fontSize: '1.1rem' }}>{selectedEvaluation.employee_name}</strong>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                  Employee
+                </div>
+                <strong style={{ fontSize: '1.1rem', color: 'var(--text-primary)' }}>
+                  {selectedEvaluation.employee_name}
+                </strong>
+                <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
+                  {selectedEvaluation.employee_code}
+                </div>
               </div>
+
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>PERIOD</div>
-                <strong>{selectedEvaluation.evaluation_period_label}</strong>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                  Period
+                </div>
+                <strong style={{ color: 'var(--text-primary)' }}>{selectedEvaluation.evaluation_period_label}</strong>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {selectedEvaluation.period_start?.slice(0, 10)} to {selectedEvaluation.period_end?.slice(0, 10)}
+                </div>
               </div>
+
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>OVERALL SCORE</div>
-                <strong style={{ fontSize: '1.3rem', color: parseFloat(selectedEvaluation.manager_overall_score || 0) >= 80 ? '#10b981' : '#f59e0b' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                  Overall Score
+                </div>
+                <strong
+                  style={{
+                    fontSize: '1.4rem',
+                    color: parseFloat(selectedEvaluation.manager_overall_score || 0) >= 80 ? '#10b981' : '#f59e0b',
+                  }}
+                >
                   {selectedEvaluation.manager_overall_score}%
                 </strong>
               </div>
+
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>STATUS</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.2rem' }}>
+                  Status
+                </div>
                 {getStatusBadge(selectedEvaluation.status)}
               </div>
             </div>
 
+            {/* Scored Dimensions Breakdown */}
+            {selectedEvaluation.scores && Array.isArray(selectedEvaluation.scores) && selectedEvaluation.scores.length > 0 && (
+              <div>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                  Evaluation Criteria Scores
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
+                  {selectedEvaluation.scores.map((sc, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-surface)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {sc.criterion_name || `Dimension #${sc.criterion_id}`}
+                        </span>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            fontSize: '0.88rem',
+                            color: parseFloat(sc.score) >= 80 ? '#10b981' : '#f59e0b',
+                          }}
+                        >
+                          {sc.score}%
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', background: 'var(--bg-card)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            width: `${Math.min(100, parseFloat(sc.score) || 0)}%`,
+                            height: '100%',
+                            background: parseFloat(sc.score) >= 80 ? '#10b981' : '#f59e0b',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Strengths and Improvements */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div style={{ padding: '0.75rem', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)' }}>
-                <h4 style={{ fontSize: '0.85rem', color: '#10b981', margin: '0 0 0.5rem' }}>Core Strengths</h4>
-                <p style={{ fontSize: '0.82rem', margin: 0 }}>{selectedEvaluation.strengths || 'None recorded.'}</p>
+              <div style={{ padding: '0.85rem', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}>
+                <h4 style={{ fontSize: '0.85rem', color: '#10b981', margin: '0 0 0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>✓</span> Core Strengths
+                </h4>
+                <p style={{ fontSize: '0.84rem', margin: 0, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  {selectedEvaluation.strengths || 'None recorded.'}
+                </p>
               </div>
 
-              <div style={{ padding: '0.75rem', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)' }}>
-                <h4 style={{ fontSize: '0.85rem', color: '#f59e0b', margin: '0 0 0.5rem' }}>Areas for Improvement</h4>
-                <p style={{ fontSize: '0.82rem', margin: 0 }}>{selectedEvaluation.areas_for_improvement || 'None recorded.'}</p>
+              <div style={{ padding: '0.85rem', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}>
+                <h4 style={{ fontSize: '0.85rem', color: '#f59e0b', margin: '0 0 0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span>↗</span> Areas for Improvement
+                </h4>
+                <p style={{ fontSize: '0.84rem', margin: 0, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  {selectedEvaluation.areas_for_improvement || 'None recorded.'}
+                </p>
               </div>
             </div>
 
             {selectedEvaluation.evaluator_comments && (
-              <div style={{ padding: '0.75rem', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)' }}>
-                <h4 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', margin: '0 0 0.5rem' }}>Evaluator Comments</h4>
-                <p style={{ fontSize: '0.82rem', margin: 0 }}>{selectedEvaluation.evaluator_comments}</p>
+              <div style={{ padding: '0.85rem', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}>
+                <h4 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', margin: '0 0 0.5rem' }}>
+                  Evaluator Summary Comments
+                </h4>
+                <p style={{ fontSize: '0.84rem', margin: 0, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  {selectedEvaluation.evaluator_comments}
+                </p>
               </div>
             )}
           </div>
         )}
       </Modal>
+
+      {/* CONFIRMATION: SUBMIT EVALUATION */}
+      <ConfirmationModal
+        isOpen={!!confirmSubmitEval}
+        onClose={() => setConfirmSubmitEval(null)}
+        onConfirm={async () => {
+          const ev = confirmSubmitEval;
+          setConfirmSubmitEval(null);
+          await handleSubmitEvaluation(ev);
+        }}
+        title="Submit Performance Evaluation"
+        message={`Submit review #${confirmSubmitEval?.evaluation_code} for ${confirmSubmitEval?.employee_name}? This evaluation will move into review for formal final sign-off.`}
+        confirmText="Submit Evaluation"
+        variant="primary"
+        isLoading={actionLoading}
+      />
+
+      {/* CONFIRMATION: FINALIZE EVALUATION */}
+      <ConfirmationModal
+        isOpen={!!confirmFinalizeEval}
+        onClose={() => setConfirmFinalizeEval(null)}
+        onConfirm={async () => {
+          const ev = confirmFinalizeEval;
+          setConfirmFinalizeEval(null);
+          await handleFinalizeEvaluation(ev);
+        }}
+        title="Finalize & Lock Evaluation"
+        message={`Are you sure you want to finalize review #${confirmFinalizeEval?.evaluation_code} for ${confirmFinalizeEval?.employee_name}? This action permanently locks the scores and records the official HR evaluation.`}
+        confirmText="Finalize & Lock"
+        variant="primary"
+        isLoading={actionLoading}
+      />
     </div>
   );
 }

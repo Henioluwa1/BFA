@@ -67,6 +67,9 @@ function App() {
                   <Route path="agents" element={<AgentsPage />} />
                   <Route path="employees" element={<EmployeesPage />} />
                   <Route path="employees/:id" element={<EmployeeProfilePage />} />
+                  <Route path="employees/:id/id-card" element={<EmployeeIdCardPage />} />
+                  <Route path="employees/:id/performance" element={<EmployeePerformancePage />} />
+                  <Route path="employees/:id/evaluation" element={<EmployeeEvaluationPage />} />
                   <Route path="evaluations" element={<EmployeeEvaluationPage />} />
                   <Route path="performance" element={<EmployeePerformancePage />} />
                   <Route path="id-cards" element={<EmployeeIdCardPage />} />

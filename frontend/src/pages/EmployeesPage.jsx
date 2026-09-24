@@ -558,9 +558,12 @@ export default function EmployeesPage() {
                   </td>
                   <td>{getStatusBadge(emp.employment_status)}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                       <Button variant="secondary" size="small" onClick={() => navigate(`/app/employees/${emp.id}`)}>
                         Profile
+                      </Button>
+                      <Button variant="outline" size="small" onClick={() => navigate(`/app/employees/${emp.id}/id-card`)}>
+                        ID Card
                       </Button>
                       <Button variant="outline" size="small" onClick={() => handleOpenEdit(emp)}>
                         Edit
@@ -594,114 +597,81 @@ export default function EmployeesPage() {
           </div>
         }
       >
-        <form onSubmit={handleSaveEmployee} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Core Info */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                First Name *
-              </label>
+        <form onSubmit={handleSaveEmployee} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {/* Section 1: Core Identity */}
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>👤</span> Core Identity & Contact Details
+            </span>
+          </div>
+
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">First Name *</label>
               <input
                 type="text"
                 required
+                className="form-control"
                 value={form.first_name}
                 onChange={(e) => setForm({ ...form, first_name: e.target.value })}
                 placeholder="e.g. Samuel"
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Last Name *
-              </label>
+            <div className="form-group">
+              <label className="form-label">Last Name *</label>
               <input
                 type="text"
                 required
+                className="form-control"
                 value={form.last_name}
                 onChange={(e) => setForm({ ...form, last_name: e.target.value })}
                 placeholder="e.g. Adeyemi"
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Work Email *
-              </label>
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Official Work Email *</label>
               <input
                 type="email"
                 required
+                className="form-control"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 placeholder="employee@bfa-apartments.com"
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Phone Number *
-              </label>
+            <div className="form-group">
+              <label className="form-label">Primary Phone Number *</label>
               <input
                 type="tel"
                 required
+                className="form-control"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 placeholder="+234 800 000 0000"
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
           </div>
 
-          {/* Department, Job Title & Employment */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Department *
-              </label>
+          {/* Section 2: Employment & Hierarchy */}
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>🏢</span> Employment Scope & Position
+            </span>
+          </div>
+
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Department *</label>
               <select
                 required
+                className="form-select"
                 value={form.department}
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               >
                 {DEPARTMENTS.map((d) => (
                   <option key={d} value={d}>
@@ -711,46 +681,28 @@ export default function EmployeesPage() {
               </select>
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Job Title / Position *
-              </label>
+            <div className="form-group">
+              <label className="form-label">Job Title / Designation *</label>
               <input
                 type="text"
                 required
+                className="form-control"
                 value={form.job_title}
                 onChange={(e) => setForm({ ...form, job_title: e.target.value })}
-                placeholder="e.g. Front Desk Officer"
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
+                placeholder="e.g. Front Desk Lead / Maintenance Officer"
               />
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Assigned Property Scope
-              </label>
+          <div className="form-grid-3">
+            <div className="form-group">
+              <label className="form-label">Assigned Property</label>
               <select
+                className="form-select"
                 value={form.property_id}
                 onChange={(e) => setForm({ ...form, property_id: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               >
-                <option value="">All Properties (Global / HQ)</option>
+                <option value="">All Properties (Global Scope)</option>
                 {properties.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -759,21 +711,12 @@ export default function EmployeesPage() {
               </select>
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Employment Type
-              </label>
+            <div className="form-group">
+              <label className="form-label">Employment Type</label>
               <select
+                className="form-select"
                 value={form.employment_type}
                 onChange={(e) => setForm({ ...form, employment_type: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               >
                 {EMPLOYMENT_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -783,79 +726,44 @@ export default function EmployeesPage() {
               </select>
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Hire Date *
-              </label>
+            <div className="form-group">
+              <label className="form-label">Date of Hire *</label>
               <input
                 type="date"
                 required
+                className="form-control"
                 value={form.hire_date}
                 onChange={(e) => setForm({ ...form, hire_date: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
           </div>
 
-          {/* Personal Info Header */}
-          <div
-            style={{
-              padding: '0.5rem 0.75rem',
-              background: 'var(--bg-card)',
-              borderRadius: 'var(--radius-md)',
-              fontWeight: 600,
-              fontSize: '0.82rem',
-              color: 'var(--brand-accent, #ca8a04)',
-              marginTop: '0.5rem',
-            }}
-          >
-            🏠 Personal & Emergency Contact Information
+          {/* Section 3: Personal & Emergency Contact */}
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>🏠</span> Personal & Emergency Contact
+            </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Date of Birth
-              </label>
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Date of Birth</label>
               <input
                 type="date"
+                className="form-control"
                 value={form.date_of_birth}
                 onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Gender
-              </label>
+            <div className="form-group">
+              <label className="form-label">Gender</label>
               <select
+                className="form-select"
                 value={form.gender}
                 onChange={(e) => setForm({ ...form, gender: e.target.value })}
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               >
-                <option value="">Select...</option>
+                <option value="">Select Gender...</option>
                 <option value="MALE">Male</option>
                 <option value="FEMALE">Female</option>
                 <option value="OTHER">Other</option>
@@ -864,86 +772,92 @@ export default function EmployeesPage() {
             </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              Residential Address
-            </label>
+          <div className="form-group">
+            <label className="form-label">Residential Address</label>
             <input
               type="text"
+              className="form-control"
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
-              placeholder="e.g. 14 Victoria Island Way, Lagos"
-              style={{
-                width: '100%',
-                padding: '0.55rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
+              placeholder="e.g. 14 Victoria Island Road, Lagos"
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Emergency Contact Name
-              </label>
+          <div className="form-grid-3">
+            <div className="form-group">
+              <label className="form-label">Emergency Contact Name</label>
               <input
                 type="text"
+                className="form-control"
                 value={form.emergency_contact_name}
                 onChange={(e) => setForm({ ...form, emergency_contact_name: e.target.value })}
-                placeholder="Full name"
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
+                placeholder="Full legal name"
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Emergency Phone
-              </label>
+            <div className="form-group">
+              <label className="form-label">Emergency Contact Phone</label>
               <input
                 type="tel"
+                className="form-control"
                 value={form.emergency_contact_phone}
                 onChange={(e) => setForm({ ...form, emergency_contact_phone: e.target.value })}
                 placeholder="+234 800..."
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Relationship
-              </label>
+            <div className="form-group">
+              <label className="form-label">Relationship</label>
               <input
                 type="text"
+                className="form-control"
                 value={form.emergency_contact_relation}
                 onChange={(e) => setForm({ ...form, emergency_contact_relation: e.target.value })}
                 placeholder="Spouse / Parent / Sibling"
-                style={{
-                  width: '100%',
-                  padding: '0.55rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  background: 'var(--bg-surface)',
-                  color: 'var(--text-primary)',
-                }}
               />
             </div>
+          </div>
+
+          {/* Section 4: Professional Qualifications & Notes */}
+          <div className="form-section">
+            <span className="form-section-title">
+              <span>🎓</span> Professional Skills & Administrative Notes
+            </span>
+          </div>
+
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Qualifications & Certifications</label>
+              <textarea
+                rows="2"
+                className="form-textarea"
+                value={form.qualifications}
+                onChange={(e) => setForm({ ...form, qualifications: e.target.value })}
+                placeholder="e.g. B.Sc Hospitality, First Aid Certified, OSHA Safety"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Core Skills & Competencies</label>
+              <textarea
+                rows="2"
+                className="form-textarea"
+                value={form.skills}
+                onChange={(e) => setForm({ ...form, skills: e.target.value })}
+                placeholder="e.g. Guest relations, HVAC repair, PMS administration"
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Staff Biography / Internal Notes</label>
+            <textarea
+              rows="2"
+              className="form-textarea"
+              value={form.bio_notes}
+              onChange={(e) => setForm({ ...form, bio_notes: e.target.value })}
+              placeholder="Operational notes, shift preferences, onboarding history..."
+            />
           </div>
         </form>
       </Modal>
@@ -965,31 +879,35 @@ export default function EmployeesPage() {
           </div>
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
-            Adjusting employment status to <strong>SUSPENDED</strong> or <strong>TERMINATED</strong> automatically revokes any active staff ID card and restricts operational portal actions.
-          </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+          <div
+            style={{
+              padding: '0.85rem 1rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: 'var(--text-primary)',
+              fontSize: '0.84rem',
+              lineHeight: 1.45,
+            }}
+          >
+            <div style={{ fontWeight: 700, color: '#dc2626', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>⚠️</span> Security & Access Notice
+            </div>
+            Setting status to <strong>SUSPENDED</strong> or <strong>TERMINATED</strong> automatically revokes any active staff ID badge and suspends operational system access.
+          </div>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              New Employment Status *
-            </label>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">New Employment Status *</label>
             <select
+              className="form-select"
               value={newStatus}
               onChange={(e) => setNewStatus(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.55rem',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-              }}
             >
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="ON_LEAVE">ON LEAVE</option>
-              <option value="SUSPENDED">SUSPENDED</option>
-              <option value="TERMINATED">TERMINATED</option>
+              <option value="ACTIVE">ACTIVE — Normal operational status</option>
+              <option value="ON_LEAVE">ON LEAVE — Temporarily away</option>
+              <option value="SUSPENDED">SUSPENDED — Access restricted</option>
+              <option value="TERMINATED">TERMINATED — Employment ended</option>
             </select>
           </div>
         </div>
