@@ -331,10 +331,46 @@ class MaintenanceService {
     // Section 11 & 29: Unit Operational State Lifecycle Coupling
     // When maintenance is resolved, the unit does NOT automatically become AVAILABLE!
     // It transitions to CLEANING (housekeeping progression CLEANING -> READY -> AVAILABLE)
-    if (record.apartment_id) {
-      const apartment = await ApartmentsRepository.findById(record.apartment_id);
-      if (apartment && apartment.status === 'MAINTENANCE') {
-        await pool.query('UPDATE apartments SET status = "CLEANING" WHERE id = ?', [record.apartment_id]);
+    // MULTI-MAINTENANCE INTEGRITY: If there are OTHER blocking requests still open/in progress,
+    // the unit MUST remain in MAINTENANCE. Only transition to CLEANING when ALL blocking issues are cleared.
+    if (record.apartment_id && record.blocking_unit) {
+      const remainingBlocking = await pool.query(
+        'SELECT COUNT(*) as count FROM maintenance_requests WHERE apartment_id = ? AND id != ? AND status IN ("OPEN", "IN_PROGRESS") AND blocking_unit = 1',
+        [record.apartment_id, id]
+      );
+      const remainingCount = parseInt(remainingBlocking[0]?.count || 0, 10);
+      if (remainingCount === 0) {
+        const apartment = await ApartmentsRepository.findById(record.apartment_id);
+        if (apartment && apartment.status === 'MAINTENANCE') {
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const activeRes = await pool.query(
+            `SELECT id FROM reservations 
+             WHERE apartment_id = ? 
+               AND status = 'CHECKED_IN' 
+               AND check_in_date <= ? 
+               AND check_out_date > ? 
+             LIMIT 1`,
+            [record.apartment_id, todayStr, todayStr]
+          );
+
+          if (activeRes.length > 0) {
+            await pool.query('UPDATE apartments SET status = "OCCUPIED" WHERE id = ?', [record.apartment_id]);
+          } else {
+            const activeBlocked = await pool.query(
+              `SELECT id FROM blocked_periods 
+               WHERE apartment_id = ? 
+                 AND start_date <= ? 
+                 AND end_date >= ? 
+               LIMIT 1`,
+              [record.apartment_id, todayStr, todayStr]
+            );
+            if (activeBlocked.length > 0) {
+              await pool.query('UPDATE apartments SET status = "BLOCKED" WHERE id = ?', [record.apartment_id]);
+            } else {
+              await pool.query('UPDATE apartments SET status = "CLEANING" WHERE id = ?', [record.apartment_id]);
+            }
+          }
+        }
       }
     }
 
@@ -375,11 +411,46 @@ class MaintenanceService {
       resolution_notes: `Cancelled: ${reason}`,
     });
 
-    // If unit was locked in MAINTENANCE, restore to AVAILABLE/CLEANING
+    // If unit was locked in MAINTENANCE, check if other blocking work orders still exist
     if (record.apartment_id && record.blocking_unit) {
-      const apartment = await ApartmentsRepository.findById(record.apartment_id);
-      if (apartment && apartment.status === 'MAINTENANCE') {
-        await pool.query('UPDATE apartments SET status = "AVAILABLE" WHERE id = ?', [record.apartment_id]);
+      const remainingBlocking = await pool.query(
+        'SELECT COUNT(*) as count FROM maintenance_requests WHERE apartment_id = ? AND id != ? AND status IN ("OPEN", "IN_PROGRESS") AND blocking_unit = 1',
+        [record.apartment_id, id]
+      );
+      const remainingCount = parseInt(remainingBlocking[0]?.count || 0, 10);
+      if (remainingCount === 0) {
+        const apartment = await ApartmentsRepository.findById(record.apartment_id);
+        if (apartment && apartment.status === 'MAINTENANCE') {
+          // Check if an in-house stay exists for today
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const activeRes = await pool.query(
+            `SELECT id FROM reservations 
+             WHERE apartment_id = ? 
+               AND status = 'CHECKED_IN' 
+               AND check_in_date <= ? 
+               AND check_out_date > ? 
+             LIMIT 1`,
+            [record.apartment_id, todayStr, todayStr]
+          );
+
+          if (activeRes.length > 0) {
+            await pool.query('UPDATE apartments SET status = "OCCUPIED" WHERE id = ?', [record.apartment_id]);
+          } else {
+            const activeBlocked = await pool.query(
+              `SELECT id FROM blocked_periods 
+               WHERE apartment_id = ? 
+                 AND start_date <= ? 
+                 AND end_date >= ? 
+               LIMIT 1`,
+              [record.apartment_id, todayStr, todayStr]
+            );
+            if (activeBlocked.length > 0) {
+              await pool.query('UPDATE apartments SET status = "BLOCKED" WHERE id = ?', [record.apartment_id]);
+            } else {
+              await pool.query('UPDATE apartments SET status = "CLEANING" WHERE id = ?', [record.apartment_id]);
+            }
+          }
+        }
       }
     }
 

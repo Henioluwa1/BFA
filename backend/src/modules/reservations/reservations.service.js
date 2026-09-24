@@ -184,10 +184,24 @@ class ReservationsService {
       // 3. Property scope authorization
       this.validatePropertyScope(req?.user, apartment.property_id);
 
-      // 4. Agent isolation: if user is AGENT, force their assigned agentId
+      // 4. Agent isolation & attribution validation
       let agentId = data.agent_id || null;
       if (req?.user?.role === 'AGENT') {
         agentId = req.user.agentId || 1;
+      }
+
+      if (agentId) {
+        const [agentRows] = await conn.query('SELECT id, name, status, property_id FROM agents WHERE id = ?', [agentId]);
+        if (!agentRows || agentRows.length === 0) {
+          throw new NotFoundError(`Agent #${agentId} not found.`);
+        }
+        const agent = agentRows[0];
+        if (agent.status !== 'ACTIVE') {
+          throw new ValidationError(`Agent '${agent.name}' is currently ${agent.status} and cannot be assigned new bookings.`);
+        }
+        if (agent.property_id && parseInt(agent.property_id, 10) !== parseInt(apartment.property_id, 10)) {
+          throw new ValidationError(`Agent '${agent.name}' is authorized for Property #${agent.property_id}, not Property #${apartment.property_id}.`);
+        }
       }
 
       // 5. Property operational check
@@ -271,7 +285,7 @@ class ReservationsService {
         tenant_email: tenantEmail,
         tenant_phone: tenantPhone,
         agent_id: agentId,
-        source: data.source || (req?.user ? 'DIRECT' : 'ONLINE'),
+        source: data.source || (agentId ? 'AGENT' : (req?.user ? 'DIRECT' : 'ONLINE')),
         check_in_date: checkInDate,
         check_out_date: checkOutDate,
         nights: 1,
@@ -313,6 +327,16 @@ class ReservationsService {
         },
         conn
       );
+
+      // 13b. Automatically calculate commission if booked via Agent
+      if (agentId) {
+        try {
+          const CommissionsService = require('../commissions/commissions.service');
+          await CommissionsService.calculateCommissionForReservation(reservationId, { agentId }, req, conn);
+        } catch (comErr) {
+          logger.warn('Failed to auto-calculate agent commission during reservation creation:', { error: comErr.message });
+        }
+      }
 
       // 14. Audit log event
       await AuditService.record({
@@ -542,6 +566,14 @@ class ReservationsService {
       oldValues: { status: fromStatus },
       newValues: { status: 'CANCELLED', reason },
     });
+
+    // Reconcile associated agent commission
+    try {
+      const CommissionsService = require('../commissions/commissions.service');
+      await CommissionsService.reconcileCancellationOrRefund(id);
+    } catch (comErr) {
+      logger.warn('Failed to reconcile commission upon reservation cancellation:', { error: comErr.message });
+    }
 
     return ReservationsRepository.findById(id);
   }

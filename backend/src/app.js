@@ -28,6 +28,9 @@ const inspectionsRoutes = require('./modules/inspections/inspections.routes');
 const maintenanceRoutes = require('./modules/maintenance/maintenance.routes');
 const expensesRoutes = require('./modules/expenses/expenses.routes');
 const financialRoutes = require('./modules/financial/financial.routes');
+const agentsRoutes = require('./modules/agents/agents.routes');
+const commissionsRoutes = require('./modules/commissions/commissions.routes');
+const analyticsRoutes = require('./modules/analytics/analytics.routes');
 
 const app = express();
 
@@ -77,6 +80,9 @@ apiV1Router.use('/inspections', inspectionsRoutes);
 apiV1Router.use('/maintenance', maintenanceRoutes);
 apiV1Router.use('/expenses', expensesRoutes);
 apiV1Router.use('/financial', financialRoutes);
+apiV1Router.use('/agents', agentsRoutes);
+apiV1Router.use('/commissions', commissionsRoutes);
+apiV1Router.use('/analytics', analyticsRoutes);
 
 app.use('/api/v1', apiV1Router);
 

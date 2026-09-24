@@ -33,8 +33,8 @@ class FinancialService {
     let paySql = `
       SELECT 
         COUNT(pt.id) as payment_count,
-        COALESCE(SUM(CASE WHEN pt.status IN ('SUCCESS', 'COMPLETED') THEN pt.amount ELSE 0 END), 0) as gross_collected,
-        COALESCE(SUM(CASE WHEN pt.status IN ('SUCCESS', 'COMPLETED') THEN COALESCE(pt.refund_amount, 0) ELSE 0 END), 0) as total_refunded,
+        COALESCE(SUM(CASE WHEN pt.parent_transaction_id IS NULL AND pt.status IN ('SUCCESS', 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED') THEN pt.amount ELSE 0 END), 0) as gross_collected,
+        COALESCE(SUM(CASE WHEN pt.parent_transaction_id IS NULL THEN COALESCE(pt.refund_amount, 0) ELSE 0 END), 0) as total_refunded,
         COALESCE(SUM(CASE WHEN pt.status = 'PENDING' THEN pt.amount ELSE 0 END), 0) as pending_amount
       FROM payment_transactions pt
       JOIN reservations r ON r.id = pt.reservation_id
@@ -211,6 +211,7 @@ class FinancialService {
         JOIN properties p ON p.id = r.property_id
         JOIN apartments a ON a.id = r.apartment_id
         LEFT JOIN guests g ON g.id = r.guest_id
+        WHERE pt.parent_transaction_id IS NULL
 
         UNION ALL
 

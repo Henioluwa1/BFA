@@ -118,7 +118,7 @@ class ReservationsRepository {
   /**
    * Find reservation by ID with full entity joins
    */
-  static async findById(id) {
+  static async findById(id, conn = null) {
     const sql = `
       SELECT r.*,
              p.name as property_name, p.code as property_code, p.address as property_address,
@@ -136,6 +136,10 @@ class ReservationsRepository {
       LEFT JOIN guests g ON g.id = r.guest_id
       WHERE r.id = ?;
     `;
+    if (conn) {
+      const [rows] = await conn.query(sql, [id]);
+      return rows[0] || null;
+    }
     const rows = await pool.query(sql, [id]);
     return rows[0] || null;
   }

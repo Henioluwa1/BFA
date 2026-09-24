@@ -121,15 +121,15 @@ class SearchService {
       categories.maintenance = await pool.query(mntSql, mntParams);
     }
 
-    // 5. Agents Search (Only visible to Admin, Manager, Owner)
-    if ((!type || type === 'agents') && ['ADMIN', 'MANAGER', 'OWNER'].includes(userRole)) {
+    // 5. Agents Search (Visible to Super Admin, Admin, Manager, Owner)
+    if ((!type || type === 'agents') && ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'].includes(userRole)) {
       const agtSql = `
-        SELECT id, name, email, phone, commission_rate, status, 'agent' as entity_type
+        SELECT id, name, agency_name, email, phone, commission_rate, commission_type, status, 'agent' as entity_type
         FROM agents
-        WHERE (name LIKE ? OR email LIKE ? OR phone LIKE ?)
+        WHERE (name LIKE ? OR agency_name LIKE ? OR email LIKE ? OR phone LIKE ?)
         LIMIT ?;
       `;
-      categories.agents = await pool.query(agtSql, [cleanQuery, cleanQuery, cleanQuery, searchLimit]);
+      categories.agents = await pool.query(agtSql, [cleanQuery, cleanQuery, cleanQuery, cleanQuery, searchLimit]);
     }
 
     // 6. Guests Search
@@ -182,6 +182,33 @@ class SearchService {
       categories.expenses = await pool.query(expSql, expParams);
     }
 
+    // 9. Commissions Search
+    categories.commissions = [];
+    if (!type || type === 'commissions') {
+      let comSql = `
+        SELECT c.id, c.commission_code, c.commission_amount, c.currency, c.status,
+               c.payment_reference, a.name as agent_name, p.name as property_name,
+               'commission' as entity_type
+        FROM commissions c
+        JOIN agents a ON a.id = c.agent_id
+        JOIN properties p ON p.id = c.property_id
+        WHERE (c.commission_code LIKE ? OR c.payment_reference LIKE ? OR a.name LIKE ?)
+      `;
+      const comParams = [cleanQuery, cleanQuery, cleanQuery];
+
+      if (userRole === 'AGENT') {
+        comSql += ' AND c.agent_id = ?';
+        comParams.push(agentId || 1);
+      } else if (propertyId && propertyId !== 'all') {
+        comSql += ' AND c.property_id = ?';
+        comParams.push(propertyId);
+      }
+
+      comSql += ' LIMIT ?';
+      comParams.push(searchLimit);
+      categories.commissions = await pool.query(comSql, comParams);
+    }
+
     const totalResults =
       categories.properties.length +
       categories.apartments.length +
@@ -190,7 +217,8 @@ class SearchService {
       categories.agents.length +
       (categories.guests ? categories.guests.length : 0) +
       (categories.inspections ? categories.inspections.length : 0) +
-      (categories.expenses ? categories.expenses.length : 0);
+      (categories.expenses ? categories.expenses.length : 0) +
+      (categories.commissions ? categories.commissions.length : 0);
 
     return {
       query: query.trim(),

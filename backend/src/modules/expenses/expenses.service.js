@@ -5,6 +5,7 @@ const MaintenanceRepository = require('../maintenance/maintenance.repository');
 const AuditService = require('../../core/audit/audit.service');
 const AccessControlService = require('../../core/access/accessControl.service');
 const { ValidationError, NotFoundError, ForbiddenError, ConflictError } = require('../../core/errors/apiError');
+const pool = require('../../db/pool');
 
 const VALID_CATEGORIES = [
   'MAINTENANCE',
@@ -222,20 +223,29 @@ class ExpensesService {
       throw new ForbiddenError(`Expense approval is restricted by system capability policy (${capCheck.reason}).`);
     }
 
-    if (expense.status === 'APPROVED') {
-      throw new ConflictError(`Expense #${expense.expense_code} has already been approved.`);
-    }
-
-    if (expense.status === 'VOIDED') {
-      throw new ConflictError('Cannot approve a voided expense record.');
-    }
-
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    let oldStatus = expense.status;
 
-    await ExpensesRepository.update(id, {
-      status: 'APPROVED',
-      approved_by_id: user.id,
-      approved_at: nowStr,
+    await pool.withTransaction(async (conn) => {
+      const [lockedRows] = await conn.query('SELECT * FROM expenses WHERE id = ? FOR UPDATE', [id]);
+      if (!lockedRows || lockedRows.length === 0) {
+        throw new NotFoundError(`Expense record #${id} not found.`);
+      }
+      const lockedExp = lockedRows[0];
+      oldStatus = lockedExp.status;
+
+      if (lockedExp.status === 'APPROVED') {
+        throw new ConflictError(`Expense #${lockedExp.expense_code} has already been approved.`);
+      }
+
+      if (lockedExp.status === 'VOIDED') {
+        throw new ConflictError('Cannot approve a voided expense record.');
+      }
+
+      await conn.query(
+        'UPDATE expenses SET status = "APPROVED", approved_by_id = ?, approved_at = ? WHERE id = ?',
+        [user.id, nowStr, id]
+      );
     });
 
     const updated = await ExpensesRepository.findById(id);
@@ -248,7 +258,7 @@ class ExpensesService {
       action: 'EXPENSE_APPROVED',
       entityType: 'expense',
       entityId: String(id),
-      oldValues: { status: expense.status },
+      oldValues: { status: oldStatus },
       newValues: { status: 'APPROVED', approvedById: user.id, approvedAt: nowStr },
     });
 
@@ -265,17 +275,25 @@ class ExpensesService {
 
     const expense = await this.getExpenseById(id, user);
 
-    if (expense.status === 'VOIDED') {
-      throw new ConflictError(`Expense #${expense.expense_code} has already been voided.`);
-    }
-
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    let oldStatus = expense.status;
 
-    await ExpensesRepository.update(id, {
-      status: 'VOIDED',
-      voided_by_id: user.id,
-      voided_at: nowStr,
-      void_reason: reason.trim(),
+    await pool.withTransaction(async (conn) => {
+      const [lockedRows] = await conn.query('SELECT * FROM expenses WHERE id = ? FOR UPDATE', [id]);
+      if (!lockedRows || lockedRows.length === 0) {
+        throw new NotFoundError(`Expense record #${id} not found.`);
+      }
+      const lockedExp = lockedRows[0];
+      oldStatus = lockedExp.status;
+
+      if (lockedExp.status === 'VOIDED') {
+        throw new ConflictError(`Expense #${lockedExp.expense_code} has already been voided.`);
+      }
+
+      await conn.query(
+        'UPDATE expenses SET status = "VOIDED", voided_by_id = ?, voided_at = ?, void_reason = ? WHERE id = ?',
+        [user.id, nowStr, reason.trim(), id]
+      );
     });
 
     const updated = await ExpensesRepository.findById(id);
@@ -288,7 +306,7 @@ class ExpensesService {
       action: 'EXPENSE_VOIDED',
       entityType: 'expense',
       entityId: String(id),
-      oldValues: { status: expense.status },
+      oldValues: { status: oldStatus },
       newValues: { status: 'VOIDED', voidReason: reason.trim(), voidedById: user.id, voidedAt: nowStr },
     });
 

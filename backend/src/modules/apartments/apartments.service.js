@@ -186,6 +186,48 @@ class ApartmentsService {
       );
     }
 
+    if (normalizedStatus === 'AVAILABLE') {
+      // 1. Check if blocking maintenance requests exist
+      const maintRows = await pool.query(
+        'SELECT COUNT(*) as count FROM maintenance_requests WHERE apartment_id = ? AND status IN ("OPEN", "IN_PROGRESS") AND blocking_unit = 1',
+        [id]
+      );
+      if (parseInt(maintRows[0]?.count || 0, 10) > 0) {
+        throw new ConflictError('Cannot set status to AVAILABLE: Unit has active blocking maintenance work orders.');
+      }
+
+      // 2. Check if active reservation occupies unit today
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const activeRes = await pool.query(
+        `SELECT id, reservation_code FROM reservations 
+         WHERE apartment_id = ? 
+           AND status IN ('CONFIRMED', 'CHECKED_IN') 
+           AND check_in_date <= ? AND check_out_date > ? 
+         LIMIT 1`,
+        [id, todayStr, todayStr]
+      );
+      if (activeRes.length > 0) {
+        throw new ConflictError(`Cannot set status to AVAILABLE: Unit is occupied by active reservation #${activeRes[0].reservation_code}.`);
+      }
+
+      // 3. Check if active blocked period covers today
+      const activeBlock = await pool.query(
+        `SELECT id, reason FROM blocked_periods 
+         WHERE apartment_id = ? 
+           AND start_date <= ? AND end_date >= ? 
+         LIMIT 1`,
+        [id, todayStr, todayStr]
+      );
+      if (activeBlock.length > 0) {
+        throw new ConflictError(`Cannot set status to AVAILABLE: Unit is blocked (${activeBlock[0].reason}).`);
+      }
+
+      // 4. Operational state progression: cannot skip from MAINTENANCE or DIRTY directly to AVAILABLE
+      if (['MAINTENANCE', 'DIRTY'].includes(unit.status)) {
+        throw new ConflictError(`Unit in '${unit.status}' state cannot bypass cleaning. It must transition through CLEANING and READY before becoming AVAILABLE.`);
+      }
+    }
+
     await ApartmentsRepository.updateStatus(id, normalizedStatus, user?.id || null);
     const updated = await ApartmentsRepository.findById(id);
 

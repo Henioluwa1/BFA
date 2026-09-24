@@ -140,43 +140,38 @@ export const inspectionService = {
 };
 
 export const reportService = {
-  getFinancial: (params) => api.get('/reports/financial', { params }),
   getReservations: (params) => api.get('/reports/reservations', { params }),
-  downloadCSV: (endpoint, filename) => {
-    const token = localStorage.getItem('bfa_auth_token');
-    const activePropertyId = localStorage.getItem('bfa_active_property_id');
-    const url = `/api/v1/reports/${endpoint}?format=csv${
-      activePropertyId && activePropertyId !== 'all' ? `&propertyId=${activePropertyId}` : ''
-    }`;
-
-    fetch(url, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then((res) => res.blob())
-      .then((blob) => {
-        const link = document.createElement('a');
-        link.href = window.URL.createObjectURL(blob);
-        link.setAttribute('download', filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      });
+  getFinancial: (params) => api.get('/reports/financial', { params }),
+  getPayments: (params) => api.get('/reports/payments', { params }),
+  getExpenses: (params) => api.get('/reports/expenses', { params }),
+  getAgents: (params) => api.get('/reports/agents', { params }),
+  getCommissions: (params) => api.get('/reports/commissions', { params }),
+  getMaintenance: (params) => api.get('/reports/maintenance', { params }),
+  getInspections: (params) => api.get('/reports/inspections', { params }),
+  downloadCSV: (type, filename = 'report.csv', params = {}) => {
+    return api.get(`/reports/${type}`, { params: { ...params, format: 'csv' }, responseType: 'blob' }).then((res) => {
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    });
   },
-  downloadPDF: (filename) => {
-    const token = localStorage.getItem('bfa_auth_token');
-    const activePropertyId = localStorage.getItem('bfa_active_property_id');
-    const url = `/api/v1/reports/financial?format=pdf${
-      activePropertyId && activePropertyId !== 'all' ? `&propertyId=${activePropertyId}` : ''
-    }`;
-
-    fetch(url, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then((res) => res.blob())
-      .then((blob) => {
-        const fileUrl = window.URL.createObjectURL(blob);
-        window.open(fileUrl, '_blank');
-      });
+  downloadPDF: (type = 'financial', filename = 'report.pdf', params = {}) => {
+    // If first argument looks like a filename (ends in .pdf) and second arg is absent, handle gracefully
+    let actualType = type;
+    let actualFilename = filename;
+    if (typeof type === 'string' && type.endsWith('.pdf')) {
+      actualType = 'financial';
+      actualFilename = type;
+    }
+    return api.get(`/reports/${actualType}`, { params: { ...params, format: 'pdf' }, responseType: 'blob' }).then((res) => {
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    });
   },
 };
 
@@ -264,6 +259,37 @@ export const publicBookingService = {
   getLandingAnnouncements: (params) => api.get('/public/announcements', { params }),
   lookupBooking: (data) => api.post('/public/booking-lookup', data),
 };
+
+export const agentService = {
+  getAll: (params) => api.get('/agents', { params }),
+  getById: (id) => api.get(`/agents/${id}`),
+  getClients: (id) => api.get(`/agents/${id}/clients`),
+  getPerformance: (id) => api.get(`/agents/${id}/performance`),
+  create: (data) => api.post('/agents', data),
+  update: (id, data) => api.put(`/agents/${id}`, data),
+  updateStatus: (id, status) => api.patch(`/agents/${id}/status`, { status }),
+  delete: (id) => api.delete(`/agents/${id}`),
+};
+
+export const commissionService = {
+  getAll: (params) => api.get('/commissions', { params }),
+  getSummary: (params) => api.get('/commissions/summary', { params }),
+  getById: (id) => api.get(`/commissions/${id}`),
+  calculate: (data) => api.post('/commissions/calculate', data),
+  approve: (id) => api.patch(`/commissions/${id}/approve`),
+  payout: (id, data) => api.post(`/commissions/${id}/payout`, data),
+  void: (id, data) => api.patch(`/commissions/${id}/void`, data),
+};
+
+export const analyticsService = {
+  getOverview: (params) => api.get('/analytics/overview', { params }),
+  getReservations: (params) => api.get('/analytics/reservations', { params }),
+  getApartments: (params) => api.get('/analytics/apartments', { params }),
+  getAgents: (params) => api.get('/analytics/agents', { params }),
+  getOperations: (params) => api.get('/analytics/operations', { params }),
+};
+
+
 
 export { api };
 export default api;

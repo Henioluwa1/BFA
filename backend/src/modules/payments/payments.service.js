@@ -192,6 +192,10 @@ class PaymentsService {
       throw new ForbiddenError(`Refund processing is currently disabled by system policy (${capCheck.reason}).`);
     }
 
+    if (transaction.status === 'REFUNDED') {
+      throw new ConflictError(`Payment transaction #${transaction.transaction_reference} has already been fully refunded.`);
+    }
+
     if (transaction.status !== 'SUCCESS' && transaction.status !== 'PARTIALLY_REFUNDED') {
       throw new ValidationError(`Cannot refund transaction with status '${transaction.status}'. Only SUCCESSful payments can be refunded.`);
     }
@@ -217,29 +221,68 @@ class PaymentsService {
     const refundRef = `BFA-REF-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
     const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    // Atomic transaction
+    // Atomic transaction with row locking to prevent concurrent double-refund race conditions
+    let finalAvailableRefund = 0;
+    let finalRefundAmount = refundAmount;
+
     await pool.withTransaction(async (conn) => {
+      // Lock the payment transaction row for update
+      const [lockedTxRows] = await conn.query(
+        'SELECT * FROM payment_transactions WHERE id = ? FOR UPDATE',
+        [transaction.id]
+      );
+      if (!lockedTxRows || lockedTxRows.length === 0) {
+        throw new NotFoundError(`Payment transaction #${transaction.id} not found.`);
+      }
+      const lockedTx = lockedTxRows[0];
+
+      if (lockedTx.status === 'REFUNDED') {
+        throw new ConflictError(`Payment transaction #${lockedTx.transaction_reference} has already been fully refunded.`);
+      }
+
+      if (lockedTx.status !== 'SUCCESS' && lockedTx.status !== 'PARTIALLY_REFUNDED') {
+        throw new ValidationError(`Cannot refund transaction with status '${lockedTx.status}'. Only SUCCESSful payments can be refunded.`);
+      }
+
+      const lockedTotalRefunded = parseFloat(lockedTx.refund_amount || 0);
+      const lockedAvailable = parseFloat(lockedTx.amount) - lockedTotalRefunded;
+      if (lockedAvailable <= 0) {
+        throw new ConflictError(`Payment transaction #${lockedTx.transaction_reference} has already been fully refunded.`);
+      }
+
+      if (finalRefundAmount > lockedAvailable) {
+        throw new ValidationError(
+          `Refund amount (₦${finalRefundAmount.toLocaleString()}) exceeds remaining refundable amount (₦${lockedAvailable.toLocaleString()}).`
+        );
+      }
+
+      // Lock reservation row for update
+      const [lockedResRows] = await conn.query(
+        'SELECT id, total_amount, paid_amount FROM reservations WHERE id = ? FOR UPDATE',
+        [lockedTx.reservation_id]
+      );
+
       // 1. Insert reversal / refund transaction record (preserves full history)
       await conn.query(
         `INSERT INTO payment_transactions
          (reservation_id, transaction_reference, payment_method, amount, currency, status, provider, provider_reference, metadata, paid_at, parent_transaction_id, refund_reason)
          VALUES (?, ?, ?, ?, ?, 'REFUNDED', 'SYSTEM_REFUND', ?, ?, CURRENT_TIMESTAMP, ?, ?)`,
         [
-          transaction.reservation_id,
+          lockedTx.reservation_id,
           refundRef,
-          transaction.payment_method,
-          -refundAmount,
-          transaction.currency,
+          lockedTx.payment_method,
+          -finalRefundAmount,
+          lockedTx.currency,
           refundRef,
-          JSON.stringify({ originalTransactionId: transaction.id, reason }),
-          transaction.id,
+          JSON.stringify({ originalTransactionId: lockedTx.id, reason }),
+          lockedTx.id,
           reason,
         ]
       );
 
       // 2. Update original transaction with cumulative refund amount
-      const newTotalRefunded = parseFloat(transaction.refund_amount || 0) + refundAmount;
-      const isFullRefund = newTotalRefunded >= parseFloat(transaction.amount);
+      const newTotalRefunded = lockedTotalRefunded + finalRefundAmount;
+      const isFullRefund = newTotalRefunded >= parseFloat(lockedTx.amount);
       const newStatus = isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
 
       await conn.query(
@@ -250,21 +293,39 @@ class PaymentsService {
              refunded_by_id = ?,
              status = ?
          WHERE id = ?`,
-        [newTotalRefunded, reason, nowStr, user?.id || null, newStatus, transaction.id]
+        [newTotalRefunded, reason, nowStr, user?.id || null, newStatus, lockedTx.id]
       );
 
       // 3. Atomically update reservation financial state
-      const currentPaid = parseFloat(transaction.paid_amount || 0);
-      const newPaidAmount = Math.max(0, currentPaid - refundAmount);
-      const newPaymentStatus = newPaidAmount <= 0 ? 'PAYMENT_PENDING' : 'PARTIAL';
+      const currentPaid = lockedResRows.length > 0 ? parseFloat(lockedResRows[0].paid_amount || 0) : parseFloat(transaction.paid_amount || 0);
+      const newPaidAmount = Math.max(0, currentPaid - finalRefundAmount);
+      const totalAmount = lockedResRows.length > 0 ? parseFloat(lockedResRows[0].total_amount || 0) : 0;
+      let newPaymentStatus = 'PARTIAL';
+      if (newPaidAmount <= 0) {
+        newPaymentStatus = 'PAYMENT_PENDING';
+      } else if (newPaidAmount >= totalAmount && totalAmount > 0) {
+        newPaymentStatus = 'PAID';
+      }
 
       await conn.query(
         `UPDATE reservations
          SET paid_amount = ?,
              payment_status = ?
          WHERE id = ?`,
-        [newPaidAmount, newPaymentStatus, transaction.reservation_id]
+        [newPaidAmount, newPaymentStatus, lockedTx.reservation_id]
       );
+
+      // If reservation is now fully refunded, reconcile associated commission
+      if (newPaidAmount <= 0) {
+        try {
+          const CommissionsService = require('../commissions/commissions.service');
+          await CommissionsService.reconcileCancellationOrRefund(lockedTx.reservation_id, conn);
+        } catch (comErr) {
+          logger.warn('Failed to reconcile commission on full refund:', { error: comErr.message });
+        }
+      }
+
+      finalAvailableRefund = Math.max(0, lockedAvailable - finalRefundAmount);
     });
 
     // Audit log
@@ -297,7 +358,7 @@ class PaymentsService {
       refundReference: refundRef,
       originalTransactionId: transaction.id,
       refundAmount,
-      remainingRefundable: Math.max(0, availableRefund - refundAmount),
+      remainingRefundable: finalAvailableRefund,
       originalTransaction: origRows[0],
       refundTransaction: refundRows[0],
     };
