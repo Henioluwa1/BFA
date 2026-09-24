@@ -17,7 +17,9 @@ function getPool() {
       database: config.db.database,
       waitForConnections: true,
       connectionLimit: config.db.connectionLimit,
-      queueLimit: 0,
+      queueLimit: config.db.queueLimit,
+      idleTimeout: config.db.idleTimeout,
+      connectTimeout: config.db.connectTimeout,
       timezone: config.db.timezone,
       dateStrings: true,
     });

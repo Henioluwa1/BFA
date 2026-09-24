@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-24T16:10:54.531Z",
+  "timestamp": "2026-09-24T17:22:57.442Z",
   "environment": {
     "os": "win32",
     "chromePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -71,7 +71,7 @@
       "module": "Team",
       "testName": "Team Directory Loaded Seeded Users",
       "status": "PASS",
-      "details": "Found seeded members, table rows: 9"
+      "details": "Found seeded members, table rows: 10"
     },
     {
       "module": "Team",
@@ -204,617 +204,612 @@
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:00.986Z"
+      "timestamp": "2026-09-24T17:23:02.938Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:01.073Z"
+      "timestamp": "2026-09-24T17:23:02.954Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:01.587Z"
+      "timestamp": "2026-09-24T17:23:03.144Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:02.510Z"
+      "timestamp": "2026-09-24T17:23:03.480Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:02.511Z"
+      "timestamp": "2026-09-24T17:23:03.481Z"
     },
     {
       "type": "verbose",
       "text": "[DOM] Input elements should have autocomplete attributes (suggested: \"current-password\"): (More info: https://goo.gl/9p2vKq) %o",
-      "timestamp": "2026-09-24T16:11:02.554Z"
+      "timestamp": "2026-09-24T17:23:04.154Z"
     },
     {
       "type": "error",
       "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
-      "timestamp": "2026-09-24T16:11:04.039Z"
+      "timestamp": "2026-09-24T17:23:06.287Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:05.391Z"
+      "timestamp": "2026-09-24T17:23:07.785Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:05.392Z"
+      "timestamp": "2026-09-24T17:23:07.816Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:05.862Z"
+      "timestamp": "2026-09-24T17:23:08.091Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:05.968Z"
+      "timestamp": "2026-09-24T17:23:08.160Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:05.968Z"
+      "timestamp": "2026-09-24T17:23:08.161Z"
     },
     {
       "type": "verbose",
       "text": "[DOM] Input elements should have autocomplete attributes (suggested: \"current-password\"): (More info: https://goo.gl/9p2vKq) %o",
-      "timestamp": "2026-09-24T16:11:06.006Z"
+      "timestamp": "2026-09-24T17:23:08.348Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:11.337Z"
+      "timestamp": "2026-09-24T17:23:14.318Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:11.352Z"
+      "timestamp": "2026-09-24T17:23:14.318Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:12.242Z"
+      "timestamp": "2026-09-24T17:23:14.483Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:12.294Z"
+      "timestamp": "2026-09-24T17:23:14.500Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:12.294Z"
+      "timestamp": "2026-09-24T17:23:14.502Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:14.635Z"
+      "timestamp": "2026-09-24T17:23:20.386Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:14.642Z"
+      "timestamp": "2026-09-24T17:23:20.397Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:15.037Z"
+      "timestamp": "2026-09-24T17:23:20.577Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:15.039Z"
+      "timestamp": "2026-09-24T17:23:20.657Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:15.039Z"
+      "timestamp": "2026-09-24T17:23:20.658Z"
     },
     {
       "type": "verbose",
       "text": "[DOM] Input elements should have autocomplete attributes (suggested: \"current-password\"): (More info: https://goo.gl/9p2vKq) %o",
-      "timestamp": "2026-09-24T16:11:17.162Z"
+      "timestamp": "2026-09-24T17:23:22.917Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:19.231Z"
-    },
-    {
-      "type": "info",
-      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:19.489Z"
-    },
-    {
-      "type": "warn",
-      "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:19.502Z"
-    },
-    {
-      "type": "warn",
-      "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:19.502Z"
+      "timestamp": "2026-09-24T17:23:24.394Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:19.505Z"
+      "timestamp": "2026-09-24T17:23:24.396Z"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": "2026-09-24T17:23:25.027Z"
+    },
+    {
+      "type": "warn",
+      "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
+      "timestamp": "2026-09-24T17:23:25.028Z"
+    },
+    {
+      "type": "warn",
+      "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
+      "timestamp": "2026-09-24T17:23:25.028Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:20.424Z"
+      "timestamp": "2026-09-24T17:23:29.096Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:20.433Z"
+      "timestamp": "2026-09-24T17:23:29.279Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:20.645Z"
+      "timestamp": "2026-09-24T17:23:29.357Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:20.683Z"
+      "timestamp": "2026-09-24T17:23:29.357Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:20.684Z"
+      "timestamp": "2026-09-24T17:23:29.358Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:23.443Z"
+      "timestamp": "2026-09-24T17:23:32.899Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:23.450Z"
+      "timestamp": "2026-09-24T17:23:32.962Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:23.595Z"
+      "timestamp": "2026-09-24T17:23:33.229Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:23.650Z"
+      "timestamp": "2026-09-24T17:23:33.230Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:23.654Z"
+      "timestamp": "2026-09-24T17:23:33.230Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:25.917Z"
+      "timestamp": "2026-09-24T17:23:35.601Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:25.924Z"
+      "timestamp": "2026-09-24T17:23:35.601Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:26.228Z"
+      "timestamp": "2026-09-24T17:23:35.807Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:26.316Z"
+      "timestamp": "2026-09-24T17:23:35.905Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:26.320Z"
+      "timestamp": "2026-09-24T17:23:35.906Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:27.645Z"
+      "timestamp": "2026-09-24T17:23:37.403Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:27.757Z"
+      "timestamp": "2026-09-24T17:23:37.404Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:27.864Z"
+      "timestamp": "2026-09-24T17:23:37.482Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:27.960Z"
+      "timestamp": "2026-09-24T17:23:37.578Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:27.961Z"
+      "timestamp": "2026-09-24T17:23:37.579Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:29.238Z"
+      "timestamp": "2026-09-24T17:23:38.943Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:29.271Z"
+      "timestamp": "2026-09-24T17:23:38.945Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:29.359Z"
+      "timestamp": "2026-09-24T17:23:39.051Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:29.489Z"
+      "timestamp": "2026-09-24T17:23:39.083Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:29.489Z"
+      "timestamp": "2026-09-24T17:23:39.083Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:31.808Z"
+      "timestamp": "2026-09-24T17:23:41.727Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:31.808Z"
+      "timestamp": "2026-09-24T17:23:41.733Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:32.038Z"
+      "timestamp": "2026-09-24T17:23:41.895Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:32.080Z"
+      "timestamp": "2026-09-24T17:23:41.943Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:32.080Z"
+      "timestamp": "2026-09-24T17:23:41.943Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:33.641Z"
+      "timestamp": "2026-09-24T17:23:44.124Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:33.642Z"
+      "timestamp": "2026-09-24T17:23:44.132Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:34.098Z"
+      "timestamp": "2026-09-24T17:23:44.340Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:34.099Z"
+      "timestamp": "2026-09-24T17:23:44.341Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:34.099Z"
+      "timestamp": "2026-09-24T17:23:44.341Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:35.575Z"
+      "timestamp": "2026-09-24T17:23:46.794Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:35.761Z"
+      "timestamp": "2026-09-24T17:23:46.885Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:35.823Z"
+      "timestamp": "2026-09-24T17:23:47.047Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:35.890Z"
+      "timestamp": "2026-09-24T17:23:47.049Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:35.891Z"
+      "timestamp": "2026-09-24T17:23:47.049Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:37.153Z"
+      "timestamp": "2026-09-24T17:23:50.412Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:37.155Z"
+      "timestamp": "2026-09-24T17:23:50.418Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:37.443Z"
+      "timestamp": "2026-09-24T17:23:50.737Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:37.511Z"
+      "timestamp": "2026-09-24T17:23:50.800Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:37.511Z"
+      "timestamp": "2026-09-24T17:23:50.800Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:39.333Z"
+      "timestamp": "2026-09-24T17:23:53.590Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:39.339Z"
+      "timestamp": "2026-09-24T17:23:53.594Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:39.457Z"
+      "timestamp": "2026-09-24T17:23:53.695Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:39.592Z"
+      "timestamp": "2026-09-24T17:23:53.794Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:39.592Z"
-    },
-    {
-      "type": "error",
-      "text": "Warning: React does not recognize the `%s` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `%s` instead. If you accidentally passed it from a parent component, remove it from the DOM element.%s headerAction headeraction \n    at div\n    at Card (http://127.0.0.1:5173/src/components/ui/Card.jsx:18:32)\n    at div\n    at div\n    at div\n    at div\n    at EmployeePerformancePage (http://127.0.0.1:5173/src/pages/EmployeePerformancePage.jsx:43:30)\n    at RenderedRoute (http://127.0.0.1:5173/node_modules/.vite/deps/react-router-dom.js?v=bc961a31:4112:5)\n    at Outlet (http://127.0.0.1:5173/node_modules/.vite/deps/react-router-dom.js?v=bc961a31:4518:26)\n    at ErrorBoundary (http://127.0.0.1:5173/src/components/ui/ErrorBoundary.jsx:9:5)\n    at main\n    at div\n    at div\n    at AppLayout (http://127.0.0.1:5173/src/components/layout/AppLayout.jsx:25:37)\n    at RenderedRoute (http://127.0.0.1:5173/node_modules/.vite/deps/react-router-dom.js?v=bc961a31:4112:5)\n    at Outlet (http://127.0.0.1:5173/node_modules/.vite/deps/react-router-dom.js?v=bc961a31:4518:26)\n    at ProtectedRoute (http://127.0.0.1:5173/src/components/auth/ProtectedRoute.jsx:21:42)\n    at RenderedRoute (http://127.0.0.1:5173/node_modules/.vite/deps/react-router-dom.js?v=bc961a31:4112:5)\n    at Routes (http://127.0.0.1:5173/node_modules/.vite/deps/react-router-dom.js?v=bc961a31:4582:5)\n    at NotificationProvider (http://127.0.0.1:5173/src/context/NotificationContext.jsx:24:40)\n    at ToastProvider (http://127.0.0.1:5173/src/context/ToastContext.jsx:20:33)\n    at PropertyProvider (http://127.0.0.1:5173/src/context/PropertyContext.jsx:21:36)\n    at AuthProvider (http://127.0.0.1:5173/src/context/AuthContext.jsx:21:32)\n    at Router (http://127.0.0.1:5173/node_modules/.vite/deps/react-router-dom.js?v=bc961a31:4525:15)\n    at BrowserRouter (http://127.0.0.1:5173/node_modules/.vite/deps/react-router-dom.js?v=bc961a31:5263:5)\n    at App",
-      "timestamp": "2026-09-24T16:11:40.116Z"
+      "timestamp": "2026-09-24T17:23:53.794Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:41.395Z"
+      "timestamp": "2026-09-24T17:23:57.972Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:41.396Z"
+      "timestamp": "2026-09-24T17:23:58.009Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:41.724Z"
+      "timestamp": "2026-09-24T17:23:58.104Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:41.791Z"
+      "timestamp": "2026-09-24T17:23:58.203Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:41.791Z"
+      "timestamp": "2026-09-24T17:23:58.204Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:43.621Z"
+      "timestamp": "2026-09-24T17:24:01.569Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:43.622Z"
+      "timestamp": "2026-09-24T17:24:01.570Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:43.919Z"
+      "timestamp": "2026-09-24T17:24:01.700Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:43.985Z"
+      "timestamp": "2026-09-24T17:24:01.772Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:43.985Z"
+      "timestamp": "2026-09-24T17:24:01.773Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:45.626Z"
+      "timestamp": "2026-09-24T17:24:04.320Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:45.626Z"
+      "timestamp": "2026-09-24T17:24:04.346Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:46.072Z"
+      "timestamp": "2026-09-24T17:24:04.412Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:46.143Z"
+      "timestamp": "2026-09-24T17:24:04.474Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:46.145Z"
+      "timestamp": "2026-09-24T17:24:04.474Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:47.411Z"
+      "timestamp": "2026-09-24T17:24:06.954Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:47.413Z"
+      "timestamp": "2026-09-24T17:24:06.954Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:47.646Z"
+      "timestamp": "2026-09-24T17:24:07.283Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:47.790Z"
+      "timestamp": "2026-09-24T17:24:07.284Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:47.806Z"
+      "timestamp": "2026-09-24T17:24:07.284Z"
     },
     {
       "type": "verbose",
       "text": "[DOM] Input elements should have autocomplete attributes (suggested: \"current-password\"): (More info: https://goo.gl/9p2vKq) %o",
-      "timestamp": "2026-09-24T16:11:47.808Z"
+      "timestamp": "2026-09-24T17:24:07.617Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:51.261Z"
+      "timestamp": "2026-09-24T17:24:11.641Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:51.262Z"
+      "timestamp": "2026-09-24T17:24:11.643Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:51.604Z"
+      "timestamp": "2026-09-24T17:24:11.778Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:51.650Z"
+      "timestamp": "2026-09-24T17:24:11.843Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:51.651Z"
+      "timestamp": "2026-09-24T17:24:11.843Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:52.832Z"
+      "timestamp": "2026-09-24T17:24:14.314Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:52.856Z"
+      "timestamp": "2026-09-24T17:24:14.315Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:53.110Z"
+      "timestamp": "2026-09-24T17:24:14.415Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:53.154Z"
+      "timestamp": "2026-09-24T17:24:14.513Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:53.155Z"
+      "timestamp": "2026-09-24T17:24:14.514Z"
     },
     {
       "type": "error",
       "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
-      "timestamp": "2026-09-24T16:11:53.362Z"
+      "timestamp": "2026-09-24T17:24:14.898Z"
     },
     {
       "type": "error",
       "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
-      "timestamp": "2026-09-24T16:11:53.417Z"
+      "timestamp": "2026-09-24T17:24:14.982Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:54.523Z"
+      "timestamp": "2026-09-24T17:24:16.100Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:54.527Z"
+      "timestamp": "2026-09-24T17:24:16.133Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:54.749Z"
+      "timestamp": "2026-09-24T17:24:16.176Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:54.788Z"
+      "timestamp": "2026-09-24T17:24:16.295Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:54.788Z"
+      "timestamp": "2026-09-24T17:24:16.296Z"
     },
     {
       "type": "debug",
       "text": "[vite] connecting...",
-      "timestamp": "2026-09-24T16:11:56.087Z"
+      "timestamp": "2026-09-24T17:24:18.103Z"
     },
     {
       "type": "debug",
       "text": "[vite] connected.",
-      "timestamp": "2026-09-24T16:11:56.087Z"
+      "timestamp": "2026-09-24T17:24:18.161Z"
     },
     {
       "type": "info",
       "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
-      "timestamp": "2026-09-24T16:11:56.360Z"
+      "timestamp": "2026-09-24T17:24:18.268Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
-      "timestamp": "2026-09-24T16:11:56.417Z"
+      "timestamp": "2026-09-24T17:24:18.317Z"
     },
     {
       "type": "warn",
       "text": "⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
-      "timestamp": "2026-09-24T16:11:56.417Z"
+      "timestamp": "2026-09-24T17:24:18.318Z"
     }
   ],
   "networkFailures": [],

@@ -5,15 +5,30 @@ const config = require('../../config');
 
 const SENSITIVE_KEYS = [
   'password',
+  'password_hash',
+  'passwordhash',
   'token',
+  'accesstoken',
+  'access_token',
+  'refreshtoken',
+  'refresh_token',
   'jwt',
+  'jwt_secret',
+  'jwtsecret',
   'secret',
   'authorization',
+  'cookie',
   'creditcard',
   'cardnumber',
+  'card_number',
   'cvv',
+  'pin',
+  'db_password',
+  'dbpassword',
   'api_key',
   'apikey',
+  'private_key',
+  'privatekey',
 ];
 
 /**

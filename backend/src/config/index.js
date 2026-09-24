@@ -21,6 +21,9 @@ const config = {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'bfa_apartments_db',
     connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 10,
+    queueLimit: parseInt(process.env.DB_QUEUE_LIMIT, 10) || 0,
+    idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT, 10) || 60000,
+    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT, 10) || 10000,
     timezone: '+00:00',
   },
   cors: {

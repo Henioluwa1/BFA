@@ -1,0 +1,94 @@
+# ==============================================================================
+# BFA Apartments Management System — Production Docker Compose Orchestration
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # Database Service (MariaDB 10.11 LTS)
+  mariadb:
+    image: mariadb:10.11
+    container_name: bfa_mariadb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-bfa_root_secure_pass_2026}
+      MYSQL_DATABASE: ${DB_NAME:-bfa_apartments_db}
+      MYSQL_USER: ${DB_USER:-bfa_prod_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-bfa_prod_db_pass_2026}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - bfa_network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Backend REST API Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: bfa_backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      APP_NAME: "BFA Apartments Management System"
+      APP_URL: ${APP_URL:-http://localhost:5000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-bfa_prod_user}
+      DB_PASSWORD: ${DB_PASSWORD:-bfa_prod_db_pass_2026}
+      DB_NAME: ${DB_NAME:-bfa_apartments_db}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-25}
+      JWT_SECRET: ${JWT_SECRET:-bfa_super_secret_jwt_key_production_random_entropy_32_chars}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost,http://127.0.0.1}
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX: 1000
+      AUTH_RATE_LIMIT_MAX: 20
+      BOOKING_RATE_LIMIT_MAX: 60
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - bfa_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Frontend Nginx Reverse Proxy Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: bfa_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - bfa_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  mariadb_data:
+    driver: local
+
+networks:
+  bfa_network:
+    driver: bridge

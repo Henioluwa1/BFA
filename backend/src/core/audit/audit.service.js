@@ -141,6 +141,10 @@ class AuditService {
       const finalActorEmail = actorEmail || req?.user?.email || null;
       const finalActorRole = actorRole || req?.user?.role || 'SYSTEM';
 
+      // Sanitize oldValues and newValues to guarantee zero password/token/secret leakage in audit logs
+      const cleanOldValues = oldValues ? logger.sanitizeMeta(oldValues) : null;
+      const cleanNewValues = newValues ? logger.sanitizeMeta(newValues) : null;
+
       const sql = `
         INSERT INTO audit_logs 
         (actor_id, actor_email, actor_role, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent, request_id)
@@ -154,8 +158,8 @@ class AuditService {
         action,
         entityType,
         entityId ? String(entityId) : null,
-        oldValues ? JSON.stringify(oldValues) : null,
-        newValues ? JSON.stringify(newValues) : null,
+        cleanOldValues ? JSON.stringify(cleanOldValues) : null,
+        cleanNewValues ? JSON.stringify(cleanNewValues) : null,
         finalIpAddress,
         finalUserAgent,
         finalRequestId,

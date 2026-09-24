@@ -11,6 +11,8 @@
     "build": "npm run build --prefix frontend",
     "test": "npm test --prefix backend",
     "db:migrate": "npm run db:migrate --prefix backend",
+    "seed:admin": "npm run seed:admin --prefix backend",
+    "seed:dev": "npm run seed:dev --prefix backend",
     "postinstall": "npm install --prefix backend && npm install --prefix frontend"
   },
   "devDependencies": {
