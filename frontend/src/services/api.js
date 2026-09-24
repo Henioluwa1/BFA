@@ -63,6 +63,8 @@ export const systemService = {
   checkHealth: () => api.get('/health'),
   ping: () => api.get('/health/ping'),
   getSystemInfo: () => api.get('/system/info'),
+  getSettings: () => api.get('/system/settings'),
+  updateSettings: (data) => api.put('/system/settings', data),
 };
 
 export const searchService = {
@@ -181,10 +183,15 @@ export const auditService = {
 
 export const accessService = {
   getCapabilities: (params) => api.get('/access/capabilities', { params }),
-  updateCapability: (key, data) => api.put(`/access/capabilities/${key}`, data),
-  getApprovalRequests: (params) => api.get('/access/approval-requests', { params }),
-  respondApprovalRequest: (id, data) => api.post(`/access/approval-requests/${id}/respond`, data),
-  forceOverride: (data) => api.post('/access/force-override', data),
+  updateCapability: (key, data) => api.post('/access/capabilities/update', { capabilityName: key, ...data }),
+  getApprovalRequests: (params) => api.get('/access/approvals', { params }),
+  respondApprovalRequest: (id, data) => api.post(`/access/approvals/${id}/review`, data),
+  forceOverride: (data) => api.post('/access/overrides/force', {
+    ...data,
+    confirmation: data?.confirmation || data?.confirmationPhrase,
+    reason: data?.reason || data?.justification,
+  }),
+  requestApproval: (data) => api.post('/access/overrides/request', data),
   getOverrides: (params) => api.get('/access/overrides', { params }),
 };
 
@@ -347,6 +354,17 @@ export const employeeService = {
   getMyEvaluations: (params) => api.get('/employees/me/evaluations', { params }),
   getMyIdCard: () => api.get('/employees/me/id-card'),
 };
+
+export const userService = {
+  getAll: (params) => api.get('/users', { params }),
+  getUsers: (params) => api.get('/users', { params }),
+  getById: (id) => api.get(`/users/${id}`),
+  create: (data) => api.post('/users', data),
+  update: (id, data) => api.put(`/users/${id}`, data),
+  getRoles: () => api.get('/users/roles'),
+};
+
+export const teamService = userService;
 
 export { api };
 export default api;

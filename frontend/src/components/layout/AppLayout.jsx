@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import ErrorBoundary from '../ui/ErrorBoundary';
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -18,7 +19,9 @@ export default function AppLayout() {
       <div className={`main-wrapper ${collapsed ? 'expanded' : ''}`}>
         <Topbar onToggleMobileNav={() => setMobileOpen((prev) => !prev)} />
         <main className="content-viewport">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

@@ -66,10 +66,12 @@ export default function EmployeeEvaluationPage() {
         employeeService.getAll({ propertyId: propParam, status: 'ACTIVE', limit: 100 }),
       ]);
 
-      setEvaluations(evalRes.data?.data || evalRes.data || []);
-      const loadedCriteria = critRes.data?.data || critRes.data || [];
-      setCriteria(loadedCriteria);
-      setEmployees(empRes.data?.data || empRes.data || []);
+      const rawEvalList = evalRes.data?.evaluations || evalRes.data?.data || evalRes.data || [];
+      setEvaluations(Array.isArray(rawEvalList) ? rawEvalList : (Array.isArray(evalRes) ? evalRes : []));
+      const loadedCriteria = critRes.data?.criteria || critRes.data?.data || critRes.data || [];
+      setCriteria(Array.isArray(loadedCriteria) ? loadedCriteria : (Array.isArray(critRes) ? critRes : []));
+      const rawEmpList = empRes.data?.employees || empRes.employees || empRes.data?.data || empRes.data || [];
+      setEmployees(Array.isArray(rawEmpList) ? rawEmpList : (Array.isArray(empRes) ? empRes : []));
     } catch (err) {
       addToast(`Failed to load evaluations: ${err.message}`, 'error');
     } finally {
@@ -236,9 +238,10 @@ export default function EmployeeEvaluationPage() {
 
   // Filtered evaluations
   const filteredEvaluations = useMemo(() => {
-    if (!searchQuery.trim()) return evaluations;
+    const list = Array.isArray(evaluations) ? evaluations : [];
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return evaluations.filter(
+    return list.filter(
       (ev) =>
         ev.employee_name?.toLowerCase().includes(q) ||
         ev.employee_code?.toLowerCase().includes(q) ||

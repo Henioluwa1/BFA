@@ -496,11 +496,42 @@ class EmployeesService {
     }
 
     const employee = await EmployeesRepository.findByUserId(user.id);
-    if (!employee) {
-      throw new NotFoundError('No employee record associated with your user account.');
+    if (employee) {
+      return employee;
     }
 
-    return employee;
+    // Synthesize profile for system administrators / non-staff users
+    const userRows = await pool.query(
+      `SELECT u.id, u.name, u.email, u.role, u.property_id, u.status, u.created_at, p.name as property_name
+       FROM users u
+       LEFT JOIN properties p ON u.property_id = p.id
+       WHERE u.id = ? LIMIT 1`,
+      [user.id]
+    );
+
+    if (userRows && userRows.length > 0) {
+      const u = userRows[0];
+      const nameParts = (u.name || 'System User').trim().split(' ');
+      return {
+        id: `user-${u.id}`,
+        user_id: u.id,
+        is_user_profile: true,
+        employee_code: `USR-${String(u.id).padStart(4, '0')}`,
+        first_name: nameParts[0] || u.name,
+        last_name: nameParts.slice(1).join(' ') || '',
+        full_name: u.name,
+        email: u.email,
+        phone: '',
+        department: ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(u.role) ? 'EXECUTIVE' : 'ADMINISTRATION',
+        job_title: (u.role || 'USER').replace(/_/g, ' '),
+        employment_status: u.status || 'ACTIVE',
+        property_id: u.property_id,
+        property_name: u.property_name || 'All Properties (Global)',
+        hire_date: u.created_at || new Date().toISOString(),
+      };
+    }
+
+    throw new NotFoundError('No employee record associated with your user account.');
   }
 
   /**

@@ -32,6 +32,7 @@ const agentsRoutes = require('./modules/agents/agents.routes');
 const commissionsRoutes = require('./modules/commissions/commissions.routes');
 const analyticsRoutes = require('./modules/analytics/analytics.routes');
 const employeesRoutes = require('./modules/employees/employees.routes');
+const usersRoutes = require('./modules/users/users.routes');
 
 const app = express();
 
@@ -85,6 +86,7 @@ apiV1Router.use('/agents', agentsRoutes);
 apiV1Router.use('/commissions', commissionsRoutes);
 apiV1Router.use('/analytics', analyticsRoutes);
 apiV1Router.use('/employees', employeesRoutes);
+apiV1Router.use('/users', usersRoutes);
 
 app.use('/api/v1', apiV1Router);
 

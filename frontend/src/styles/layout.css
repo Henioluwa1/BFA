@@ -171,6 +171,101 @@
   display: none;
 }
 
+/* Collapsible Navigation Groups (Section 17, 18) */
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.35rem;
+}
+
+.nav-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.35rem;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-normal);
+  text-align: left;
+}
+
+.nav-group-header:hover {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.nav-group-header.active-group {
+  color: var(--brand-accent);
+}
+
+.nav-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-group-chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--transition-normal);
+  opacity: 0.7;
+}
+
+.nav-group-chevron.open {
+  transform: rotate(90deg);
+}
+
+.nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-left: 0.25rem;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.25s ease;
+}
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-accent);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  margin-left: auto;
+  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.4);
+}
+
+.sidebar.collapsed .nav-group-header {
+  display: none;
+}
+
+.sidebar.collapsed .nav-group-items {
+  display: flex !important;
+  max-height: none !important;
+  padding-left: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.sidebar.collapsed .nav-badge {
+  display: none;
+}
+
 .sidebar-footer {
   padding: 1rem 1.25rem;
   border-top: 1px solid var(--sidebar-border);
@@ -314,6 +409,17 @@
   border-radius: var(--radius-full);
   background: var(--bg-primary);
   border: 1px solid var(--border-default);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease-in-out;
+}
+
+.user-profile-pill:hover,
+.user-profile-pill:focus-visible {
+  border-color: var(--accent-gold, #ca8a04);
+  background: var(--bg-card);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  outline: none;
 }
 
 .user-avatar {

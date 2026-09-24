@@ -105,7 +105,9 @@ export default function EmployeesPage() {
         employeeService.getStats({ propertyId: propParam }),
       ]);
 
-      setEmployees(empRes.data?.data || empRes.data || []);
+      const rawList = empRes.data?.employees || empRes.employees || empRes.data?.data || empRes.data || [];
+      const empList = Array.isArray(rawList) ? rawList : (Array.isArray(empRes) ? empRes : []);
+      setEmployees(empList);
       if (statsRes.data?.data || statsRes.data) {
         setStats(statsRes.data?.data || statsRes.data);
       }
@@ -230,9 +232,10 @@ export default function EmployeesPage() {
 
   // Filtered by Search
   const filteredEmployees = useMemo(() => {
-    if (!searchQuery.trim()) return employees;
+    const list = Array.isArray(employees) ? employees : [];
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return employees.filter(
+    return list.filter(
       (e) =>
         e.full_name?.toLowerCase().includes(q) ||
         e.employee_code?.toLowerCase().includes(q) ||

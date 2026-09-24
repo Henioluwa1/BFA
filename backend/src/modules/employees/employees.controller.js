@@ -391,10 +391,12 @@ class EmployeesController {
 
   static async downloadIdCardPDF(req, res, next) {
     try {
-      const pdfStream = await EmployeeIdCardsService.generateIdCardPDF(req.params.cardId || req.params.id, req);
+      const cardIdentifier = req.params.cardId || req.params.id;
+      const pdfBuffer = await EmployeeIdCardsService.generateIdCardPDF(cardIdentifier, req);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="bfa-id-card-${req.params.cardId || req.params.id}.pdf"`);
-      return pdfStream.pipe(res);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.setHeader('Content-Disposition', `attachment; filename="bfa-id-card-${cardIdentifier}.pdf"`);
+      return res.status(200).send(pdfBuffer);
     } catch (err) {
       next(err);
     }

@@ -264,6 +264,20 @@ class NotificationsService {
       newValues: { title, displayLocation, startDate, endDate },
     });
 
+    try {
+      await this.dispatchNotification({
+        title: `Announcement: ${title.trim()}`,
+        message: message.trim(),
+        type: 'SYSTEM',
+        priority: normalizedPriority,
+        propertyId: propertyId && propertyId !== 'all' ? propertyId : null,
+        targetRole: null,
+        metadata: { announcementId: result.insertId, displayLocation },
+      });
+    } catch (notifErr) {
+      console.warn('Failed to dispatch notification for announcement:', notifErr.message);
+    }
+
     return {
       success: true,
       id: result.insertId,

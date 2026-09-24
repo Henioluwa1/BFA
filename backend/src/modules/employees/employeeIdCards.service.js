@@ -400,29 +400,35 @@ class EmployeeIdCardsService {
     }
     if (!hasPhoto) {
       doc.rect(112, photoY + 2, 116, 126).fill('#f1f5f9');
-      doc.fillColor('#64748b').fontSize(36).text('👤', 0, photoY + 45, { align: 'center' });
+      // Draw clean vector staff avatar silhouette
+      doc.save();
+      doc.fillColor('#94a3b8');
+      doc.circle(170, photoY + 50, 20).fill();
+      doc.ellipse(170, photoY + 95, 34, 18).fill();
+      doc.restore();
+      doc.fillColor('#64748b').fontSize(8).text('STAFF PHOTO', 112, photoY + 110, { width: 116, align: 'center' });
     }
 
     // Employee Details
     const textY = 240;
-    doc.fillColor('#0f172a').fontSize(15).text(card.employee_name, 0, textY, { align: 'center' });
-    doc.fillColor('#ca8a04').fontSize(11).text(card.job_title, 0, textY + 22, { align: 'center' });
-    doc.fillColor('#475569').fontSize(9).text(`Dept: ${card.department} | ${card.property_name || 'All Properties'}`, 0, textY + 40, { align: 'center' });
+    doc.fillColor('#0f172a').fontSize(15).text(card.employee_name || 'Staff Member', 0, textY, { align: 'center' });
+    doc.fillColor('#ca8a04').fontSize(11).text(card.job_title || 'Operations Staff', 0, textY + 22, { align: 'center' });
+    doc.fillColor('#475569').fontSize(9).text(`Dept: ${card.department || 'General'} | ${card.property_name || 'All Properties'}`, 0, textY + 40, { align: 'center' });
 
     // Badge Card Details Box
     const boxY = 325;
     doc.rect(30, boxY, 280, 75).fill('#f8fafc').strokeColor('#e2e8f0').stroke();
     doc.fillColor('#64748b').fontSize(8).text('STAFF ID NUMBER', 45, boxY + 12);
-    doc.fillColor('#0f172a').fontSize(10).text(card.employee_code, 45, boxY + 24);
+    doc.fillColor('#0f172a').fontSize(10).text(card.employee_code || 'EMP-000', 45, boxY + 24);
 
     doc.fillColor('#64748b').fontSize(8).text('CARD NUMBER', 180, boxY + 12);
-    doc.fillColor('#0f172a').fontSize(9).text(card.card_number, 180, boxY + 24);
+    doc.fillColor('#0f172a').fontSize(9).text(card.card_number || 'BFA-IDC', 180, boxY + 24);
 
     doc.fillColor('#64748b').fontSize(8).text('ISSUED DATE', 45, boxY + 44);
-    doc.fillColor('#0f172a').fontSize(9).text(card.issued_at, 45, boxY + 54);
+    doc.fillColor('#0f172a').fontSize(9).text(String(card.issued_at || '').slice(0, 10), 45, boxY + 54);
 
     doc.fillColor('#64748b').fontSize(8).text('VALID THRU', 180, boxY + 44);
-    doc.fillColor('#10b981').fontSize(9).text(card.expires_at, 180, boxY + 54);
+    doc.fillColor('#10b981').fontSize(9).text(String(card.expires_at || '').slice(0, 10), 180, boxY + 54);
 
     // Front Footer
     doc.rect(0, 475, 340, 25).fill('#0f172a');
@@ -450,14 +456,19 @@ class EmployeeIdCardsService {
     const qrY = 210;
     doc.image(qrBuffer, 110, qrY, { width: 120, height: 120 });
     doc.fillColor('#64748b').fontSize(8).text('SCAN FOR DIGITAL AUTHENTICATION', 0, qrY + 130, { align: 'center' });
-    doc.fillColor('#94a3b8').fontSize(7).text(`Token: ${card.verification_token.slice(0, 16)}...`, 0, qrY + 145, { align: 'center' });
+    doc.fillColor('#94a3b8').fontSize(7).text(`Token: ${(card.verification_token || '').slice(0, 16)}...`, 0, qrY + 145, { align: 'center' });
 
     // Back Footer
     doc.rect(0, 475, 340, 25).fill('#0f172a');
     doc.fillColor('#ffffff').fontSize(7).text('BFA APARTMENTS • LAGOS, NIGERIA', 0, 483, { align: 'center' });
 
-    doc.end();
-    return doc;
+    return new Promise((resolve, reject) => {
+      const chunks = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err) => reject(err));
+      doc.end();
+    });
   }
 }
 

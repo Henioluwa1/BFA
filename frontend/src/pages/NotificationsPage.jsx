@@ -4,10 +4,12 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { notificationService } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { useNotifications } from '../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 
 export default function NotificationsPage() {
   const { addToast } = useToast();
+  const { permission, requestPermission, isSupported } = useNotifications();
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);
@@ -96,6 +98,30 @@ export default function NotificationsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Desktop Notifications Integration Card (Section 14 & 15) */}
+      <Card style={{ marginBottom: '1.25rem', background: 'linear-gradient(135deg, rgba(30,41,59,0.7), rgba(15,23,42,0.85))' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>🖥️ Browser Desktop Notifications</strong>
+              <Badge status={permission === 'granted' ? 'success' : permission === 'denied' ? 'danger' : 'neutral'}>
+                {permission === 'granted' ? 'ENABLED' : permission === 'denied' ? 'BLOCKED IN BROWSER' : 'NOT CONFIGURED'}
+              </Badge>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+              {permission === 'granted'
+                ? 'Active: Your browser will display real-time desktop alerts for incoming bookings, staff memos, and critical facility events.'
+                : 'Enable native browser notifications to receive real-time alerts even when working in another tab or application.'}
+            </p>
+          </div>
+          {isSupported && permission !== 'granted' && (
+            <Button variant="primary" size="sm" onClick={requestPermission}>
+              🔔 Enable Desktop Notifications
+            </Button>
+          )}
+        </div>
+      </Card>
 
       {/* Filter Toolbar */}
       <Card style={{ marginBottom: '1.5rem' }}>

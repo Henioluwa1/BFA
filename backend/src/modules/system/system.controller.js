@@ -1,6 +1,7 @@
 const ApiResponse = require('../../utils/apiResponse');
 const pool = require('../../db/pool');
 const config = require('../../config');
+const auditService = require('../../core/audit/audit.service');
 
 /**
  * System Information and Settings Controller
@@ -38,8 +39,111 @@ class SystemController {
             { id: 'maintenance', name: 'Maintenance', path: '/maintenance', phase: 7, ready: true },
             { id: 'inspection', name: 'Inspection', path: '/inspection', phase: 6, ready: true },
             { id: 'team', name: 'Team', path: '/team', phase: 2, ready: true },
-            { id: 'settings', name: 'Settings', path: '/settings', phase: 11, ready: false },
+            { id: 'settings', name: 'Settings', path: '/settings', phase: 11, ready: true },
           ],
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getSettings(req, res, next) {
+    try {
+      const rows = await pool.query('SELECT id, category, setting_key, setting_value, description, updated_at FROM system_settings ORDER BY category ASC, setting_key ASC');
+      
+      const settingsMap = {};
+      rows.forEach((row) => {
+        if (!settingsMap[row.category]) {
+          settingsMap[row.category] = {};
+        }
+        settingsMap[row.category][row.setting_key] = row.setting_value;
+      });
+
+      return ApiResponse.success(res, {
+        message: 'System settings retrieved successfully',
+        data: {
+          settings: settingsMap,
+          rows,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updateSettings(req, res, next) {
+    try {
+      const settingsPayload = req.body.settings || req.body;
+      const user = req.user;
+
+      if (!settingsPayload || typeof settingsPayload !== 'object') {
+        return res.status(400).json({ success: false, message: 'Invalid settings payload.' });
+      }
+
+      const updatedKeys = [];
+      const oldValues = {};
+      const newValues = {};
+
+      // Get current values for audit
+      const existingRows = await pool.query('SELECT setting_key, setting_value, category FROM system_settings');
+      const existingMap = {};
+      existingRows.forEach(r => { existingMap[r.setting_key] = r.setting_value; });
+
+      // Handle both flattened key-value or categorized object
+      const pairs = [];
+      for (const [keyOrCategory, valueOrObj] of Object.entries(settingsPayload)) {
+        if (typeof valueOrObj === 'object' && valueOrObj !== null && !Array.isArray(valueOrObj)) {
+          // Categorized: e.g. { company: { company_name: "..." } }
+          for (const [k, v] of Object.entries(valueOrObj)) {
+            pairs.push({ category: keyOrCategory, key: k, value: String(v) });
+          }
+        } else {
+          // Flattened: e.g. { company_name: "..." }
+          let category = 'general';
+          if (keyOrCategory.startsWith('company_')) category = 'company';
+          else if (keyOrCategory.includes('deposit') || keyOrCategory.includes('booking') || keyOrCategory.includes('checkin') || keyOrCategory.includes('checkout') || keyOrCategory.includes('overbooking')) category = 'reservations';
+          else if (keyOrCategory.includes('currency') || keyOrCategory.includes('tax') || keyOrCategory.includes('vat') || keyOrCategory.includes('rate')) category = 'finance';
+
+          pairs.push({ category, key: keyOrCategory, value: String(valueOrObj) });
+        }
+      }
+
+      await pool.withTransaction(async (conn) => {
+        for (const item of pairs) {
+          oldValues[item.key] = existingMap[item.key] || null;
+          newValues[item.key] = item.value;
+          updatedKeys.push(item.key);
+
+          await conn.query(
+            `INSERT INTO system_settings (category, setting_key, setting_value, description)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP`,
+            [item.category, item.key, item.value, item.key.replace(/_/g, ' ')]
+          );
+        }
+      });
+
+      // Audit log the update
+      await auditService.log({
+        actorId: user?.id || null,
+        actorEmail: user?.email || 'admin@bfa.com',
+        actorRole: user?.role || 'ADMIN',
+        action: 'SETTINGS_UPDATED',
+        entityType: 'system_settings',
+        entityId: 'global',
+        oldValues,
+        newValues,
+        requestId: req.id,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+      });
+
+      return ApiResponse.success(res, {
+        message: 'System settings saved and applied successfully.',
+        data: {
+          updatedCount: updatedKeys.length,
+          updatedKeys,
         },
       });
     } catch (error) {

@@ -221,7 +221,7 @@ export default function EmployeeIdCardPage() {
     setActionLoading(true);
     try {
       const res = await employeeService.downloadIdCardPdf(selectedEmpId);
-      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const blob = res instanceof Blob ? res : new Blob([res.data || res], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

@@ -5,13 +5,14 @@ class ApiResponse {
   /**
    * Return success response envelope
    */
-  static success(res, { statusCode = 200, message = 'Success', data = null, meta = {} } = {}) {
+  static success(res, { statusCode = 200, message = 'Success', data = null, meta = {}, ...extra } = {}) {
     const requestId = res?.req?.id || res?.getHeader('X-Request-Id') || undefined;
 
     return res.status(statusCode).json({
       success: true,
       message,
       data,
+      ...extra,
       meta: {
         timestamp: new Date().toISOString(),
         ...(requestId ? { requestId } : {}),

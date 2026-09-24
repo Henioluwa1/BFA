@@ -9,11 +9,12 @@ import { employeeService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
-export default function EmployeeProfilePage({ isSelf = false }) {
+export default function EmployeeProfilePage({ isSelf = false, isSelfService = false }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addToast } = useToast();
+  const effectiveIsSelf = Boolean(isSelf || isSelfService || !id || id === 'me');
 
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'personal' | 'employment' | 'performance' | 'activities' | 'id_card'
   const [loading, setLoading] = useState(false);
@@ -52,9 +53,33 @@ export default function EmployeeProfilePage({ isSelf = false }) {
     setLoading(true);
     try {
       let emp;
-      if (isSelf) {
-        const res = await employeeService.getMyProfile();
-        emp = res.data?.data || res.data;
+      if (effectiveIsSelf) {
+        try {
+          const res = await employeeService.getMyProfile();
+          emp = res.data?.data || res.data;
+        } catch (selfErr) {
+          // If no employee profile exists, fall back to current authenticated user info
+          if (user) {
+            emp = {
+              id: `user-${user.id}`,
+              user_id: user.id,
+              is_user_profile: true,
+              employee_code: `USR-${String(user.id).padStart(4, '0')}`,
+              first_name: user.name?.split(' ')[0] || user.name || 'User',
+              last_name: user.name?.split(' ').slice(1).join(' ') || '',
+              full_name: user.name || 'System User',
+              email: user.email,
+              phone: '',
+              department: user.role === 'SUPER_ADMIN' ? 'EXECUTIVE' : 'ADMINISTRATION',
+              job_title: (user.role || 'USER').replace(/_/g, ' '),
+              employment_status: 'ACTIVE',
+              property_name: 'All Properties (Global)',
+              hire_date: new Date().toISOString(),
+            };
+          } else {
+            throw selfErr;
+          }
+        }
       } else {
         const res = await employeeService.getById(id);
         emp = res.data?.data || res.data;
@@ -76,25 +101,27 @@ export default function EmployeeProfilePage({ isSelf = false }) {
         bio_notes: emp.bio_notes || '',
       });
 
-      // Load sub-resources concurrently
-      const empId = emp.id;
-      const [perfRes, actRes, cardRes] = await Promise.all([
-        employeeService.getPerformance(empId).catch(() => null),
-        employeeService.getActivities(empId, { limit: 50 }).catch(() => null),
-        employeeService.getIdCards({ employeeId: empId, status: 'ACTIVE' }).catch(() => null),
-      ]);
+      // Load sub-resources concurrently if valid employee id
+      const empId = typeof emp.id === 'number' || (typeof emp.id === 'string' && !emp.id.startsWith('user-')) ? emp.id : null;
+      if (empId) {
+        const [perfRes, actRes, cardRes] = await Promise.all([
+          employeeService.getPerformance(empId).catch(() => null),
+          employeeService.getActivities(empId, { limit: 50 }).catch(() => null),
+          employeeService.getIdCards({ employeeId: empId, status: 'ACTIVE' }).catch(() => null),
+        ]);
 
-      if (perfRes?.data?.data || perfRes?.data) {
-        setPerformance(perfRes.data?.data || perfRes.data);
-      }
-      if (actRes?.data?.data || actRes?.data) {
-        setActivities(actRes.data?.data || actRes.data || []);
-      }
-      const cardsList = cardRes?.data?.data || cardRes?.data || [];
-      if (cardsList.length > 0) {
-        setActiveCard(cardsList[0]);
-      } else {
-        setActiveCard(null);
+        if (perfRes?.data?.data || perfRes?.data) {
+          setPerformance(perfRes.data?.data || perfRes.data);
+        }
+        if (actRes?.data?.data || actRes?.data) {
+          setActivities(actRes.data?.data || actRes.data || []);
+        }
+        const cardsList = cardRes?.data?.data || cardRes?.data || [];
+        if (cardsList.length > 0) {
+          setActiveCard(cardsList[0]);
+        } else {
+          setActiveCard(null);
+        }
       }
     } catch (err) {
       addToast(`Failed to load profile: ${err.message}`, 'error');
@@ -105,7 +132,7 @@ export default function EmployeeProfilePage({ isSelf = false }) {
 
   useEffect(() => {
     fetchProfile();
-  }, [id, isSelf]);
+  }, [id, effectiveIsSelf]);
 
   // Handle Photo Selection
   const handlePhotoFileChange = (e) => {
@@ -175,10 +202,23 @@ export default function EmployeeProfilePage({ isSelf = false }) {
   };
 
   // Download ID Card PDF
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!activeCard) return;
-    employeeService.downloadIdCardPDF(activeCard.id);
-    addToast('Official ID card PDF opened in viewer.', 'success');
+    try {
+      const res = await employeeService.downloadIdCardPDF(activeCard.id);
+      const blob = res instanceof Blob ? res : new Blob([res.data || res], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `BFA_STAFF_BADGE_${employee?.employee_code || activeCard.id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      addToast('Official ID card PDF downloaded successfully.', 'success');
+    } catch (err) {
+      addToast(`Failed to download ID card: ${err.message}`, 'error');
+    }
   };
 
   if (loading && !employee) {

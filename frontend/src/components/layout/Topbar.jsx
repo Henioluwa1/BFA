@@ -2,19 +2,21 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
-import { systemService, notificationService } from '../../services/api';
+import { useNotifications } from '../../context/NotificationContext';
+import { systemService } from '../../services/api';
 import Breadcrumbs from './Breadcrumbs';
 import GlobalSearchModal from '../search/GlobalSearchModal';
 
 export default function Topbar({ onToggleMobileNav }) {
   const { properties, activePropertyId, setActivePropertyId } = useProperty();
   const { user, logout, isSuperAdmin } = useAuth();
+  const { notifications, unreadCount, permission, requestPermission, markAllAsRead } = useNotifications();
   const [apiHealth, setApiHealth] = useState({ status: 'checking', dbStatus: 'checking' });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [notifsDropdownOpen, setNotifsDropdownOpen] = useState(false);
-  const [recentNotifs, setRecentNotifs] = useState([]);
   const notifsRef = useRef(null);
+
+  const recentNotifs = notifications.slice(0, 5);
 
   const checkConnection = async () => {
     try {
@@ -29,31 +31,11 @@ export default function Topbar({ onToggleMobileNav }) {
     }
   };
 
-  const fetchUnread = async () => {
-    try {
-      const res = await notificationService.getUnreadCount();
-      setUnreadCount(res.data?.unreadCount || 0);
-    } catch {
-      // Ignore background notification check failures
-    }
-  };
-
-  const fetchRecent = async () => {
-    try {
-      const res = await notificationService.getAll({ pageSize: 5 });
-      setRecentNotifs(res.data || []);
-    } catch {
-      // Ignore
-    }
-  };
-
   useEffect(() => {
     checkConnection();
-    fetchUnread();
     const interval = setInterval(() => {
       checkConnection();
-      fetchUnread();
-    }, 20000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -87,15 +69,7 @@ export default function Topbar({ onToggleMobileNav }) {
     setNotifsDropdownOpen((prev) => !prev);
   };
 
-  const handleMarkAllReadQuick = async () => {
-    try {
-      await notificationService.markAllAsRead();
-      setUnreadCount(0);
-      setRecentNotifs((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
-    } catch {
-      // Ignore
-    }
-  };
+
 
   const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
 
@@ -230,22 +204,42 @@ export default function Topbar({ onToggleMobileNav }) {
                   }}
                 >
                   <strong style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>Notifications</strong>
-                  {unreadCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleMarkAllReadQuick}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--brand-accent, #3b82f6)',
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                        padding: 0,
-                      }}
-                    >
-                      Mark all read
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+                    {permission !== 'granted' && (
+                      <button
+                        type="button"
+                        onClick={requestPermission}
+                        title="Enable desktop notifications"
+                        style={{
+                          background: 'rgba(59,130,246,0.12)',
+                          border: '1px solid rgba(59,130,246,0.3)',
+                          borderRadius: '4px',
+                          color: '#60a5fa',
+                          fontSize: '0.7rem',
+                          cursor: 'pointer',
+                          padding: '0.2rem 0.45rem',
+                        }}
+                      >
+                        🔔 Enable Desktop
+                      </button>
+                    )}
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={markAllAsRead}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--brand-accent, #3b82f6)',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
@@ -298,8 +292,13 @@ export default function Topbar({ onToggleMobileNav }) {
             )}
           </div>
 
-          {/* Authenticated User Profile Pill (Section 6 & 7: Role derived from Backend) */}
-          <div className="user-profile-pill" title={`Logged in as ${user?.name} (${user?.role})`}>
+          {/* Authenticated User Profile Pill (Section 6 & 7 & 16: Clickable Profile Trigger) */}
+          <Link
+            to="/app/my-profile"
+            className="user-profile-pill"
+            title={`Logged in as ${user?.name} (${user?.role}) — Click to view My Profile`}
+            aria-label="View My Profile"
+          >
             <div className="user-avatar" style={{ background: isSuperAdmin ? '#3b82f6' : 'var(--brand-primary)' }}>
               {userInitial}
             </div>
@@ -309,7 +308,7 @@ export default function Topbar({ onToggleMobileNav }) {
                 {isSuperAdmin ? '👑 SUPER ADMIN' : user?.role || 'AUTHENTICATED'}
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Logout Action */}
           <button
