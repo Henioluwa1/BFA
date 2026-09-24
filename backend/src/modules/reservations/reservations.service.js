@@ -5,6 +5,7 @@ const PropertiesRepository = require('../properties/properties.repository');
 const BookingAuthService = require('../bookingAuth/bookingAuth.service');
 const AuditService = require('../../core/audit/audit.service');
 const NotificationsService = require('../notifications/notifications.service');
+const EmployeeActivitiesService = require('../employees/employeeActivities.service');
 const { ValidationError, ConflictError, NotFoundError, ForbiddenError } = require('../../core/errors/apiError');
 const logger = require('../../utils/logger');
 
@@ -362,6 +363,19 @@ class ReservationsService {
         },
       });
 
+      // Employee activity logging
+      if (req?.user?.id) {
+        EmployeeActivitiesService.recordUserActivity(req.user.id, {
+          property_id: apartment.property_id,
+          activity_type: 'RESERVATION_CREATED',
+          activity_category: 'RESERVATION',
+          related_entity_type: 'reservation',
+          related_entity_id: reservationId,
+          description: `Created reservation ${reservationCode} for ${newReservationData.tenant_name}`,
+          metadata: { reservation_code: reservationCode, total: totalAmount }
+        }).catch(() => {});
+      }
+
       // 15. Notifications dispatch (non-blocking)
       try {
         await NotificationsService.dispatchNotification({
@@ -640,6 +654,19 @@ class ReservationsService {
         },
       });
 
+      // Employee activity logging
+      if (req?.user?.id) {
+        EmployeeActivitiesService.recordUserActivity(req.user.id, {
+          property_id: reservation.property_id,
+          activity_type: 'GUEST_CHECKED_IN',
+          activity_category: 'FRONT_DESK',
+          related_entity_type: 'reservation',
+          related_entity_id: id,
+          description: `Checked in guest ${reservation.tenant_name} (${reservation.code})`,
+          metadata: { reservation_code: reservation.code }
+        }).catch(() => {});
+      }
+
       return id;
     });
 
@@ -707,6 +734,19 @@ class ReservationsService {
           checkedOutAt: nowStr,
         },
       });
+
+      // Employee activity logging
+      if (req?.user?.id) {
+        EmployeeActivitiesService.recordUserActivity(req.user.id, {
+          property_id: reservation.property_id,
+          activity_type: 'GUEST_CHECKED_OUT',
+          activity_category: 'FRONT_DESK',
+          related_entity_type: 'reservation',
+          related_entity_id: id,
+          description: `Checked out guest ${reservation.tenant_name} (${reservation.code})`,
+          metadata: { reservation_code: reservation.code }
+        }).catch(() => {});
+      }
 
       return id;
     });

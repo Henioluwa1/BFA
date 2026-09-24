@@ -4,6 +4,7 @@ const PropertiesRepository = require('../properties/properties.repository');
 const ApartmentsRepository = require('../apartments/apartments.repository');
 const AuditService = require('../../core/audit/audit.service');
 const NotificationsService = require('../notifications/notifications.service');
+const EmployeeActivitiesService = require('../employees/employeeActivities.service');
 const { ValidationError, NotFoundError, ForbiddenError } = require('../../core/errors/apiError');
 const logger = require('../../utils/logger');
 
@@ -172,6 +173,19 @@ class MaintenanceService {
         estimatedCost: data.estimated_cost,
       },
     });
+
+    // Employee activity logging
+    if (user?.id) {
+      EmployeeActivitiesService.recordUserActivity(user.id, {
+        property_id: data.property_id,
+        activity_type: 'MAINTENANCE_CREATED',
+        activity_category: 'MAINTENANCE',
+        related_entity_type: 'maintenance',
+        related_entity_id: insertId,
+        description: `Logged maintenance request ${issueCode}: ${data.issue_title}`,
+        metadata: { issue_code: issueCode, priority, category }
+      }).catch(() => {});
+    }
 
     // Notifications
     try {
@@ -392,6 +406,19 @@ class MaintenanceService {
         resolutionNotes,
       },
     });
+
+    // Employee activity logging
+    if (user?.id) {
+      EmployeeActivitiesService.recordUserActivity(user.id, {
+        property_id: record.property_id,
+        activity_type: 'MAINTENANCE_RESOLVED',
+        activity_category: 'MAINTENANCE',
+        related_entity_type: 'maintenance',
+        related_entity_id: id,
+        description: `Resolved maintenance issue ${record.issue_code}: ${record.issue_title}`,
+        metadata: { issue_code: record.issue_code, actual_cost: costNum }
+      }).catch(() => {});
+    }
 
     return updated;
   }

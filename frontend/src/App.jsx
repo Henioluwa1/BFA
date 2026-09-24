@@ -32,6 +32,13 @@ import NotificationsPage from './pages/NotificationsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
+// Phase 11 Pages
+import EmployeesPage from './pages/EmployeesPage';
+import EmployeeProfilePage from './pages/EmployeeProfilePage';
+import EmployeeEvaluationPage from './pages/EmployeeEvaluationPage';
+import EmployeePerformancePage from './pages/EmployeePerformancePage';
+import EmployeeIdCardPage from './pages/EmployeeIdCardPage';
+
 function App() {
   return (
     <BrowserRouter>
@@ -58,6 +65,12 @@ function App() {
                   <Route path="reports" element={<ReportsPage />} />
                   <Route path="analytics" element={<AnalyticsPage />} />
                   <Route path="agents" element={<AgentsPage />} />
+                  <Route path="employees" element={<EmployeesPage />} />
+                  <Route path="employees/:id" element={<EmployeeProfilePage />} />
+                  <Route path="evaluations" element={<EmployeeEvaluationPage />} />
+                  <Route path="performance" element={<EmployeePerformancePage />} />
+                  <Route path="id-cards" element={<EmployeeIdCardPage />} />
+                  <Route path="my-profile" element={<EmployeeProfilePage isSelfService={true} />} />
                   <Route path="maintenance" element={<MaintenancePage />} />
                   <Route path="inspection" element={<InspectionPage />} />
                   <Route path="audit" element={<AuditPage />} />
@@ -83,6 +96,11 @@ function App() {
               <Route path="/reports" element={<Navigate to="/app/reports" replace />} />
               <Route path="/analytics" element={<Navigate to="/app/analytics" replace />} />
               <Route path="/agents" element={<Navigate to="/app/agents" replace />} />
+              <Route path="/employees" element={<Navigate to="/app/employees" replace />} />
+              <Route path="/evaluations" element={<Navigate to="/app/evaluations" replace />} />
+              <Route path="/performance" element={<Navigate to="/app/performance" replace />} />
+              <Route path="/id-cards" element={<Navigate to="/app/id-cards" replace />} />
+              <Route path="/my-profile" element={<Navigate to="/app/my-profile" replace />} />
               <Route path="/maintenance" element={<Navigate to="/app/maintenance" replace />} />
               <Route path="/inspection" element={<Navigate to="/app/inspection" replace />} />
               <Route path="/audit" element={<Navigate to="/app/audit" replace />} />

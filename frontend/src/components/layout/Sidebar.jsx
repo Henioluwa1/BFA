@@ -104,6 +104,46 @@ const navItems = [
     ),
   },
   {
+    path: '/app/employees',
+    label: 'Employees',
+    roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'],
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="nav-icon">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
+      </svg>
+    ),
+  },
+  {
+    path: '/app/performance',
+    label: 'Staff Performance',
+    roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'],
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="nav-icon">
+        <path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" /><circle cx="12" cy="4" r="2" />
+      </svg>
+    ),
+  },
+  {
+    path: '/app/id-cards',
+    label: 'Staff ID Cards',
+    roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'],
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="nav-icon">
+        <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
+      </svg>
+    ),
+  },
+  {
+    path: '/app/my-profile',
+    label: 'My Profile & Badge',
+    roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'RECEPTIONIST', 'STAFF', 'AGENT', 'OWNER'],
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="nav-icon">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+  {
     path: '/app/maintenance',
     label: 'Maintenance',
     roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF'],

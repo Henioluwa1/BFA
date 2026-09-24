@@ -291,5 +291,40 @@ export const analyticsService = {
 
 
 
+export const employeeService = {
+  getAll: (params) => api.get('/employees', { params }),
+  getStats: (params) => api.get('/employees/stats', { params }),
+  getById: (id) => api.get(`/employees/${id}`),
+  create: (data) => api.post('/employees', data),
+  update: (id, data) => api.put(`/employees/${id}`, data),
+  updateStatus: (id, status) => api.patch(`/employees/${id}/status`, { status }),
+  uploadPhoto: (id, data) => api.post(`/employees/${id}/photo`, data),
+  getPerformance: (id, params) => api.get(`/employees/${id}/performance`, { params }),
+  getActivities: (id, params) => api.get(`/employees/${id}/activities`, { params }),
+  getEvaluations: (id, params) => api.get(`/employees/${id}/evaluations`, { params }),
+  getEvaluationCriteria: () => api.get('/employees/evaluation-criteria'),
+  createEvaluation: (data) => api.post('/employees/evaluations', data),
+  updateEvaluation: (evalId, data) => api.put(`/employees/evaluations/${evalId}`, data),
+  submitEvaluation: (evalId) => api.patch(`/employees/evaluations/${evalId}/submit`),
+  finalizeEvaluation: (evalId) => api.patch(`/employees/evaluations/${evalId}/finalize`),
+  getIdCards: (params) => api.get('/employees/id-cards', { params }),
+  generateIdCard: (data) => api.post('/employees/id-cards/generate', data),
+  reissueIdCard: (cardId, data) => api.patch(`/employees/id-cards/${cardId}/reissue`, data),
+  revokeIdCard: (cardId, data) => api.patch(`/employees/id-cards/${cardId}/revoke`, data),
+  downloadIdCardPDF: (cardId) => {
+    return api.get(`/employees/id-cards/${cardId}/pdf`, { responseType: 'blob' }).then((res) => {
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    });
+  },
+  verifyIdCardToken: (token) => api.get(`/employees/verify-id-card/${token}`),
+  getMyProfile: () => api.get('/employees/me/profile'),
+  updateMyProfile: (data) => api.put('/employees/me/profile', data),
+  getMyPerformance: (params) => api.get('/employees/me/performance', { params }),
+  getMyActivities: (params) => api.get('/employees/me/activities', { params }),
+  getMyEvaluations: (params) => api.get('/employees/me/evaluations', { params }),
+  getMyIdCard: () => api.get('/employees/me/id-card'),
+};
+
 export { api };
 export default api;
