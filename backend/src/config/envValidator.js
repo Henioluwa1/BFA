@@ -18,11 +18,16 @@ function validateEnvironment() {
   }
 
   // 2. Database Configuration Validation
-  if (!process.env.DB_HOST) errors.push('DB_HOST is required.');
-  if (!process.env.DB_USER) errors.push('DB_USER is required.');
-  if (!process.env.DB_NAME) errors.push('DB_NAME is required.');
-  if (isProduction && !process.env.DB_PASSWORD) {
-    errors.push('DB_PASSWORD must be configured for production deployment.');
+  const dbHost = process.env.DB_HOST || process.env.MYSQLHOST;
+  const dbUser = process.env.DB_USER || process.env.MYSQLUSER;
+  const dbName = process.env.DB_NAME || process.env.MYSQLDATABASE;
+  const dbPassword = process.env.DB_PASSWORD || process.env.MYSQLPASSWORD;
+
+  if (!dbHost) errors.push('DB_HOST (or MYSQLHOST) is required.');
+  if (!dbUser) errors.push('DB_USER (or MYSQLUSER) is required.');
+  if (!dbName) errors.push('DB_NAME (or MYSQLDATABASE) is required.');
+  if (isProduction && !dbPassword) {
+    errors.push('DB_PASSWORD (or MYSQLPASSWORD) must be configured for production deployment.');
   }
 
   // 3. CORS Allowed Origins Validation
