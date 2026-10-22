@@ -15,6 +15,8 @@ const cspDirectives = {
     config.app.url,
     config.app.frontendUrl,
     ...config.cors.origin,
+    'ws:',
+    'wss:',
   ],
   frameAncestors: ["'self'"],
   objectSrc: ["'none'"],

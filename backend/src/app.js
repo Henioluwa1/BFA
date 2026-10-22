@@ -34,6 +34,7 @@ const analyticsRoutes = require('./modules/analytics/analytics.routes');
 const employeesRoutes = require('./modules/employees/employees.routes');
 const usersRoutes = require('./modules/users/users.routes');
 const automationRoutes = require('./modules/automation/automation.routes');
+const chatRoutes = require('./modules/chat/chat.routes');
 
 const app = express();
 
@@ -89,6 +90,7 @@ apiV1Router.use('/analytics', analyticsRoutes);
 apiV1Router.use('/employees', employeesRoutes);
 apiV1Router.use('/users', usersRoutes);
 apiV1Router.use('/automation', automationRoutes);
+apiV1Router.use('/chat', chatRoutes);
 
 app.use('/api/v1', apiV1Router);
 
