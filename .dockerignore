@@ -1,0 +1,32 @@
+# Git metadata
+.git/
+.gitignore
+
+# Environment configurations and secrets
+.env
+.env.*
+!.env.production.example
+!.env.example
+credentials.txt
+docs/credentials.txt
+
+# Database backups and scratch files
+backups/
+*.sql
+scratch/
+artifacts/
+
+# Dependencies and build outputs
+node_modules/
+dist/
+build/
+coverage/
+
+# Log files
+logs/
+*.log
+npm-debug.log*
+
+# Editor configurations
+.vscode/
+.idea/

@@ -366,5 +366,13 @@ export const userService = {
 
 export const teamService = userService;
 
+export const automationService = {
+  getActions: () => api.get('/automation/actions'),
+  execute: (data) => api.post('/automation/execute', data),
+  confirm: (data) => api.post('/automation/confirm', data),
+  cancel: (data) => api.post('/automation/cancel', data),
+  chat: (data) => api.post('/automation/assistant/chat', data),
+};
+
 export { api };
 export default api;

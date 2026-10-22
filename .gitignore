@@ -40,3 +40,9 @@ backend/uploads/*
 # Database Backups
 backups/
 *.sql
+!backend/src/db/migrations/*.sql
+
+# Credentials & Secrets
+credentials.txt
+docs/credentials.txt
+

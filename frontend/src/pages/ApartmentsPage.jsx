@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Table from '../components/ui/Table';
 import Modal from '../components/ui/Modal';
-import { propertyService, apartmentService } from '../services/api';
+import { propertyService, apartmentService, reservationService, maintenanceService, inspectionService } from '../services/api';
 import { useProperty } from '../context/PropertyContext';
 import { useToast } from '../context/ToastContext';
 import { formatNaira } from '../utils/currency';
 
 export default function ApartmentsPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { properties, activePropertyId, setActivePropertyId, refreshProperties } = useProperty();
   const { addToast } = useToast();
 
@@ -17,10 +20,16 @@ export default function ApartmentsPage() {
   const [loading, setLoading] = useState(false);
 
   // Filters
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
-  const [selectedPropertyFilter, setSelectedPropertyFilter] = useState(activePropertyId || 'all');
+  const [selectedPropertyFilter, setSelectedPropertyFilter] = useState(searchParams.get('propertyId') || activePropertyId || 'all');
+
+  // Related records for selected unit detail view
+  const [unitReservations, setUnitReservations] = useState([]);
+  const [unitMaintenance, setUnitMaintenance] = useState([]);
+  const [unitInspections, setUnitInspections] = useState([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
 
   // Modals state
   const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false);
@@ -67,10 +76,27 @@ export default function ApartmentsPage() {
     notes: '',
   });
 
-  // Sync selectedPropertyFilter with activePropertyId from context
+  // Sync selectedPropertyFilter with activePropertyId from context or searchParams
   useEffect(() => {
-    setSelectedPropertyFilter(activePropertyId || 'all');
-  }, [activePropertyId]);
+    const propParam = searchParams.get('propertyId');
+    const searchParam = searchParams.get('search');
+    const unitIdParam = searchParams.get('unitId');
+
+    if (propParam) {
+      setSelectedPropertyFilter(propParam);
+      setActivePropertyId(propParam);
+    } else if (activePropertyId) {
+      setSelectedPropertyFilter(activePropertyId);
+    }
+    if (searchParam) {
+      setSearch(searchParam);
+    }
+    if (unitIdParam) {
+      apartmentService.getById(unitIdParam).then((res) => {
+        if (res.data) handleOpenDetail(res.data);
+      }).catch(() => {});
+    }
+  }, [searchParams, activePropertyId]);
 
   const fetchApartments = async () => {
     setLoading(true);
@@ -267,10 +293,27 @@ export default function ApartmentsPage() {
     }
   };
 
-  // View Detail
-  const handleOpenDetail = (unit) => {
+  // View Detail & Load Related Records
+  const handleOpenDetail = async (unit) => {
     setSelectedUnit(unit);
     setIsDetailModalOpen(true);
+    setRelatedLoading(true);
+    try {
+      const [resData, maintData, inspData] = await Promise.allSettled([
+        reservationService.getAll({ apartmentId: unit.id }),
+        maintenanceService.getAll({ apartmentId: unit.id }),
+        inspectionService.getAll({ apartmentId: unit.id }),
+      ]);
+      setUnitReservations(resData.status === 'fulfilled' ? resData.value.data || [] : []);
+      setUnitMaintenance(maintData.status === 'fulfilled' ? maintData.value.data || [] : []);
+      setUnitInspections(inspData.status === 'fulfilled' ? inspData.value.data || [] : []);
+    } catch {
+      setUnitReservations([]);
+      setUnitMaintenance([]);
+      setUnitInspections([]);
+    } finally {
+      setRelatedLoading(false);
+    }
   };
 
   // Status Badge Mapper
@@ -304,8 +347,12 @@ export default function ApartmentsPage() {
       header: 'Unit',
       key: 'unit_number',
       render: (val, row) => (
-        <div>
-          <strong style={{ color: 'var(--text-primary)', fontSize: '1rem' }}>{val}</strong>
+        <div
+          style={{ cursor: 'pointer' }}
+          onClick={() => handleOpenDetail(row)}
+          title="Click to view full unit details and linked records"
+        >
+          <strong style={{ color: 'var(--brand-accent, #3b82f6)', fontSize: '1rem', textDecoration: 'underline' }}>{val}</strong>
           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{row.unit_name}</div>
         </div>
       ),
@@ -314,9 +361,13 @@ export default function ApartmentsPage() {
       header: 'Property',
       key: 'property_name',
       render: (val, row) => (
-        <div>
-          <span>{val}</span>
-          <div style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', fontWeight: 600 }}>{row.property_code}</div>
+        <div
+          style={{ cursor: 'pointer' }}
+          onClick={() => navigate(`/app/properties?search=${encodeURIComponent(row.property_code)}`)}
+          title="Open property portfolio profile"
+        >
+          <span style={{ fontWeight: 500 }}>{val}</span>
+          <div style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', fontWeight: 600 }}>{row.property_code} ↗</div>
         </div>
       ),
     },
@@ -1122,26 +1173,63 @@ export default function ApartmentsPage() {
         </form>
       </Modal>
 
-      {/* 6. UNIT DETAIL MODAL */}
+      {/* 6. UNIT DETAIL MODAL WITH CONNECTED RECORDS */}
       <Modal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         size="lg"
         icon="🔍"
         title={`Unit Details: #${selectedUnit?.unit_number} - ${selectedUnit?.unit_name}`}
-        subtitle="Complete architectural specifications and operational profile"
+        subtitle="Complete architectural specifications, current occupancy, and linked operational records"
       >
         {selectedUnit && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
+            {/* Header info with link to parent building */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
               <div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>PARENT BUILDING</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {selectedUnit.property_name} ({selectedUnit.property_code})
+                <div
+                  style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--brand-accent, #3b82f6)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  onClick={() => {
+                    setIsDetailModalOpen(false);
+                    navigate(`/app/properties?search=${encodeURIComponent(selectedUnit.property_code)}`);
+                  }}
+                  title="View building details in Properties registry"
+                >
+                  🏢 {selectedUnit.property_name} ({selectedUnit.property_code}) ↗
                 </div>
               </div>
               <div>{renderStatusBadge(selectedUnit.status)}</div>
             </div>
+
+            {/* Active Stay Banner if Occupied or Reserved */}
+            {(() => {
+              const activeRes = unitReservations.find((r) => ['CHECKED_IN', 'CONFIRMED'].includes(r.status));
+              if (!activeRes) return null;
+              return (
+                <div style={{ padding: '0.85rem', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563eb' }}>CURRENT ACTIVE STAY</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                      {activeRes.tenant_name || activeRes.guest_name} — {activeRes.reservation_code}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      Check-in: {activeRes.check_in_date} • 1-Night Max Stay
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => {
+                      setIsDetailModalOpen(false);
+                      navigate(`/app/reservations?search=${encodeURIComponent(activeRes.reservation_code)}`);
+                    }}
+                  >
+                    View Booking ↗
+                  </Button>
+                </div>
+              );
+            })()}
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
               <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: 'var(--radius-sm)' }}>
@@ -1173,6 +1261,129 @@ export default function ApartmentsPage() {
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>BATHROOMS</div>
                 <div style={{ fontWeight: 600 }}>{selectedUnit.bathroom_count || 1} Bath(s)</div>
               </div>
+            </div>
+
+            {/* Linked Records Section */}
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+                Connected Operational Records
+              </div>
+
+              {relatedLoading ? (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}>
+                  Loading linked reservations, maintenance, and inspections...
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {/* Recent Stays */}
+                  <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                        RESERVATIONS HISTORY ({unitReservations.length})
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsDetailModalOpen(false);
+                          navigate(`/app/reservations?search=${encodeURIComponent(selectedUnit.unit_number)}`);
+                        }}
+                      >
+                        All Unit Bookings ↗
+                      </Button>
+                    </div>
+                    {unitReservations.length === 0 ? (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>No historical bookings found for this unit.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '120px', overflowY: 'auto' }}>
+                        {unitReservations.slice(0, 3).map((r) => (
+                          <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', padding: '0.25rem 0', borderBottom: '1px dashed var(--border-color)' }}>
+                            <div>
+                              <strong style={{ color: 'var(--brand-accent)', cursor: 'pointer' }} onClick={() => { setIsDetailModalOpen(false); navigate(`/app/reservations?search=${r.reservation_code}`); }}>
+                                {r.reservation_code}
+                              </strong>
+                              {' '}— {r.tenant_name || r.guest_name} ({r.check_in_date})
+                            </div>
+                            <Badge status={r.status === 'CONFIRMED' ? 'info' : r.status === 'CHECKED_IN' ? 'success' : 'neutral'}>{r.status}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Maintenance Orders */}
+                  <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                        MAINTENANCE WORK ORDERS ({unitMaintenance.length})
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsDetailModalOpen(false);
+                          navigate(`/app/maintenance?apartmentId=${selectedUnit.id}&propertyId=${selectedUnit.property_id}`);
+                        }}
+                      >
+                        All Unit Work Orders ↗
+                      </Button>
+                    </div>
+                    {unitMaintenance.length === 0 ? (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>No maintenance work orders logged for this unit.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '120px', overflowY: 'auto' }}>
+                        {unitMaintenance.slice(0, 3).map((m) => (
+                          <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', padding: '0.25rem 0', borderBottom: '1px dashed var(--border-color)' }}>
+                            <div>
+                              <strong style={{ color: 'var(--brand-accent)', cursor: 'pointer' }} onClick={() => { setIsDetailModalOpen(false); navigate(`/app/maintenance?search=${m.issue_code || m.issue_title}`); }}>
+                                {m.issue_code || `#${m.id}`}
+                              </strong>
+                              {' '}— {m.issue_title}
+                            </div>
+                            <Badge status={m.status === 'RESOLVED' ? 'success' : m.status === 'OPEN' ? 'warning' : 'danger'}>{m.status}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Unit Inspections */}
+                  <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                        INSPECTIONS ({unitInspections.length})
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsDetailModalOpen(false);
+                          navigate(`/app/inspections?apartmentId=${selectedUnit.id}&propertyId=${selectedUnit.property_id}`);
+                        }}
+                      >
+                        All Unit Inspections ↗
+                      </Button>
+                    </div>
+                    {unitInspections.length === 0 ? (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>No inspections recorded for this unit.</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '120px', overflowY: 'auto' }}>
+                        {unitInspections.slice(0, 3).map((insp) => (
+                          <div key={insp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', padding: '0.25rem 0', borderBottom: '1px dashed var(--border-color)' }}>
+                            <div>
+                              <strong style={{ color: 'var(--brand-accent)', cursor: 'pointer' }} onClick={() => { setIsDetailModalOpen(false); navigate(`/app/inspections?search=${insp.inspection_code}`); }}>
+                                {insp.inspection_code}
+                              </strong>
+                              {' '}— {insp.inspection_type} ({insp.condition_rating || 'N/A'})
+                            </div>
+                            <Badge status={insp.status === 'COMPLETED' ? 'success' : 'warning'}>{insp.status}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -1208,7 +1419,43 @@ export default function ApartmentsPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+            {/* Modal Actions Footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {(selectedUnit.status === 'AVAILABLE' || selectedUnit.status === 'READY') && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setIsDetailModalOpen(false);
+                      navigate(`/app/reservations?apartmentId=${selectedUnit.id}&propertyId=${selectedUnit.property_id}`);
+                    }}
+                  >
+                    + Book Unit (1-Night Policy)
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsDetailModalOpen(false);
+                    navigate(`/app/maintenance?apartmentId=${selectedUnit.id}&propertyId=${selectedUnit.property_id}`);
+                  }}
+                >
+                  Log Maintenance
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsDetailModalOpen(false);
+                    navigate(`/app/inspections?apartmentId=${selectedUnit.id}&propertyId=${selectedUnit.property_id}`);
+                  }}
+                >
+                  Schedule Inspection
+                </Button>
+              </div>
+
               <Button variant="secondary" onClick={() => setIsDetailModalOpen(false)}>
                 Close
               </Button>

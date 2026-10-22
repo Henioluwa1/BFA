@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -26,6 +27,8 @@ const CATEGORIES = [
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 export default function MaintenancePage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { properties, activePropertyId, isAllProperties, activeProperty } = useProperty();
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -72,6 +75,26 @@ export default function MaintenancePage() {
   useEffect(() => {
     setPropertyFilter(activePropertyId || 'all');
   }, [activePropertyId]);
+
+  // Synchronize URL search params for deep-linking
+  useEffect(() => {
+    const qSearch = searchParams.get('search');
+    if (qSearch) setSearchQuery(qSearch);
+
+    const qPropId = searchParams.get('propertyId');
+    if (qPropId) setPropertyFilter(qPropId);
+
+    const openNew = searchParams.get('openNew');
+    if (openNew === 'true') {
+      const qAptId = searchParams.get('apartmentId');
+      setCreateForm((prev) => ({
+        ...prev,
+        property_id: qPropId || prev.property_id,
+        apartment_id: qAptId || prev.apartment_id,
+      }));
+      setIsCreateModalOpen(true);
+    }
+  }, [searchParams]);
 
   // Load maintenance records
   const fetchRecords = async () => {
@@ -446,9 +469,19 @@ export default function MaintenancePage() {
                     {item.issue_code}
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{item.property_name}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      Unit {item.unit_number} {item.unit_name ? `(${item.unit_name})` : ''}
+                    <div
+                      style={{ fontWeight: 600, color: 'var(--brand-accent)', cursor: 'pointer' }}
+                      onClick={() => navigate(`/app/properties?search=${encodeURIComponent(item.property_name || '')}`)}
+                      title="View building in Properties"
+                    >
+                      🏢 {item.property_name} ↗
+                    </div>
+                    <div
+                      style={{ fontSize: '0.8rem', color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600, marginTop: '2px' }}
+                      onClick={() => navigate(`/app/apartments?unitId=${item.apartment_id}&propertyId=${item.property_id}`)}
+                      title="View Unit Details"
+                    >
+                      Unit {item.unit_number} {item.unit_name ? `(${item.unit_name})` : ''} ↗
                     </div>
                   </td>
                   <td>
@@ -639,12 +672,70 @@ export default function MaintenancePage() {
           }
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Connected Workflows Bar */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                background: 'var(--bg-card-hover)',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-md)',
+                alignItems: 'center',
+                border: '1px solid var(--border-default)',
+              }}
+            >
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Related Workflows:
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  navigate(`/app/inspections?apartmentId=${selectedIssue.apartment_id}&propertyId=${selectedIssue.property_id}`);
+                }}
+              >
+                📋 View Unit Inspections
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  navigate(`/app/apartments?unitId=${selectedIssue.apartment_id}&propertyId=${selectedIssue.property_id}`);
+                }}
+              >
+                🏢 View Unit Details
+              </Button>
+            </div>
+
             {/* Header info */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'var(--bg-surface)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>{selectedIssue.issue_title}</h3>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  {selectedIssue.property_name} — Unit {selectedIssue.unit_number} ({selectedIssue.unit_name})
+                <div style={{ fontSize: '0.85rem', marginTop: '0.35rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span
+                    style={{ color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600 }}
+                    onClick={() => {
+                      setIsDetailModalOpen(false);
+                      navigate(`/app/properties?search=${encodeURIComponent(selectedIssue.property_name || '')}`);
+                    }}
+                    title="View Property"
+                  >
+                    🏢 {selectedIssue.property_name} ↗
+                  </span>
+                  {' • '}
+                  <span
+                    style={{ color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600 }}
+                    onClick={() => {
+                      setIsDetailModalOpen(false);
+                      navigate(`/app/apartments?unitId=${selectedIssue.apartment_id}&propertyId=${selectedIssue.property_id}`);
+                    }}
+                    title="View Unit"
+                  >
+                    Unit {selectedIssue.unit_number} ({selectedIssue.unit_name || 'Unit'}) ↗
+                  </span>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>

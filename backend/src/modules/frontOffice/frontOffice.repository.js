@@ -9,7 +9,7 @@ class FrontOfficeRepository {
       SELECT r.*,
              p.name as property_name, p.code as property_code,
              a.unit_number, a.unit_name, a.unit_type, a.status as unit_status,
-             ag.name as agent_name, ba.auth_code,
+             ag.name as agent_name,
              g.display_name as guest_name, g.phone as guest_phone, g.email as guest_email,
              GREATEST(0, r.total_amount - r.paid_amount) as outstanding_balance
       FROM reservations r
@@ -17,13 +17,12 @@ class FrontOfficeRepository {
       JOIN apartments a ON a.id = r.apartment_id
       LEFT JOIN agents ag ON ag.id = r.agent_id
       LEFT JOIN guests g ON g.id = r.guest_id
-      LEFT JOIN booking_authentications ba ON ba.reservation_id = r.id
       WHERE r.check_in_date = ?
         AND r.status IN ('CONFIRMED', 'PENDING')
     `;
     const params = [date];
 
-    if (user?.role === 'MANAGER' && user.propertyId) {
+    if (['MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'].includes(user?.role) && user.propertyId) {
       sql += ' AND r.property_id = ?';
       params.push(user.propertyId);
     }
@@ -44,7 +43,7 @@ class FrontOfficeRepository {
       SELECT r.*,
              p.name as property_name, p.code as property_code,
              a.unit_number, a.unit_name, a.unit_type, a.status as unit_status,
-             ag.name as agent_name, ba.auth_code,
+             ag.name as agent_name,
              g.display_name as guest_name, g.phone as guest_phone,
              GREATEST(0, r.total_amount - r.paid_amount) as outstanding_balance
       FROM reservations r
@@ -52,13 +51,12 @@ class FrontOfficeRepository {
       JOIN apartments a ON a.id = r.apartment_id
       LEFT JOIN agents ag ON ag.id = r.agent_id
       LEFT JOIN guests g ON g.id = r.guest_id
-      LEFT JOIN booking_authentications ba ON ba.reservation_id = r.id
       WHERE r.check_out_date = ?
         AND r.status = 'CHECKED_IN'
     `;
     const params = [date];
 
-    if (user?.role === 'MANAGER' && user.propertyId) {
+    if (['MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'].includes(user?.role) && user.propertyId) {
       sql += ' AND r.property_id = ?';
       params.push(user.propertyId);
     }
@@ -79,7 +77,7 @@ class FrontOfficeRepository {
       SELECT r.*,
              p.name as property_name, p.code as property_code,
              a.unit_number, a.unit_name, a.unit_type, a.status as unit_status,
-             ag.name as agent_name, ba.auth_code,
+             ag.name as agent_name,
              g.display_name as guest_name, g.phone as guest_phone, g.email as guest_email,
              GREATEST(0, r.total_amount - r.paid_amount) as outstanding_balance
       FROM reservations r
@@ -87,12 +85,11 @@ class FrontOfficeRepository {
       JOIN apartments a ON a.id = r.apartment_id
       LEFT JOIN agents ag ON ag.id = r.agent_id
       LEFT JOIN guests g ON g.id = r.guest_id
-      LEFT JOIN booking_authentications ba ON ba.reservation_id = r.id
       WHERE r.status = 'CHECKED_IN'
     `;
     const params = [];
 
-    if (user?.role === 'MANAGER' && user.propertyId) {
+    if (['MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'].includes(user?.role) && user.propertyId) {
       sql += ' AND r.property_id = ?';
       params.push(user.propertyId);
     }
@@ -109,8 +106,15 @@ class FrontOfficeRepository {
    * Get operational statistics
    */
   static async getOperationalStats({ propertyId, date, user } = {}) {
-    const propFilter = propertyId && propertyId !== 'all' ? 'AND property_id = ?' : '';
-    const propParams = propertyId && propertyId !== 'all' ? [propertyId] : [];
+    let propFilter = '';
+    let propParams = [];
+    if (['MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'].includes(user?.role) && user.propertyId) {
+      propFilter = 'AND property_id = ?';
+      propParams = [user.propertyId];
+    } else if (propertyId && propertyId !== 'all') {
+      propFilter = 'AND property_id = ?';
+      propParams = [propertyId];
+    }
 
     // 1. Today's arrivals count
     const [arr] = await pool.query(

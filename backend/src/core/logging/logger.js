@@ -29,6 +29,10 @@ const SENSITIVE_KEYS = [
   'apikey',
   'private_key',
   'privatekey',
+  'auth_code',
+  'authcode',
+  'booking_code',
+  'confirmation_token',
 ];
 
 /**

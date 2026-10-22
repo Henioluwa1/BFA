@@ -253,6 +253,7 @@ describe('Audit Trail & Logging Tests (Section 2, 3, 4, 6, 7, 8, 10, 11, 14, 15,
 
     const createRes = await request(app)
       .post('/api/v1/reservations')
+      .set('Authorization', `Bearer ${adminToken}`)
       .set('X-Request-Id', customRequestId)
       .send({
         apartment_id: 1,

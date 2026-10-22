@@ -9,10 +9,13 @@ describe('Global Search Engine API Tests (Section 5, 6, 7)', () => {
     await pool.closePool();
   });
 
+  const adminToken = jwt.sign({ id: 2, email: 'admin@bfa.com', role: 'ADMIN' }, config.security.jwtSecret);
   const agentToken = jwt.sign({ id: 6, email: 'agent@bfa.com', role: 'AGENT', agentId: 2 }, config.security.jwtSecret);
 
   it('should return categorized matches for "Horizon"', async () => {
-    const res = await request(app).get('/api/v1/search?q=Horizon');
+    const res = await request(app)
+      .get('/api/v1/search?q=Horizon')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
@@ -23,7 +26,9 @@ describe('Global Search Engine API Tests (Section 5, 6, 7)', () => {
   });
 
   it('should return empty categories structure for blank search query', async () => {
-    const res = await request(app).get('/api/v1/search?q=');
+    const res = await request(app)
+      .get('/api/v1/search?q=')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
@@ -31,7 +36,9 @@ describe('Global Search Engine API Tests (Section 5, 6, 7)', () => {
   });
 
   it('should respect property filtering and scope search to property 1', async () => {
-    const res = await request(app).get('/api/v1/search?q=Suite&propertyId=1');
+    const res = await request(app)
+      .get('/api/v1/search?q=Suite&propertyId=1')
+      .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);

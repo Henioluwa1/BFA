@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -11,6 +12,8 @@ import { useToast } from '../context/ToastContext';
 import { formatNaira } from '../utils/currency';
 
 export default function InspectionPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { properties, activePropertyId, setActivePropertyId } = useProperty();
   const { hasPermission } = useAuth();
   const { addToast } = useToast();
@@ -63,6 +66,25 @@ export default function InspectionPage() {
   useEffect(() => {
     setPropertyFilter(activePropertyId || 'all');
   }, [activePropertyId]);
+
+  // Synchronize URL search params for deep-linking
+  useEffect(() => {
+    const qPropId = searchParams.get('propertyId');
+    if (qPropId) setPropertyFilter(qPropId);
+
+    const openNew = searchParams.get('openNew');
+    if (openNew === 'true') {
+      const qAptId = searchParams.get('apartmentId');
+      const qResId = searchParams.get('reservationId');
+      setCreateForm((prev) => ({
+        ...prev,
+        property_id: qPropId || prev.property_id,
+        apartment_id: qAptId || prev.apartment_id,
+        reservation_id: qResId || prev.reservation_id,
+      }));
+      setIsCreateModalOpen(true);
+    }
+  }, [searchParams]);
 
   // Load inspections
   const fetchInspections = async () => {
@@ -271,9 +293,19 @@ export default function InspectionPage() {
       key: 'property_name',
       render: (val, row) => (
         <div>
-          <div style={{ fontWeight: 600 }}>{val}</div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            Unit {row.unit_number} ({row.unit_type})
+          <div
+            style={{ fontWeight: 600, color: 'var(--brand-accent)', cursor: 'pointer' }}
+            onClick={() => navigate(`/app/properties?search=${encodeURIComponent(val || '')}`)}
+            title="View building in Properties"
+          >
+            🏢 {val} ↗
+          </div>
+          <div
+            style={{ fontSize: '0.8rem', color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600, marginTop: '2px' }}
+            onClick={() => navigate(`/app/apartments?unitId=${row.apartment_id}&propertyId=${row.property_id}`)}
+            title="View Unit Details"
+          >
+            Unit {row.unit_number} ({row.unit_type}) ↗
           </div>
         </div>
       ),
@@ -295,9 +327,25 @@ export default function InspectionPage() {
       key: 'guest_name',
       render: (val, row) => (
         <div style={{ fontSize: '0.8rem' }}>
-          {val ? <strong>{val}</strong> : <span style={{ color: 'var(--text-muted)' }}>Routine Walkthrough</span>}
+          {val ? (
+            <div
+              style={{ fontWeight: 700, color: 'var(--brand-accent)', cursor: 'pointer' }}
+              onClick={() => navigate(`/app/guests?search=${encodeURIComponent(val)}`)}
+              title="View Guest Profile"
+            >
+              👤 {val} ↗
+            </div>
+          ) : (
+            <span style={{ color: 'var(--text-muted)' }}>Routine Walkthrough</span>
+          )}
           {row.reservation_code && (
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{row.reservation_code}</div>
+            <div
+              style={{ fontSize: '0.72rem', color: 'var(--brand-accent)', cursor: 'pointer', fontFamily: 'monospace', marginTop: '2px' }}
+              onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(row.reservation_code)}`)}
+              title="View Reservation Details"
+            >
+              📑 {row.reservation_code} ↗
+            </div>
           )}
         </div>
       ),
@@ -557,10 +605,85 @@ export default function InspectionPage() {
           }
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--bg-card-hover)', padding: '0.75rem', borderRadius: 'var(--radius-md)' }}>
+            {/* Connected Workflows Bar */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                background: 'var(--bg-card-hover)',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-md)',
+                alignItems: 'center',
+                border: '1px solid var(--border-default)',
+              }}
+            >
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Related Workflows:
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsManageModalOpen(false);
+                  navigate(`/app/maintenance?openNew=true&apartmentId=${selectedInspection.apartment_id}&propertyId=${selectedInspection.property_id}`);
+                }}
+              >
+                🔧 Log Maintenance Ticket
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsManageModalOpen(false);
+                  navigate(`/app/apartments?unitId=${selectedInspection.apartment_id}&propertyId=${selectedInspection.property_id}`);
+                }}
+              >
+                🏢 View Unit Details
+              </Button>
+              {selectedInspection.reservation_code && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsManageModalOpen(false);
+                    navigate(`/app/reservations?search=${encodeURIComponent(selectedInspection.reservation_code)}`);
+                  }}
+                >
+                  📑 Reservation ({selectedInspection.reservation_code})
+                </Button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--bg-card-hover)', padding: '0.75rem', borderRadius: 'var(--radius-md)', alignItems: 'center' }}>
               <div>
-                <strong>{selectedInspection.property_name} — Unit {selectedInspection.unit_number}</strong>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Type: {selectedInspection.inspection_type}</div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span
+                    style={{ fontWeight: 800, color: 'var(--brand-accent)', cursor: 'pointer', fontSize: '0.95rem' }}
+                    onClick={() => {
+                      setIsManageModalOpen(false);
+                      navigate(`/app/properties?search=${encodeURIComponent(selectedInspection.property_name || '')}`);
+                    }}
+                    title="View Property"
+                  >
+                    🏢 {selectedInspection.property_name} ↗
+                  </span>
+                  {' — '}
+                  <span
+                    style={{ fontWeight: 800, color: 'var(--brand-accent)', cursor: 'pointer', fontSize: '0.95rem' }}
+                    onClick={() => {
+                      setIsManageModalOpen(false);
+                      navigate(`/app/apartments?unitId=${selectedInspection.apartment_id}&propertyId=${selectedInspection.property_id}`);
+                    }}
+                    title="View Unit"
+                  >
+                    Unit {selectedInspection.unit_number} ↗
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Inspection Type: <strong>{selectedInspection.inspection_type}</strong>
+                  {selectedInspection.guest_name ? ` • Guest: ${selectedInspection.guest_name}` : ''}
+                </div>
               </div>
               <Badge status={selectedInspection.status}>{selectedInspection.status}</Badge>
             </div>

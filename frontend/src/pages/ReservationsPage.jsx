@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Table from '../components/ui/Table';
 import Modal from '../components/ui/Modal';
-import { reservationService, apartmentService } from '../services/api';
+import { reservationService, apartmentService, paymentService } from '../services/api';
 import { useProperty } from '../context/PropertyContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { formatNaira } from '../utils/currency';
 
 export default function ReservationsPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { properties, activePropertyId, setActivePropertyId } = useProperty();
   const { hasPermission } = useAuth();
   const { addToast } = useToast();
@@ -35,6 +38,8 @@ export default function ReservationsPage() {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [statusHistory, setStatusHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [reservationPayments, setReservationPayments] = useState([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
 
   // Lifecycle action prompt states
   const [actionPrompt, setActionPrompt] = useState(null); // 'CANCEL' | 'NO_SHOW' | null
@@ -74,6 +79,28 @@ export default function ReservationsPage() {
   useEffect(() => {
     setPropertyFilter(activePropertyId || 'all');
   }, [activePropertyId]);
+
+  // Synchronize URL search params for deep-linking
+  useEffect(() => {
+    const qSearch = searchParams.get('search');
+    if (qSearch) setSearch(qSearch);
+
+    const qPropId = searchParams.get('propertyId');
+    if (qPropId) setPropertyFilter(qPropId);
+
+    const openNew = searchParams.get('openNew');
+    if (openNew === 'true') {
+      setCreateForm((prev) => ({
+        ...prev,
+        property_id: searchParams.get('propertyId') || prev.property_id,
+        apartment_id: searchParams.get('apartmentId') || prev.apartment_id,
+        tenant_name: searchParams.get('guestName') || prev.tenant_name,
+        tenant_email: searchParams.get('guestEmail') || prev.tenant_email,
+        tenant_phone: searchParams.get('guestPhone') || prev.tenant_phone,
+      }));
+      setIsCreateModalOpen(true);
+    }
+  }, [searchParams]);
 
   // Fetch all reservations
   const fetchReservations = async () => {
@@ -234,6 +261,17 @@ export default function ReservationsPage() {
     } finally {
       setHistoryLoading(false);
     }
+
+    // Fetch authoritative payments ledger for this reservation
+    setPaymentsLoading(true);
+    try {
+      const payRes = await paymentService.getTransactions({ reservationId: reservation.id });
+      setReservationPayments(payRes.data || []);
+    } catch {
+      setReservationPayments([]);
+    } finally {
+      setPaymentsLoading(false);
+    }
   };
 
   // Lifecycle action handlers
@@ -361,9 +399,19 @@ export default function ReservationsPage() {
       key: 'property_name',
       render: (val, row) => (
         <div>
-          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{val}</div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            Unit {row.unit_number} {row.unit_name ? `• ${row.unit_name}` : ''}
+          <div
+            style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}
+            onClick={() => navigate(`/app/properties?search=${encodeURIComponent(val || '')}`)}
+            title="Click to view building in Properties"
+          >
+            🏢 {val} ↗
+          </div>
+          <div
+            style={{ fontSize: '0.8rem', color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600, marginTop: '2px' }}
+            onClick={() => navigate(`/app/apartments?unitId=${row.apartment_id}&propertyId=${row.property_id}`)}
+            title="Click to view unit details and availability"
+          >
+            Unit {row.unit_number} {row.unit_name ? `• ${row.unit_name}` : ''} ↗
           </div>
         </div>
       ),
@@ -373,7 +421,13 @@ export default function ReservationsPage() {
       key: 'tenant_name',
       render: (val, row) => (
         <div>
-          <div style={{ fontWeight: 600 }}>{val}</div>
+          <div
+            style={{ fontWeight: 700, color: 'var(--brand-accent)', cursor: 'pointer' }}
+            onClick={() => navigate(`/app/guests?search=${encodeURIComponent(val || '')}`)}
+            title="Click to view guest profile and stay history"
+          >
+            👤 {val} ↗
+          </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             {row.tenant_phone} {row.tenant_email ? `• ${row.tenant_email}` : ''}
           </div>
@@ -1360,6 +1414,55 @@ export default function ReservationsPage() {
               </div>
             </div>
 
+            {/* Connected Workflows Quick Links */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                background: 'var(--bg-card-hover)',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-md)',
+                alignItems: 'center',
+                border: '1px solid var(--border-default)',
+              }}
+            >
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Connected Workflows:
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  navigate(`/app/inspections?openNew=true&apartmentId=${selectedReservation.apartment_id}&propertyId=${selectedReservation.property_id}&reservationId=${selectedReservation.id}`);
+                }}
+              >
+                📋 Schedule Unit Inspection
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  navigate(`/app/maintenance?openNew=true&apartmentId=${selectedReservation.apartment_id}&propertyId=${selectedReservation.property_id}`);
+                }}
+              >
+                🔧 Log Unit Maintenance
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  const searchCode = encodeURIComponent(selectedReservation.confirmation_code || selectedReservation.reservation_code || '');
+                  navigate(`/app/financial?tab=payments&search=${searchCode}`);
+                }}
+              >
+                💳 Financial Records
+              </Button>
+            </div>
+
             {/* Details Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '1rem' }}>
               {/* Property & Unit */}
@@ -1374,11 +1477,25 @@ export default function ReservationsPage() {
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
                   Property & Unit
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginTop: '0.25rem' }}>
-                  {selectedReservation.property_name}
+                <div
+                  style={{ fontWeight: 700, fontSize: '0.95rem', marginTop: '0.25rem', color: 'var(--brand-accent)', cursor: 'pointer' }}
+                  onClick={() => {
+                    setIsDetailModalOpen(false);
+                    navigate(`/app/properties?search=${encodeURIComponent(selectedReservation.property_name || '')}`);
+                  }}
+                  title="Navigate to Property"
+                >
+                  🏢 {selectedReservation.property_name} ↗
                 </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                  Unit {selectedReservation.unit_number} ({selectedReservation.unit_type || 'Standard'})
+                <div
+                  style={{ fontSize: '0.85rem', color: 'var(--brand-accent)', marginTop: '0.2rem', cursor: 'pointer', fontWeight: 600 }}
+                  onClick={() => {
+                    setIsDetailModalOpen(false);
+                    navigate(`/app/apartments?unitId=${selectedReservation.apartment_id}&propertyId=${selectedReservation.property_id}`);
+                  }}
+                  title="Navigate to Unit Details"
+                >
+                  Unit {selectedReservation.unit_number} ({selectedReservation.unit_type || 'Standard'}) ↗
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
                   Floor: {selectedReservation.floor || 1} • Capacity: {selectedReservation.capacity || 2} persons
@@ -1397,8 +1514,15 @@ export default function ReservationsPage() {
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
                   Guest Information
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginTop: '0.25rem' }}>
-                  {selectedReservation.tenant_name}
+                <div
+                  style={{ fontWeight: 700, fontSize: '0.95rem', marginTop: '0.25rem', color: 'var(--brand-accent)', cursor: 'pointer' }}
+                  onClick={() => {
+                    setIsDetailModalOpen(false);
+                    navigate(`/app/guests?search=${encodeURIComponent(selectedReservation.tenant_name || '')}`);
+                  }}
+                  title="Navigate to Guest Profile & Stay History"
+                >
+                  👤 {selectedReservation.tenant_name} ↗
                 </div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                   📞 {selectedReservation.tenant_phone}
@@ -1478,6 +1602,25 @@ export default function ReservationsPage() {
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
                   Method: {selectedReservation.payment_method || 'PAY_AT_PROPERTY'}
                 </div>
+
+                {/* Authoritative transaction rows if any */}
+                {paymentsLoading ? (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                    Loading transactions...
+                  </div>
+                ) : reservationPayments.length > 0 ? (
+                  <div style={{ marginTop: '0.5rem', borderTop: '1px dashed var(--border-default)', paddingTop: '0.35rem' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                      Authoritative Payment Records ({reservationPayments.length}):
+                    </div>
+                    {reservationPayments.map((p) => (
+                      <div key={p.id} style={{ fontSize: '0.72rem', display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
+                        <span style={{ fontFamily: 'monospace' }}>{p.reference || p.transaction_code}</span>
+                        <strong style={{ color: '#10b981' }}>{formatNaira(p.amount)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 

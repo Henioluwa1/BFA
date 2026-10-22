@@ -41,6 +41,7 @@ describe('Critical One-Night Maximum Reservation Rule (Section 16)', () => {
 
     const res = await request(app)
       .post('/api/v1/reservations')
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         ...baseBooking,
         check_in_date: checkIn,
@@ -59,6 +60,7 @@ describe('Critical One-Night Maximum Reservation Rule (Section 16)', () => {
   it('should REJECT reservation when duration is TWO NIGHTS (Section 16 violation)', async () => {
     const res = await request(app)
       .post('/api/v1/reservations')
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         ...baseBooking,
         check_in_date: '2028-12-05',
@@ -74,6 +76,7 @@ describe('Critical One-Night Maximum Reservation Rule (Section 16)', () => {
   it('should REJECT reservation when duration is FIVE NIGHTS', async () => {
     const res = await request(app)
       .post('/api/v1/reservations')
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         ...baseBooking,
         check_in_date: '2028-12-10',
@@ -89,6 +92,7 @@ describe('Critical One-Night Maximum Reservation Rule (Section 16)', () => {
   it('should REJECT reservation when duration is SAME DAY (0 nights)', async () => {
     const res = await request(app)
       .post('/api/v1/reservations')
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         ...baseBooking,
         check_in_date: '2028-12-20',
@@ -104,6 +108,7 @@ describe('Critical One-Night Maximum Reservation Rule (Section 16)', () => {
   it('should REJECT reservation when check-out date is before check-in date', async () => {
     const res = await request(app)
       .post('/api/v1/reservations')
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({
         ...baseBooking,
         check_in_date: '2028-12-25',

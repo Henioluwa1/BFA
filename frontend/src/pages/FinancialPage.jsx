@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -39,6 +40,8 @@ const PAYMENT_METHODS = [
 ];
 
 export default function FinancialPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { properties, activePropertyId, isAllProperties, activeProperty } = useProperty();
   const { user, hasPermission } = useAuth();
   const { addToast } = useToast();
@@ -51,6 +54,8 @@ export default function FinancialPage() {
   const [propertyFilter, setPropertyFilter] = useState(activePropertyId || 'all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [searchFilter, setSearchFilter] = useState(() => searchParams.get('search') || '');
+  const prevSearchParamRef = useRef(searchParams.get('search'));
 
   // Overview Data
   const [overview, setOverview] = useState({
@@ -111,6 +116,23 @@ export default function FinancialPage() {
   useEffect(() => {
     setPropertyFilter(activePropertyId || 'all');
   }, [activePropertyId]);
+
+  // Synchronize URL search params for deep-linking
+  useEffect(() => {
+    const qPropId = searchParams.get('propertyId');
+    if (qPropId) setPropertyFilter(qPropId);
+
+    const qTab = searchParams.get('tab');
+    if (qTab && ['overview', 'ledger', 'payments', 'expenses'].includes(qTab)) {
+      setActiveTab(qTab);
+    }
+
+    const qSearch = searchParams.get('search');
+    if (qSearch !== prevSearchParamRef.current) {
+      prevSearchParamRef.current = qSearch;
+      setSearchFilter(qSearch || '');
+    }
+  }, [searchParams]);
 
   // Load apartments for dropdown
   useEffect(() => {
@@ -176,6 +198,7 @@ export default function FinancialPage() {
         propertyId: propertyFilter !== 'all' ? propertyFilter : undefined,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
+        search: searchFilter || undefined,
       });
       setPayments(res.data || []);
     } catch (err) {
@@ -213,7 +236,7 @@ export default function FinancialPage() {
     } else if (activeTab === 'expenses') {
       fetchExpenses();
     }
-  }, [propertyFilter, fromDate, toDate, activeTab]);
+  }, [propertyFilter, fromDate, toDate, activeTab, searchFilter]);
 
   // Open Record Expense Modal
   const handleOpenExpenseModal = () => {
@@ -602,9 +625,25 @@ export default function FinancialPage() {
                     <td style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.85rem' }}>
                       {row.transaction_code}
                     </td>
-                    <td>{row.property_name}</td>
+                    <td
+                      style={{ cursor: 'pointer', color: 'var(--brand-accent)', fontWeight: 600 }}
+                      onClick={() => navigate(`/app/properties?search=${encodeURIComponent(row.property_name || '')}`)}
+                      title="View building in Properties"
+                    >
+                      {row.property_name} ↗
+                    </td>
                     <td>
-                      <div style={{ fontWeight: 600 }}>{row.counterparty || 'N/A'}</div>
+                      {row.counterparty ? (
+                        <div
+                          style={{ fontWeight: 600, color: 'var(--brand-accent)', cursor: 'pointer' }}
+                          onClick={() => navigate(`/app/guests?search=${encodeURIComponent(row.counterparty)}`)}
+                          title="View guest/counterparty profile"
+                        >
+                          {row.counterparty} ↗
+                        </div>
+                      ) : (
+                        <div style={{ fontWeight: 600 }}>N/A</div>
+                      )}
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {row.description}
                       </div>
@@ -631,6 +670,33 @@ export default function FinancialPage() {
       {/* TAB 3: PAYMENTS LEDGER */}
       {activeTab === 'payments' && (
         <Card title={`Payment Transactions (${payments.length})`}>
+          <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="Search reference, booking code, guest name/email..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              style={{
+                flex: '1',
+                minWidth: '240px',
+                padding: '0.45rem 0.75rem',
+                borderRadius: 'var(--radius-sm, 6px)',
+                border: '1px solid var(--border-default)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '0.875rem',
+              }}
+            />
+            {searchFilter && (
+              <Button
+                variant="outline"
+                size="small"
+                onClick={() => setSearchFilter('')}
+              >
+                Clear Search
+              </Button>
+            )}
+          </div>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Loading payments...</div>
           ) : payments.length === 0 ? (
@@ -666,9 +732,31 @@ export default function FinancialPage() {
                       <td style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent-gold)' }}>
                         {p.reference}
                       </td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{p.booking_reference}</td>
+                      <td
+                        style={{
+                          fontFamily: 'monospace',
+                          fontSize: '0.85rem',
+                          color: p.booking_reference ? 'var(--brand-accent)' : 'inherit',
+                          cursor: p.booking_reference ? 'pointer' : 'default',
+                          fontWeight: 600,
+                        }}
+                        onClick={() => p.booking_reference && navigate(`/app/reservations?search=${encodeURIComponent(p.booking_reference)}`)}
+                        title={p.booking_reference ? "View booking in Reservations Engine" : undefined}
+                      >
+                        {p.booking_reference ? `${p.booking_reference} ↗` : '—'}
+                      </td>
                       <td>
-                        <div style={{ fontWeight: 600 }}>{p.guest_name}</div>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            color: p.guest_name ? 'var(--brand-accent)' : 'inherit',
+                            cursor: p.guest_name ? 'pointer' : 'default',
+                          }}
+                          onClick={() => p.guest_name && navigate(`/app/guests?search=${encodeURIComponent(p.guest_name)}`)}
+                          title={p.guest_name ? "View Guest Profile & Stay History" : undefined}
+                        >
+                          {p.guest_name || 'N/A'} {p.guest_name ? '↗' : ''}
+                        </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{p.guest_email}</div>
                       </td>
                       <td>

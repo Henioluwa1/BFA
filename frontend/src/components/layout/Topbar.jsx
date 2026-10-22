@@ -6,6 +6,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import { systemService } from '../../services/api';
 import Breadcrumbs from './Breadcrumbs';
 import GlobalSearchModal from '../search/GlobalSearchModal';
+import OperationsAssistantModal from '../assistant/OperationsAssistantModal';
 
 export default function Topbar({ onToggleMobileNav }) {
   const { properties, activePropertyId, setActivePropertyId } = useProperty();
@@ -13,6 +14,7 @@ export default function Topbar({ onToggleMobileNav }) {
   const { notifications, unreadCount, permission, requestPermission, markAllAsRead } = useNotifications();
   const [apiHealth, setApiHealth] = useState({ status: 'checking', dbStatus: 'checking' });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [notifsDropdownOpen, setNotifsDropdownOpen] = useState(false);
   const notifsRef = useRef(null);
 
@@ -62,6 +64,24 @@ export default function Topbar({ onToggleMobileNav }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Keyboard shortcut: Alt+A or Ctrl+J to open Operations Assistant
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.altKey && (e.key === 'a' || e.key === 'A')) || ((e.ctrlKey || e.metaKey) && (e.key === 'j' || e.key === 'J'))) {
+        e.preventDefault();
+        setIsAssistantOpen((prev) => !prev);
+      }
+    };
+    const handleCustomOpen = () => setIsAssistantOpen(true);
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('bfa:open-assistant', handleCustomOpen);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('bfa:open-assistant', handleCustomOpen);
+    };
+  }, []);
+
   const handleToggleNotifs = () => {
     if (!notifsDropdownOpen) {
       fetchRecent();
@@ -107,6 +127,21 @@ export default function Topbar({ onToggleMobileNav }) {
             </svg>
             <span>Search records...</span>
             <span className="search-kbd">Ctrl K</span>
+          </button>
+
+          {/* Operations Assistant Trigger */}
+          <button
+            type="button"
+            className="topbar-assistant-btn"
+            onClick={() => setIsAssistantOpen(true)}
+            title="Open BFA Operations Assistant (Alt+A)"
+            aria-label="Open Operations Assistant"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+            </svg>
+            <span>Assistant</span>
+            <span className="assistant-badge-pill">AI</span>
           </button>
 
           {/* Global Multi-Property Selector (Section 1 & 18) */}
@@ -331,6 +366,12 @@ export default function Topbar({ onToggleMobileNav }) {
       <GlobalSearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
+      />
+
+      {/* BFA Intelligent Operations Assistant Modal */}
+      <OperationsAssistantModal
+        isOpen={isAssistantOpen}
+        onClose={() => setIsAssistantOpen(false)}
       />
     </>
   );

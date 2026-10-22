@@ -216,14 +216,15 @@ class ReservationsRepository {
     const executor = conn || pool;
     const sql = `
       INSERT INTO reservations (
-        reservation_code, property_id, apartment_id, guest_id, tenant_name,
+        reservation_code, confirmation_token, property_id, apartment_id, guest_id, tenant_name,
         tenant_email, tenant_phone, agent_id, source, check_in_date,
         check_out_date, nights, total_amount, paid_amount, status,
         payment_status, payment_method, special_requests, notes, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const params = [
       data.reservation_code,
+      data.confirmation_token || null,
       data.property_id,
       data.apartment_id,
       data.guest_id || null,

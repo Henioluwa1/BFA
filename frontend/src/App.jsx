@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { PropertyProvider } from './context/PropertyContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -44,6 +44,12 @@ function PageLoader() {
   );
 }
 
+// Helper to preserve search params when redirecting legacy financials route
+function NavigateToFinancial() {
+  const location = useLocation();
+  return <Navigate to={`/app/financial${location.search}`} replace />;
+}
+
 // Lazy-Loaded Public Pages
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -55,6 +61,7 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 const ReservationsPage = lazy(() => import('./pages/ReservationsPage'));
 const GuestsPage = lazy(() => import('./pages/GuestsPage'));
 const ApartmentsPage = lazy(() => import('./pages/ApartmentsPage'));
+const PropertiesPage = lazy(() => import('./pages/PropertiesPage'));
 const FinancialPage = lazy(() => import('./pages/FinancialPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
@@ -95,6 +102,7 @@ function App() {
                     <Route path="/app" element={<AppLayout />}>
                       <Route index element={<Navigate to="/app/dashboard" replace />} />
                       <Route path="dashboard" element={<DashboardPage />} />
+                      <Route path="properties" element={<PropertiesPage />} />
                       <Route path="front-office" element={<FrontOfficePage />} />
                       <Route path="calendar" element={<CalendarPage />} />
                       <Route path="reservations" element={<ReservationsPage />} />
@@ -102,6 +110,7 @@ function App() {
                       <Route path="tenants" element={<GuestsPage />} />
                       <Route path="apartments" element={<ApartmentsPage />} />
                       <Route path="financial" element={<FinancialPage />} />
+                      <Route path="financials" element={<NavigateToFinancial />} />
                       <Route path="reports" element={<ReportsPage />} />
                       <Route path="analytics" element={<AnalyticsPage />} />
                       <Route path="agents" element={<AgentsPage />} />
@@ -116,6 +125,7 @@ function App() {
                       <Route path="my-profile" element={<EmployeeProfilePage isSelfService={true} />} />
                       <Route path="maintenance" element={<MaintenancePage />} />
                       <Route path="inspection" element={<InspectionPage />} />
+                      <Route path="inspections" element={<InspectionPage />} />
                       <Route path="audit" element={<AuditPage />} />
                       <Route path="access-control" element={<AccessControlPage />} />
                       <Route path="communications" element={<CommunicationsPage />} />
@@ -129,6 +139,7 @@ function App() {
 
                   {/* Legacy / Direct Route Compatibility Redirects */}
                   <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
+                  <Route path="/properties" element={<Navigate to="/app/properties" replace />} />
                   <Route path="/front-office" element={<Navigate to="/app/front-office" replace />} />
                   <Route path="/calendar" element={<Navigate to="/app/calendar" replace />} />
                   <Route path="/reservations" element={<Navigate to="/app/reservations" replace />} />
@@ -136,6 +147,7 @@ function App() {
                   <Route path="/tenants" element={<Navigate to="/app/guests" replace />} />
                   <Route path="/apartments" element={<Navigate to="/app/apartments" replace />} />
                   <Route path="/financial" element={<Navigate to="/app/financial" replace />} />
+                  <Route path="/financials" element={<NavigateToFinancial />} />
                   <Route path="/reports" element={<Navigate to="/app/reports" replace />} />
                   <Route path="/analytics" element={<Navigate to="/app/analytics" replace />} />
                   <Route path="/agents" element={<Navigate to="/app/agents" replace />} />
@@ -146,6 +158,7 @@ function App() {
                   <Route path="/my-profile" element={<Navigate to="/app/my-profile" replace />} />
                   <Route path="/maintenance" element={<Navigate to="/app/maintenance" replace />} />
                   <Route path="/inspection" element={<Navigate to="/app/inspection" replace />} />
+                  <Route path="/inspections" element={<Navigate to="/app/inspection" replace />} />
                   <Route path="/audit" element={<Navigate to="/app/audit" replace />} />
                   <Route path="/team" element={<Navigate to="/app/team" replace />} />
                   <Route path="/settings" element={<Navigate to="/app/settings" replace />} />

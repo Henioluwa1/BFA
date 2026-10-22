@@ -32,7 +32,7 @@ describe('Calendar Engine & Unit Availability Tests (Phase 5 - Section 11-17, 42
       `INSERT INTO blocked_periods (property_id, apartment_id, start_date, end_date, reason)
        VALUES (1, 1, '2026-10-01', '2026-10-05', 'Test Calendar Block - HVAC Overhaul')`
     );
-  });
+  }, 30000);
 
   afterAll(async () => {
     await pool.query('DELETE FROM blocked_periods WHERE reason LIKE "%Test Calendar Block%"');

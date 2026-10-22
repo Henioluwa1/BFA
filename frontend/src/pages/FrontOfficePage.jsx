@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -11,6 +12,7 @@ import { useToast } from '../context/ToastContext';
 import { formatNaira } from '../utils/currency';
 
 export default function FrontOfficePage() {
+  const navigate = useNavigate();
   const { properties, activePropertyId, setActivePropertyId } = useProperty();
   const { hasPermission } = useAuth();
   const { addToast } = useToast();
@@ -353,18 +355,42 @@ export default function FrontOfficePage() {
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                      Unit {apt.unit_number} — {apt.unit_name}
+                    <div
+                      style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--brand-accent)', cursor: 'pointer' }}
+                      onClick={() => navigate(`/app/apartments?unitId=${apt.id}&propertyId=${apt.property_id}`)}
+                      title="View unit details and status"
+                    >
+                      Unit {apt.unit_number} — {apt.unit_name} ↗
                     </div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                      {apt.property_name} • Floor: {apt.floor || 1} • Type: {apt.unit_type}
+                      <span
+                        style={{ cursor: 'pointer', color: 'var(--brand-accent)' }}
+                        onClick={() => navigate(`/app/properties?search=${encodeURIComponent(apt.property_name || '')}`)}
+                      >
+                        🏢 {apt.property_name} ↗
+                      </span>
+                      {' • '}Floor: {apt.floor || 1} • Type: {apt.unit_type}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <span className="badge badge-dirty">DIRTY</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/app/inspections?openNew=true&apartmentId=${apt.id}&propertyId=${apt.property_id}`)}
+                    >
+                      📋 Inspect
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/app/maintenance?openNew=true&apartmentId=${apt.id}&propertyId=${apt.property_id}`)}
+                    >
+                      🔧 Defect
+                    </Button>
                     {hasPermission('apartments.edit') && (
                       <Button variant="primary" size="sm" onClick={() => handleMarkClean(apt.id)} loading={actionLoading}>
-                        ✓ Mark Ready for Booking
+                        ✓ Mark Ready
                       </Button>
                     )}
                   </div>
@@ -396,8 +422,12 @@ export default function FrontOfficePage() {
               >
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                      {row.tenant_name}
+                    <span
+                      style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--brand-accent)', cursor: 'pointer' }}
+                      onClick={() => navigate(`/app/guests?search=${encodeURIComponent(row.tenant_name)}`)}
+                      title="View Guest Profile"
+                    >
+                      👤 {row.tenant_name} ↗
                     </span>
                     <Badge status={row.status}>{row.status}</Badge>
                     <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--brand-accent)' }}>
@@ -405,7 +435,22 @@ export default function FrontOfficePage() {
                     </span>
                   </div>
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                    Unit {row.unit_number} ({row.property_name}) • Stay: {row.check_in_date} → {row.check_out_date} (1 nt)
+                    <span
+                      style={{ cursor: 'pointer', color: 'var(--brand-accent)', fontWeight: 600 }}
+                      onClick={() => navigate(`/app/apartments?unitId=${row.apartment_id}&propertyId=${row.property_id}`)}
+                      title="View Unit"
+                    >
+                      Unit {row.unit_number} ↗
+                    </span>
+                    {' ('}
+                    <span
+                      style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}
+                      onClick={() => navigate(`/app/properties?search=${encodeURIComponent(row.property_name || '')}`)}
+                      title="View Property"
+                    >
+                      {row.property_name} ↗
+                    </span>
+                    {`) • Stay: ${row.check_in_date} → ${row.check_out_date} (1 nt)`}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
                     📞 {row.tenant_phone} • Balance: {formatNaira(row.outstanding_balance)}
@@ -415,6 +460,14 @@ export default function FrontOfficePage() {
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <Button variant="outline" size="sm" onClick={() => handleViewDetails(row)}>
                     View Details
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(row.confirmation_code || row.reservation_code)}`)}
+                    title="Open in authoritative Reservations Engine"
+                  >
+                    Booking ↗
                   </Button>
 
                   {activeTab === 'ARRIVALS' && row.status === 'CONFIRMED' && hasPermission('reservations.checkin') && (
@@ -491,7 +544,17 @@ export default function FrontOfficePage() {
           title={`Booking: ${selectedReservation.reservation_code}`}
           subtitle="Front-office reservation verification and guest particulars"
           footer={
-            <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setIsDetailOpen(false);
+                  navigate(`/app/reservations?search=${encodeURIComponent(selectedReservation.reservation_code)}`);
+                }}
+              >
+                Open in Booking Engine ↗
+              </Button>
               <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Close</Button>
             </div>
           }

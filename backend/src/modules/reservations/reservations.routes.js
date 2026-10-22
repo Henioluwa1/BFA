@@ -1,15 +1,22 @@
 const express = require('express');
 const ReservationsController = require('./reservations.controller');
-const { requireRoles } = require('../../core/middleware/authContext');
+const { requireAuth, requireRoles } = require('../../core/middleware/authContext');
 
 const router = express.Router();
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Authentication boundary: all reservation endpoints require a valid JWT.
+// Public (unauthenticated) booking flows use the separate /api/v1/public/booking
+// endpoint which carries its own bookingLimiter rate-limiter.
+// ──────────────────────────────────────────────────────────────────────────────
+router.use(requireAuth);
 
 // List & Detail
 router.get('/', ReservationsController.getAll);
 router.get('/:id', ReservationsController.getById);
 router.get('/:id/history', ReservationsController.getHistory);
 
-// Create Reservation
+// Create Reservation (internal staff / agent — requires authenticated actor)
 router.post('/', ReservationsController.create);
 
 // Update Reservation

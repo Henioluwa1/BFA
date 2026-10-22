@@ -279,6 +279,7 @@ class ReservationsService {
       // 11. Insert reservation record within transaction
       const newReservationData = {
         reservation_code: reservationCode,
+        confirmation_token: data.confirmation_token || null,
         property_id: apartment.property_id,
         apartment_id: apartment.id,
         guest_id: guestId,

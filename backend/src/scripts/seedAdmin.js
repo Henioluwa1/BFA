@@ -12,9 +12,16 @@ async function seedAdmin() {
   try {
     logger.info('Running production admin bootstrap...');
 
-    const adminEmail = process.env.SUPER_ADMIN_EMAIL || 'admin@bfagroup.com';
-    const adminPassword = process.env.SUPER_ADMIN_PASSWORD || 'Admin@123456';
+    const isProd = process.env.NODE_ENV === 'production';
+    const adminEmail = process.env.SUPER_ADMIN_EMAIL || (isProd ? null : 'admin@bfagroup.com');
+    const adminPassword = process.env.SUPER_ADMIN_PASSWORD || (isProd ? null : 'Admin@123456');
     const adminName = process.env.SUPER_ADMIN_NAME || 'BFA Super Admin';
+
+    if (isProd && (!adminEmail || !adminPassword || adminPassword === 'Admin@123456' || adminPassword.length < 12)) {
+      throw new Error(
+        'In production, SUPER_ADMIN_EMAIL and a secure SUPER_ADMIN_PASSWORD (min 12 chars) must be explicitly configured.'
+      );
+    }
 
     // 1. Check if super admin already exists
     const existing = await pool.query('SELECT id, email, role, status FROM users WHERE role = ? LIMIT 1', [

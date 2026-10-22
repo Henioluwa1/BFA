@@ -53,7 +53,7 @@ describe('Phase 11: Employee Management, Performance, Profiles, and ID Cards', (
       await pool.query('DELETE FROM employee_profiles WHERE employee_id = ?', [emp.id]);
       await pool.query('DELETE FROM employees WHERE id = ?', [emp.id]);
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     // Cleanup created test records

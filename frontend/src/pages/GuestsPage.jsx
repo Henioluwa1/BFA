@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -10,6 +11,8 @@ import { useToast } from '../context/ToastContext';
 import { formatNaira } from '../utils/currency';
 
 export default function GuestsPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { hasPermission } = useAuth();
   const { addToast } = useToast();
 
@@ -64,6 +67,33 @@ export default function GuestsPage() {
   useEffect(() => {
     fetchGuests();
   }, [statusFilter]);
+
+  // Synchronize URL search params for deep-linking
+  useEffect(() => {
+    const qSearch = searchParams.get('search');
+    if (qSearch) {
+      setSearch(qSearch);
+      guestService.getAll({ search: qSearch.trim() })
+        .then((res) => {
+          if (res.data) setGuests(res.data);
+          const qId = searchParams.get('guestId');
+          if (qId && res.data) {
+            const found = res.data.find((g) => String(g.id) === String(qId));
+            if (found) handleOpenDetail(found);
+          }
+        })
+        .catch(() => {});
+    } else {
+      const qId = searchParams.get('guestId');
+      if (qId) {
+        guestService.getById(qId)
+          .then((res) => {
+            if (res.data) handleOpenDetail(res.data);
+          })
+          .catch(() => {});
+      }
+    }
+  }, [searchParams]);
 
   const handleOpenAdd = () => {
     setFormData({
@@ -180,7 +210,13 @@ export default function GuestsPage() {
       key: 'display_name',
       render: (val, row) => (
         <div>
-          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{val}</div>
+          <div
+            style={{ fontWeight: 700, color: 'var(--brand-accent)', cursor: 'pointer' }}
+            onClick={() => handleOpenDetail(row)}
+            title="Click to view full guest profile and stay history"
+          >
+            👤 {val} ↗
+          </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
             {row.email} • {row.phone}
           </div>
@@ -470,7 +506,17 @@ export default function GuestsPage() {
           title={`Guest Profile: ${selectedGuest.display_name}`}
           subtitle="Comprehensive guest particulars, emergency contact, and lifetime stay history"
           footer={
-            <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setIsDetailModalOpen(false);
+                  navigate(`/app/reservations?openNew=true&guestName=${encodeURIComponent(selectedGuest.display_name)}&guestEmail=${encodeURIComponent(selectedGuest.email || '')}&guestPhone=${encodeURIComponent(selectedGuest.phone || '')}`);
+                }}
+              >
+                + Book 1-Night Stay for Guest
+              </Button>
               <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>Close</Button>
             </div>
           }
@@ -501,12 +547,12 @@ export default function GuestsPage() {
               {(selectedGuest.reservations || []).length === 0 ? (
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No historical bookings found for this guest.</div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '200px', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '240px', overflowY: 'auto' }}>
                   {selectedGuest.reservations.map((r) => (
                     <div
                       key={r.id}
                       style={{
-                        padding: '0.5rem',
+                        padding: '0.6rem 0.75rem',
                         background: 'var(--bg-surface)',
                         border: '1px solid var(--border-default)',
                         borderRadius: 'var(--radius-md)',
@@ -517,9 +563,40 @@ export default function GuestsPage() {
                       }}
                     >
                       <div>
-                        <strong>{r.reservation_code}</strong> — Unit {r.unit_number} ({r.property_name})
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          {r.check_in_date} → {r.check_out_date} • {formatNaira(r.total_amount)}
+                        <strong
+                          style={{ color: 'var(--brand-accent)', cursor: 'pointer' }}
+                          onClick={() => {
+                            setIsDetailModalOpen(false);
+                            navigate(`/app/reservations?search=${r.reservation_code}`);
+                          }}
+                          title="Open booking in Reservations"
+                        >
+                          {r.reservation_code} ↗
+                        </strong>
+                        {' — '}
+                        <span
+                          style={{ color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600 }}
+                          onClick={() => {
+                            setIsDetailModalOpen(false);
+                            navigate(`/app/apartments?unitId=${r.apartment_id}&propertyId=${r.property_id}`);
+                          }}
+                          title="Open Unit Details"
+                        >
+                          Unit {r.unit_number} ↗
+                        </span>
+                        {' '}
+                        <span
+                          style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}
+                          onClick={() => {
+                            setIsDetailModalOpen(false);
+                            navigate(`/app/properties?search=${encodeURIComponent(r.property_name || '')}`);
+                          }}
+                          title="Open Building in Properties"
+                        >
+                          ({r.property_name} ↗)
+                        </span>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          Stay: {r.check_in_date} → {r.check_out_date} (1 nt) • {formatNaira(r.total_amount)}
                         </div>
                       </div>
                       <Badge status={r.status}>{r.status}</Badge>
