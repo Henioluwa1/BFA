@@ -4,7 +4,7 @@
   "description": "BFA Apartments Management System API",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "dev": "nodemon --watch src --watch .env src/server.js",
     "start": "node src/server.js",
     "test": "jest --runInBand --detectOpenHandles --forceExit",
     "db:migrate": "node src/db/migrator.js",

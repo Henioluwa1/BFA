@@ -7,7 +7,6 @@ const app = require('../src/app');
 const pool = require('../src/db/pool');
 const config = require('../src/config');
 const { initializeChatSocket } = require('../src/modules/chat/chat.socket');
-const ChatRepository = require('../src/modules/chat/chat.repository');
 
 describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () => {
   let httpServer;
@@ -32,7 +31,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
   const createdThreadIds = [];
 
   beforeAll(async () => {
-    // 1. Authenticate all roles and store tokens & user profiles
+    // 1. Authenticate all 7 roles and store tokens & user profiles
     for (const [role, email] of Object.entries(roleCredentials)) {
       const res = await request(app)
         .post('/api/v1/auth/login')
@@ -43,7 +42,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
     }
 
     // Also fetch maintenance staff user (Property 2) for cross-property isolation tests
-    const [prop2StaffRows] = await pool.query(
+    const prop2StaffRows = await pool.query(
       "SELECT id, name, email, role, property_id FROM users WHERE email = 'maintenance@bfa.com' LIMIT 1"
     );
     users.MAINTENANCE_PROP2 = prop2StaffRows[0];
@@ -88,14 +87,22 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
     await pool.closePool();
   });
 
-  // Helper to connect a test client socket
-  function createTestSocket(authToken) {
-    return ioClient(serverUrl, {
-      path: '/api/v1/socket.io',
-      auth: { token: authToken },
-      transports: ['websocket'],
-      reconnection: false,
-      timeout: 5000,
+  // Helper to connect a test client socket returning a promise
+  function connectSocketAsync(authToken) {
+    return new Promise((resolve, reject) => {
+      const client = ioClient(serverUrl, {
+        path: '/api/v1/socket.io',
+        auth: { token: authToken },
+        transports: ['websocket'],
+        reconnection: false,
+        timeout: 5000,
+      });
+
+      client.on('connect', () => resolve(client));
+      client.on('connect_error', (err) => {
+        client.disconnect();
+        reject(err);
+      });
     });
   }
 
@@ -103,67 +110,33 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
   // 1. Socket.IO Handshake Authentication & Security Invariants
   // ==========================================================================
   describe('1. Socket.IO Handshake Authentication', () => {
-    test('Handshake succeeds with valid operational staff token (RECEPTIONIST)', (done) => {
-      const client = createTestSocket(tokens.RECEPTIONIST);
-      client.on('connect', () => {
-        expect(client.connected).toBe(true);
-        client.disconnect();
-        done();
-      });
-      client.on('connect_error', (err) => {
-        done(err);
-      });
+    test('Handshake succeeds with valid operational staff token (RECEPTIONIST)', async () => {
+      const client = await connectSocketAsync(tokens.RECEPTIONIST);
+      expect(client.connected).toBe(true);
+      client.disconnect();
     });
 
-    test('Handshake REJECTED when token is missing', (done) => {
-      const client = createTestSocket(null);
-      client.on('connect', () => {
-        client.disconnect();
-        done(new Error('Expected connection to fail'));
-      });
-      client.on('connect_error', (err) => {
-        expect(err.message).toBe('AUTHENTICATION_REQUIRED');
-        client.disconnect();
-        done();
-      });
+    test('Handshake REJECTED when token is missing', async () => {
+      await expect(connectSocketAsync(null)).rejects.toThrow('AUTHENTICATION_REQUIRED');
     });
 
-    test('Handshake REJECTED with invalid / forged JWT token', (done) => {
-      const client = createTestSocket('invalid.jwt.token');
-      client.on('connect', () => {
-        client.disconnect();
-        done(new Error('Expected connection to fail'));
-      });
-      client.on('connect_error', (err) => {
-        expect(err.message).toBe('INVALID_TOKEN');
-        client.disconnect();
-        done();
-      });
+    test('Handshake REJECTED with invalid / forged JWT token', async () => {
+      await expect(connectSocketAsync('invalid.jwt.token')).rejects.toThrow('INVALID_TOKEN');
     });
 
-    test('Handshake REJECTED with expired JWT token', (done) => {
+    test('Handshake REJECTED with expired JWT token', async () => {
       const expiredToken = jwt.sign(
         { id: 2, role: 'ADMIN', email: 'admin@bfa.com' },
         config.security.jwtSecret,
         { expiresIn: '-1s' }
       );
-      const client = createTestSocket(expiredToken);
-      client.on('connect', () => {
-        client.disconnect();
-        done(new Error('Expected connection to fail'));
-      });
-      client.on('connect_error', (err) => {
-        expect(err.message).toBe('INVALID_TOKEN');
-        client.disconnect();
-        done();
-      });
+      await expect(connectSocketAsync(expiredToken)).rejects.toThrow('INVALID_TOKEN');
     });
 
     test('Handshake REJECTED for inactive / suspended staff account', async () => {
-      // Temporarily mark a test user as INACTIVE
-      const [user] = await pool.query('SELECT id, status FROM users WHERE email = "housekeeping@bfa.com"');
-      const testUserId = user[0].id;
-      const originalStatus = user[0].status;
+      const userRows = await pool.query('SELECT id, status FROM users WHERE email = "housekeeping@bfa.com"');
+      const testUserId = userRows[0].id;
+      const originalStatus = userRows[0].status;
 
       await pool.query('UPDATE users SET status = "INACTIVE" WHERE id = ?', [testUserId]);
 
@@ -173,18 +146,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
         { expiresIn: '1h' }
       );
 
-      await new Promise((resolve) => {
-        const client = createTestSocket(inactiveToken);
-        client.on('connect', () => {
-          client.disconnect();
-          resolve(new Error('Expected inactive user to be rejected'));
-        });
-        client.on('connect_error', (err) => {
-          expect(err.message).toBe('USER_INACTIVE_OR_SUSPENDED');
-          client.disconnect();
-          resolve();
-        });
-      });
+      await expect(connectSocketAsync(inactiveToken)).rejects.toThrow('USER_INACTIVE_OR_SUSPENDED');
 
       // Restore status
       await pool.query('UPDATE users SET status = ? WHERE id = ?', [originalStatus, testUserId]);
@@ -195,30 +157,12 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
   // 2. Role Denial for Excluded Roles (AGENT, OWNER, etc.)
   // ==========================================================================
   describe('2. Role Denial for Excluded Roles (AGENT, OWNER, GUEST)', () => {
-    test('AGENT role is strictly rejected at Socket handshake', (done) => {
-      const client = createTestSocket(tokens.AGENT);
-      client.on('connect', () => {
-        client.disconnect();
-        done(new Error('AGENT should be excluded from chat'));
-      });
-      client.on('connect_error', (err) => {
-        expect(err.message).toBe('ROLE_NOT_AUTHORIZED_FOR_CHAT');
-        client.disconnect();
-        done();
-      });
+    test('AGENT role is strictly rejected at Socket handshake', async () => {
+      await expect(connectSocketAsync(tokens.AGENT)).rejects.toThrow('ROLE_NOT_AUTHORIZED_FOR_CHAT');
     });
 
-    test('OWNER role is strictly rejected at Socket handshake', (done) => {
-      const client = createTestSocket(tokens.OWNER);
-      client.on('connect', () => {
-        client.disconnect();
-        done(new Error('OWNER should be excluded from chat'));
-      });
-      client.on('connect_error', (err) => {
-        expect(err.message).toBe('ROLE_NOT_AUTHORIZED_FOR_CHAT');
-        client.disconnect();
-        done();
-      });
+    test('OWNER role is strictly rejected at Socket handshake', async () => {
+      await expect(connectSocketAsync(tokens.OWNER)).rejects.toThrow('ROLE_NOT_AUTHORIZED_FOR_CHAT');
     });
 
     test('AGENT role is denied access to REST chat endpoints (HTTP 403)', async () => {
@@ -316,7 +260,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       createdThreadIds.push(directThreadId);
 
       // Verify exact count in DB
-      const [countRows] = await pool.query(
+      const countRows = await pool.query(
         'SELECT COUNT(*) as count FROM chat_thread_participants WHERE thread_id = ?',
         [directThreadId]
       );
@@ -333,7 +277,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       expect(res.body.data.id).toBe(directThreadId);
 
       // Ensure no duplicate participant rows
-      const [countRows] = await pool.query(
+      const countRows = await pool.query(
         'SELECT COUNT(*) as count FROM chat_thread_participants WHERE thread_id = ?',
         [directThreadId]
       );
@@ -385,16 +329,14 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       expect(res.body.error.code).toBe('FORBIDDEN');
     });
 
-    test('Unauthorized staff cannot join foreign thread room via Socket.IO', (done) => {
-      const client = createTestSocket(tokens.STAFF);
-      client.on('connect', () => {
-        client.emit('thread:join', { threadId: privateThreadId }, (ack) => {
-          expect(ack.success).toBe(false);
-          expect(ack.error.code).toBe('FORBIDDEN');
-          client.disconnect();
-          done();
-        });
+    test('Unauthorized staff cannot join foreign thread room via Socket.IO', async () => {
+      const client = await connectSocketAsync(tokens.STAFF);
+      const ack = await new Promise((resolve) => {
+        client.emit('thread:join', { threadId: privateThreadId }, resolve);
       });
+      expect(ack.success).toBe(false);
+      expect(ack.error.code).toBe('FORBIDDEN');
+      client.disconnect();
     });
   });
 
@@ -413,53 +355,51 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       createdThreadIds.push(activeThreadId);
     });
 
-    test('Server persists message to DB before acknowledging and broadcasting send', (done) => {
-      const senderClient = createTestSocket(tokens.MANAGER);
-      const receiverClient = createTestSocket(tokens.STAFF);
+    test('Server persists message to DB before acknowledging and broadcasting send', async () => {
+      const senderClient = await connectSocketAsync(tokens.MANAGER);
+      const receiverClient = await connectSocketAsync(tokens.STAFF);
 
-      receiverClient.on('connect', () => {
-        receiverClient.emit('thread:join', { threadId: activeThreadId }, (joinAck) => {
-          expect(joinAck.success).toBe(true);
-
-          // Receiver listens for real-time delivery
-          receiverClient.on('message:delivered', async (deliveryPayload) => {
-            expect(deliveryPayload.threadId).toBe(activeThreadId);
-            expect(deliveryPayload.message.content).toBe('Please inspect Unit 102.');
-            expect(deliveryPayload.message.id).toBeDefined();
-
-            // Verify message exists in database
-            const [dbRows] = await pool.query('SELECT * FROM chat_messages WHERE id = ?', [
-              deliveryPayload.message.id,
-            ]);
-            expect(dbRows.length).toBe(1);
-            expect(dbRows[0].content).toBe('Please inspect Unit 102.');
-
-            senderClient.disconnect();
-            receiverClient.disconnect();
-            done();
-          });
-
-          // Sender emits message:send
-          senderClient.on('connect', () => {
-            senderClient.emit(
-              'message:send',
-              {
-                threadId: activeThreadId,
-                clientTempId: 'uuid-test-order-1',
-                content: 'Please inspect Unit 102.',
-              },
-              (sendAck) => {
-                expect(sendAck.success).toBe(true);
-                expect(sendAck.data.id).toBeDefined();
-              }
-            );
-          });
-        });
+      // Join receiver to thread room
+      const joinAck = await new Promise((resolve) => {
+        receiverClient.emit('thread:join', { threadId: activeThreadId }, resolve);
       });
+      expect(joinAck.success).toBe(true);
+
+      // Prepare promise for receiver to catch delivered message
+      const deliveryPromise = new Promise((resolve) => {
+        receiverClient.on('message:delivered', resolve);
+      });
+
+      // Sender sends message with ack
+      const sendAck = await new Promise((resolve) => {
+        senderClient.emit(
+          'message:send',
+          {
+            threadId: activeThreadId,
+            clientTempId: 'uuid-test-order-1',
+            content: 'Please inspect Unit 102.',
+          },
+          resolve
+        );
+      });
+
+      expect(sendAck.success).toBe(true);
+      expect(sendAck.data.id).toBeDefined();
+
+      const delivered = await deliveryPromise;
+      expect(delivered.threadId).toBe(activeThreadId);
+      expect(delivered.message.content).toBe('Please inspect Unit 102.');
+
+      // Verify message is in DB
+      const dbRows = await pool.query('SELECT * FROM chat_messages WHERE id = ?', [sendAck.data.id]);
+      expect(dbRows.length).toBe(1);
+      expect(dbRows[0].content).toBe('Please inspect Unit 102.');
+
+      senderClient.disconnect();
+      receiverClient.disconnect();
     });
 
     test('Server enforces sender identity from token, ignoring spoofed senderId / senderRole', async () => {
-      // Send message via HTTP with attempted spoofing in body
       const res = await request(app)
         .post(`/api/v1/chat/threads/${activeThreadId}/messages`)
         .set('Authorization', `Bearer ${tokens.STAFF}`)
@@ -471,7 +411,6 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
         });
 
       expect(res.status).toBe(201);
-      // Sender identity must be authenticated STAFF (#5), not spoofed Super Admin (#1)
       expect(res.body.data.senderId).toBe(users.STAFF.id);
       expect(res.body.data.senderRole).toBe('STAFF');
     });
@@ -497,7 +436,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       expect(res2.body.data.idempotentReplay).toBe(true);
 
       // Verify DB row count for this temp ID is strictly 1
-      const [countRows] = await pool.query(
+      const countRows = await pool.query(
         'SELECT COUNT(*) as cnt FROM chat_messages WHERE thread_id = ? AND client_temp_id = ?',
         [activeThreadId, clientTempId]
       );
@@ -525,7 +464,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
   });
 
   // ==========================================================================
-  // 7. Read-State Integrity & Monotonic Watermarks
+  // 7. Read-State Architecture & Monotonic Watermarks
   // ==========================================================================
   describe('7. Read-State Architecture & Monotonic Watermarks', () => {
     let testThreadId;
@@ -561,12 +500,11 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       msg3Id = m3.body.data.id;
     });
 
-    test('Cross-thread message ID read update is strictly REJECTED (HTTP 400)', async () => {
-      // Try to mark read using a message ID that belongs to a different thread
+    test('Cross-thread message ID read update is strictly REJECTED (HTTP 404)', async () => {
       const res = await request(app)
         .post(`/api/v1/chat/threads/${testThreadId}/read`)
         .set('Authorization', `Bearer ${tokens.RECEPTIONIST}`)
-        .send({ messageId: 9999999 }); // Non-existent message
+        .send({ messageId: 9999999 });
 
       expect(res.status).toBe(404);
     });
@@ -579,7 +517,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
 
       expect(res.status).toBe(200);
 
-      const [part] = await pool.query(
+      const part = await pool.query(
         'SELECT last_read_message_id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ?',
         [testThreadId, users.RECEPTIONIST.id]
       );
@@ -587,7 +525,6 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
     });
 
     test('Monotonic watermark DOES NOT REGRESS when older message (msg1) is acknowledged', async () => {
-      // Simulate delayed / out-of-order socket packet reading msg1
       const res = await request(app)
         .post(`/api/v1/chat/threads/${testThreadId}/read`)
         .set('Authorization', `Bearer ${tokens.RECEPTIONIST}`)
@@ -596,7 +533,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       expect(res.status).toBe(200);
 
       // Watermark must remain at msg2Id, not regress to msg1Id
-      const [part] = await pool.query(
+      const part = await pool.query(
         'SELECT last_read_message_id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ?',
         [testThreadId, users.RECEPTIONIST.id]
       );
@@ -638,7 +575,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       );
 
       // Verify left_at is set
-      const [partBefore] = await pool.query(
+      const partBefore = await pool.query(
         'SELECT left_at FROM chat_thread_participants WHERE thread_id = ? AND user_id = ?',
         [teamThreadId, users.RECEPTIONIST.id]
       );
@@ -651,7 +588,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       expect(res.status).toBe(200);
 
       // Verify left_at is cleared and row count is strictly 1
-      const [partAfter] = await pool.query(
+      const partAfter = await pool.query(
         'SELECT id, left_at FROM chat_thread_participants WHERE thread_id = ? AND user_id = ?',
         [teamThreadId, users.RECEPTIONIST.id]
       );
@@ -659,20 +596,18 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
       expect(partAfter[0].left_at).toBeNull();
     });
 
-    test('thread:sync recovers missed messages since lastReceivedMessageId', (done) => {
-      const client = createTestSocket(tokens.RECEPTIONIST);
-      client.on('connect', () => {
+    test('thread:sync recovers missed messages since lastReceivedMessageId', async () => {
+      const client = await connectSocketAsync(tokens.RECEPTIONIST);
+      const syncAck = await new Promise((resolve) => {
         client.emit(
           'thread:sync',
           { threadId: teamThreadId, lastReceivedMessageId: 0 },
-          (syncAck) => {
-            expect(syncAck.success).toBe(true);
-            expect(Array.isArray(syncAck.data.missedMessages)).toBe(true);
-            client.disconnect();
-            done();
-          }
+          resolve
         );
       });
+      expect(syncAck.success).toBe(true);
+      expect(Array.isArray(syncAck.data.missedMessages)).toBe(true);
+      client.disconnect();
     });
   });
 
@@ -722,8 +657,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
   // ==========================================================================
   describe('10. Contextual Record Previews & Scoping Controls', () => {
     test('Staff can preview reservation belonging to their assigned property', async () => {
-      // Find a reservation in property 1
-      const [resRows] = await pool.query(
+      const resRows = await pool.query(
         'SELECT id, reservation_code FROM reservations WHERE property_id = 1 LIMIT 1'
       );
       if (resRows.length > 0) {
@@ -740,8 +674,7 @@ describe('Phase 4 WP-4.2: Internal Chat Backend Service & Real-Time Engine', () 
     });
 
     test('Staff CANNOT preview reservation belonging to another property (HTTP 403)', async () => {
-      // Find a reservation in property 2
-      const [resRows] = await pool.query(
+      const resRows = await pool.query(
         'SELECT id, reservation_code FROM reservations WHERE property_id = 2 LIMIT 1'
       );
       if (resRows.length > 0) {

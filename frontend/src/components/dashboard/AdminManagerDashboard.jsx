@@ -404,65 +404,75 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
                 columns={[
                   {
                     header: 'Booking Code',
-                    accessor: 'booking_code',
-                    render: (row) => (
-                      <span
-                        style={{ fontWeight: 600, color: 'var(--primary)', cursor: 'pointer' }}
-                        onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(row.booking_code)}`)}
-                      >
-                        {row.booking_code}
-                      </span>
-                    ),
+                    key: 'booking_code',
+                    render: (val, row) => {
+                      const code = val || row?.booking_code;
+                      return (
+                        <span
+                          style={{ fontWeight: 600, color: 'var(--primary)', cursor: 'pointer' }}
+                          onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(code || '')}`)}
+                        >
+                          {code}
+                        </span>
+                      );
+                    },
                   },
                   {
                     header: 'Guest Name',
-                    accessor: 'guest_name',
-                    render: (row) => (
+                    key: 'guest_name',
+                    render: (val, row) => (
                       <div>
-                        <div style={{ fontWeight: 600 }}>{row.guest_name}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{row.guest_phone || row.guest_email}</div>
+                        <div style={{ fontWeight: 600 }}>{val || row?.guest_name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{row?.guest_phone || row?.guest_email}</div>
                       </div>
                     ),
                   },
                   {
                     header: 'Unit / Apartment',
-                    accessor: 'unit_number',
-                    render: (row) => (
-                      <Badge status="info">
-                        {row.unit_number ? `Unit ${row.unit_number}` : 'Unassigned'}
-                      </Badge>
-                    ),
+                    key: 'unit_number',
+                    render: (val, row) => {
+                      const unit = val || row?.unit_number;
+                      return (
+                        <Badge status="info">
+                          {unit ? `Unit ${unit}` : 'Unassigned'}
+                        </Badge>
+                      );
+                    },
                   },
                   {
                     header: 'Payment Status',
-                    accessor: 'payment_status',
-                    render: (row) => {
-                      const isPaid = row.payment_status === 'PAID' || parseFloat(row.paid_amount || 0) >= parseFloat(row.total_amount || 1);
+                    key: 'payment_status',
+                    render: (val, row) => {
+                      const status = val || row?.payment_status;
+                      const isPaid = status === 'PAID' || parseFloat(row?.paid_amount || 0) >= parseFloat(row?.total_amount || 1);
                       return <Badge status={isPaid ? 'available' : 'maintenance'}>{isPaid ? 'PAID' : 'PENDING'}</Badge>;
                     },
                   },
                   {
                     header: 'Actions',
-                    accessor: 'id',
-                    render: (row) => (
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <Button
-                          variant="primary"
-                          size="xs"
-                          loading={actionLoadingId === row.id}
-                          onClick={() => handleCheckIn(row.id)}
-                        >
-                          Check In
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="xs"
-                          onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(row.booking_code)}`)}
-                        >
-                          View
-                        </Button>
-                      </div>
-                    ),
+                    key: 'id',
+                    render: (val, row) => {
+                      const resId = val || row?.id;
+                      return (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <Button
+                            variant="primary"
+                            size="xs"
+                            loading={actionLoadingId === resId}
+                            onClick={() => handleCheckIn(resId)}
+                          >
+                            Check In
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(row?.booking_code || '')}`)}
+                          >
+                            View
+                          </Button>
+                        </div>
+                      );
+                    },
                   },
                 ]}
                 data={arrivals}
@@ -477,36 +487,39 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
               columns={[
                 {
                   header: 'Booking Code',
-                  accessor: 'booking_code',
-                  render: (row) => (
-                    <span
-                      style={{ fontWeight: 600, color: 'var(--primary)', cursor: 'pointer' }}
-                      onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(row.booking_code)}`)}
-                    >
-                      {row.booking_code}
-                    </span>
-                  ),
+                  key: 'booking_code',
+                  render: (val, row) => {
+                    const code = val || row?.booking_code;
+                    return (
+                      <span
+                        style={{ fontWeight: 600, color: 'var(--primary)', cursor: 'pointer' }}
+                        onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(code || '')}`)}
+                      >
+                        {code}
+                      </span>
+                    );
+                  },
                 },
                 {
                   header: 'Guest Name',
-                  accessor: 'guest_name',
-                  render: (row) => (
+                  key: 'guest_name',
+                  render: (val, row) => (
                     <div>
-                      <div style={{ fontWeight: 600 }}>{row.guest_name}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{row.guest_phone || row.guest_email}</div>
+                      <div style={{ fontWeight: 600 }}>{val || row?.guest_name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{row?.guest_phone || row?.guest_email}</div>
                     </div>
                   ),
                 },
                 {
                   header: 'Unit',
-                  accessor: 'unit_number',
-                  render: (row) => <Badge status="info">Unit {row.unit_number || 'N/A'}</Badge>,
+                  key: 'unit_number',
+                  render: (val, row) => <Badge status="info">Unit {val || row?.unit_number || 'N/A'}</Badge>,
                 },
                 {
                   header: 'Balance',
-                  accessor: 'balance',
-                  render: (row) => {
-                    const balance = Math.max(0, parseFloat(row.total_amount || 0) - parseFloat(row.paid_amount || 0));
+                  key: 'balance',
+                  render: (val, row) => {
+                    const balance = Math.max(0, parseFloat(row?.total_amount || 0) - parseFloat(row?.paid_amount || 0));
                     return balance > 0 ? (
                       <span style={{ color: '#dc2626', fontWeight: 600 }}>{formatNaira(balance)} Due</span>
                     ) : (
@@ -516,26 +529,29 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
                 },
                 {
                   header: 'Actions',
-                  accessor: 'id',
-                  render: (row) => (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        loading={actionLoadingId === row.id}
-                        onClick={() => handleCheckOut(row.id)}
-                      >
-                        Check Out
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(row.booking_code)}`)}
-                      >
-                        View
-                      </Button>
-                    </div>
-                  ),
+                  key: 'id',
+                  render: (val, row) => {
+                    const resId = val || row?.id;
+                    return (
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Button
+                          variant="secondary"
+                          size="xs"
+                          loading={actionLoadingId === resId}
+                          onClick={() => handleCheckOut(resId)}
+                        >
+                          Check Out
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(row?.booking_code || '')}`)}
+                        >
+                          View
+                        </Button>
+                      </div>
+                    );
+                  },
                 },
               ]}
               data={departures}

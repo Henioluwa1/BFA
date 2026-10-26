@@ -259,11 +259,11 @@ function initializeChatSocket(io) {
         }
 
         // Verify active membership
-        const [part] = await pool.query(
+        const partRows = await pool.query(
           'SELECT id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL',
           [threadId, user.id]
         );
-        if (!part) {
+        if (partRows.length === 0) {
           if (typeof ack === 'function') {
             ack({ success: false, error: { code: 'ERR_NOT_PARTICIPANT', message: 'Not authorized for thread' } });
           }
@@ -271,7 +271,7 @@ function initializeChatSocket(io) {
         }
 
         // Query missed messages
-        const [missed] = await pool.query(
+        const missed = await pool.query(
           `SELECT m.id, m.thread_id AS threadId, m.sender_id AS senderId,
                   m.client_temp_id AS clientTempId, m.message_type AS messageType,
                   m.content, m.context_entity_type AS contextEntityType,

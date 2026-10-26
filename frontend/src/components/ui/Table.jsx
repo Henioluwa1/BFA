@@ -17,7 +17,7 @@ export default function Table({ columns = [], data = [], keyField = 'id', emptyM
         <thead>
           <tr>
             {columns.map((col, idx) => (
-              <th key={col.key || idx} style={col.width ? { width: col.width } : {}}>
+              <th key={col.key || col.accessor || idx} style={col.width ? { width: col.width } : {}}>
                 {col.header}
               </th>
             ))}
@@ -33,11 +33,15 @@ export default function Table({ columns = [], data = [], keyField = 'id', emptyM
           ) : (
             data.map((row, rowIdx) => (
               <tr key={row[keyField] || rowIdx}>
-                {columns.map((col, colIdx) => (
-                  <td key={col.key || colIdx}>
-                    {col.render ? col.render(row[col.key], row, rowIdx) : row[col.key]}
-                  </td>
-                ))}
+                {columns.map((col, colIdx) => {
+                  const colKey = col.key || col.accessor;
+                  const cellVal = (colKey && row) ? row[colKey] : undefined;
+                  return (
+                    <td key={colKey || colIdx}>
+                      {col.render ? col.render(cellVal, row, rowIdx) : (cellVal ?? '')}
+                    </td>
+                  );
+                })}
               </tr>
             ))
           )}

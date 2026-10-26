@@ -245,7 +245,7 @@ class ChatService {
 
       case 'RESERVATION': {
         const [res] = await pool.query(
-          `SELECT r.id, r.reservation_code, r.guest_name, r.check_in_date, r.check_out_date,
+          `SELECT r.id, r.reservation_code, r.tenant_name AS guest_name, r.check_in_date, r.check_out_date,
                   r.status, r.property_id, p.name AS property_name, a.unit_number
            FROM reservations r
            JOIN properties p ON r.property_id = p.id

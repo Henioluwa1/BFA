@@ -356,56 +356,64 @@ export default function SuperAdminDashboard() {
               columns={[
                 {
                   header: 'Property Name',
-                  accessor: 'name',
-                  render: (p) => (
-                    <div>
-                      <div
-                        style={{ fontWeight: 600, color: '#60a5fa', cursor: 'pointer' }}
-                        onClick={() => navigate(`/app/properties?search=${encodeURIComponent(p.name)}`)}
-                      >
-                        {p.name}
+                  key: 'name',
+                  render: (val, p) => {
+                    const prop = p || {};
+                    const propName = val || prop.name || 'Unnamed Property';
+                    return (
+                      <div>
+                        <div
+                          style={{ fontWeight: 600, color: '#60a5fa', cursor: 'pointer' }}
+                          onClick={() => navigate(`/app/properties?search=${encodeURIComponent(propName)}`)}
+                        >
+                          {propName}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {prop.address || prop.city || 'Standard Portfolio Asset'}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {p.address || p.city || 'Standard Portfolio Asset'}
-                      </div>
-                    </div>
-                  ),
+                    );
+                  },
                 },
                 {
                   header: 'Total Units',
-                  accessor: 'unitCount',
-                  render: (p) => <strong>{p.unitCount || 0} units</strong>,
+                  key: 'unitCount',
+                  render: (val, p) => <strong>{(val ?? p?.unitCount) || 0} units</strong>,
                 },
                 {
                   header: 'Status',
-                  accessor: 'status',
-                  render: (p) => (
-                    <Badge status={p.status === 'ACTIVE' ? 'available' : 'maintenance'}>
-                      {p.status || 'ACTIVE'}
+                  key: 'status',
+                  render: (val, p) => (
+                    <Badge status={(val || p?.status) === 'ACTIVE' ? 'available' : 'maintenance'}>
+                      {val || p?.status || 'ACTIVE'}
                     </Badge>
                   ),
                 },
                 {
                   header: 'Quick Action',
-                  accessor: 'id',
-                  render: (p) => (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        onClick={() => navigate(`/app/apartments?propertyId=${p.id}`)}
-                      >
-                        Units ({p.unitCount || 0})
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => navigate(`/app/maintenance?propertyId=${p.id}`)}
-                      >
-                        Maintenance
-                      </Button>
-                    </div>
-                  ),
+                  key: 'id',
+                  render: (val, p) => {
+                    const propId = val || p?.id;
+                    const units = p?.unitCount || 0;
+                    return (
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => navigate(`/app/apartments?propertyId=${propId}`)}
+                        >
+                          Units ({units})
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => navigate(`/app/maintenance?propertyId=${propId}`)}
+                        >
+                          Maintenance
+                        </Button>
+                      </div>
+                    );
+                  },
                 },
               ]}
               data={properties || []}
