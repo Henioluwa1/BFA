@@ -1,8 +1,16 @@
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Load environment variables from .env
+// Load environment variables (.env.test takes precedence in test mode)
+if (process.env.NODE_ENV === 'test') {
+  dotenv.config({ path: path.resolve(__dirname, '../../.env.test') });
+}
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+const isTest = process.env.NODE_ENV === 'test';
+const resolvedDatabase = isTest
+  ? (process.env.DB_NAME_TEST || process.env.TEST_DB_NAME || 'bfa_apartments_test_db')
+  : (process.env.DB_NAME || process.env.MYSQLDATABASE || 'bfa_apartments_db');
 
 const config = {
   app: {
@@ -12,14 +20,14 @@ const config = {
     url: process.env.APP_URL || 'http://localhost:5000',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
     isProduction: process.env.NODE_ENV === 'production',
-    isTest: process.env.NODE_ENV === 'test',
+    isTest,
   },
   db: {
     host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
     port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT, 10) || 3306,
     user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
     password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
-    database: process.env.DB_NAME || process.env.MYSQLDATABASE || 'bfa_apartments_db',
+    database: resolvedDatabase,
     connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 10,
     queueLimit: parseInt(process.env.DB_QUEUE_LIMIT, 10) || 0,
     idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT, 10) || 60000,

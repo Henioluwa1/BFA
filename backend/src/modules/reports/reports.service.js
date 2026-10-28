@@ -2,6 +2,7 @@ const pool = require('../../db/pool');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const { formatNaira } = require('../../utils/currency');
+const { UnauthorizedError, ForbiddenError } = require('../../core/errors/apiError');
 
 class ReportsService {
   /**
@@ -35,9 +36,72 @@ class ReportsService {
   }
 
   /**
+   * Resolve effective property scope strictly enforcing tenant isolation and fail-closed security.
+   * - Company-wide roles (SUPER_ADMIN, OWNER, ADMIN) can query all properties or filter to any single property.
+   * - Property-scoped roles (MANAGER, STAFF, RECEPTIONIST) MUST have an assigned propertyId; unassigned fails closed (403).
+   * - Query parameters cannot override or bypass assigned property scope for property-scoped roles.
+   * - Agent role can optionally filter by property.
+   */
+  static resolveEffectivePropertyScope(user, requestedPropertyId) {
+    if (!user) {
+      throw new UnauthorizedError('Authentication is required to access report data.');
+    }
+    const role = (user.role || '').toUpperCase();
+
+    // 1. Company-wide administrative roles
+    if (['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role)) {
+      if (requestedPropertyId && requestedPropertyId !== 'all') {
+        return parseInt(requestedPropertyId, 10);
+      }
+      return null; // All properties
+    }
+
+    // 2. Property-scoped operational roles
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+      if (!user.propertyId) {
+        throw new ForbiddenError('Access denied: User is not assigned to any property.');
+      }
+      const userPropId = parseInt(user.propertyId, 10);
+      if (requestedPropertyId && requestedPropertyId !== 'all') {
+        const reqPropId = parseInt(requestedPropertyId, 10);
+        if (reqPropId !== userPropId) {
+          throw new ForbiddenError('Access denied: You do not have authorization for this property.');
+        }
+      }
+      return userPropId;
+    }
+
+    // 3. Agent role
+    if (role === 'AGENT') {
+      if (requestedPropertyId && requestedPropertyId !== 'all') {
+        return parseInt(requestedPropertyId, 10);
+      }
+      return null;
+    }
+
+    throw new ForbiddenError(`Access denied: Role '${role}' is not authorized to access report data.`);
+  }
+
+  /**
    * 1. Reservations Report Data
    */
-  static async getReservationsReport({ propertyId, fromDate, toDate, userRole = 'ADMIN', agentId = null } = {}) {
+  static async getReservationsReport({ propertyId, fromDate, toDate, user = null, userRole = null, agentId = null } = {}) {
+    let effectivePropertyId = null;
+    let effectiveAgentId = agentId;
+    const role = user ? (user.role || '').toUpperCase() : (userRole || 'ADMIN').toUpperCase();
+
+    if (user) {
+      effectivePropertyId = this.resolveEffectivePropertyScope(user, propertyId);
+      if (role === 'AGENT') {
+        if (!user.agentId) {
+          throw new ForbiddenError('Access denied: Agent profile not linked.');
+        }
+        effectiveAgentId = user.agentId;
+      }
+    } else if (propertyId && propertyId !== 'all') {
+      effectivePropertyId = parseInt(propertyId, 10);
+    }
+
     let sql = `
       SELECT r.*, p.name as property_name, p.code as property_code,
              a.unit_number, a.unit_name, ag.name as agent_name
@@ -49,13 +113,13 @@ class ReportsService {
     `;
     const params = [];
 
-    if (userRole === 'AGENT') {
+    if (role === 'AGENT') {
       sql += ' AND r.agent_id = ?';
-      params.push(agentId || 1);
+      params.push(effectiveAgentId || 1);
     }
-    if (propertyId && propertyId !== 'all') {
+    if (effectivePropertyId) {
       sql += ' AND r.property_id = ?';
-      params.push(propertyId);
+      params.push(effectivePropertyId);
     }
     if (fromDate) {
       sql += ' AND r.check_in_date >= ?';
@@ -72,24 +136,48 @@ class ReportsService {
 
   /**
    * 2. Financial Summary Report Data
+   * Reconciled with FinancialService.getOverview:
+   * - Booked revenue & outstanding receivables calculated strictly on active (non-cancelled) reservations.
+   * - Outstanding receivables = Math.max(0, totalBookedRevenue - paidOnReservations).
+   * - Cash revenue reflects authoritative transaction ledger (parent non-refunded collections).
+   * - Expenses reflect authoritative approved operational disbursements.
    */
-  static async getFinancialReport({ propertyId, fromDate, toDate } = {}) {
-    const reservations = await this.getReservationsReport({ propertyId, fromDate, toDate });
-    const totalBookedRevenue = reservations.reduce((acc, r) => acc + parseFloat(r.total_amount || 0), 0);
+  static async getFinancialReport({ propertyId, fromDate, toDate, user = null } = {}) {
+    let effectivePropertyId = null;
+    if (user) {
+      effectivePropertyId = this.resolveEffectivePropertyScope(user, propertyId);
+    } else if (propertyId && propertyId !== 'all') {
+      effectivePropertyId = parseInt(propertyId, 10);
+    }
+
+    const reservations = await this.getReservationsReport({
+      propertyId: effectivePropertyId,
+      fromDate,
+      toDate,
+      user,
+    });
+
+    // Reconciled definition:
+    // Only active reservations (non-cancelled) represent true booked revenue and legitimate receivables
+    const activeReservations = reservations.filter((r) => r.status !== 'CANCELLED');
+    const totalBookedRevenue = activeReservations.reduce((acc, r) => acc + parseFloat(r.total_amount || 0), 0);
+    const paidOnReservations = activeReservations.reduce((acc, r) => acc + parseFloat(r.paid_amount || 0), 0);
+    const rawTotalOutstanding = Math.round((totalBookedRevenue - paidOnReservations) * 100) / 100;
+    const totalOutstanding = Math.max(0, rawTotalOutstanding);
 
     // 1. Authoritative transaction ledger revenue
     let paySql = `
       SELECT 
-        COALESCE(SUM(CASE WHEN pt.parent_transaction_id IS NULL AND pt.status IN ('SUCCESS', 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED') THEN pt.amount ELSE 0 END), 0) as gross_collected,
+        COALESCE(SUM(CASE WHEN pt.parent_transaction_id IS NULL AND pt.amount > 0 AND pt.status IN ('SUCCESS', 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED') THEN pt.amount ELSE 0 END), 0) as gross_collected,
         COALESCE(SUM(CASE WHEN pt.parent_transaction_id IS NULL THEN COALESCE(pt.refund_amount, 0) ELSE 0 END), 0) as total_refunded
       FROM payment_transactions pt
       JOIN reservations r ON r.id = pt.reservation_id
       WHERE 1=1
     `;
     const payParams = [];
-    if (propertyId && propertyId !== 'all') {
+    if (effectivePropertyId) {
       paySql += ' AND r.property_id = ?';
-      payParams.push(propertyId);
+      payParams.push(effectivePropertyId);
     }
     if (fromDate) {
       paySql += ' AND DATE(COALESCE(pt.paid_at, pt.created_at)) >= ?';
@@ -102,7 +190,67 @@ class ReportsService {
     const [payRows] = await pool.query(paySql, payParams);
     const grossCollected = parseFloat(payRows?.gross_collected || 0);
     const totalRefunded = parseFloat(payRows?.total_refunded || 0);
-    const netRevenue = Math.max(0, grossCollected - totalRefunded);
+    const rawNetRevenue = Math.round((grossCollected - totalRefunded) * 100) / 100;
+    const netRevenue = Math.max(0, rawNetRevenue);
+
+    // Anomaly Detection: inspect unlinked negative refund rows
+    let orphanSql = `
+      SELECT COUNT(pt.id) as orphan_count, COALESCE(SUM(pt.amount), 0) as orphan_total
+      FROM payment_transactions pt
+      JOIN reservations r ON r.id = pt.reservation_id
+      WHERE pt.parent_transaction_id IS NULL AND pt.amount < 0
+    `;
+    const orphanParams = [];
+    if (effectivePropertyId) {
+      orphanSql += ' AND r.property_id = ?';
+      orphanParams.push(effectivePropertyId);
+    }
+    const [orphanRows] = await pool.query(orphanSql, orphanParams);
+    const orphanCount = parseInt(orphanRows?.orphan_count || 0, 10);
+    const orphanTotal = parseFloat(orphanRows?.orphan_total || 0);
+
+    const anomalies = [];
+    if (orphanCount > 0) {
+      anomalies.push({
+        code: 'ORPHAN_REFUND_TRANSACTIONS',
+        severity: 'CRITICAL',
+        message: `Detected ${orphanCount} unlinked refund transaction(s) totaling ₦${Math.abs(orphanTotal).toLocaleString()} without parent payment references.`,
+        affectedMetric: 'grossCollected',
+        count: orphanCount,
+        total: orphanTotal,
+      });
+    }
+
+    if (rawNetRevenue < 0) {
+      anomalies.push({
+        code: 'NEGATIVE_NET_REVENUE',
+        severity: 'HIGH',
+        message: `Computed net collections (₦${rawNetRevenue.toLocaleString()}) are negative. Refunds exceed gross collections. Display value constrained to ₦0.00.`,
+        affectedMetric: 'netRevenue',
+        rawValue: rawNetRevenue,
+      });
+    }
+
+    if (rawTotalOutstanding < 0) {
+      anomalies.push({
+        code: 'NEGATIVE_RECEIVABLES',
+        severity: 'MEDIUM',
+        message: `Computed receivables (₦${rawTotalOutstanding.toLocaleString()}) are negative. Payments recorded on reservations exceed booked total. Display value constrained to ₦0.00.`,
+        affectedMetric: 'totalOutstanding',
+        rawValue: rawTotalOutstanding,
+      });
+    }
+
+    if (paidOnReservations > grossCollected) {
+      const variance = Math.round((paidOnReservations - grossCollected) * 100) / 100;
+      anomalies.push({
+        code: 'RESERVATION_PAYMENT_MISMATCH',
+        severity: 'HIGH',
+        message: `Reservation headers claim ₦${paidOnReservations.toLocaleString()} paid, but transaction ledger records only ₦${grossCollected.toLocaleString()} in positive collections. Unbacked variance: ₦${variance.toLocaleString()}.`,
+        affectedMetric: 'grossCollected',
+        variance,
+      });
+    }
 
     // 2. Authoritative approved operational expenses
     let expSql = `
@@ -111,9 +259,9 @@ class ReportsService {
       WHERE status = 'APPROVED'
     `;
     const expParams = [];
-    if (propertyId && propertyId !== 'all') {
+    if (effectivePropertyId) {
       expSql += ' AND property_id = ?';
-      expParams.push(propertyId);
+      expParams.push(effectivePropertyId);
     }
     if (fromDate) {
       expSql += ' AND expense_date >= ?';
@@ -128,7 +276,137 @@ class ReportsService {
 
     const netProfit = Math.round((netRevenue - approvedExpenses) * 100) / 100;
     const profitMargin = netRevenue > 0 ? Math.round((netProfit / netRevenue) * 10000) / 100 : 0;
-    const totalOutstanding = Math.max(0, totalBookedRevenue - netRevenue);
+
+    // 3. Category breakdown
+    let catSql = `
+      SELECT 
+        category,
+        COALESCE(SUM(amount), 0) as total_amount,
+        COUNT(id) as count
+      FROM expenses
+      WHERE status = 'APPROVED'
+    `;
+    const catParams = [];
+    if (effectivePropertyId) {
+      catSql += ' AND property_id = ?';
+      catParams.push(effectivePropertyId);
+    }
+    if (fromDate) {
+      catSql += ' AND expense_date >= ?';
+      catParams.push(fromDate);
+    }
+    if (toDate) {
+      catSql += ' AND expense_date <= ?';
+      catParams.push(toDate);
+    }
+    catSql += ' GROUP BY category ORDER BY total_amount DESC';
+    const categoryBreakdown = await pool.query(catSql, catParams);
+
+    // 4. Monthly trends
+    let mPaySql = `
+      SELECT 
+        DATE_FORMAT(COALESCE(pt.paid_at, pt.created_at), '%Y-%m') as period,
+        COALESCE(SUM(CASE WHEN pt.parent_transaction_id IS NULL AND pt.amount > 0 AND pt.status IN ('SUCCESS', 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED') THEN pt.amount ELSE 0 END), 0) as gross_collected,
+        COALESCE(SUM(CASE WHEN pt.parent_transaction_id IS NULL THEN COALESCE(pt.refund_amount, 0) ELSE 0 END), 0) as total_refunded
+      FROM payment_transactions pt
+      JOIN reservations r ON r.id = pt.reservation_id
+      WHERE 1=1
+    `;
+    const mPayParams = [];
+    if (effectivePropertyId) {
+      mPaySql += ' AND r.property_id = ?';
+      mPayParams.push(effectivePropertyId);
+    }
+    if (fromDate) {
+      mPaySql += ' AND DATE(COALESCE(pt.paid_at, pt.created_at)) >= ?';
+      mPayParams.push(fromDate);
+    }
+    if (toDate) {
+      mPaySql += ' AND DATE(COALESCE(pt.paid_at, pt.created_at)) <= ?';
+      mPayParams.push(toDate);
+    }
+    mPaySql += ` GROUP BY DATE_FORMAT(COALESCE(pt.paid_at, pt.created_at), '%Y-%m') ORDER BY period ASC`;
+    const mPayRows = await pool.query(mPaySql, mPayParams);
+
+    let mResSql = `
+      SELECT 
+        DATE_FORMAT(r.check_in_date, '%Y-%m') as period,
+        COALESCE(SUM(r.total_amount), 0) as booked_revenue
+      FROM reservations r
+      WHERE r.status NOT IN ('CANCELLED')
+    `;
+    const mResParams = [];
+    if (effectivePropertyId) {
+      mResSql += ' AND r.property_id = ?';
+      mResParams.push(effectivePropertyId);
+    }
+    if (fromDate) {
+      mResSql += ' AND r.check_in_date >= ?';
+      mResParams.push(fromDate);
+    }
+    if (toDate) {
+      mResSql += ' AND r.check_in_date <= ?';
+      mResParams.push(toDate);
+    }
+    mResSql += ` GROUP BY DATE_FORMAT(r.check_in_date, '%Y-%m') ORDER BY period ASC`;
+    const mResRows = await pool.query(mResSql, mResParams);
+
+    let mExpSql = `
+      SELECT 
+        DATE_FORMAT(e.expense_date, '%Y-%m') as period,
+        COALESCE(SUM(e.amount), 0) as approved_expenses
+      FROM expenses e
+      WHERE e.status = 'APPROVED'
+    `;
+    const mExpParams = [];
+    if (effectivePropertyId) {
+      mExpSql += ' AND e.property_id = ?';
+      mExpParams.push(effectivePropertyId);
+    }
+    if (fromDate) {
+      mExpSql += ' AND e.expense_date >= ?';
+      mExpParams.push(fromDate);
+    }
+    if (toDate) {
+      mExpSql += ' AND e.expense_date <= ?';
+      mExpParams.push(toDate);
+    }
+    mExpSql += ` GROUP BY DATE_FORMAT(e.expense_date, '%Y-%m') ORDER BY period ASC`;
+    const mExpRows = await pool.query(mExpSql, mExpParams);
+
+    const periodsSet = new Set();
+    mPayRows.forEach((r) => r.period && periodsSet.add(r.period));
+    mResRows.forEach((r) => r.period && periodsSet.add(r.period));
+    mExpRows.forEach((r) => r.period && periodsSet.add(r.period));
+    const sortedPeriods = Array.from(periodsSet).sort();
+
+    const payMap = new Map(mPayRows.map((r) => [r.period, r]));
+    const resMap = new Map(mResRows.map((r) => [r.period, r]));
+    const expMap = new Map(mExpRows.map((r) => [r.period, r]));
+
+    const monthlyTrends = sortedPeriods.map((period) => {
+      const p = payMap.get(period) || {};
+      const r = resMap.get(period) || {};
+      const e = expMap.get(period) || {};
+      const gross = parseFloat(p.gross_collected || 0);
+      const ref = parseFloat(p.total_refunded || 0);
+      const net = Math.max(0, gross - ref);
+      const booked = parseFloat(r.booked_revenue || 0);
+      const exp = parseFloat(e.approved_expenses || 0);
+      const profit = Math.round((net - exp) * 100) / 100;
+      return {
+        period,
+        month: period,
+        bookedRevenue: Math.round(booked * 100) / 100,
+        grossCollected: Math.round(gross * 100) / 100,
+        refunds: Math.round(ref * 100) / 100,
+        netCollections: Math.round(net * 100) / 100,
+        collections: Math.round(net * 100) / 100,
+        approvedExpenses: Math.round(exp * 100) / 100,
+        netProfit: profit,
+        netRevenue: Math.round(net * 100) / 100,
+      };
+    });
 
     return {
       summary: {
@@ -136,21 +414,36 @@ class ReportsService {
         grossCollected: Math.round(grossCollected * 100) / 100,
         totalRefunded: Math.round(totalRefunded * 100) / 100,
         netRevenue: Math.round(netRevenue * 100) / 100,
+        rawNetRevenue,
         totalCollected: Math.round(netRevenue * 100) / 100,
-        totalOutstanding: Math.round(totalOutstanding * 100) / 100,
+        totalOutstanding,
+        rawTotalOutstanding,
         totalExpenses: Math.round(approvedExpenses * 100) / 100,
         netProfit,
         profitMargin,
-        reservationCount: reservations.length,
+        reservationCount: activeReservations.length,
+        totalReservationsCount: reservations.length,
       },
       reservations,
+      categoryBreakdown,
+      monthlyTrends,
+      anomalies,
+      hasAnomaly: anomalies.length > 0,
+      reconciliationStatus: anomalies.length > 0 ? 'ANOMALIES_DETECTED' : 'RECONCILED',
     };
   }
 
   /**
    * 3. Payment Transactions Report Data
    */
-  static async getPaymentsReport({ propertyId, fromDate, toDate, status } = {}) {
+  static async getPaymentsReport({ propertyId, fromDate, toDate, status, user = null } = {}) {
+    let effectivePropertyId = null;
+    if (user) {
+      effectivePropertyId = this.resolveEffectivePropertyScope(user, propertyId);
+    } else if (propertyId && propertyId !== 'all') {
+      effectivePropertyId = parseInt(propertyId, 10);
+    }
+
     let sql = `
       SELECT 
         pt.id,
@@ -172,9 +465,9 @@ class ReportsService {
     `;
     const params = [];
 
-    if (propertyId && propertyId !== 'all') {
+    if (effectivePropertyId) {
       sql += ' AND r.property_id = ?';
-      params.push(propertyId);
+      params.push(effectivePropertyId);
     }
     if (status) {
       sql += ' AND pt.status = ?';
@@ -196,7 +489,14 @@ class ReportsService {
   /**
    * 4. Expenses Report Data
    */
-  static async getExpensesReport({ propertyId, category, status, fromDate, toDate } = {}) {
+  static async getExpensesReport({ propertyId, category, status, fromDate, toDate, user = null } = {}) {
+    let effectivePropertyId = null;
+    if (user) {
+      effectivePropertyId = this.resolveEffectivePropertyScope(user, propertyId);
+    } else if (propertyId && propertyId !== 'all') {
+      effectivePropertyId = parseInt(propertyId, 10);
+    }
+
     let sql = `
       SELECT 
         e.id,
@@ -220,9 +520,9 @@ class ReportsService {
     `;
     const params = [];
 
-    if (propertyId && propertyId !== 'all') {
+    if (effectivePropertyId) {
       sql += ' AND e.property_id = ?';
-      params.push(propertyId);
+      params.push(effectivePropertyId);
     }
     if (category) {
       sql += ' AND e.category = ?';
@@ -248,7 +548,14 @@ class ReportsService {
   /**
    * 5. Agents Directory & Performance Report Data
    */
-  static async getAgentsReport({ propertyId, status } = {}) {
+  static async getAgentsReport({ propertyId, status, user = null } = {}) {
+    let effectivePropertyId = null;
+    if (user) {
+      effectivePropertyId = this.resolveEffectivePropertyScope(user, propertyId);
+    } else if (propertyId && propertyId !== 'all') {
+      effectivePropertyId = parseInt(propertyId, 10);
+    }
+
     let sql = `
       SELECT 
         a.id,
@@ -282,9 +589,9 @@ class ReportsService {
     `;
     const params = [];
 
-    if (propertyId && propertyId !== 'all') {
+    if (effectivePropertyId) {
       sql += ' AND a.property_id = ?';
-      params.push(propertyId);
+      params.push(effectivePropertyId);
     }
     if (status) {
       sql += ' AND a.status = ?';
@@ -298,7 +605,26 @@ class ReportsService {
   /**
    * 6. Commissions Ledger Report Data
    */
-  static async getCommissionsReport({ agentId, propertyId, status, fromDate, toDate } = {}) {
+  static async getCommissionsReport({ agentId, propertyId, status, fromDate, toDate, user = null } = {}) {
+    let effectivePropertyId = null;
+    let effectiveAgentId = agentId;
+
+    if (user) {
+      effectivePropertyId = this.resolveEffectivePropertyScope(user, propertyId);
+      const role = (user.role || '').toUpperCase();
+      if (role === 'AGENT') {
+        if (!user.agentId) {
+          throw new ForbiddenError('Access denied: Agent profile not linked.');
+        }
+        if (agentId && parseInt(agentId, 10) !== parseInt(user.agentId, 10)) {
+          throw new ForbiddenError('Access denied: You cannot view commissions for other agents.');
+        }
+        effectiveAgentId = user.agentId;
+      }
+    } else if (propertyId && propertyId !== 'all') {
+      effectivePropertyId = parseInt(propertyId, 10);
+    }
+
     let sql = `
       SELECT 
         c.id,
@@ -325,13 +651,13 @@ class ReportsService {
     `;
     const params = [];
 
-    if (agentId) {
+    if (effectiveAgentId) {
       sql += ' AND c.agent_id = ?';
-      params.push(agentId);
+      params.push(effectiveAgentId);
     }
-    if (propertyId && propertyId !== 'all') {
+    if (effectivePropertyId) {
       sql += ' AND c.property_id = ?';
-      params.push(propertyId);
+      params.push(effectivePropertyId);
     }
     if (status) {
       sql += ' AND c.status = ?';
@@ -353,7 +679,14 @@ class ReportsService {
   /**
    * 7. Maintenance Log Report Data
    */
-  static async getMaintenanceReport({ propertyId, status, priority, category, fromDate, toDate } = {}) {
+  static async getMaintenanceReport({ propertyId, status, priority, category, fromDate, toDate, user = null } = {}) {
+    let effectivePropertyId = null;
+    if (user) {
+      effectivePropertyId = this.resolveEffectivePropertyScope(user, propertyId);
+    } else if (propertyId && propertyId !== 'all') {
+      effectivePropertyId = parseInt(propertyId, 10);
+    }
+
     let sql = `
       SELECT 
         m.id,
@@ -377,9 +710,9 @@ class ReportsService {
     `;
     const params = [];
 
-    if (propertyId && propertyId !== 'all') {
+    if (effectivePropertyId) {
       sql += ' AND m.property_id = ?';
-      params.push(propertyId);
+      params.push(effectivePropertyId);
     }
     if (status) {
       sql += ' AND m.status = ?';
@@ -409,7 +742,14 @@ class ReportsService {
   /**
    * 8. Unit Inspections Report Data
    */
-  static async getInspectionsReport({ propertyId, status, type, fromDate, toDate } = {}) {
+  static async getInspectionsReport({ propertyId, status, type, fromDate, toDate, user = null } = {}) {
+    let effectivePropertyId = null;
+    if (user) {
+      effectivePropertyId = this.resolveEffectivePropertyScope(user, propertyId);
+    } else if (propertyId && propertyId !== 'all') {
+      effectivePropertyId = parseInt(propertyId, 10);
+    }
+
     let sql = `
       SELECT 
         i.id,
@@ -428,9 +768,9 @@ class ReportsService {
     `;
     const params = [];
 
-    if (propertyId && propertyId !== 'all') {
+    if (effectivePropertyId) {
       sql += ' AND i.property_id = ?';
-      params.push(propertyId);
+      params.push(effectivePropertyId);
     }
     if (status) {
       sql += ' AND i.status = ?';

@@ -1,0 +1,2216 @@
+
+/* ==========================================================================
+   0. 5-SECOND LUXURY BFA LOADER (Full Screen Overlay)
+   ========================================================================== */
+.bfa-luxury-loader-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999999;
+  background: radial-gradient(ellipse at center, #1e293b 0%, #0a0f1d 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body, 'Plus Jakarta Sans', sans-serif);
+  color: #ffffff;
+  transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.bfa-luxury-loader-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bfa-loader-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 440px;
+  width: 100%;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.bfa-loader-logo-wrap {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.bfa-loader-glow-ring {
+  position: absolute;
+  inset: -10px;
+  border-radius: 28px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.5) 0%, rgba(212, 175, 55, 0.35) 60%, transparent 100%);
+  animation: bfaLoaderGlowPulse 2.4s infinite ease-in-out;
+}
+
+@keyframes bfaLoaderGlowPulse {
+  0% { transform: scale(0.92); opacity: 0.5; }
+  50% { transform: scale(1.14); opacity: 0.95; }
+  100% { transform: scale(0.92); opacity: 0.5; }
+}
+
+.bfa-loader-badge {
+  position: relative;
+  width: 74px;
+  height: 74px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+  border: 1.5px solid rgba(212, 175, 55, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 24px rgba(59, 130, 246, 0.4);
+}
+
+.bfa-loader-grid-icon {
+  font-size: 2.2rem;
+  color: #fef08a;
+  text-shadow: 0 0 12px rgba(254, 240, 138, 0.6);
+  line-height: 1;
+}
+
+.bfa-loader-brand {
+  margin-bottom: 1.75rem;
+}
+
+.bfa-loader-brand-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+  margin: 0 0 0.35rem;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.bfa-loader-brand-sub {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #60a5fa;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.bfa-loader-postcodes {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  display: block;
+  font-weight: 600;
+}
+
+.bfa-loader-progress-track {
+  width: 280px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-bottom: 0.85rem;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.bfa-loader-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #d4af37 0%, #3b82f6 50%, #60a5fa 100%);
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.7);
+  transition: width 0.05s linear;
+}
+
+.bfa-loader-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 280px;
+  font-size: 0.76rem;
+  color: #cbd5e1;
+}
+
+.bfa-loader-status-msg {
+  font-weight: 500;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 230px;
+}
+
+.bfa-loader-percent {
+  font-weight: 700;
+  color: #60a5fa;
+  font-family: monospace;
+}
+
+/* ==========================================================================
+   DYNAMIC TOP DISPLAY NAVIGATION BAR (Edge Dynamic Display)
+   Always completely transparent - zero background color, no darkgrey or navy
+   ========================================================================== */
+.bfa-fixed-nav-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  transition: opacity 0.3s ease;
+}
+
+.bfa-fixed-nav-bar.transparent,
+.bfa-fixed-nav-bar.scrolled {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+}
+
+/* Nav Main Row (Left: Logo, Middle: Dynamic Search, Right: Unified Navigation Element) */
+.bfa-nav-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 2.25rem;
+  max-width: 1440px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 1.25rem;
+  background: transparent !important;
+}
+
+/* Middle Search Bar Container (Dynamic display: hidden at top, transitions in on scroll) */
+.bfa-nav-center-search {
+  flex: 1;
+  max-width: 520px;
+  position: relative;
+  margin: 0 1rem;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0.35s ease;
+  will-change: transform, opacity;
+}
+
+.bfa-nav-center-search.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(18px) scale(0.96);
+}
+
+.bfa-nav-center-search.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.bfa-nav-center-search .bfa-center-search-box {
+  margin-bottom: 0;
+  height: 44px;
+}
+
+.bfa-nav-wallpaper-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0 0.25rem;
+  transition: transform 0.15s ease;
+}
+
+.bfa-nav-wallpaper-btn:hover {
+  transform: scale(1.15);
+}
+
+/* Unified Single Navigation Element (Replaces overcrowded buttons in green circle) */
+.bfa-single-nav-control {
+  position: relative;
+  display: inline-flex;
+}
+
+.bfa-single-nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.42rem 1.15rem;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.bfa-single-nav-pill:hover,
+.bfa-single-nav-pill.active {
+  background: rgba(30, 41, 59, 0.88);
+  border-color: rgba(96, 165, 250, 0.6);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38);
+  transform: translateY(-1px);
+}
+
+.bfa-nav-weather-badge {
+  color: #e2e8f0;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.bfa-nav-sep {
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 300;
+}
+
+.bfa-nav-menu-txt {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.bfa-nav-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 0.82rem;
+  margin-left: 0.15rem;
+}
+
+/* Edge-style Glassmorphism Dropdown Flyout */
+.bfa-single-nav-flyout {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 330px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  padding: 0.75rem;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  z-index: 1010;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  box-sizing: border-box;
+}
+
+.bfa-flyout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.6rem 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 0.25rem;
+}
+
+.bfa-flyout-tag {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #60a5fa;
+  letter-spacing: 0.05em;
+}
+
+.bfa-flyout-loc {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.bfa-flyout-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.bfa-flyout-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  color: #f1f5f9;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.bfa-flyout-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(2px);
+}
+
+.bfa-flyout-link.primary {
+  background: rgba(37, 99, 235, 0.25);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+}
+
+.bfa-flyout-link.primary:hover {
+  background: rgba(37, 99, 235, 0.4);
+}
+
+.bfa-flyout-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.bfa-flyout-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.bfa-flyout-text strong {
+  font-size: 0.88rem;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.bfa-flyout-text small {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.bfa-flyout-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.6rem 0.2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+}
+
+/* Hero Center Container (Notification above purple line, search bar on purple line, shortcuts below) */
+.bfa-hero-center-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 820px;
+  margin: auto auto;
+  position: relative;
+  z-index: 40;
+}
+
+/* Staff Notification Banner (Directly on top of search bar / purple line) */
+.bfa-hero-announcement-card {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto 0.95rem;
+  background: rgba(30, 58, 138, 0.88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  border-radius: 14px;
+  padding: 0.65rem 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 0.86rem;
+  box-sizing: border-box;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0.35s ease;
+  will-change: transform, opacity;
+}
+
+.bfa-hero-announcement-card.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.bfa-hero-announcement-card.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-20px) scale(0.95);
+}
+
+.bfa-hero-announcement-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  background: rgba(254, 240, 138, 0.2);
+  border: 1px solid rgba(254, 240, 138, 0.5);
+  color: #fef08a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.bfa-hero-announcement-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.bfa-hero-announcement-text strong {
+  color: #fef08a;
+  margin-right: 0.35rem;
+}
+
+.bfa-hero-announcement-close {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0.2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.bfa-hero-announcement-close:hover {
+  color: #ffffff;
+}
+
+/* Center Search Bar Wrapper on Purple Line */
+.bfa-hero-search-wrap {
+  width: 100%;
+  max-width: 640px;
+  position: relative;
+  margin: 0 auto 1.85rem;
+  z-index: 45;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0.35s ease;
+  will-change: transform, opacity;
+}
+
+.bfa-hero-search-wrap.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.bfa-hero-search-wrap.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-20px) scale(0.95);
+}
+
+.bfa-center-search-box.hero-variant {
+  width: 100%;
+  height: 52px;
+  margin: 0 auto;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.bfa-live-search-dropdown.hero-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 60;
+}
+
+/* Adjust Initial Viewport so content naturally balances over dynamic top bar */
+.bfa-initial-viewport {
+  position: relative;
+  z-index: 10;
+  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 90px 2.25rem 1.5rem;
+  box-sizing: border-box;
+}
+
+/* Section scroll-margin to prevent any overlap when scrolling */
+#hero,
+#feed-root,
+#properties,
+#booking,
+#features,
+#verify {
+  scroll-margin-top: 85px;
+}
+
+/* ==========================================================================
+   BFA APARTMENTS MANAGEMENT SYSTEM — RECENT MICROSOFT EDGE HOME PAGE RECREATION
+   Primary Visual Authority: Full Viewport Opening + Dynamic Apartment Wallpapers
+   + Edge Center Search + 8-Tile Shortcuts + Floating Dock + Scrollable Feed
+   ========================================================================== */
+
+/* Enable Natural Scrolling on Landing Page */
+html:has(.bfa-edge-page),
+body:has(.bfa-edge-page),
+body.bfa-landing-body {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-y: auto !important;
+}
+
+/* Root Page Container */
+.bfa-edge-page {
+  position: relative;
+  min-height: 100vh;
+  color: #0f172a;
+  font-family: var(--font-body, 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif);
+  overflow-x: hidden;
+  overflow-y: visible;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==========================================================================
+   1. MULTI-IMAGE CHANGING BACKGROUND (Stationary Fixed Crossfade)
+   Changes from time to time with smooth opacity transition.
+   ========================================================================== */
+.bfa-fixed-backdrop-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bfa-fixed-slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 1.2s ease-in-out, transform 8s ease-out;
+  transform: scale(1.02);
+}
+
+.bfa-fixed-slide.active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.bfa-fixed-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.42) 0%,
+    rgba(0, 0, 0, 0.12) 35%,
+    rgba(0, 0, 0, 0.35) 75%,
+    rgba(0, 0, 0, 0.65) 100%
+  );
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   2. INITIAL FULL VIEWPORT SCREEN (Matches Exact Edge Screenshot)
+   ========================================================================== */
+.bfa-initial-viewport {
+  position: relative;
+  z-index: 10;
+  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.25rem 2.25rem 1.5rem;
+  box-sizing: border-box;
+}
+
+/* --- Top Header Row --- */
+.bfa-edge-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  position: relative;
+  z-index: 50;
+}
+
+/* Upper-Left: 9-Dots Grid Icon + BFA Logo */
+.bfa-edge-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+  color: #ffffff;
+}
+
+.bfa-grid-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 1.2rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.bfa-grid-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+  transform: scale(1.05);
+}
+
+.bfa-edge-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-edge-brand-name {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: #ffffff;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+.bfa-edge-brand-sub {
+  font-size: 0.66rem;
+  color: rgba(255, 255, 255, 0.88);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+/* Upper-Right: Weather Widget & Actions */
+.bfa-edge-top-right {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+/* Lagos Weather Widget (Matches Reference "Lagos 30°C") */
+.bfa-weather-widget {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.bfa-weather-city {
+  font-weight: 700;
+}
+
+.bfa-weather-temp {
+  color: #fef08a;
+}
+
+.bfa-edge-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.48rem 1.05rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.bfa-edge-action-pill:hover {
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+  color: #ffffff;
+}
+
+.bfa-edge-login-solid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 1.2rem;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 0.88rem;
+  text-decoration: none;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  transition: all 0.2s ease;
+}
+
+.bfa-edge-login-solid:hover {
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* --- Center Group: Search Bar + 8 Shortcut Tiles --- */
+.bfa-edge-center-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 40;
+}
+
+/* Translucent Dark Pill Search Bar (Matching Reference) */
+.bfa-center-search-wrap {
+  width: 100%;
+  max-width: 620px;
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.bfa-center-search-box {
+  display: flex;
+  align-items: center;
+  background: rgba(30, 41, 59, 0.76);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 9999px;
+  padding: 0 1.25rem;
+  height: 48px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.25s ease;
+  box-sizing: border-box;
+}
+
+.bfa-center-search-box:focus-within {
+  background: rgba(15, 23, 42, 0.94);
+  border-color: #3b82f6;
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(59, 130, 246, 0.5);
+  transform: translateY(-2px);
+}
+
+.bfa-search-icon {
+  font-size: 1.1rem;
+  color: #94a3b8;
+  margin-right: 0.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.bfa-center-search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: #ffffff;
+  font-family: inherit;
+}
+
+.bfa-center-search-input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+/* Live Search Autocomplete Dropdown */
+.bfa-live-search-dropdown {
+  position: absolute;
+  top: 56px;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  z-index: 100;
+  max-height: 380px;
+  overflow-y: auto;
+  animation: edgeFadeIn 0.18s ease-out;
+}
+
+.bfa-search-result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.15s ease;
+}
+
+.bfa-search-result-row:last-child {
+  border-bottom: none;
+}
+
+.bfa-search-result-row:hover {
+  background-color: #f8fafc;
+}
+
+.bfa-result-info strong {
+  display: block;
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.bfa-result-info span {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.bfa-result-rate {
+  font-weight: 800;
+  color: #2563eb;
+  font-size: 0.94rem;
+}
+
+/* --- 8 Shortcut Tiles (Exact Reference Match) --- */
+.bfa-shortcuts-grid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.bfa-shortcut-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  width: 68px;
+}
+
+.bfa-shortcut-tile:hover {
+  transform: translateY(-3px);
+}
+
+.bfa-shortcut-tile-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+}
+
+.bfa-shortcut-tile:hover .bfa-shortcut-tile-icon {
+  background: rgba(37, 99, 235, 0.7);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+}
+
+.bfa-shortcut-tile-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #ffffff;
+  text-align: center;
+  line-height: 1.2;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 68px;
+}
+
+/* --- Bottom Floating Dock (Matching MSN / Edge Bottom Bar) --- */
+.bfa-edge-bottom-dock {
+  width: 100%;
+  max-width: 1060px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+  padding: 0.35rem 0.65rem 0.35rem 1.15rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-sizing: border-box;
+}
+
+.bfa-dock-left {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-width: 0;
+}
+
+.bfa-dock-left::-webkit-scrollbar {
+  display: none;
+}
+
+.bfa-dock-brand-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #ffffff;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+.bfa-dock-brand-tag span {
+  color: #60a5fa;
+}
+
+.bfa-dock-tab {
+  padding: 0.35rem 0.58rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.bfa-dock-tab:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.bfa-dock-tab.active {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.bfa-dock-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+
+.bfa-dock-feed-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.95rem;
+  border-radius: 9999px;
+  background: #2563eb;
+  border: none;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bfa-dock-feed-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.bfa-wallpaper-info-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.38rem 0.85rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: #f1f5f9;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 34px;
+  line-height: 1;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.bfa-wallpaper-info-pill:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(96, 165, 250, 0.6);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.bfa-wallpaper-info-pill span {
+  white-space: nowrap;
+}
+
+.bfa-wallpaper-arrow {
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0 0.25rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+}
+
+.bfa-wallpaper-arrow:hover {
+  transform: scale(1.25);
+  color: #60a5fa;
+}
+
+/* ==========================================================================
+   3. SCROLLABLE CONTENT FEED PANEL (Comes Up Over Stationary Background)
+   ========================================================================== */
+.bfa-feed-wrapper {
+  max-width: 1260px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 1.25rem 3rem;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 20;
+}
+
+.bfa-feed-container {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Sticky Header on Feed Panel */
+.bfa-feed-sticky-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  position: sticky;
+  top: 60px;
+  z-index: 30;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.bfa-feed-tabs-list {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+}
+
+.bfa-feed-tab-item {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #475569;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.bfa-feed-tab-item:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.bfa-feed-tab-item.active {
+  color: #2563eb;
+  font-weight: 700;
+  background: #eff6ff;
+  border-bottom: 2px solid #2563eb;
+  border-radius: 8px 8px 0 0;
+}
+
+.bfa-feed-content-body {
+  padding: 2rem 1.75rem;
+  background: #f8fafc;
+}
+
+/* ==========================================================================
+   4. MULTI-CARD GRID & RESERVATION ENGINE INSIDE FEED
+   ========================================================================== */
+.bfa-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.bfa-card-featured {
+  grid-column: span 2;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bfa-card-featured:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.bfa-card-featured-visual {
+  height: 220px;
+  background-size: cover;
+  background-position: center center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.bfa-card-featured-badge {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.bfa-card-featured-capacity {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  color: #e2e8f0;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.bfa-card-featured-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.bfa-card-featured-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.4rem;
+}
+
+.bfa-card-featured-desc {
+  font-size: 0.9rem;
+  color: #64748b;
+  line-height: 1.55;
+  margin-bottom: 1.25rem;
+}
+
+/* Regular Property Card */
+.bfa-card-standard {
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bfa-card-standard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.bfa-card-standard-visual {
+  height: 140px;
+  background-size: cover;
+  background-position: center center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.bfa-card-standard-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.bfa-card-standard-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.bfa-card-standard-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.35rem;
+}
+
+.bfa-card-standard-address {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin-bottom: 0.85rem;
+}
+
+.bfa-card-standard-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: auto;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+/* Edge Real-Time Live Availability Widget Card */
+.bfa-card-widget {
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.bfa-widget-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bfa-widget-unit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.bfa-widget-unit-row:hover {
+  background-color: #f1f5f9;
+}
+
+.bfa-widget-unit-info strong {
+  display: block;
+  font-size: 0.86rem;
+  color: #0f172a;
+}
+
+.bfa-widget-unit-info span {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.bfa-widget-unit-price {
+  font-weight: 800;
+  color: #15803d;
+  font-size: 0.88rem;
+  text-align: right;
+}
+
+/* Content Section Containers */
+.bfa-feed-section-block {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+}
+
+.bfa-feed-section-header {
+  margin-bottom: 1.75rem;
+}
+
+.bfa-feed-section-tag {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #2563eb;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.bfa-feed-section-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.35rem;
+}
+
+.bfa-feed-section-desc {
+  font-size: 0.92rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ==========================================================================
+   5. RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+@media (max-width: 1080px) {
+  .bfa-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .bfa-card-featured {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 768px) {
+  .bfa-initial-viewport {
+    height: auto;
+    min-height: 100vh;
+    padding: 1rem 1rem 1.5rem;
+    gap: 1.5rem;
+  }
+  .bfa-edge-top-row {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+  .bfa-edge-brand-name {
+    font-size: 0.95rem;
+  }
+  .bfa-edge-brand-sub {
+    font-size: 0.58rem;
+  }
+  .bfa-grid-icon-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+  }
+  .bfa-edge-top-right {
+    gap: 0.45rem;
+  }
+  .bfa-weather-widget {
+    display: none;
+  }
+  .bfa-edge-action-pill {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+  .bfa-edge-login-solid {
+    padding: 0.4rem 0.85rem;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+  .bfa-center-search-wrap {
+    max-width: 100%;
+    margin-bottom: 1.25rem;
+  }
+  .bfa-shortcuts-grid {
+    gap: 0.65rem;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+  .bfa-shortcut-tile {
+    width: 60px;
+  }
+  .bfa-shortcut-tile-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 1.15rem;
+  }
+  .bfa-shortcut-tile-label {
+    font-size: 0.68rem;
+    max-width: 60px;
+  }
+  .bfa-edge-bottom-dock {
+    border-radius: 18px;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.65rem 0.85rem;
+    width: calc(100% - 58px);
+    margin-left: 0;
+    margin-right: auto;
+    box-sizing: border-box;
+  }
+  .bfa-dock-left {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 0.35rem;
+    padding-bottom: 2px;
+  }
+  .bfa-dock-left::-webkit-scrollbar {
+    display: none;
+  }
+  .bfa-dock-brand-tag {
+    font-size: 0.85rem;
+    margin-right: 0.25rem;
+  }
+  .bfa-dock-tab {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.78rem;
+  }
+  .bfa-dock-right {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .bfa-wallpaper-info-pill {
+    font-size: 0.72rem;
+    padding: 0.35rem 0.65rem;
+  }
+  .bfa-dock-feed-btn {
+    font-size: 0.76rem;
+    padding: 0.38rem 0.75rem;
+  }
+  .bfa-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .bfa-card-featured {
+    grid-column: span 1;
+  }
+  .bfa-feed-wrapper {
+    padding: 0 0.5rem 2rem;
+  }
+  .bfa-feed-content-body {
+    padding: 1.25rem 1rem;
+  }
+  .bfa-feed-sticky-header {
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+  }
+  .bfa-feed-tabs-list {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .bfa-feed-tabs-list::-webkit-scrollbar {
+    display: none;
+  }
+  .bfa-feed-tab-item {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.82rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+@media (max-width: 768px) {
+  .bfa-fixed-nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+  .bfa-nav-main-row {
+    padding: 0.5rem 1rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .bfa-edge-brand-sub {
+    display: none;
+  }
+  .bfa-single-nav-pill {
+    padding: 0.35rem 0.8rem;
+    font-size: 0.8rem;
+    gap: 0.45rem;
+  }
+  .bfa-single-nav-flyout {
+    width: min(320px, calc(100vw - 24px));
+    right: 0;
+  }
+  .bfa-nav-center-search.hidden {
+    display: none;
+  }
+  .bfa-nav-center-search.visible {
+    order: 3;
+    width: 100%;
+    max-width: 100%;
+    margin: 0.35rem 0 0;
+  }
+  .bfa-center-search-box {
+    height: 42px !important;
+    padding: 0 0.85rem;
+  }
+  .bfa-hero-search-wrap {
+    width: 100%;
+    margin-bottom: 1.25rem;
+  }
+  .bfa-hero-announcement-card {
+    width: 100%;
+    margin-bottom: 0.75rem;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.8rem;
+  }
+  .bfa-initial-viewport {
+    padding-top: 100px;
+    height: auto;
+    min-height: 100vh;
+    padding-bottom: 2rem;
+  }
+  .bfa-feed-sticky-header {
+    position: relative;
+    top: auto;
+  }
+  #hero,
+  #feed-root,
+  #properties,
+  #booking,
+  #features,
+  #verify {
+    scroll-margin-top: 100px;
+  }
+}
+
+/* --- View Apartment & Reserve Suite Buttons --- */
+.bfa-view-apt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #f8fafc;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  padding: 0.65rem 1.15rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.bfa-view-apt-btn:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.bfa-view-apt-btn.standard {
+  padding: 0.55rem 0.85rem;
+  font-size: 0.82rem;
+  flex: 1;
+  justify-content: center;
+}
+
+.bfa-reserve-suite-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  padding: 0.65rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.bfa-reserve-suite-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.bfa-reserve-suite-btn.standard {
+  padding: 0.55rem 0.85rem;
+  font-size: 0.82rem;
+  flex: 1;
+  justify-content: center;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  box-shadow: none;
+}
+
+.bfa-reserve-suite-btn.standard:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.bfa-mini-view-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bfa-mini-view-btn:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+
+/* ==========================================================================
+   5. DATA-DRIVEN APARTMENT DISCOVERY & ROOM-TYPES SHOWCASE
+   ========================================================================== */
+.bfa-discovery-section-block {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+}
+
+.bfa-properties-grid-dynamic {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* Representative Image Disclaimers */
+.bfa-representative-disclaimer-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-bottom: 1.25rem;
+  font-weight: 500;
+}
+
+.bfa-photo-disclaimer-tag {
+  position: absolute;
+  bottom: 0.65rem;
+  right: 0.75rem;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f1f5f9;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  pointer-events: none;
+  letter-spacing: 0.01em;
+  z-index: 2;
+}
+
+.bfa-building-card {
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+}
+
+.bfa-building-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  border-color: #93c5fd;
+}
+
+.bfa-building-card.active-selected {
+  border: 2px solid #2563eb;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+}
+
+.bfa-building-card-visual {
+  height: 200px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.bfa-building-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.2) 0%, rgba(15, 23, 42, 0.75) 100%);
+}
+
+.bfa-building-badge-code {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  z-index: 2;
+  letter-spacing: 0.04em;
+}
+
+.bfa-building-badge-avail {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  color: #86efac;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid rgba(134, 239, 172, 0.3);
+  z-index: 2;
+}
+
+.bfa-building-card-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.bfa-building-card-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.35rem;
+}
+
+.bfa-building-card-location {
+  font-size: 0.82rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.bfa-building-card-desc {
+  font-size: 0.86rem;
+  color: #475569;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bfa-building-amenities-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.bfa-amenity-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.bfa-building-card-footer {
+  margin-top: auto;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.bfa-rate-box .rate-label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.bfa-rate-box .rate-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #2563eb;
+}
+
+.bfa-building-actions-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bfa-building-page-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bfa-building-page-link:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* Building Detail Explorer Section */
+.bfa-building-explorer-block {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.75rem;
+  margin-top: 1.5rem;
+}
+
+.bfa-building-selector-bar {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.bfa-building-tab-pill {
+  padding: 0.6rem 1.1rem;
+  border-radius: 9999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.bfa-building-tab-pill:hover {
+  border-color: #93c5fd;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.bfa-building-tab-pill.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.bfa-selected-building-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.bfa-selected-building-hero h3 {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.bfa-building-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  font-size: 0.84rem;
+  color: #475569;
+}
+
+/* Room Types Grid */
+.bfa-room-types-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 1.25rem;
+}
+
+.bfa-room-type-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bfa-room-type-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.bfa-room-type-visual {
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.bfa-room-type-badge-avail {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.bfa-room-type-badge-avail.available {
+  background: #15803d;
+  color: #ffffff;
+}
+
+.bfa-room-type-badge-avail.booked {
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.bfa-room-type-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.bfa-room-type-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.35rem;
+}
+
+.bfa-room-type-specs {
+  font-size: 0.8rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.bfa-room-type-footer {
+  margin-top: auto;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.bfa-room-book-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.bfa-room-book-btn:hover {
+  background: #1d4ed8;
+}
+
+.bfa-room-details-btn {
+  background: #f1f5f9;
+  color: #2563eb;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+}
+
+.bfa-room-details-btn:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+/* Empty State Box */
+.bfa-empty-state-box {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  color: #64748b;
+}

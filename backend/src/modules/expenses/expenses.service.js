@@ -6,6 +6,7 @@ const AuditService = require('../../core/audit/audit.service');
 const AccessControlService = require('../../core/access/accessControl.service');
 const { ValidationError, NotFoundError, ForbiddenError, ConflictError } = require('../../core/errors/apiError');
 const pool = require('../../db/pool');
+const logger = require('../../core/logging/logger');
 
 const VALID_CATEGORIES = [
   'MAINTENANCE',
@@ -246,22 +247,26 @@ class ExpensesService {
         'UPDATE expenses SET status = "APPROVED", approved_by_id = ?, approved_at = ? WHERE id = ?',
         [user.id, nowStr, id]
       );
+
+      await AuditService.record({
+        req,
+        actorId: user?.id,
+        actorEmail: user?.email,
+        actorRole: user?.role,
+        action: 'EXPENSE_APPROVED',
+        entityType: 'expense',
+        entityId: String(id),
+        oldValues: { status: oldStatus },
+        newValues: { status: 'APPROVED', approvedById: user.id, approvedAt: nowStr },
+        conn,
+      });
+
+      // Automated Subledger-to-General-Ledger Posting Bridge (coupled to same transaction)
+      const PostingBridgeService = require('../accounting/postingBridge.service');
+      await PostingBridgeService.postExpense(id, { conn, user, req });
     });
 
     const updated = await ExpensesRepository.findById(id);
-
-    await AuditService.record({
-      req,
-      actorId: user?.id,
-      actorEmail: user?.email,
-      actorRole: user?.role,
-      action: 'EXPENSE_APPROVED',
-      entityType: 'expense',
-      entityId: String(id),
-      oldValues: { status: oldStatus },
-      newValues: { status: 'APPROVED', approvedById: user.id, approvedAt: nowStr },
-    });
-
     return updated;
   }
 
@@ -294,21 +299,26 @@ class ExpensesService {
         'UPDATE expenses SET status = "VOIDED", voided_by_id = ?, voided_at = ?, void_reason = ? WHERE id = ?',
         [user.id, nowStr, reason.trim(), id]
       );
+
+      await AuditService.record({
+        req,
+        actorId: user?.id,
+        actorEmail: user?.email,
+        actorRole: user?.role,
+        action: 'EXPENSE_VOIDED',
+        entityType: 'expense',
+        entityId: String(id),
+        oldValues: { status: oldStatus },
+        newValues: { status: 'VOIDED', voidReason: reason.trim(), voidedById: user.id, voidedAt: nowStr },
+        conn,
+      });
+
+      // Automated Subledger-to-General-Ledger Reversal Bridge (coupled to same transaction)
+      const PostingBridgeService = require('../accounting/postingBridge.service');
+      await PostingBridgeService.reverseExpense(id, { conn, user, req });
     });
 
     const updated = await ExpensesRepository.findById(id);
-
-    await AuditService.record({
-      req,
-      actorId: user?.id,
-      actorEmail: user?.email,
-      actorRole: user?.role,
-      action: 'EXPENSE_VOIDED',
-      entityType: 'expense',
-      entityId: String(id),
-      oldValues: { status: oldStatus },
-      newValues: { status: 'VOIDED', voidReason: reason.trim(), voidedById: user.id, voidedAt: nowStr },
-    });
 
     return updated;
   }

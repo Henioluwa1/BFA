@@ -51,8 +51,11 @@ function NavigateToFinancial() {
 }
 
 // Lazy-Loaded Public Pages
-const LandingPage = lazy(() => import('./pages/LandingPage'));
+import LandingPage from './pages/LandingPage';
 const LoginPage = lazy(() => import('./pages/LoginPage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const PropertyDetailPage = lazy(() => import('./pages/PropertyDetailPage'));
 
 // Lazy-Loaded Authenticated Pages
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -71,6 +74,7 @@ const InspectionPage = lazy(() => import('./pages/InspectionPage'));
 const AuditPage = lazy(() => import('./pages/AuditPage'));
 const TeamPage = lazy(() => import('./pages/TeamPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const OperationsPage = lazy(() => import('./pages/OperationsPage'));
 const AccessControlPage = lazy(() => import('./pages/AccessControlPage'));
 const CommunicationsPage = lazy(() => import('./pages/CommunicationsPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
@@ -96,6 +100,10 @@ function App() {
                   {/* Public Routes */}
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/property/:id" element={<PropertyDetailPage />} />
+                  <Route path="/properties/:id" element={<PropertyDetailPage />} />
 
                   {/* Authenticated Portal Shell */}
                   <Route element={<ProtectedRoute />}>
@@ -133,6 +141,7 @@ function App() {
                       <Route path="announcements" element={<AnnouncementsPage />} />
                       <Route path="team" element={<TeamPage />} />
                       <Route path="settings" element={<SettingsPage />} />
+                      <Route path="operations" element={<OperationsPage />} />
                       <Route path="404" element={<NotFoundPage />} />
                     </Route>
                   </Route>
@@ -162,6 +171,7 @@ function App() {
                   <Route path="/audit" element={<Navigate to="/app/audit" replace />} />
                   <Route path="/team" element={<Navigate to="/app/team" replace />} />
                   <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
+                  <Route path="/operations" element={<Navigate to="/app/operations" replace />} />
                   <Route path="/404" element={<NotFoundPage />} />
                   <Route path="*" element={<Navigate to="/404" replace />} />
                 </Routes>

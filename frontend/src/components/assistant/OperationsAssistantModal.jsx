@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useProperty } from '../../context/PropertyContext';
 import { automationService } from '../../services/api';
@@ -16,6 +17,7 @@ import AssistantResponseRenderer from './AssistantResponseRenderer';
  * 4. Apartment selection auto-fills a booking request.
  */
 export default function OperationsAssistantModal({ isOpen, onClose }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { activePropertyId, properties } = useProperty();
 
@@ -70,10 +72,21 @@ export default function OperationsAssistantModal({ isOpen, onClose }) {
   const currentPropertyObj = properties?.find((p) => String(p.id) === String(activePropertyId));
   const activePropertyLabel = currentPropertyObj ? currentPropertyObj.name : 'All Properties';
 
-  // Available prompt pills based on actual authorized actions
+  // Available prompt pills based on actual authorized actions and roles
   const getSuggestedPills = () => {
     const pills = [];
     const hasAction = (id) => authorizedActions.some((a) => a.actionId === id);
+
+    // Natural-language navigation shortcuts
+    pills.push({ label: "📅 Availability Calendar", prompt: "Take me to the availability calendar" });
+    pills.push({ label: "🏢 Properties", prompt: "Open properties" });
+    pills.push({ label: "🔧 Maintenance", prompt: "Take me to maintenance" });
+    if (['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'].includes(user?.role)) {
+      pills.push({ label: "💰 Financial Overview", prompt: "Open the financial overview" });
+    }
+    if (['SUPER_ADMIN', 'ADMIN'].includes(user?.role)) {
+      pills.push({ label: "🛡️ Audit Trail", prompt: "Open the audit trail" });
+    }
 
     if (hasAction('operations.get_today_arrivals')) {
       pills.push({ label: "📅 Today's Arrivals", prompt: "Show today's arrivals" });
@@ -98,6 +111,14 @@ export default function OperationsAssistantModal({ isOpen, onClose }) {
         label: "📝 Create 1-Night Booking",
         prompt: "Create reservation for Jane Doe in apartment 1 on tomorrow with email jane@example.com and phone 08012345678",
       });
+    }
+
+    // Continuous Development & System Governance shortcuts (Leadership/Admins)
+    if (['SUPER_ADMIN', 'ADMIN', 'OWNER', 'MANAGER'].includes(user?.role)) {
+      pills.push({ label: "📋 Development Register", prompt: "Show development register" });
+      pills.push({ label: "🔍 System Diagnostics", prompt: "Inspect system diagnostics" });
+      pills.push({ label: "📝 Plan Improvement", prompt: "Plan task for Guest Loyalty Points" });
+      pills.push({ label: "⚙️ Operations Center", prompt: "Take me to operations control center" });
     }
 
     return pills;
@@ -154,6 +175,16 @@ export default function OperationsAssistantModal({ isOpen, onClose }) {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
+
+      // Client-side navigation trigger for verified navigation responses
+      const navComp = reply.responseComponents?.find((c) => c.type === 'navigation');
+      if (navComp && navComp.path) {
+        try {
+          navigate(navComp.path);
+        } catch (navErr) {
+          console.error('Client navigation failed:', navErr);
+        }
+      }
     } catch (err) {
       const errorMsg = {
         id: `asst-err-${Date.now()}`,
@@ -329,6 +360,14 @@ export default function OperationsAssistantModal({ isOpen, onClose }) {
           </span>
           <span style={{ color: 'var(--text-muted)' }}>•</span>
           <span>🏢 {activePropertyLabel}</span>
+          {['SUPER_ADMIN', 'ADMIN', 'OWNER', 'MANAGER'].includes(user?.role) && (
+            <>
+              <span style={{ color: 'var(--text-muted)' }}>•</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.72rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', padding: '1px 6px', borderRadius: '4px' }}>
+                🚀 Continuous Dev Ready
+              </span>
+            </>
+          )}
         </div>
 
         <div className="assistant-header-controls">
@@ -436,6 +475,7 @@ export default function OperationsAssistantModal({ isOpen, onClose }) {
                   onCancelAction={handleCancelAction}
                   onSelectApartment={handleSelectApartment}
                   onViewApartmentDetails={handleViewApartmentDetails}
+                  onNavigate={(path) => navigate(path)}
                 />
               )}
 

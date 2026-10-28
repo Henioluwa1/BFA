@@ -5,15 +5,12 @@ class ReportsController {
   static async getReservations(req, res, next) {
     try {
       const { propertyId, fromDate, toDate, format } = req.query;
-      const userRole = req.user?.role || 'ADMIN';
-      const agentId = req.user?.agentId;
 
       const data = await ReportsService.getReservationsReport({
         propertyId,
         fromDate,
         toDate,
-        userRole,
-        agentId,
+        user: req.user,
       });
 
       if (format === 'csv') {
@@ -52,7 +49,12 @@ class ReportsController {
   static async getFinancial(req, res, next) {
     try {
       const { propertyId, fromDate, toDate, format } = req.query;
-      const data = await ReportsService.getFinancialReport({ propertyId, fromDate, toDate });
+      const data = await ReportsService.getFinancialReport({
+        propertyId,
+        fromDate,
+        toDate,
+        user: req.user,
+      });
 
       if (format === 'csv') {
         const headers = [
@@ -74,7 +76,8 @@ class ReportsController {
       if (format === 'pdf') {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="bfa-financial-summary-${Date.now()}.pdf"`);
-        const pdfStream = ReportsService.generateFinancialPDF(data, propertyId ? `Property #${propertyId}` : 'All Properties');
+        const label = propertyId && propertyId !== 'all' ? `Property #${propertyId}` : (req.user?.propertyId ? `Property #${req.user.propertyId}` : 'All Properties');
+        const pdfStream = ReportsService.generateFinancialPDF(data, label);
         return pdfStream.pipe(res);
       }
 
@@ -90,7 +93,13 @@ class ReportsController {
   static async getPayments(req, res, next) {
     try {
       const { propertyId, fromDate, toDate, status, format } = req.query;
-      const data = await ReportsService.getPaymentsReport({ propertyId, fromDate, toDate, status });
+      const data = await ReportsService.getPaymentsReport({
+        propertyId,
+        fromDate,
+        toDate,
+        status,
+        user: req.user,
+      });
 
       if (format === 'csv') {
         const headers = [
@@ -124,7 +133,14 @@ class ReportsController {
   static async getExpenses(req, res, next) {
     try {
       const { propertyId, category, status, fromDate, toDate, format } = req.query;
-      const data = await ReportsService.getExpensesReport({ propertyId, category, status, fromDate, toDate });
+      const data = await ReportsService.getExpensesReport({
+        propertyId,
+        category,
+        status,
+        fromDate,
+        toDate,
+        user: req.user,
+      });
 
       if (format === 'csv') {
         const headers = [
@@ -159,7 +175,11 @@ class ReportsController {
   static async getAgents(req, res, next) {
     try {
       const { propertyId, status, format } = req.query;
-      const data = await ReportsService.getAgentsReport({ propertyId, status });
+      const data = await ReportsService.getAgentsReport({
+        propertyId,
+        status,
+        user: req.user,
+      });
 
       if (format === 'csv') {
         const headers = [
@@ -195,7 +215,14 @@ class ReportsController {
   static async getCommissions(req, res, next) {
     try {
       const { agentId, propertyId, status, fromDate, toDate, format } = req.query;
-      const data = await ReportsService.getCommissionsReport({ agentId, propertyId, status, fromDate, toDate });
+      const data = await ReportsService.getCommissionsReport({
+        agentId,
+        propertyId,
+        status,
+        fromDate,
+        toDate,
+        user: req.user,
+      });
 
       if (format === 'csv') {
         const headers = [
@@ -239,7 +266,15 @@ class ReportsController {
   static async getMaintenance(req, res, next) {
     try {
       const { propertyId, status, priority, category, fromDate, toDate, format } = req.query;
-      const data = await ReportsService.getMaintenanceReport({ propertyId, status, priority, category, fromDate, toDate });
+      const data = await ReportsService.getMaintenanceReport({
+        propertyId,
+        status,
+        priority,
+        category,
+        fromDate,
+        toDate,
+        user: req.user,
+      });
 
       if (format === 'csv') {
         const headers = [
@@ -275,7 +310,14 @@ class ReportsController {
   static async getInspections(req, res, next) {
     try {
       const { propertyId, status, type, fromDate, toDate, format } = req.query;
-      const data = await ReportsService.getInspectionsReport({ propertyId, status, type, fromDate, toDate });
+      const data = await ReportsService.getInspectionsReport({
+        propertyId,
+        status,
+        type,
+        fromDate,
+        toDate,
+        user: req.user,
+      });
 
       if (format === 'csv') {
         const headers = [

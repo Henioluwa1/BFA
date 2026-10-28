@@ -25,6 +25,11 @@ const MAX_HISTORY_CHARS = 4000; // rough token budget for history
 function buildSystemPrompt(authorizedTools) {
   const toolDefs = authorizedTools
     .map((t) => {
+      if (t.actionId === 'navigation.navigate') {
+        return `- **navigation.navigate**: Navigate the user to an authorized application page or record.
+  Parameters: { destination: string (e.g. dashboard, properties, apartments, calendar, front_office, reservations, guests, employees, performance, id_cards, my_profile, agents, financial, maintenance, inspection, analytics, reports, audit, access_control, team, settings, announcements, communications, notifications, chat) }
+  Requires confirmation: No`;
+      }
       const schemaDesc = describeSchema(t.inputSchema);
       return `- **${t.actionId}**: ${t.description}\n  Parameters: ${schemaDesc}\n  Requires confirmation: ${t.requiresConfirmation ? 'Yes' : 'No'}`;
     })

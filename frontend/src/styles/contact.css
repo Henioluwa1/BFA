@@ -1,0 +1,562 @@
+/* ==========================================================================
+   BFA CONTACT US & DIRECT CONCIERGE PAGE — MICROSOFT EDGE AESTHETIC
+   ========================================================================== */
+
+.bfa-contact-page {
+  position: relative;
+  min-height: 100vh;
+  color: #0f172a;
+  font-family: var(--font-body, 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Stationary Multi-Image Background */
+.bfa-contact-fixed-bg {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bfa-contact-bg-slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 1.4s ease-in-out, transform 8s ease-out;
+  transform: scale(1.02);
+}
+
+.bfa-contact-bg-slide.active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.bfa-contact-fixed-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 15, 30, 0.65) 0%,
+    rgba(15, 23, 42, 0.5) 40%,
+    rgba(15, 23, 42, 0.85) 85%,
+    rgba(15, 23, 42, 0.98) 100%
+  );
+  pointer-events: none;
+}
+
+/* Main Container (Padded to comfortably clear static transparent top nav) */
+.bfa-contact-main {
+  position: relative;
+  z-index: 20;
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 85px 2rem 4rem;
+  box-sizing: border-box;
+}
+
+/* Hero Section */
+.bfa-contact-hero-block {
+  text-align: center;
+  max-width: 820px;
+  margin: 1.75rem auto 3rem;
+  padding: 2.25rem 2rem;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+
+.bfa-contact-hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.95rem;
+  border-radius: 9999px;
+  background: rgba(37, 99, 235, 0.25);
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  color: #93c5fd;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 1rem;
+}
+
+.bfa-contact-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 2.75rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.15;
+  margin: 0 0 1rem;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.bfa-contact-lead {
+  font-size: 1.02rem;
+  color: #e2e8f0;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Two-Column Grid */
+.bfa-contact-content-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 2rem;
+  margin-bottom: 3.5rem;
+}
+
+.bfa-contact-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 2.5rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+
+.bfa-panel-header {
+  margin-bottom: 1.75rem;
+}
+
+.bfa-panel-tag {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #2563eb;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.bfa-panel-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.35rem;
+}
+
+.bfa-panel-desc {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Form */
+.bfa-contact-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.bfa-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.bfa-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.bfa-input-group label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bfa-input-group input,
+.bfa-input-group select,
+.bfa-input-group textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.92rem;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.bfa-input-group input:focus,
+.bfa-input-group select:focus,
+.bfa-input-group textarea:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.bfa-contact-submit-btn {
+  padding: 0.95rem 1.5rem;
+  border-radius: 12px;
+  background: #2563eb;
+  border: none;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+  margin-top: 0.5rem;
+}
+
+.bfa-contact-submit-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45);
+}
+
+.bfa-contact-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Success Box */
+.bfa-submission-success-box {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.bfa-submission-success-box h3 {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0.5rem 0 0.5rem;
+}
+
+.bfa-submission-success-box p {
+  color: #475569;
+  font-size: 0.92rem;
+  margin: 0 0 1rem;
+}
+
+.bfa-reference-badge {
+  display: inline-block;
+  padding: 0.5rem 1.25rem;
+  background: #eff6ff;
+  border: 1px dashed #2563eb;
+  border-radius: 10px;
+  color: #1d4ed8;
+  font-family: monospace;
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+.bfa-dispatch-note {
+  font-size: 0.85rem !important;
+  color: #64748b !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.bfa-success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.bfa-wa-contact-btn {
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  background: #16a34a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35);
+  transition: all 0.2s ease;
+}
+
+.bfa-wa-contact-btn:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+}
+
+.bfa-new-msg-btn {
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-weight: 600;
+  font-size: 0.86rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bfa-new-msg-btn:hover {
+  background: #e2e8f0;
+}
+
+/* Desks List */
+.bfa-desks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  margin-bottom: 2rem;
+}
+
+.bfa-desk-item {
+  display: flex;
+  gap: 1rem;
+  padding: 1.15rem;
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.bfa-desk-item:hover {
+  border-color: #bfdbfe;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
+.bfa-desk-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  flex-shrink: 0;
+}
+
+.bfa-desk-content h4 {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.25rem;
+}
+
+.bfa-desk-address {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0 0 0.5rem;
+}
+
+.bfa-desk-links {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.bfa-desk-links a {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.bfa-desk-links a:hover {
+  text-decoration: underline;
+}
+
+.bfa-desk-links span {
+  color: #cbd5e1;
+}
+
+/* Fast Callout */
+.bfa-fast-channel-callout {
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.08) 0%, rgba(22, 163, 74, 0.16) 100%);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+}
+
+.bfa-fast-callout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.bfa-pulse-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: #16a34a;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  letter-spacing: 0.05em;
+}
+
+.bfa-fast-callout-header strong {
+  font-size: 0.92rem;
+  color: #14532d;
+}
+
+.bfa-fast-channel-callout p {
+  font-size: 0.84rem;
+  color: #166534;
+  line-height: 1.4;
+  margin: 0 0 1rem;
+}
+
+.bfa-wa-pill-btn {
+  display: inline-block;
+  padding: 0.6rem 1.15rem;
+  border-radius: 9999px;
+  background: #16a34a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.86rem;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+  transition: all 0.2s ease;
+}
+
+.bfa-wa-pill-btn:hover {
+  background: #15803d;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* FAQ Section */
+.bfa-faq-section {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 2.5rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.bfa-faq-header {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto 2rem;
+}
+
+.bfa-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.bfa-faq-card {
+  padding: 1.25rem 1.5rem;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-faq-card:hover {
+  border-color: #bfdbfe;
+  background: #ffffff;
+}
+
+.bfa-faq-card.expanded {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08);
+}
+
+.bfa-faq-question-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bfa-faq-question-row h4 {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.bfa-faq-toggle-icon {
+  font-size: 1.35rem;
+  color: #2563eb;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.bfa-faq-answer {
+  font-size: 0.9rem;
+  color: #475569;
+  line-height: 1.6;
+  margin: 0.85rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* Footer */
+.bfa-contact-footer {
+  position: relative;
+  z-index: 20;
+  background: rgba(10, 15, 30, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 3rem 2.5rem 2rem;
+  color: #94a3b8;
+  margin-top: 4rem;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .bfa-contact-content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .bfa-contact-header {
+    padding: 1rem 1.25rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .bfa-contact-nav-links {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .bfa-contact-weather-pill {
+    display: none;
+  }
+  .bfa-contact-main {
+    padding: 1rem 1rem 3rem;
+  }
+  .bfa-contact-title {
+    font-size: 2rem;
+  }
+  .bfa-contact-card {
+    padding: 1.5rem 1.25rem;
+  }
+  .bfa-form-row {
+    grid-template-columns: 1fr;
+  }
+}

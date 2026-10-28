@@ -3,13 +3,19 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { assertTestDatabase } = require('./databaseGuard');
 
 /**
  * Migration Engine for BFA Apartments Management System
  */
-async function runMigrations() {
+async function runMigrations(overrideDatabase = null) {
+  const targetDatabase = overrideDatabase || config.db.database;
+  if (config.app.isTest) {
+    assertTestDatabase(targetDatabase, 'Migration Engine in Test Mode');
+  }
+
   const migrationsDir = path.resolve(__dirname, 'migrations');
-  logger.info(`Checking database migrations in: ${migrationsDir}`);
+  logger.info(`Checking database migrations in: ${migrationsDir} (Target DB: ${targetDatabase})`);
 
   // Create direct connection to run DDL statements
   const connection = await mysql.createConnection({
@@ -17,7 +23,7 @@ async function runMigrations() {
     port: config.db.port,
     user: config.db.user,
     password: config.db.password,
-    database: config.db.database,
+    database: targetDatabase,
     multipleStatements: true,
   });
 
@@ -46,11 +52,11 @@ async function runMigrations() {
     const pending = files.filter((file) => !appliedSet.has(file));
 
     if (pending.length === 0) {
-      logger.info('Database is up to date. No pending migrations.');
+      logger.info(`Database '${targetDatabase}' is up to date. No pending migrations.`);
       return { appliedCount: 0, totalMigrations: files.length };
     }
 
-    logger.info(`Found ${pending.length} pending migration(s) to execute.`);
+    logger.info(`Found ${pending.length} pending migration(s) to execute on '${targetDatabase}'.`);
 
     // Determine current batch number
     const [batchRows] = await connection.query('SELECT COALESCE(MAX(batch), 0) + 1 AS nextBatch FROM schema_migrations;');

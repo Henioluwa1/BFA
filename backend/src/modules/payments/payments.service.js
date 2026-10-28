@@ -2,12 +2,36 @@ const pool = require('../../db/pool');
 const { ValidationError, NotFoundError, ConflictError, ForbiddenError } = require('../../core/errors/apiError');
 const auditService = require('../../core/audit/audit.service');
 const AccessControlService = require('../../core/access/accessControl.service');
+const logger = require('../../utils/logger');
 
 class PaymentsService {
   /**
-   * Process a payment transaction for a reservation
+   * Process a payment transaction for a reservation with concurrency collision retry
    */
-  static async processPayment({
+  static async processPayment(params) {
+    let attempts = 0;
+    while (attempts < 3) {
+      attempts++;
+      try {
+        return await PaymentsService._doProcessPayment(params);
+      } catch (err) {
+        const isConflict =
+          err.code === 'ER_LOCK_DEADLOCK' ||
+          err.code === 'ER_DUP_ENTRY' ||
+          (err.message && (err.message.includes('Deadlock') || err.message.includes('Duplicate entry')));
+        if (isConflict && attempts < 3) {
+          logger.warn(
+            `[PAYMENTS CONCURRENCY] Collision detected on attempt #${attempts} (${err.code || err.message}). Retrying transaction safely...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 50 * attempts));
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
+  static async _doProcessPayment({
     reservationId,
     paymentMethod = 'CARD',
     amount,
@@ -28,14 +52,41 @@ class PaymentsService {
       throw new ValidationError('A positive monetary amount is required.');
     }
 
-    // 2. Prevent duplicate payment if already fully paid
+    // 2. Provider idempotency: If external provider reference already processed, return existing canonical record
+    if (provider && providerReference) {
+      const existingTxRows = await pool.query(
+        'SELECT * FROM payment_transactions WHERE provider = ? AND provider_reference = ? LIMIT 1',
+        [provider, providerReference]
+      );
+      if (existingTxRows && existingTxRows.length > 0) {
+        const existingTx = existingTxRows[0];
+        const paidAmt = parseFloat(reservation.paid_amount || 0);
+        const totalAmt = parseFloat(reservation.total_amount || 0);
+        return {
+          success: true,
+          id: existingTx.id,
+          reference: existingTx.transaction_reference,
+          message: 'Online payment processed and confirmed successfully.',
+          transactionReference: existingTx.transaction_reference,
+          status: existingTx.status,
+          amount: parseFloat(existingTx.amount),
+          currency: existingTx.currency,
+          paymentMethod: existingTx.payment_method,
+          paidAmount: paidAmt,
+          outstandingBalance: Math.max(0, totalAmt - paidAmt),
+          isDuplicate: true,
+        };
+      }
+    }
+
+    // 3. Prevent duplicate payment if already fully paid
     if (reservation.payment_status === 'PAYMENT_SUCCESS' && parseFloat(reservation.paid_amount) >= parseFloat(reservation.total_amount)) {
       throw new ConflictError(`Reservation #${reservation.reservation_code} has already been fully paid.`);
     }
 
     const cleanMethod = String(paymentMethod).trim().toUpperCase();
 
-    // 3. If PAY_AT_PROPERTY, verify system capability
+    // 4. If PAY_AT_PROPERTY, verify system capability
     if (cleanMethod === 'PAY_AT_PROPERTY') {
       const accessCheck = await AccessControlService.canAccess(user, 'PAY_AT_PROPERTY');
       if (!accessCheck.allowed) {
@@ -82,54 +133,93 @@ class PaymentsService {
       };
     }
 
-    // 4. Online Payment Processing (CARD, BANK_TRANSFER, USSD)
+    // 5. Online Payment Processing (CARD, BANK_TRANSFER, USSD)
     const accessCheck = await AccessControlService.canAccess(user, 'ONLINE_PAYMENT');
     if (!accessCheck.allowed) {
       throw new ValidationError(`Online payment processing is currently disabled (${accessCheck.reason}).`);
     }
 
-    const txRef = `BFA-TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+    let txRef = `BFA-TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
     const finalProviderRef = providerReference || `REF-${Date.now()}`;
 
-    // Transactional recording
-    const insertRes = await pool.query(
-      `INSERT INTO payment_transactions 
-       (reservation_id, transaction_reference, payment_method, amount, currency, status, provider, provider_reference, metadata, paid_at)
-       VALUES (?, ?, ?, ?, ?, 'SUCCESS', ?, ?, ?, CURRENT_TIMESTAMP)`,
-      [reservation.id, txRef, cleanMethod, numAmount, currency, provider, finalProviderRef, JSON.stringify(metadata)]
-    );
+    let insertId = null;
+    let newPaidAmount = parseFloat(reservation.paid_amount || 0);
 
-    const newPaidAmount = Math.min(parseFloat(reservation.total_amount), parseFloat(reservation.paid_amount || 0) + numAmount);
+    await pool.withTransaction(async (conn) => {
+      // Idempotency: verify if external provider reference was already processed
+      if (provider && providerReference) {
+        const [dupRows] = await conn.query(
+          'SELECT * FROM payment_transactions WHERE provider = ? AND provider_reference = ? AND status = "SUCCESS" LIMIT 1',
+          [provider, providerReference]
+        );
+        if (dupRows && dupRows.length > 0) {
+          insertId = dupRows[0].id;
+          txRef = dupRows[0].transaction_reference;
+          return;
+        }
+      }
 
-    await pool.query(
-      `UPDATE reservations 
-       SET payment_status = 'PAYMENT_SUCCESS', 
-           payment_method = ?, 
-           paid_amount = ? 
-       WHERE id = ?`,
-      [cleanMethod, newPaidAmount, reservation.id]
-    );
+      // Transactional recording with unique provider reference race-safety
+      try {
+        const [insertRes] = await conn.query(
+          `INSERT INTO payment_transactions 
+           (reservation_id, transaction_reference, payment_method, amount, currency, status, provider, provider_reference, metadata, paid_at)
+           VALUES (?, ?, ?, ?, ?, 'SUCCESS', ?, ?, ?, CURRENT_TIMESTAMP)`,
+          [reservation.id, txRef, cleanMethod, numAmount, currency, provider, finalProviderRef, JSON.stringify(metadata)]
+        );
+        insertId = insertRes.insertId;
+      } catch (insertErr) {
+        if (insertErr.code === 'ER_DUP_ENTRY' && provider && finalProviderRef) {
+          const [dupRows] = await conn.query(
+            'SELECT * FROM payment_transactions WHERE provider = ? AND provider_reference = ? LIMIT 1',
+            [provider, finalProviderRef]
+          );
+          if (dupRows && dupRows.length > 0) {
+            insertId = dupRows[0].id;
+            txRef = dupRows[0].transaction_reference;
+            return;
+          }
+        }
+        throw insertErr;
+      }
 
-    await auditService.record({
-      req,
-      actorId: user?.id || null,
-      actorEmail: user?.email || reservation.tenant_email,
-      actorRole: user?.role || 'GUEST',
-      action: 'PAYMENT_SUCCESS',
-      entityType: 'payment',
-      entityId: txRef,
-      newValues: {
-        reservationId: reservation.id,
-        amount: numAmount,
-        currency,
-        paymentMethod: cleanMethod,
-        transactionReference: txRef,
-      },
+      newPaidAmount = Math.min(parseFloat(reservation.total_amount), parseFloat(reservation.paid_amount || 0) + numAmount);
+
+      await conn.query(
+        `UPDATE reservations 
+         SET payment_status = 'PAYMENT_SUCCESS', 
+             payment_method = ?, 
+             paid_amount = ? 
+         WHERE id = ?`,
+        [cleanMethod, newPaidAmount, reservation.id]
+      );
+
+      await auditService.record({
+        req,
+        actorId: user?.id || null,
+        actorEmail: user?.email || reservation.tenant_email,
+        actorRole: user?.role || 'GUEST',
+        action: 'PAYMENT_SUCCESS',
+        entityType: 'payment',
+        entityId: txRef,
+        newValues: {
+          reservationId: reservation.id,
+          amount: numAmount,
+          currency,
+          paymentMethod: cleanMethod,
+          transactionReference: txRef,
+        },
+        conn,
+      });
+
+      // Automated Subledger-to-General-Ledger Posting Bridge (coupled to same transaction)
+      const PostingBridgeService = require('../accounting/postingBridge.service');
+      await PostingBridgeService.postPayment(insertId, { conn, user, req });
     });
 
     return {
       success: true,
-      id: insertRes.insertId,
+      id: insertId,
       reference: txRef,
       message: 'Online payment processed and confirmed successfully.',
       transactionReference: txRef,
@@ -224,6 +314,7 @@ class PaymentsService {
     // Atomic transaction with row locking to prevent concurrent double-refund race conditions
     let finalAvailableRefund = 0;
     let finalRefundAmount = refundAmount;
+    let childRefundId = null;
 
     await pool.withTransaction(async (conn) => {
       // Lock the payment transaction row for update
@@ -263,7 +354,7 @@ class PaymentsService {
       );
 
       // 1. Insert reversal / refund transaction record (preserves full history)
-      await conn.query(
+      const [childRefundRes] = await conn.query(
         `INSERT INTO payment_transactions
          (reservation_id, transaction_reference, payment_method, amount, currency, status, provider, provider_reference, metadata, paid_at, parent_transaction_id, refund_reason)
          VALUES (?, ?, ?, ?, ?, 'REFUNDED', 'SYSTEM_REFUND', ?, ?, CURRENT_TIMESTAMP, ?, ?)`,
@@ -279,6 +370,7 @@ class PaymentsService {
           reason,
         ]
       );
+      childRefundId = childRefundRes.insertId;
 
       // 2. Update original transaction with cumulative refund amount
       const newTotalRefunded = lockedTotalRefunded + finalRefundAmount;
@@ -326,31 +418,36 @@ class PaymentsService {
       }
 
       finalAvailableRefund = Math.max(0, lockedAvailable - finalRefundAmount);
-    });
 
-    // Audit log
-    await auditService.record({
-      req,
-      actorId: user?.id,
-      actorEmail: user?.email,
-      actorRole: user?.role,
-      action: 'PAYMENT_REFUNDED',
-      entityType: 'payment',
-      entityId: String(id),
-      oldValues: {
-        paidAmount: transaction.paid_amount,
-        refundAmount: transaction.refund_amount,
-      },
-      newValues: {
-        refundReference: refundRef,
-        refundAmount,
-        reason,
-        newPaidAmount: Math.max(0, parseFloat(transaction.paid_amount || 0) - refundAmount),
-      },
+      // Audit log (inside transaction)
+      await auditService.record({
+        req,
+        actorId: user?.id,
+        actorEmail: user?.email,
+        actorRole: user?.role,
+        action: 'PAYMENT_REFUNDED',
+        entityType: 'payment',
+        entityId: String(id),
+        oldValues: {
+          paidAmount: transaction.paid_amount,
+          refundAmount: transaction.refund_amount,
+        },
+        newValues: {
+          refundReference: refundRef,
+          refundAmount,
+          reason,
+          newPaidAmount: Math.max(0, parseFloat(transaction.paid_amount || 0) - refundAmount),
+        },
+        conn,
+      });
+
+      // Automated Subledger-to-General-Ledger Posting Bridge (coupled to same transaction)
+      const PostingBridgeService = require('../accounting/postingBridge.service');
+      await PostingBridgeService.postRefund(childRefundId, { conn, user, req });
     });
 
     const origRows = await pool.query('SELECT * FROM payment_transactions WHERE id = ?', [transaction.id]);
-    const refundRows = await pool.query('SELECT * FROM payment_transactions WHERE transaction_reference = ?', [refundRef]);
+    const refundRows = await pool.query('SELECT * FROM payment_transactions WHERE id = ?', [childRefundId]);
 
     return {
       success: true,

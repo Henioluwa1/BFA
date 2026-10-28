@@ -52,7 +52,9 @@ export const authService = {
 
 export const publicService = {
   getProperties: () => api.get('/public/properties'),
-  getApartments: (propertyId) => api.get('/public/apartments', { params: { propertyId } }),
+  getPropertyById: (id) => api.get(`/public/properties/${id}`),
+  getRoomTypes: (propertyId) => api.get(`/public/properties/${propertyId}/room-types`),
+  getApartments: (propertyId, params = {}) => api.get('/public/apartments', { params: { propertyId, ...params } }),
   checkAvailability: (data) => api.post('/public/check-availability', data),
   createBooking: (data) => api.post('/public/booking', data),
   getAnnouncements: (params) => api.get('/public/announcements', { params }),
@@ -65,6 +67,9 @@ export const systemService = {
   getSystemInfo: () => api.get('/system/info'),
   getSettings: () => api.get('/system/settings'),
   updateSettings: (data) => api.put('/system/settings', data),
+  getOperationsOverview: () => api.get('/system/operations/overview'),
+  toggleModule: (moduleId, data) => api.put('/system/operations/modules/' + moduleId + '/toggle', data),
+  createBackupSnapshot: () => api.post('/system/operations/backup'),
 };
 
 export const searchService = {
@@ -115,7 +120,10 @@ export const frontOfficeService = {
   getArrivals: (params) => api.get('/front-office/arrivals', { params }),
   getDepartures: (params) => api.get('/front-office/departures', { params }),
   getCurrentGuests: (params) => api.get('/front-office/current-guests', { params }),
+  getPendingBookings: (params) => api.get('/front-office/pending-bookings', { params }),
+  getLiveOperationalFeed: (params) => api.get('/front-office/live-feed', { params }),
   getStats: (params) => api.get('/front-office/stats', { params }),
+  acceptReservation: (id) => api.post(`/front-office/reservations/${id}/accept`),
   checkIn: (id) => api.post(`/front-office/reservations/${id}/check-in`),
   checkOut: (id) => api.post(`/front-office/reservations/${id}/check-out`),
   noShow: (id, data) => api.post(`/front-office/reservations/${id}/no-show`, data),
@@ -227,6 +235,14 @@ export const expenseService = {
 export const financialService = {
   getOverview: (params) => api.get('/financial/overview', { params }),
   getLedger: (params) => api.get('/financial/ledger', { params }),
+};
+
+export const accountingService = {
+  getTrialBalanceSummary: (params) => api.get('/accounting/trial-balance-summary', { params }),
+  getLedger: (params) => api.get('/accounting/ledger', { params }),
+  getAccounts: (params) => api.get('/accounting/accounts', { params }),
+  getPeriods: (params) => api.get('/accounting/periods', { params }),
+  getAccountById: (id) => api.get(`/accounting/accounts/${id}`),
 };
 
 export const bookingAuthService = {

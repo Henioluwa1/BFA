@@ -104,6 +104,8 @@ function buildActionClause(action) {
     'NOTIFICATION ACTIONS': "action LIKE 'NOTIFICATION%'",
     ANNOUNCEMENT_ACTIONS: "action LIKE 'ANNOUNCEMENT%'",
     'ANNOUNCEMENT ACTIONS': "action LIKE 'ANNOUNCEMENT%'",
+    ACCOUNTING_ACTIONS: "(action LIKE 'ACCOUNTING%' OR action LIKE 'JOURNAL%' OR action LIKE 'PERIOD%')",
+    'ACCOUNTING ACTIONS': "(action LIKE 'ACCOUNTING%' OR action LIKE 'JOURNAL%' OR action LIKE 'PERIOD%')",
   };
 
   if (categoryMap[clean]) {
@@ -130,6 +132,8 @@ class AuditService {
     requestId = null,
     ipAddress = null,
     userAgent = null,
+    conn = null,
+    throwOnError = false,
   }) {
     try {
       const finalRequestId = requestId || req?.id || req?.headers?.['x-request-id'] || null;
@@ -151,7 +155,8 @@ class AuditService {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `;
 
-      await pool.query(sql, [
+      const executor = conn || pool;
+      await executor.query(sql, [
         finalActorId,
         finalActorEmail,
         finalActorRole,
@@ -172,8 +177,10 @@ class AuditService {
         entityId,
       });
     } catch (err) {
-      // Never crash the primary business operation if audit write fails, but log error
       logger.error('Failed to record audit log:', { error: err.message, action, entityType });
+      if (throwOnError) {
+        throw err;
+      }
     }
   }
 

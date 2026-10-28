@@ -42,7 +42,27 @@ describe('Financial Management & Operations Ledger Tests (Phase 8)', () => {
     }
     await pool.query('DELETE FROM expenses WHERE description LIKE "%Automated Test%"');
     if (testPaymentId) {
-      await pool.query('DELETE FROM payment_transactions WHERE id = ? OR parent_transaction_id = ?', [testPaymentId, testPaymentId]);
+      // 1. Delete child refund records FIRST while parent reference is intact
+      await pool.query('DELETE FROM payment_transactions WHERE parent_transaction_id = ?', [testPaymentId]);
+
+      // 2. Clean up test subledger postings and journals in test database
+      const subRows = await pool.query(
+        'SELECT journal_entry_id FROM accounting_subledger_posting_records WHERE source_entity_id = ?',
+        [testPaymentId]
+      );
+      if (Array.isArray(subRows)) {
+        for (const row of subRows) {
+          if (row.journal_entry_id) {
+            await pool.query('DELETE FROM general_ledger_entries WHERE journal_entry_id = ?', [row.journal_entry_id]);
+            await pool.query('DELETE FROM journal_lines WHERE journal_entry_id = ?', [row.journal_entry_id]);
+            await pool.query('DELETE FROM journal_entries WHERE id = ?', [row.journal_entry_id]);
+          }
+        }
+      }
+      await pool.query('DELETE FROM accounting_subledger_posting_records WHERE source_entity_id = ?', [testPaymentId]);
+
+      // 3. Delete parent payment transaction
+      await pool.query('DELETE FROM payment_transactions WHERE id = ?', [testPaymentId]);
     }
     // Restore reservation 1 baseline
     await pool.query('UPDATE reservations SET total_amount = 220.00, paid_amount = 220.00, payment_status = "PAYMENT_SUCCESS" WHERE id = ?', [testReservationId]);

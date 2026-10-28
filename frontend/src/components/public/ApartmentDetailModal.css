@@ -1,0 +1,965 @@
+/* ==========================================================================
+   BFA APARTMENTS — APARTMENT DETAIL & GALLERY MODAL STYLING
+   Structured, Orderly, Catchy & Responsive Modal Showcase (Akure, Ondo State)
+   ========================================================================== */
+
+.bfa-apt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  animation: bfaModalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bfaModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.bfa-apt-modal-dialog {
+  background: #ffffff;
+  width: 100%;
+  max-width: 1060px;
+  max-height: 92vh;
+  border-radius: 20px;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  animation: bfaModalZoomIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bfaModalZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* --- Modal Header --- */
+.bfa-apt-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.75rem;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
+  gap: 1.25rem;
+}
+
+.bfa-apt-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.bfa-apt-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fef08a;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.bfa-apt-badge-icon {
+  font-size: 0.85rem;
+  color: #60a5fa;
+}
+
+.bfa-apt-modal-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.bfa-apt-modal-address {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.bfa-apt-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.bfa-apt-rate-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.35rem 0.85rem;
+  border-radius: 10px;
+}
+
+.bfa-apt-rate-pill .rate-sub {
+  font-size: 0.65rem;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.bfa-apt-rate-pill .rate-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #60a5fa;
+}
+
+.bfa-apt-rate-pill .rate-unit {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.bfa-apt-modal-close-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.bfa-apt-modal-close-btn:hover {
+  background: rgba(239, 68, 68, 0.85);
+  border-color: #ef4444;
+  transform: rotate(90deg);
+}
+
+/* --- Modal Tabs Bar --- */
+.bfa-apt-modal-tabs {
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.35rem 1.75rem 0;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.bfa-apt-modal-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.bfa-apt-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.15rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.bfa-apt-tab-btn:hover {
+  color: #0f172a;
+}
+
+.bfa-apt-tab-btn.active {
+  color: #2563eb;
+  font-weight: 800;
+  border-bottom-color: #2563eb;
+  background: #ffffff;
+  border-radius: 8px 8px 0 0;
+}
+
+/* --- Modal Body Scroll Container --- */
+.bfa-apt-modal-body {
+  padding: 1.5rem 1.75rem;
+  overflow-y: auto;
+  flex: 1;
+  box-sizing: border-box;
+}
+
+/* --- TAB 1: GALLERY PANE --- */
+.bfa-apt-gallery-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.bfa-filters-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-right: 0.25rem;
+}
+
+.bfa-gallery-filter-pill {
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.bfa-gallery-filter-pill:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.bfa-gallery-filter-pill.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+}
+
+/* Main Photo Viewer */
+.bfa-apt-main-viewer {
+  width: 100%;
+  height: 420px;
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  margin-bottom: 1rem;
+  background: #0f172a;
+}
+
+.bfa-apt-viewer-image {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.25rem;
+  box-sizing: border-box;
+  transition: background-image 0.3s ease-in-out;
+}
+
+.bfa-viewer-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.45) 0%,
+    transparent 35%,
+    rgba(0, 0, 0, 0.3) 60%,
+    rgba(0, 0, 0, 0.85) 100%
+  );
+  pointer-events: none;
+}
+
+.bfa-viewer-category-tag {
+  position: relative;
+  z-index: 2;
+  align-self: flex-start;
+  padding: 0.35rem 0.8rem;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.bfa-viewer-counter-badge {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 2;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: monospace;
+}
+
+/* Arrows */
+.bfa-viewer-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.bfa-viewer-nav-btn:hover {
+  background: #2563eb;
+  border-color: #60a5fa;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.bfa-viewer-nav-btn.prev {
+  left: 1rem;
+}
+
+.bfa-viewer-nav-btn.next {
+  right: 1rem;
+}
+
+/* Caption */
+.bfa-viewer-caption {
+  position: relative;
+  z-index: 2;
+  color: #ffffff;
+  max-width: 820px;
+}
+
+.bfa-viewer-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 0 0 0.35rem;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+.bfa-viewer-desc {
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  margin: 0;
+  line-height: 1.45;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.bfa-viewer-disclaimer-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* Thumbnail Strip */
+.bfa-apt-thumb-strip {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.25rem;
+  scrollbar-width: thin;
+}
+
+.bfa-apt-thumb-item {
+  flex: 0 0 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 4px;
+  background: #f8fafc;
+  border: 2px solid transparent;
+  transition: all 0.18s ease;
+}
+
+.bfa-apt-thumb-item:hover {
+  transform: translateY(-2px);
+  border-color: #93c5fd;
+}
+
+.bfa-apt-thumb-item.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.bfa-apt-thumb-img {
+  width: 100%;
+  height: 60px;
+  border-radius: 6px;
+  background-size: cover;
+  background-position: center;
+}
+
+.bfa-thumb-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #475569;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Quick Overview Card */
+.bfa-apt-overview-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.bfa-overview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.bfa-overview-header h4 {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.bfa-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 6px #16a34a;
+}
+
+.bfa-apt-overview-card p {
+  font-size: 0.88rem;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0 0 1rem;
+}
+
+.bfa-overview-quick-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.bfa-quick-badge {
+  padding: 0.3rem 0.65rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+/* --- TAB 2 & 3: HERO BANNERS & VISUAL GRIDS --- */
+.bfa-pane-hero-banner {
+  padding: 1.25rem 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+  color: #ffffff;
+}
+
+.bfa-pane-hero-banner.outdoor {
+  background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+}
+
+.bfa-pane-hero-banner.indoor {
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+}
+
+.bfa-pane-hero-banner.units {
+  background: linear-gradient(135deg, #475569 0%, #1e293b 100%);
+}
+
+.bfa-pane-hero-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.bfa-pane-hero-banner h3 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 0 0 0.35rem;
+}
+
+.bfa-pane-hero-banner p {
+  font-size: 0.86rem;
+  margin: 0;
+  opacity: 0.9;
+  line-height: 1.45;
+}
+
+/* Visual Grids */
+.bfa-outdoor-visual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.bfa-outdoor-photo-card {
+  height: 220px;
+  border-radius: 12px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+
+.bfa-photo-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(0, 0, 0, 0.85) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1rem;
+  color: #ffffff;
+}
+
+.bfa-card-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #a7f3d0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.2rem;
+}
+
+.bfa-photo-card-overlay h4 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0 0 0.25rem;
+}
+
+.bfa-photo-card-overlay p {
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* Indoor 4-box visual grid */
+.bfa-indoor-visual-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+
+.bfa-indoor-photo-box {
+  height: 150px;
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.bfa-photo-box-caption {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.85) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0.75rem;
+  color: #ffffff;
+}
+
+.bfa-photo-box-caption .box-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #93c5fd;
+  text-transform: uppercase;
+}
+
+.bfa-photo-box-caption strong {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+/* Features Matrix Grid */
+.bfa-features-matrix-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.bfa-matrix-feature-card {
+  display: flex;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.bfa-matrix-feature-card:hover {
+  background: #ffffff;
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+  transform: translateY(-1px);
+}
+
+.bfa-feature-icon-badge {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.bfa-feature-info h4 {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.25rem;
+}
+
+.bfa-feature-info p {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* --- TAB 4: RENTABLE UNITS SHOWCASE --- */
+.bfa-modal-units-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.bfa-modal-unit-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+}
+
+.bfa-modal-unit-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.14);
+  transform: translateY(-2px);
+}
+
+.bfa-modal-unit-visual {
+  height: 170px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem;
+}
+
+.bfa-unit-number-tag {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  align-self: flex-start;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.bfa-unit-status-tag {
+  background: #15803d;
+  color: #ffffff;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  align-self: flex-start;
+  text-transform: uppercase;
+}
+
+.bfa-modal-unit-body {
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.bfa-unit-top-info {
+  margin-bottom: 0.45rem;
+}
+
+.bfa-unit-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.25rem;
+}
+
+.bfa-unit-type-pill {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.bfa-unit-specs-line {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-bottom: 0.85rem;
+  font-weight: 500;
+}
+
+.bfa-unit-card-footer {
+  margin-top: auto;
+  padding-top: 0.85rem;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bfa-unit-rate-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-unit-rate-wrap .rate-label {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.bfa-unit-rate-wrap .rate-num {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #2563eb;
+}
+
+.bfa-unit-book-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.bfa-unit-book-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+/* --- Modal Footer --- */
+.bfa-apt-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.75rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.bfa-footer-left-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.bfa-footer-left-info .dot-sep {
+  color: #cbd5e1;
+}
+
+.bfa-footer-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bfa-modal-action-secondary {
+  padding: 0.55rem 1.15rem;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.bfa-modal-action-secondary:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.bfa-modal-action-primary {
+  padding: 0.55rem 1.35rem;
+  border-radius: 8px;
+  background: #2563eb;
+  border: none;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.bfa-modal-action-primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   RESPONSIVENESS (Desktop, Tablet, Mobile — Zero Overlap)
+   ========================================================================== */
+@media (max-width: 900px) {
+  .bfa-apt-main-viewer {
+    height: 320px;
+  }
+  .bfa-indoor-visual-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bfa-features-matrix-grid {
+    grid-template-columns: 1fr;
+  }
+  .bfa-modal-units-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .bfa-apt-modal-dialog {
+    max-height: 96vh;
+    border-radius: 16px;
+  }
+  .bfa-apt-modal-header {
+    padding: 1rem 1.25rem;
+  }
+  .bfa-apt-modal-title {
+    font-size: 1.15rem;
+  }
+  .bfa-apt-rate-pill {
+    display: none;
+  }
+  .bfa-apt-modal-tabs {
+    padding: 0.25rem 1rem 0;
+  }
+  .bfa-apt-tab-btn {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.78rem;
+  }
+  .bfa-apt-modal-body {
+    padding: 1rem;
+  }
+  .bfa-apt-main-viewer {
+    height: 240px;
+  }
+  .bfa-viewer-title {
+    font-size: 1.05rem;
+  }
+  .bfa-viewer-desc {
+    display: none;
+  }
+  .bfa-outdoor-visual-grid {
+    grid-template-columns: 1fr;
+  }
+  .bfa-apt-modal-footer {
+    padding: 0.85rem 1rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bfa-footer-right-actions {
+    width: 100%;
+    display: flex;
+  }
+  .bfa-modal-action-secondary,
+  .bfa-modal-action-primary {
+    flex: 1;
+    text-align: center;
+    padding: 0.55rem;
+    font-size: 0.8rem;
+  }
+}
+

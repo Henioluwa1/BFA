@@ -1,0 +1,493 @@
+/* ==========================================================================
+   BFA FLOATING CHAT WIDGET — MICROSOFT EDGE AESTHETIC
+   Static fixed button at bottom-right with expandable glassmorphism flyout
+   ========================================================================== */
+
+.bfa-floating-chat-root {
+  position: fixed;
+  bottom: 24px;
+  right: 28px;
+  z-index: 9999;
+  font-family: var(--font-body, 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif);
+}
+
+/* Static Floating Button Trigger */
+.bfa-floating-chat-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 1.25rem;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 9999px;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bfa-floating-chat-trigger:hover {
+  background: rgba(30, 58, 138, 0.95);
+  border-color: rgba(96, 165, 250, 0.6);
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 14px 40px rgba(37, 99, 235, 0.45);
+}
+
+.bfa-floating-chat-trigger.active {
+  background: #2563eb;
+  border-color: #60a5fa;
+}
+
+.bfa-trigger-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.bfa-trigger-label {
+  letter-spacing: -0.01em;
+}
+
+.bfa-trigger-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: bfaPulse 2s infinite;
+}
+
+@keyframes bfaPulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { transform: scale(1.15); box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* Expanded Chat Window */
+.bfa-chat-window {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  right: 0;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 20px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: bfaChatScaleUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+@keyframes bfaChatScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Header */
+.bfa-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: rgba(30, 41, 59, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.bfa-chat-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bfa-chat-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.bfa-chat-heading {
+  margin: 0;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.bfa-chat-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.bfa-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.bfa-chat-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #cbd5e1;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+}
+
+.bfa-chat-close-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* Body */
+.bfa-chat-body {
+  padding: 1.15rem 1.25rem 1.25rem;
+  max-height: 480px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.bfa-chat-welcome-banner {
+  margin-bottom: 0.95rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bfa-welcome-tag {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #60a5fa;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.bfa-welcome-sub {
+  font-size: 0.82rem;
+  color: #cbd5e1;
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* Form */
+.bfa-chat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bfa-form-group-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.bfa-form-group-compact label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bfa-form-group-compact input,
+.bfa-form-group-compact select,
+.bfa-form-group-compact textarea {
+  width: 100%;
+  padding: 0.55rem 0.85rem;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.86rem;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.bfa-form-group-compact input:focus,
+.bfa-form-group-compact select:focus,
+.bfa-form-group-compact textarea:focus {
+  border-color: #3b82f6;
+  background: rgba(15, 23, 42, 0.95);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+}
+
+.bfa-form-group-compact select option {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.bfa-chat-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  background: #2563eb;
+  border: none;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+  margin-top: 0.35rem;
+}
+
+.bfa-chat-submit-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5);
+}
+
+.bfa-chat-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.bfa-chat-spinner-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bfa-chat-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: bfaSpin 0.7s linear infinite;
+}
+
+@keyframes bfaSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Success State */
+.bfa-chat-success-state {
+  text-align: center;
+  padding: 1.5rem 0.5rem;
+}
+
+.bfa-success-icon-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.18);
+  border: 2px solid #22c55e;
+  color: #22c55e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 0 auto 0.85rem;
+}
+
+.bfa-success-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 0.4rem;
+}
+
+.bfa-success-text {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  margin: 0 0 0.85rem;
+  line-height: 1.4;
+}
+
+.bfa-ticket-pill {
+  display: inline-block;
+  padding: 0.45rem 1rem;
+  background: rgba(37, 99, 235, 0.2);
+  border: 1px dashed #60a5fa;
+  border-radius: 8px;
+  color: #93c5fd;
+  font-family: monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.85rem;
+}
+
+.bfa-success-note {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin: 0 0 1.25rem;
+  line-height: 1.35;
+}
+
+.bfa-chat-actions-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bfa-wa-quick-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  background: #16a34a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.86rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+}
+
+.bfa-wa-quick-btn:hover {
+  background: #15803d;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.bfa-chat-new-msg-btn {
+  padding: 0.55rem 1rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bfa-chat-new-msg-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* Footer Channels */
+.bfa-chat-footer-channels {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bfa-channels-label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 0.45rem;
+}
+
+.bfa-channels-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.bfa-channel-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.18s ease;
+}
+
+.bfa-channel-pill.wa {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+
+.bfa-channel-pill.wa:hover {
+  background: rgba(34, 197, 94, 0.3);
+  color: #ffffff;
+}
+
+.bfa-channel-pill.phone {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
+}
+
+.bfa-channel-pill.phone:hover {
+  background: rgba(59, 130, 246, 0.3);
+  color: #ffffff;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .bfa-floating-chat-root {
+    bottom: 14px;
+    right: 12px;
+  }
+  .bfa-floating-chat-trigger {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  }
+  .bfa-trigger-icon {
+    font-size: 1.25rem;
+  }
+  .bfa-trigger-label {
+    display: none;
+  }
+  .bfa-trigger-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+  }
+  .bfa-chat-window {
+    width: calc(100vw - 24px);
+    right: -4px;
+    bottom: calc(100% + 12px);
+  }
+}
+

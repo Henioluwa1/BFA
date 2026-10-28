@@ -4,6 +4,7 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Table from '../components/ui/Table';
 import Modal, { ConfirmationModal } from '../components/ui/Modal';
+import { BarChart, DoughnutChart } from '../components/ui/Charts';
 import { employeeService, propertyService } from '../services/api';
 import { useProperty } from '../context/PropertyContext';
 import { useToast } from '../context/ToastContext';
@@ -250,6 +251,44 @@ export default function EmployeeEvaluationPage() {
     );
   }, [evaluations, searchQuery]);
 
+
+  // Rating tier distribution
+  const ratingDistribution = useMemo(() => {
+    const tiers = {
+      'Outstanding (≥90%)': 0,
+      'Exceeds (80-89%)': 0,
+      'Meets (70-79%)': 0,
+      'Needs Improvement (<70%)': 0,
+    };
+    evaluations.forEach((ev) => {
+      const score = parseFloat(ev.manager_overall_score || 0);
+      if (score >= 90) tiers['Outstanding (≥90%)']++;
+      else if (score >= 80) tiers['Exceeds (80-89%)']++;
+      else if (score >= 70) tiers['Meets (70-79%)']++;
+      else tiers['Needs Improvement (<70%)']++;
+    });
+    return Object.entries(tiers).map(([category, total_amount]) => ({
+      category,
+      total_amount,
+    }));
+  }, [evaluations]);
+
+  // Department comparison
+  const departmentComparison = useMemo(() => {
+    const deptMap = {};
+    evaluations.forEach((ev) => {
+      const d = ev.department ? ev.department.replace('_', ' ') : 'General';
+      const score = parseFloat(ev.manager_overall_score || 0);
+      if (!deptMap[d]) deptMap[d] = { total: 0, count: 0 };
+      deptMap[d].total += score;
+      deptMap[d].count += 1;
+    });
+    return Object.entries(deptMap).map(([department, data]) => ({
+      department,
+      avgScore: Math.round((data.total / data.count) * 10) / 10,
+    }));
+  }, [evaluations]);
+
   return (
     <div>
       {/* Header */}
@@ -338,6 +377,34 @@ export default function EmployeeEvaluationPage() {
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
             Work-in-progress drafts
           </div>
+        </Card>
+      </div>
+
+            {/* Team Analytics Visualizations */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+        <Card>
+          <DoughnutChart
+            title="Team Rating Tier Distribution"
+            data={ratingDistribution}
+            labelKey="category"
+            valueKey="total_amount"
+            centerLabel="Evaluations"
+            centerSub={`${evaluations.length} Total`}
+            emptyMessage="No evaluation ratings recorded."
+          />
+        </Card>
+
+        <Card>
+          <BarChart
+            title="Department Performance Comparison (Avg %)"
+            data={departmentComparison}
+            xKey="department"
+            yKey="avgScore"
+            color="#3b82f6"
+            benchmark={80}
+            formatValue={(v) => `${v}%`}
+            emptyMessage="No department performance data."
+          />
         </Card>
       </div>
 

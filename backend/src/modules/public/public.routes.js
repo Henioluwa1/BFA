@@ -1,6 +1,8 @@
 const express = require('express');
 const {
   getPublicProperties,
+  getPublicPropertyDetail,
+  getPublicRoomTypes,
   getPublicApartments,
   checkAvailability,
   createPublicBooking,
@@ -12,6 +14,8 @@ const { bookingLimiter } = require('../../core/security/security');
 const router = express.Router();
 
 router.get('/properties', getPublicProperties);
+router.get('/properties/:id', getPublicPropertyDetail);
+router.get('/properties/:id/room-types', getPublicRoomTypes);
 router.get('/apartments', getPublicApartments);
 router.post('/check-availability', checkAvailability);
 router.post('/booking', bookingLimiter, createPublicBooking);
@@ -19,4 +23,3 @@ router.get('/announcements', getPublicAnnouncements);
 router.post('/booking-lookup', bookingLimiter, BookingAuthController.verifyBooking);
 
 module.exports = router;
-

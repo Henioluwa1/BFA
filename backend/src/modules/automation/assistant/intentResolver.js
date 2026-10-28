@@ -9,16 +9,19 @@
  * Strict Zero Dynamic Execution: Proposes only registered actions with validated schemas.
  */
 
+const { NavigationRegistry } = require('../navigation/navigationRegistry');
+
 // Adversarial patterns and prompt injection signatures
 const ADVERSARIAL_PATTERNS = [
-  /ignore\s+(?:all\s+|previous\s+|prior\s+)*instructions/i,
+  /ignore\s+(?:all\s+|previous\s+|prior\s+)*(?:instructions|rules|prompts|guidelines|constraints)/i,
   /you\s+are\s+now\s+(an?\s+)?admin/i,
   /system\s+prompt/i,
   /drop\s+table/i,
   /select\s+.*\s+from/i,
   /truncate\s+table/i,
   /delete\s+from/i,
-  /bypass\s+(auth|security|rbac|permissions)/i,
+  /(?:bypass|override)\s+(?:auth|security|rbac|permissions|rules|guards)/i,
+  /\b(?:navigate|redirect|go)\s+to\s+.*(?:bypass|unauthorized|admin_override)/i,
   /<script>/i,
   /;\s*--/i,
   /\bexec\s*\(/i,
@@ -277,7 +280,7 @@ function resolveIntent(message, context = {}) {
     };
   }
 
-  // 3. Detect overlapping intents to avoid ambiguous dispatch
+  // 3. Detect operational action intents
   const hasArrivals = /\barrivals?\b|\barivals?\b|\bcheck(?:ing)?[\s-]?ins?\b|\bchekin\b|\bwho is (?:arriving|ariving)\b|\b(?:arriving|ariving) today\b/i.test(lower);
   const hasDepartures = /\bdepartures?\b|\bdepatures?\b|\bcheck(?:ing)?[\s-]?outs?\b|\bchekout\b|\bwho is (?:departing|leaving|checking\s+out)\b|\b(?:departing|leaving|checking\s+out) today\b/i.test(lower);
   const hasListAvailable = isListAvailableIntent(lower);
@@ -303,6 +306,56 @@ function resolveIntent(message, context = {}) {
     /\breserve\s+(?:an?\s+)?(?:apartment|unit|apt|room)\b/i.test(lower)
   );
 
+  const hasDevRegister = /\b(?:development\s+register|dev\s+register|continuous\s+development|release\s+gates|baseline\s+version|show\s+register|project\s+register)\b/i.test(lower);
+  const hasDevStatus = /\b(?:system\s+diagnostic(?:s)?|diagnostic\s+status|subsystem\s+health|health\s+check|migration\s+status|system\s+health)\b/i.test(lower);
+  const hasDevPlan = /\b(?:plan\s+(?:task|feature|improvement|implementation)|generate\s+plan|development\s+plan)\b/i.test(lower);
+
+  const isDevQuery = hasDevRegister || hasDevStatus || hasDevPlan;
+  const isOperationalQuery = hasArrivals || hasDepartures || hasListAvailable || hasSingleAvailability || hasFinancial || hasDetails || hasCreate || isDevQuery;
+
+  // 4. Natural-Language Navigation Intent Resolution (WP-B)
+  const isExplicitNav = /^(?:please\s+)?(?:can\s+you\s+)?(?:take\s+me\s+to|navigate\s+to|open|go\s+to|switch\s+to|head\s+to|return\s+to|visit)\b/i.test(lower) ||
+    /\b(?:page\s+where\s+i\s+can|page\s+for|take\s+me\s+to|navigate\s+to|go\s+to|show\s+me\s+the\s+page)\b/i.test(lower);
+
+  const navMatch = NavigationRegistry.matchPhrase(text, context.user?.role);
+
+  // If explicit navigation, or if direct navigation query with high confidence that is NOT an operational action
+  if (isExplicitNav || (!isOperationalQuery && navMatch.status === 'MATCHED' && navMatch.confidence >= 0.7)) {
+    if (navMatch.status === 'MATCHED') {
+      const userRole = (context.user?.role || 'STAFF').toUpperCase();
+      if (!NavigationRegistry.isAuthorized(navMatch.route, userRole)) {
+        return {
+          type: 'UNAUTHORIZED_NAVIGATION',
+          route: navMatch.route,
+          message: `Access Restricted: Your current role (${userRole}) is not authorized to navigate to '${navMatch.route.displayName}'.`,
+        };
+      }
+      return {
+        type: 'INTENT_MATCHED',
+        actionId: 'navigation.navigate',
+        parameters: {
+          destination: navMatch.route.routeId,
+          params: navMatch.params || {},
+        },
+      };
+    } else if (navMatch.status === 'AMBIGUOUS' && isExplicitNav) {
+      const candidateNames = navMatch.candidates.map((c) => `**${c.displayName}**`).join(', ');
+      return {
+        type: 'CLARIFICATION',
+        actionId: 'navigation.navigate',
+        message: `Your request could refer to multiple destinations: ${candidateNames}. Where would you like to go?`,
+        missingFields: ['destination'],
+      };
+    } else if (isExplicitNav) {
+      // Explicit navigation to unrecognized destination
+      return {
+        type: 'UNSUPPORTED',
+        message: `I couldn't find an application page matching '${text}'. You can ask me to open properties, calendar, front desk, reservations, guests, employees, performance, ID cards, financials, maintenance, inspections, analytics, reports, audit, access control, announcements, communications, notifications, or return to your dashboard.`,
+      };
+    }
+  }
+
+  // 5. Detect overlapping operational intents to avoid ambiguous dispatch
   const matchedActionsCount = [hasArrivals, hasDepartures, hasListAvailable, hasSingleAvailability, hasFinancial, hasDetails, hasCreate].filter(Boolean).length;
   if (matchedActionsCount > 1) {
     return {
@@ -480,7 +533,44 @@ function resolveIntent(message, context = {}) {
     };
   }
 
-  // 11. Unsupported intent fallback
+  // 11. Match: dev.get_register
+  if (hasDevRegister) {
+    return {
+      type: 'INTENT_MATCHED',
+      actionId: 'dev.get_register',
+      parameters: {},
+    };
+  }
+
+  // 12. Match: dev.get_system_status
+  if (hasDevStatus) {
+    return {
+      type: 'INTENT_MATCHED',
+      actionId: 'dev.get_system_status',
+      parameters: {},
+    };
+  }
+
+  // 13. Match: dev.plan_task
+  if (hasDevPlan) {
+    const titleMatch = text.match(/\b(?:plan\s+(?:task|feature|improvement|implementation)|generate\s+plan|development\s+plan)(?:\s+for)?\s+(.+)$/i);
+    const taskTitle = titleMatch ? titleMatch[1].trim().replace(/^[:"']+|[:"']+$/g, '') : null;
+    if (!taskTitle) {
+      return {
+        type: 'CLARIFICATION',
+        actionId: 'dev.plan_task',
+        message: 'What feature or task would you like to plan? (e.g. "Plan task for Guest Loyalty Points")',
+        missingFields: ['taskTitle'],
+      };
+    }
+    return {
+      type: 'INTENT_MATCHED',
+      actionId: 'dev.plan_task',
+      parameters: { taskTitle },
+    };
+  }
+
+  // 14. Unsupported intent fallback
   return {
     type: 'UNSUPPORTED',
     message: "I couldn't match your request to a supported BFA operation. Here is what I can assist with:\n" +
@@ -490,7 +580,8 @@ function resolveIntent(message, context = {}) {
       "• **Single Apartment Check**: \"Is apartment 2 available tomorrow?\"\n" +
       "• **Reservation Details**: \"Show reservation BFA-2026-00001\"\n" +
       "• **Financials**: \"Summarize outstanding payments\"\n" +
-      "• **Booking**: \"Create reservation for John Doe in apartment 1 on 2026-11-20 with email john@example.com and phone 08012345678\"",
+      "• **Booking**: \"Create reservation for John Doe in apartment 1 on 2026-11-20 with email john@example.com and phone 08012345678\"\n" +
+      "• **Continuous Development**: \"Show development register\", \"System diagnostics\", or \"Plan task for Loyalty Points\"",
   };
 }
 

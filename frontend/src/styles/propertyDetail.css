@@ -1,0 +1,1220 @@
+/* ==========================================================================
+   BFA APARTMENTS — PROPERTY DETAIL & ROOM DISCOVERY PAGE
+   Microsoft Edge Inspired Atmosphere with Refined Real-Estate Luxury
+   ========================================================================== */
+
+.bfa-property-detail-page {
+  min-height: 100vh;
+  background: #090d16;
+  color: #f1f5f9;
+  font-family: var(--font-body, 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif);
+  position: relative;
+  overflow-x: hidden;
+}
+
+.bfa-property-main-content {
+  position: relative;
+  z-index: 10;
+  padding-top: 80px; /* Clears fixed transparent top nav */
+}
+
+/* Loading & Error States */
+.bfa-property-loading-container,
+.bfa-property-error-container {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 1.5rem;
+}
+
+.bfa-property-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: bfaPropSpin 0.8s linear infinite;
+}
+
+@keyframes bfaPropSpin {
+  to { transform: rotate(360deg); }
+}
+
+.bfa-return-home-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.4rem;
+  border-radius: 9999px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.bfa-return-home-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+}
+
+/* ==========================================================================
+   2. BUILDING HERO SHOWCASE BANNER
+   ========================================================================== */
+.bfa-property-hero-banner {
+  position: relative;
+  min-height: 520px;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: flex-end;
+  padding: 3.5rem 2.25rem 3rem;
+  box-sizing: border-box;
+}
+
+.bfa-property-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(9, 13, 22, 0.45) 0%,
+    rgba(9, 13, 22, 0.75) 60%,
+    rgba(9, 13, 22, 0.98) 100%
+  );
+  z-index: 1;
+}
+
+.bfa-property-hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Breadcrumbs */
+.bfa-property-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  margin-bottom: 1rem;
+}
+
+.bfa-property-breadcrumbs a {
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.bfa-property-breadcrumbs a:hover {
+  color: #60a5fa;
+}
+
+.bfa-breadcrumb-sep {
+  color: #64748b;
+}
+
+.bfa-breadcrumb-current {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Badges Row */
+.bfa-property-hero-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.bfa-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bfa-hero-badge.code {
+  background: rgba(37, 99, 235, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+}
+
+.bfa-hero-badge.status {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  color: #86efac;
+}
+
+.bfa-hero-badge.location {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+}
+
+.bfa-property-hero-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 2.75rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 0.5rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.bfa-property-hero-address {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1.05rem;
+  color: #93c5fd;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+.bfa-property-hero-desc {
+  max-width: 820px;
+  font-size: 1.02rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+  margin: 0 0 1.75rem;
+}
+
+/* Property Quick Metrics */
+.bfa-property-quick-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.bfa-metric-box {
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  padding: 0.95rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.bfa-metric-box-val {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #60a5fa;
+}
+
+.bfa-metric-box-lbl {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Hero CTAs */
+.bfa-property-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.bfa-hero-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1.65rem;
+  border-radius: 9999px;
+  background: #2563eb;
+  border: 1px solid #3b82f6;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+}
+
+.bfa-hero-primary-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.55);
+}
+
+.bfa-hero-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.72rem 1.45rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.bfa-hero-secondary-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-2px);
+}
+
+/* ==========================================================================
+   3. STICKY BUILDING SWITCHER BAR
+   ========================================================================== */
+.bfa-building-switcher-bar {
+  position: sticky;
+  top: 60px;
+  z-index: 40;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.75rem 2.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  box-sizing: border-box;
+}
+
+.bfa-switcher-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.bfa-switcher-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+}
+
+.bfa-switcher-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.bfa-switcher-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1.05rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #cbd5e1;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+
+.bfa-switcher-pill:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.bfa-switcher-pill.active {
+  background: #2563eb;
+  border-color: #60a5fa;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.35);
+}
+
+.bfa-switcher-pill small {
+  opacity: 0.8;
+  font-size: 0.72rem;
+}
+
+/* ==========================================================================
+   4. SECTION WRAPPERS & CONTAINERS
+   ========================================================================== */
+.bfa-property-section-wrap {
+  max-width: 1240px;
+  margin: 2.5rem auto;
+  padding: 0 1.5rem;
+  box-sizing: border-box;
+}
+
+.bfa-property-card-container {
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 24px;
+  padding: 2.25rem 2.5rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+}
+
+.bfa-section-header-compact {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.bfa-section-tag {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #2563eb;
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.bfa-section-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.4rem;
+  letter-spacing: -0.015em;
+}
+
+.bfa-section-sub {
+  font-size: 0.92rem;
+  color: #64748b;
+  margin: 0;
+  max-width: 720px;
+  line-height: 1.5;
+}
+
+.bfa-house-rules-pill {
+  display: flex;
+  align-items: center;
+  gap: 1.15rem;
+  padding: 0.5rem 1.15rem;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+/* Amenities Grid Columns */
+.bfa-amenities-grid-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.15rem;
+}
+
+.bfa-amenity-feature-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.95rem;
+  padding: 1.15rem;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  transition: transform 0.18s ease;
+}
+
+.bfa-amenity-feature-card:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+}
+
+.bfa-amenity-feature-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bfa-amenity-feature-card strong {
+  display: block;
+  font-size: 0.96rem;
+  color: #0f172a;
+  margin-bottom: 0.2rem;
+}
+
+.bfa-amenity-feature-card span {
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   5. ARCHITECTURAL GALLERY (Responsive Grid)
+   ========================================================================== */
+.bfa-gallery-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.bfa-gallery-tab {
+  padding: 0.45rem 1.15rem;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.bfa-gallery-tab:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.bfa-gallery-tab.active {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+.bfa-gallery-grid-responsive {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.bfa-gallery-card-item {
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-gallery-card-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  border-color: #93c5fd;
+}
+
+.bfa-gallery-card-img {
+  position: relative;
+  height: 180px;
+  background-size: cover;
+  background-position: center center;
+}
+
+.bfa-gallery-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.bfa-gallery-zoom-pill {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.2s ease;
+}
+
+.bfa-gallery-card-item:hover .bfa-gallery-zoom-pill {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bfa-gallery-card-meta {
+  padding: 0.95rem 1.15rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-gallery-card-meta h4 {
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.3rem;
+}
+
+.bfa-gallery-card-meta p {
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   6. ROOM-TYPES DISCOVERY SECTION
+   ========================================================================== */
+.bfa-room-types-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1.5rem;
+}
+
+.bfa-room-type-feature-card {
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bfa-room-type-feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  border-color: #93c5fd;
+}
+
+.bfa-room-type-cover {
+  position: relative;
+  height: 220px;
+  background-size: cover;
+  background-position: center center;
+}
+
+.bfa-room-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.5) 100%);
+}
+
+.bfa-room-avail-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.bfa-room-avail-tag.available {
+  background: rgba(34, 197, 94, 0.92);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+}
+
+.bfa-room-avail-tag.booked {
+  background: rgba(239, 68, 68, 0.88);
+  color: #ffffff;
+}
+
+.bfa-room-type-content {
+  padding: 1.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-room-type-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.bfa-room-card-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.35rem;
+  line-height: 1.2;
+}
+
+.bfa-room-spec-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.bfa-room-price-stack {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.bfa-room-price-val {
+  display: block;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #2563eb;
+  line-height: 1.1;
+}
+
+.bfa-room-price-unit {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.bfa-room-card-description {
+  font-size: 0.86rem;
+  color: #475569;
+  line-height: 1.55;
+  margin: 0 0 1rem;
+}
+
+.bfa-room-amenities-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.4rem;
+}
+
+.bfa-room-amenity-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+}
+
+.bfa-room-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: auto;
+}
+
+.bfa-room-specs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-room-specs-btn:hover {
+  background: #e2e8f0;
+}
+
+.bfa-room-book-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+  color: #ffffff;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.35);
+}
+
+.bfa-room-book-cta:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   7. RESERVATION ENGINE FORM
+   ========================================================================== */
+.bfa-booking-flow-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-booking-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.bfa-form-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.bfa-form-input-group label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bfa-form-input-group input,
+.bfa-form-input-group select {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.92rem;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.bfa-form-input-group input:focus,
+.bfa-form-input-group select:focus {
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.bfa-check-avail-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.85rem 1.85rem;
+  border-radius: 12px;
+  background: #2563eb;
+  border: none;
+  color: #ffffff;
+  font-size: 0.94rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+}
+
+.bfa-check-avail-action-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-2px);
+}
+
+.bfa-avail-banner {
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.bfa-avail-banner.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.bfa-avail-banner.success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.bfa-verified-status-tag {
+  display: inline-block;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Guest Details Section */
+.bfa-guest-details-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+
+.bfa-guest-step-title {
+  margin: 0 0 1.25rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bfa-guest-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.15rem;
+  margin-bottom: 1.25rem;
+}
+
+.bfa-payment-selection-row {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.bfa-payment-option-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.bfa-submit-reservation-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.95rem 1.5rem;
+  border-radius: 12px;
+  background: #16a34a;
+  border: none;
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.4);
+}
+
+.bfa-submit-reservation-btn:hover:not(:disabled) {
+  background: #15803d;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.55);
+}
+
+/* Booking Confirmation Card */
+.bfa-booking-confirmed-card {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  background: #f0fdf4;
+  border: 2px solid #86efac;
+  border-radius: 20px;
+}
+
+.bfa-confirm-icon-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #ffffff;
+  font-size: 1.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4);
+}
+
+.bfa-confirm-heading {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #14532d;
+  margin: 0 0 0.5rem;
+}
+
+.bfa-confirm-sub {
+  color: #166534;
+  font-size: 0.95rem;
+  margin: 0 0 1.5rem;
+}
+
+.bfa-confirm-details-box {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  background: #ffffff;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  max-width: 720px;
+  margin: 0 auto 1.5rem;
+  text-align: left;
+}
+
+.bfa-confirm-field span {
+  display: block;
+  font-size: 0.74rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.bfa-confirm-field strong {
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.bfa-confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.bfa-wa-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.45rem;
+  border-radius: 9999px;
+  background: #16a34a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.92rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.bfa-wa-confirm-btn:hover {
+  background: #15803d;
+  transform: translateY(-2px);
+}
+
+.bfa-new-booking-btn {
+  padding: 0.72rem 1.25rem;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bfa-new-booking-btn:hover {
+  background: #e2e8f0;
+}
+
+/* ==========================================================================
+   8. LIGHTBOX MODAL (Full-Screen High-Res Inspection)
+   ========================================================================== */
+.bfa-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  animation: bfaFadeIn 0.2s ease-out;
+}
+
+.bfa-lightbox-modal {
+  position: relative;
+  max-width: 1000px;
+  width: 100%;
+  background: #0f172a;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-lightbox-img {
+  width: 100%;
+  max-height: 65vh;
+  object-fit: cover;
+  display: block;
+}
+
+.bfa-lightbox-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.15s ease;
+}
+
+.bfa-lightbox-close:hover {
+  background: rgba(0, 0, 0, 0.88);
+  transform: scale(1.1);
+}
+
+.bfa-lightbox-arrow {
+  position: absolute;
+  top: 40%;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.bfa-lightbox-arrow.left {
+  left: 16px;
+}
+
+.bfa-lightbox-arrow.right {
+  right: 16px;
+}
+
+.bfa-lightbox-arrow:hover {
+  background: rgba(37, 99, 235, 0.85);
+  transform: scale(1.1);
+}
+
+.bfa-lightbox-caption {
+  padding: 1.25rem 1.75rem;
+  background: #0f172a;
+}
+
+.bfa-lightbox-badge {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #60a5fa;
+  margin-bottom: 0.35rem;
+  display: block;
+}
+
+.bfa-lightbox-caption h3 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 0.35rem;
+}
+
+.bfa-lightbox-caption p {
+  font-size: 0.86rem;
+  color: #cbd5e1;
+  margin: 0 0 0.5rem;
+  line-height: 1.5;
+}
+
+.bfa-lightbox-counter {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .bfa-property-hero-banner {
+    min-height: auto;
+    padding: 2rem 1.25rem;
+  }
+  .bfa-property-hero-title {
+    font-size: 1.95rem;
+  }
+  .bfa-property-hero-desc {
+    font-size: 0.92rem;
+  }
+  .bfa-building-switcher-bar {
+    top: 55px;
+    padding: 0.65rem 1rem;
+  }
+  .bfa-property-section-wrap {
+    padding: 0 1rem;
+    margin: 1.5rem auto;
+  }
+  .bfa-property-card-container {
+    padding: 1.5rem 1.25rem;
+    border-radius: 18px;
+  }
+  .bfa-room-types-catalog-grid {
+    grid-template-columns: 1fr;
+  }
+  .bfa-room-card-actions {
+    grid-template-columns: 1fr;
+  }
+}
+

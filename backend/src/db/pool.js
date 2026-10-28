@@ -1,6 +1,7 @@
 const mysql = require('mysql2/promise');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { assertTestDatabase } = require('./databaseGuard');
 
 let pool = null;
 
@@ -9,6 +10,11 @@ let pool = null;
  */
 function getPool() {
   if (!pool) {
+    // Fail-Closed Guard: In test environment, explicitly prevent connection to shared/production databases
+    if (config.app.isTest) {
+      assertTestDatabase(config.db.database, 'MySQL Connection Pool Initialization');
+    }
+
     pool = mysql.createPool({
       host: config.db.host,
       port: config.db.port,

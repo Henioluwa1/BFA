@@ -42,6 +42,7 @@ class EmployeePerformanceService {
     let inspectionsCompleted = 0;
     let reservationsCreated = 0;
     let frontOfficeCheckIns = 0;
+    let clientsAccepted = 0;
 
     // Check if employee has associated user_id
     if (employee.user_id) {
@@ -73,6 +74,15 @@ class EmployeePerformanceService {
         [employee.user_id, fromStr, toStr]
       );
       reservationsCreated = parseInt(resRows?.count || 0, 10);
+
+      // Clients accepted and assigned to front-desk staff
+      const [acceptedRows] = await pool.query(
+        `SELECT COUNT(id) AS count 
+         FROM reservations 
+         WHERE assigned_staff_id = ? AND DATE(accepted_at) >= ? AND DATE(accepted_at) <= ?`,
+        [employee.user_id, fromStr, toStr]
+      );
+      clientsAccepted = Math.max(clientsAccepted, parseInt(acceptedRows[0]?.count || 0, 10));
     }
 
     // Direct activities categorized
@@ -85,13 +95,14 @@ class EmployeePerformanceService {
     );
     actRows.forEach((r) => {
       if (r.activity_type === 'GUEST_CHECKED_IN') frontOfficeCheckIns += parseInt(r.count, 10);
+      if (r.activity_type === 'CLIENT_ACCEPTED') clientsAccepted += parseInt(r.count, 10);
       if (r.activity_type === 'MAINTENANCE_RESOLVED' && maintenanceResolved === 0) maintenanceResolved += parseInt(r.count, 10);
       if (r.activity_type === 'INSPECTION_COMPLETED' && inspectionsCompleted === 0) inspectionsCompleted += parseInt(r.count, 10);
       if (r.activity_type === 'RESERVATION_CREATED' && reservationsCreated === 0) reservationsCreated += parseInt(r.count, 10);
     });
 
     const totalOperationalActions =
-      maintenanceResolved + inspectionsCompleted + reservationsCreated + frontOfficeCheckIns + activitySummary.totalActivities;
+      maintenanceResolved + inspectionsCompleted + reservationsCreated + frontOfficeCheckIns + clientsAccepted + activitySummary.totalActivities;
 
     return {
       period: { fromDate: fromStr, toDate: toStr, days: totalDays },
@@ -104,6 +115,7 @@ class EmployeePerformanceService {
         inspectionsCompleted,
         reservationsCreated,
         frontOfficeCheckIns,
+        clientsAccepted,
         totalOperationalActions,
         categoryBreakdown: activitySummary.byCategory,
       },

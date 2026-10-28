@@ -18,8 +18,15 @@ async function getPublicProperties(req, res, next) {
         p.code, 
         p.address, 
         p.city, 
+        p.state,
+        p.country,
+        p.description,
+        p.amenities,
+        p.check_in_time,
+        p.check_out_time,
         p.status,
         COUNT(a.id) AS total_units,
+        COUNT(CASE WHEN a.status = 'AVAILABLE' AND a.is_active = 1 THEN a.id END) AS available_units,
         MIN(a.rate_per_night) AS starting_rate
       FROM properties p
       LEFT JOIN apartments a ON p.id = a.property_id
@@ -28,10 +35,17 @@ async function getPublicProperties(req, res, next) {
       ORDER BY p.id ASC
     `);
 
+    const scrubbedRows = rows.map((row) => ({
+      ...row,
+      amenities: typeof row.amenities === 'string' ? (() => {
+        try { return JSON.parse(row.amenities); } catch { return []; }
+      })() : (row.amenities || []),
+    }));
+
     res.status(200).json({
       success: true,
       message: 'Active public properties retrieved.',
-      data: rows,
+      data: scrubbedRows,
       meta: { timestamp: new Date().toISOString(), requestId: req.id },
     });
   } catch (err) {
@@ -43,6 +57,9 @@ async function getPublicProperties(req, res, next) {
 async function getPublicApartments(req, res, next) {
   try {
     const propertyId = req.query.propertyId ? parseInt(req.query.propertyId, 10) : null;
+    const includeAll = req.query.includeAll === 'true' || req.query.all === 'true';
+    const statusFilter = req.query.status;
+
     let sql = `
       SELECT 
         a.id, 
@@ -53,24 +70,247 @@ async function getPublicApartments(req, res, next) {
         a.unit_name, 
         a.unit_type, 
         a.rate_per_night,
+        a.floor,
+        a.capacity,
+        a.bedroom_count,
+        a.bathroom_count,
+        a.amenities,
         a.status
       FROM apartments a
       JOIN properties p ON a.property_id = p.id
-      WHERE a.status = 'AVAILABLE' AND p.status = 'ACTIVE'
+      WHERE p.status = 'ACTIVE'
     `;
     const params = [];
+
+    if (statusFilter) {
+      sql += ' AND a.status = ?';
+      params.push(statusFilter);
+    } else if (!includeAll) {
+      sql += " AND a.status = 'AVAILABLE'";
+    }
+
     if (propertyId) {
       sql += ' AND a.property_id = ?';
       params.push(propertyId);
     }
-    sql += ' ORDER BY a.rate_per_night ASC';
+    sql += ' ORDER BY a.rate_per_night ASC, a.unit_number ASC';
 
     const rows = await db.query(sql, params);
+
+    const scrubbedRows = rows.map((row) => ({
+      ...row,
+      amenities: typeof row.amenities === 'string' ? (() => {
+        try { return JSON.parse(row.amenities); } catch { return []; }
+      })() : (row.amenities || []),
+    }));
 
     res.status(200).json({
       success: true,
       message: 'Available apartments retrieved.',
-      data: rows,
+      data: scrubbedRows,
+      meta: { timestamp: new Date().toISOString(), requestId: req.id },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// 2b. Public Property Detail & Room Types Showcase
+async function getPublicPropertyDetail(req, res, next) {
+  try {
+    const propertyId = parseInt(req.params.id, 10);
+    if (!propertyId || isNaN(propertyId)) {
+      throw new ValidationError('A valid numeric property ID is required.');
+    }
+
+    const propRows = await db.query(
+      `SELECT 
+        p.id, 
+        p.name, 
+        p.code, 
+        p.address, 
+        p.city, 
+        p.state,
+        p.country,
+        p.description,
+        p.contact_phone,
+        p.contact_email,
+        p.amenities,
+        p.check_in_time,
+        p.check_out_time,
+        p.status
+      FROM properties p 
+      WHERE p.id = ? AND p.status = 'ACTIVE'`,
+      [propertyId]
+    );
+
+    if (propRows.length === 0) {
+      throw new NotFoundError('Property not found or is currently not active for public booking.');
+    }
+
+    const property = {
+      ...propRows[0],
+      amenities: typeof propRows[0].amenities === 'string' ? (() => {
+        try { return JSON.parse(propRows[0].amenities); } catch { return []; }
+      })() : (propRows[0].amenities || []),
+    };
+
+    const unitRows = await db.query(
+      `SELECT 
+        a.id, 
+        a.property_id, 
+        a.unit_number, 
+        a.unit_name, 
+        a.unit_type, 
+        a.rate_per_night,
+        a.floor,
+        a.capacity,
+        a.bedroom_count,
+        a.bathroom_count,
+        a.amenities,
+        a.status
+      FROM apartments a
+      WHERE a.property_id = ? AND a.is_active = 1
+      ORDER BY a.rate_per_night ASC, a.unit_number ASC`,
+      [propertyId]
+    );
+
+    const units = unitRows.map((u) => ({
+      ...u,
+      amenities: typeof u.amenities === 'string' ? (() => {
+        try { return JSON.parse(u.amenities); } catch { return []; }
+      })() : (u.amenities || []),
+    }));
+
+    // Group units into Room Types
+    const roomTypeMap = new Map();
+    for (const unit of units) {
+      const typeKey = unit.unit_type || 'Standard Suite';
+      if (!roomTypeMap.has(typeKey)) {
+        roomTypeMap.set(typeKey, {
+          unitType: typeKey,
+          startingRate: parseFloat(unit.rate_per_night) || 0,
+          capacity: unit.capacity || 2,
+          bedroomCount: unit.bedroom_count || 1,
+          bathroomCount: unit.bathroom_count || 1,
+          amenities: Array.isArray(unit.amenities) && unit.amenities.length > 0 ? unit.amenities : property.amenities,
+          totalUnits: 0,
+          availableUnits: 0,
+          unitIds: [],
+          units: [],
+        });
+      }
+      const roomType = roomTypeMap.get(typeKey);
+      roomType.totalUnits += 1;
+      if (unit.status === 'AVAILABLE') {
+        roomType.availableUnits += 1;
+      }
+      const unitRate = parseFloat(unit.rate_per_night) || 0;
+      if (unitRate < roomType.startingRate || roomType.startingRate === 0) {
+        roomType.startingRate = unitRate;
+      }
+      roomType.unitIds.push(unit.id);
+      roomType.units.push(unit);
+    }
+
+    const roomTypes = Array.from(roomTypeMap.values());
+
+    res.status(200).json({
+      success: true,
+      message: 'Property detail and room types retrieved.',
+      data: {
+        property,
+        roomTypes,
+        units,
+        totalUnits: units.length,
+        availableUnits: units.filter((u) => u.status === 'AVAILABLE').length,
+        startingRate: roomTypes.length > 0 ? Math.min(...roomTypes.map((rt) => rt.startingRate)) : 0,
+      },
+      meta: { timestamp: new Date().toISOString(), requestId: req.id },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// 2c. Public Property Room Types Listing
+async function getPublicRoomTypes(req, res, next) {
+  try {
+    const propertyId = parseInt(req.params.id, 10);
+    if (!propertyId || isNaN(propertyId)) {
+      throw new ValidationError('A valid numeric property ID is required.');
+    }
+
+    const propRows = await db.query(
+      'SELECT id, name, code, city, amenities FROM properties WHERE id = ? AND status = "ACTIVE"',
+      [propertyId]
+    );
+    if (propRows.length === 0) {
+      throw new NotFoundError('Property not found or is currently not active.');
+    }
+
+    const property = propRows[0];
+    const defaultAmenities = typeof property.amenities === 'string' ? (() => {
+      try { return JSON.parse(property.amenities); } catch { return []; }
+    })() : (property.amenities || []);
+
+    const unitRows = await db.query(
+      `SELECT 
+        a.id, 
+        a.property_id, 
+        a.unit_number, 
+        a.unit_name, 
+        a.unit_type, 
+        a.rate_per_night,
+        a.floor,
+        a.capacity,
+        a.bedroom_count,
+        a.bathroom_count,
+        a.amenities,
+        a.status
+      FROM apartments a
+      WHERE a.property_id = ? AND a.is_active = 1
+      ORDER BY a.rate_per_night ASC, a.unit_number ASC`,
+      [propertyId]
+    );
+
+    const roomTypeMap = new Map();
+    for (const unit of unitRows) {
+      const typeKey = unit.unit_type || 'Standard Suite';
+      if (!roomTypeMap.has(typeKey)) {
+        const parsedAmn = typeof unit.amenities === 'string' ? (() => {
+          try { return JSON.parse(unit.amenities); } catch { return defaultAmenities; }
+        })() : (unit.amenities || defaultAmenities);
+
+        roomTypeMap.set(typeKey, {
+          unitType: typeKey,
+          startingRate: parseFloat(unit.rate_per_night) || 0,
+          capacity: unit.capacity || 2,
+          bedroomCount: unit.bedroom_count || 1,
+          bathroomCount: unit.bathroom_count || 1,
+          amenities: parsedAmn,
+          totalUnits: 0,
+          availableUnits: 0,
+          sampleUnitId: unit.id,
+          unitNumbers: [],
+        });
+      }
+      const roomType = roomTypeMap.get(typeKey);
+      roomType.totalUnits += 1;
+      if (unit.status === 'AVAILABLE') {
+        roomType.availableUnits += 1;
+      }
+      const unitRate = parseFloat(unit.rate_per_night) || 0;
+      if (unitRate < roomType.startingRate || roomType.startingRate === 0) {
+        roomType.startingRate = unitRate;
+      }
+      roomType.unitNumbers.push(unit.unit_number);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Room types for property retrieved.',
+      data: Array.from(roomTypeMap.values()),
       meta: { timestamp: new Date().toISOString(), requestId: req.id },
     });
   } catch (err) {
@@ -252,6 +492,8 @@ async function getPublicAnnouncements(req, res, next) {
 module.exports = {
   getPublicProperties,
   getPublicApartments,
+  getPublicPropertyDetail,
+  getPublicRoomTypes,
   checkAvailability,
   createPublicBooking,
   getPublicAnnouncements,

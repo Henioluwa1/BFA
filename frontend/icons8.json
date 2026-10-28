@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "icons": {
+    "pack": "fluent-systems-regular",
+    "sizes": [16, 20, 24, 32, 48, 64],
+    "color": "currentColor",
+    "items": {
+      "search": { "id": "XU3XKgdpT0qG", "commonName": "search" },
+      "building": { "id": "0JrIGuVzvy38", "commonName": "building" },
+      "water": { "id": "fcF1THrGgtl4", "commonName": "water" },
+      "palmTree": { "id": "ZRywC2TrciPI", "commonName": "palm-tree" },
+      "gallery": { "id": "RiINzCcRRibi", "commonName": "gallery" },
+      "calendar": { "id": "84997", "commonName": "calendar" },
+      "shieldCheck": { "id": "vy6OvJYHSJ8I", "commonName": "shield" },
+      "lightning": { "id": "ce15jJ99meTS", "commonName": "lightning-bolt" },
+      "phone": { "id": "Iw5aeMT37fzK", "commonName": "phone" },
+      "chat": { "id": "8h51YOzhBJmT", "commonName": "speech-bubble" },
+      "location": { "id": "G9orIEQB5ZoP", "commonName": "marker--v2" },
+      "menu": { "id": "quuyJoZCkYni", "commonName": "menu" },
+      "close": { "id": "1NVn5K29mOSz", "commonName": "delete-sign" },
+      "login": { "id": "DXc6Ki803SDo", "commonName": "login-rounded-right" },
+      "viewEye": { "id": "85028", "commonName": "visible" },
+      "wifi": { "id": "4Wl7X1Zq2X4x", "commonName": "wi-fi" },
+      "cleaning": { "id": "PaGH5C5jnwMt", "commonName": "broom" },
+      "maintenance": { "id": "VuNO5eSHIj35", "commonName": "wrench" },
+      "parking": { "id": "OxNBUwEP7Vwa", "commonName": "parking" },
+      "creditCard": { "id": "zGTyD67wO6ym", "commonName": "credit-card-front" },
+      "bank": { "id": "jIzS1iHsXHbK", "commonName": "bank" },
+      "mobilePhone": { "id": "5bsAO1V6JIJN", "commonName": "phone" },
+      "wallpaper": { "id": "NDIMAFy35qo3", "commonName": "picture" },
+      "weatherPartlyCloudy": { "id": "1MUqfGWx3fZS", "commonName": "partly-cloudy-day" }
+    }
+  },
+  "tokens": {
+    "iconColor": "--foreground",
+    "accent": "--primary",
+    "radius": "--radius"
+  }
+}
+

@@ -38,6 +38,27 @@ class FrontOfficeService {
   }
 
   /**
+   * Get pending incoming bookings awaiting front-desk assignment and approval
+   */
+  static async getPendingBookings(query, req = null) {
+    return FrontOfficeRepository.getPendingBookings({
+      propertyId: query.propertyId,
+      user: req?.user,
+    });
+  }
+
+  /**
+   * Get live operational activity feed for Managers and Admins
+   */
+  static async getLiveOperationalFeed(query, req = null) {
+    return FrontOfficeRepository.getLiveOperationalFeed({
+      propertyId: query.propertyId,
+      user: req?.user,
+      limit: query.limit || 25,
+    });
+  }
+
+  /**
    * Get front-office operational stats
    */
   static async getOperationalStats(query, req = null) {
@@ -47,6 +68,14 @@ class FrontOfficeService {
       date,
       user: req?.user,
     });
+  }
+
+  /**
+   * Accept client and approve booking at front desk
+   * Concurrency-guarded: One client cannot be assigned to two front desk staffs
+   */
+  static async acceptReservation(reservationId, req = null) {
+    return ReservationsService.acceptReservation(reservationId, req);
   }
 
   /**

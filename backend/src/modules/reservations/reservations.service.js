@@ -6,8 +6,10 @@ const BookingAuthService = require('../bookingAuth/bookingAuth.service');
 const AuditService = require('../../core/audit/audit.service');
 const NotificationsService = require('../notifications/notifications.service');
 const EmployeeActivitiesService = require('../employees/employeeActivities.service');
-const { ValidationError, ConflictError, NotFoundError, ForbiddenError } = require('../../core/errors/apiError');
+const { ValidationError, ConflictError, NotFoundError, ForbiddenError, BadRequestError } = require('../../core/errors/apiError');
 const logger = require('../../utils/logger');
+const { broadcastOperationalEvent } = require('../../core/socket/socketEmitter');
+const EmployeesRepository = require('../employees/employees.repository');
 
 class ReservationsService {
   /**
@@ -396,7 +398,33 @@ class ReservationsService {
       return reservationId;
     });
 
-    return await ReservationsRepository.findById(reservationId);
+    const createdReservation = await ReservationsRepository.findById(reservationId);
+    try {
+      broadcastOperationalEvent('frontdesk:new_booking', {
+        id: reservationId,
+        reservationCode: createdReservation?.reservation_code,
+        tenantName: createdReservation?.tenant_name,
+        tenantEmail: createdReservation?.tenant_email,
+        tenantPhone: createdReservation?.tenant_phone,
+        propertyId: createdReservation?.property_id,
+        propertyName: createdReservation?.property_name,
+        apartmentId: createdReservation?.apartment_id,
+        unitNumber: createdReservation?.unit_number,
+        unitName: createdReservation?.unit_name,
+        checkInDate: createdReservation?.check_in_date,
+        checkOutDate: createdReservation?.check_out_date,
+        totalAmount: createdReservation?.total_amount,
+        status: createdReservation?.status,
+        paymentStatus: createdReservation?.payment_status,
+        assignedStaffId: createdReservation?.assigned_staff_id || null,
+        createdAt: createdReservation?.created_at,
+      }, {
+        propertyId: createdReservation?.property_id,
+      });
+    } catch (bcErr) {
+      logger.warn('Failed to broadcast new booking event:', { error: bcErr.message });
+    }
+    return createdReservation;
   }
 
   /**
@@ -483,7 +511,7 @@ class ReservationsService {
       });
     });
 
-    return ReservationsRepository.findById(id);
+    return ReservationsRepository.findById(id, conn);
   }
 
   /**
@@ -798,6 +826,156 @@ class ReservationsService {
 
     return ReservationsRepository.findById(id);
   }
+
+  /**
+   * Accept client and approve booking at front desk
+   * Concurrency Guard: One client cannot be assigned to two front desk staff members
+   * Unit Availability: Cannot be approved if unit is MAINTENANCE, BLOCKED, or has conflicting bookings
+   * Staff Performance: Automatically attributes to the accepting staff member's performance evaluation
+   */
+  static async acceptReservation(reservationId, req = null) {
+    const id = parseInt(reservationId, 10);
+    const userId = req?.user?.id;
+    if (!userId) {
+      throw new ForbiddenError('Authentication required to accept reservations.');
+    }
+
+    return pool.withTransaction(async (conn) => {
+      // 1. Fetch reservation with exclusive row lock
+      const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
+      if (!resRows || resRows.length === 0) {
+        throw new NotFoundError(`Reservation #${id} not found.`);
+      }
+      const reservation = resRows[0];
+
+      // 2. Validate Property Scope
+      this.validatePropertyScope(req?.user, reservation.property_id);
+
+      // 3. Strict Concurrency Lock: One client cannot be assigned to two front desk staffs
+      if (reservation.assigned_staff_id && reservation.assigned_staff_id !== userId) {
+        const [assignedStaffRows] = await conn.query('SELECT name FROM users WHERE id = ?', [reservation.assigned_staff_id]);
+        const staffName = assignedStaffRows[0]?.name || `Staff #${reservation.assigned_staff_id}`;
+        throw new ConflictError(
+          `One client cannot be assigned to two front desk staffs. This reservation has already been accepted and assigned to ${staffName}.`
+        );
+      }
+
+      // 4. Unit Availability Verification
+      const [aptRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [reservation.apartment_id]);
+      if (!aptRows || aptRows.length === 0) {
+        throw new NotFoundError(`Assigned unit #${reservation.apartment_id} not found.`);
+      }
+      const apt = aptRows[0];
+
+      if (['MAINTENANCE', 'BLOCKED', 'OUT_OF_SERVICE'].includes(apt.status)) {
+        throw new BadRequestError(
+          `Unit is currently in ${apt.status} status and cannot be approved for check-in until released from maintenance.`
+        );
+      }
+
+      // Check overlapping active reservations (excluding current)
+      const [overlapping] = await conn.query(
+        `SELECT id, reservation_code FROM reservations 
+         WHERE apartment_id = ? 
+           AND id != ? 
+           AND status IN ('CONFIRMED', 'CHECKED_IN')
+           AND check_in_date < ? 
+           AND check_out_date > ? 
+         LIMIT 1`,
+        [reservation.apartment_id, id, reservation.check_out_date, reservation.check_in_date]
+      );
+      if (overlapping && overlapping.length > 0) {
+        throw new ConflictError(
+          `Unit '${apt.unit_name}' has a conflicting active reservation (#${overlapping[0].reservation_code}) for the requested period.`
+        );
+      }
+
+      // 5. Atomic Assignment and Status Update
+      const [updateResult] = await conn.query(
+        `UPDATE reservations 
+         SET assigned_staff_id = ?, 
+             accepted_by_user_id = ?, 
+             accepted_at = NOW(), 
+             status = 'CONFIRMED',
+             updated_by = ?
+         WHERE id = ? AND (assigned_staff_id IS NULL OR assigned_staff_id = ?)`,
+        [userId, userId, userId, id, userId]
+      );
+
+      if (updateResult.affectedRows === 0) {
+        throw new ConflictError(
+          'Concurrent assignment conflict detected: another staff member accepted this reservation simultaneously.'
+        );
+      }
+
+      // 6. Record Status History
+      await ReservationsRepository.recordStatusHistory(
+        {
+          reservationId: id,
+          fromStatus: reservation.status,
+          toStatus: 'CONFIRMED',
+          actorId: userId,
+          actorRole: req?.user?.role || 'STAFF',
+          notes: `Client accepted and booking approved by ${req?.user?.name || 'Staff'}`,
+        },
+        conn
+      );
+
+      // 7. Record Staff Activity for Employee Performance Evaluation
+      const [empRows] = await conn.query('SELECT id, full_name FROM employees WHERE user_id = ?', [userId]);
+      if (empRows && empRows.length > 0) {
+        const empId = empRows[0].id;
+        await conn.query(
+          `INSERT INTO employee_activities (
+             employee_id, property_id, activity_type, description, metadata, created_at
+           ) VALUES (?, ?, 'CLIENT_ACCEPTED', ?, ?, NOW())`,
+          [
+            empId,
+            reservation.property_id,
+            `Front desk staff ${req?.user?.name || empRows[0].full_name} accepted client ${reservation.tenant_name} into the system (Unit ${apt.unit_number})`,
+            JSON.stringify({
+              reservationId: id,
+              reservationCode: reservation.reservation_code,
+              tenantName: reservation.tenant_name,
+              unitNumber: apt.unit_number,
+              totalAmount: reservation.total_amount,
+            }),
+          ]
+        );
+      }
+
+      // 8. Record System Audit Log
+      await AuditService.record({
+        req,
+        action: 'CLIENT_ACCEPTED',
+        entityType: 'reservation',
+        entityId: id,
+        newValues: {
+          assigned_staff_id: userId,
+          accepted_by_user_id: userId,
+          status: 'CONFIRMED',
+        },
+      });
+
+      // 9. Real-time broadcast to front-desk consoles
+      try {
+        broadcastOperationalEvent('frontdesk:client_accepted', {
+          reservationId: id,
+          reservationCode: reservation.reservation_code,
+          tenantName: reservation.tenant_name,
+          assignedStaffId: userId,
+          assignedStaffName: req?.user?.name || 'Front Desk Staff',
+          unitNumber: apt.unit_number,
+          status: 'CONFIRMED',
+        });
+      } catch (bcErr) {
+        logger.warn(`Broadcast failed for client acceptance: ${bcErr.message}`);
+      }
+
+      return ReservationsRepository.findById(id, conn);
+    });
+  }
+
 }
 
 module.exports = ReservationsService;

@@ -8,6 +8,7 @@ const HealthController = require('./modules/health/health.controller');
 const http = require('http');
 const { Server } = require('socket.io');
 const { initializeChatSocket } = require('./modules/chat/chat.socket');
+const { setIO } = require('./core/socket/socketEmitter');
 
 const PORT = config.app.port;
 
@@ -43,6 +44,7 @@ async function startServer() {
       transports: ['websocket', 'polling'],
     });
 
+    setIO(io);
     initializeChatSocket(io);
 
     const server = httpServer.listen(PORT, () => {

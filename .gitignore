@@ -12,10 +12,19 @@ build/
 
 # Environment Variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!.env.production.example
+!.env.test.example
+!backend/.env.example
+!backend/.env.production.example
+!backend/.env.test.example
+
+# Scratch, Local QA Profiles & Agent Clones
+.edge_qa_profile_clean/
+frontend/scratch/
+frontend/.agents/
+backend/scripts/
 
 # Logs
 logs
@@ -33,6 +42,7 @@ yarn-error.log*
 *.ntvs*
 *.njsproj
 *.sln
+
 # Uploads
 backend/uploads/*
 !backend/uploads/**/.gitkeep
@@ -45,4 +55,3 @@ backups/
 # Credentials & Secrets
 credentials.txt
 docs/credentials.txt
-

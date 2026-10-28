@@ -2,11 +2,57 @@ const ApiResponse = require('../../utils/apiResponse');
 const pool = require('../../db/pool');
 const config = require('../../config');
 const auditService = require('../../core/audit/audit.service');
+const OperationsControlService = require('./operationsControl.service');
 
 /**
  * System Information and Settings Controller
  */
 class SystemController {
+  static async getOperationsOverview(req, res, next) {
+    try {
+      const overview = await OperationsControlService.getOverview(req.user);
+      return ApiResponse.success(res, {
+        message: 'Operations Control Center overview retrieved successfully',
+        data: overview,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async toggleModule(req, res, next) {
+    try {
+      const result = await OperationsControlService.toggleModule({
+        moduleId: req.params.id,
+        isEnabled: req.body.isEnabled,
+        reason: req.body.reason,
+        caller: req.user,
+        req,
+      });
+      return ApiResponse.success(res, {
+        message: `Module '${result.name}' successfully ${result.isEnabled ? 'enabled' : 'disabled'}.`,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async createBackup(req, res, next) {
+    try {
+      const result = await OperationsControlService.createBackupSnapshot({
+        caller: req.user,
+        req,
+      });
+      return ApiResponse.created(res, {
+        message: 'Database backup snapshot generated successfully.',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getInfo(req, res, next) {
     try {
       // Query system settings from database
@@ -40,6 +86,7 @@ class SystemController {
             { id: 'inspection', name: 'Inspection', path: '/inspection', phase: 6, ready: true },
             { id: 'team', name: 'Team', path: '/team', phase: 2, ready: true },
             { id: 'settings', name: 'Settings', path: '/settings', phase: 11, ready: true },
+            { id: 'operations', name: 'Operations Control Center', path: '/operations', phase: 12, ready: true },
           ],
         },
       });

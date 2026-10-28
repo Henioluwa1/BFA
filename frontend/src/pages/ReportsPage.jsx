@@ -7,6 +7,8 @@ import { reportService } from '../services/api';
 import { useProperty } from '../context/PropertyContext';
 import { useToast } from '../context/ToastContext';
 import { formatNaira } from '../utils/currency';
+import { GroupedBarChart, DoughnutChart } from '../components/ui/Charts';
+
 
 const REPORT_DEFINITIONS = [
   { id: 'reservations', label: 'Reservations', icon: '📅', hasPdf: false },
@@ -393,48 +395,84 @@ export default function ReportsPage() {
         </div>
       </Card>
 
-      {/* Financial Summary Cards if Financial selected */}
+      {/* Financial Summary Cards & Interactive Charts */}
       {reportType === 'financial' && financialSummary && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '1rem',
-            marginBottom: '1.5rem',
-          }}
-        >
-          <Card>
-            <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-              Total Booked Value
-            </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.25rem' }}>
-              {formatNaira(financialSummary.totalRevenue)}
-            </div>
-          </Card>
-          <Card>
-            <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-              Gross Collected
-            </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#16a34a', marginTop: '0.25rem' }}>
-              {formatNaira(financialSummary.grossCollected || financialSummary.totalCollected)}
-            </div>
-          </Card>
-          <Card>
-            <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-              Processed Refunds
-            </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#ef4444', marginTop: '0.25rem' }}>
-              {formatNaira(financialSummary.totalRefunded || 0)}
-            </div>
-          </Card>
-          <Card>
-            <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-              Net Operating Profit
-            </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--brand-accent, #ca8a04)', marginTop: '0.25rem' }}>
-              {formatNaira(financialSummary.netProfit)}
-            </div>
-          </Card>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          {/* 4 Core KPIs */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '1rem',
+            }}
+          >
+            <Card>
+              <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Gross Booked Value
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.25rem' }}>
+                {formatNaira(financialSummary.totalRevenue)}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Total active reservations</div>
+            </Card>
+            <Card>
+              <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Net Collections
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#10b981', marginTop: '0.25rem' }}>
+                {formatNaira(financialSummary.netCollections || (financialSummary.grossCollected - (financialSummary.totalRefunded || 0)))}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Gross minus processed refunds</div>
+            </Card>
+            <Card>
+              <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Outstanding Receivables
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#c25e2e', marginTop: '0.25rem' }}>
+                {formatNaira(financialSummary.totalOutstanding || 0)}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Uncollected stay balances</div>
+            </Card>
+            <Card>
+              <div style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Net Operating Profit
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 700, color: parseFloat(financialSummary.netProfit || 0) >= 0 ? 'var(--brand-accent, #ca8a04)' : '#ef4444', marginTop: '0.25rem' }}>
+                {formatNaira(financialSummary.netProfit)}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>After approved expenses</div>
+            </Card>
+          </div>
+
+          {/* Interactive Visualizations */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>
+            <Card>
+              <GroupedBarChart
+                title="Revenue & Collections Monthly Trend"
+                data={financialSummary.monthlyTrends || []}
+                xKey="period"
+                bars={[
+                  { key: 'bookedRevenue', label: 'Booked Revenue', color: '#3b82f6' },
+                  { key: 'netCollections', label: 'Net Collections', color: '#10b981' },
+                ]}
+                formatValue={formatNaira}
+                emptyMessage="No monthly reservation trend data found."
+              />
+            </Card>
+
+            <Card>
+              <DoughnutChart
+                title="Expense Category Breakdown"
+                data={financialSummary.categoryBreakdown || []}
+                labelKey="category"
+                valueKey="total_amount"
+                formatValue={formatNaira}
+                centerLabel="Approved Expenses"
+                centerSub={formatNaira(financialSummary.approvedExpenses || 0)}
+                emptyMessage="No approved operational expenses in active filter scope."
+              />
+            </Card>
+          </div>
         </div>
       )}
 
