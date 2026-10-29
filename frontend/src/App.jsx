@@ -51,42 +51,42 @@ function NavigateToFinancial() {
 }
 
 // Lazy-Loaded Public Pages
-import LandingPage from './pages/LandingPage';
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const AboutPage = lazy(() => import('./pages/AboutPage'));
-const ContactPage = lazy(() => import('./pages/ContactPage'));
-const PropertyDetailPage = lazy(() => import('./pages/PropertyDetailPage'));
+import LandingPage from './pages/landing/LandingPage';
+const LoginPage = lazy(() => import('./pages/portal/LoginPage'));
+const AboutPage = lazy(() => import('./pages/landing/AboutPage'));
+const ContactPage = lazy(() => import('./pages/landing/ContactPage'));
+const PropertyDetailPage = lazy(() => import('./pages/landing/PropertyDetailPage'));
 
 // Lazy-Loaded Authenticated Pages
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-const FrontOfficePage = lazy(() => import('./pages/FrontOfficePage'));
-const CalendarPage = lazy(() => import('./pages/CalendarPage'));
-const ReservationsPage = lazy(() => import('./pages/ReservationsPage'));
-const GuestsPage = lazy(() => import('./pages/GuestsPage'));
-const ApartmentsPage = lazy(() => import('./pages/ApartmentsPage'));
-const PropertiesPage = lazy(() => import('./pages/PropertiesPage'));
-const FinancialPage = lazy(() => import('./pages/FinancialPage'));
-const ReportsPage = lazy(() => import('./pages/ReportsPage'));
-const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
-const AgentsPage = lazy(() => import('./pages/AgentsPage'));
-const MaintenancePage = lazy(() => import('./pages/MaintenancePage'));
-const InspectionPage = lazy(() => import('./pages/InspectionPage'));
-const AuditPage = lazy(() => import('./pages/AuditPage'));
-const TeamPage = lazy(() => import('./pages/TeamPage'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const OperationsPage = lazy(() => import('./pages/OperationsPage'));
-const AccessControlPage = lazy(() => import('./pages/AccessControlPage'));
-const CommunicationsPage = lazy(() => import('./pages/CommunicationsPage'));
-const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
-const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const DashboardPage = lazy(() => import('./pages/portal/DashboardPage'));
+const FrontOfficePage = lazy(() => import('./pages/portal/FrontOfficePage'));
+const CalendarPage = lazy(() => import('./pages/portal/CalendarPage'));
+const ReservationsPage = lazy(() => import('./pages/portal/ReservationsPage'));
+const GuestsPage = lazy(() => import('./pages/portal/GuestsPage'));
+const ApartmentsPage = lazy(() => import('./pages/portal/ApartmentsPage'));
+const PropertiesPage = lazy(() => import('./pages/portal/PropertiesPage'));
+const FinancialPage = lazy(() => import('./pages/portal/FinancialPage'));
+const ReportsPage = lazy(() => import('./pages/portal/ReportsPage'));
+const AnalyticsPage = lazy(() => import('./pages/portal/AnalyticsPage'));
+const AgentsPage = lazy(() => import('./pages/portal/AgentsPage'));
+const MaintenancePage = lazy(() => import('./pages/portal/MaintenancePage'));
+const InspectionPage = lazy(() => import('./pages/portal/InspectionPage'));
+const AuditPage = lazy(() => import('./pages/portal/AuditPage'));
+const TeamPage = lazy(() => import('./pages/portal/TeamPage'));
+const SettingsPage = lazy(() => import('./pages/portal/SettingsPage'));
+const OperationsPage = lazy(() => import('./pages/portal/OperationsPage'));
+const AccessControlPage = lazy(() => import('./pages/portal/AccessControlPage'));
+const CommunicationsPage = lazy(() => import('./pages/portal/CommunicationsPage'));
+const NotificationsPage = lazy(() => import('./pages/portal/NotificationsPage'));
+const AnnouncementsPage = lazy(() => import('./pages/portal/AnnouncementsPage'));
+const NotFoundPage = lazy(() => import('./pages/portal/NotFoundPage'));
 
 // Lazy-Loaded Phase 11 Employee Pages
-const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
-const EmployeeProfilePage = lazy(() => import('./pages/EmployeeProfilePage'));
-const EmployeeEvaluationPage = lazy(() => import('./pages/EmployeeEvaluationPage'));
-const EmployeePerformancePage = lazy(() => import('./pages/EmployeePerformancePage'));
-const EmployeeIdCardPage = lazy(() => import('./pages/EmployeeIdCardPage'));
+const EmployeesPage = lazy(() => import('./pages/portal/EmployeesPage'));
+const EmployeeProfilePage = lazy(() => import('./pages/portal/EmployeeProfilePage'));
+const EmployeeEvaluationPage = lazy(() => import('./pages/portal/EmployeeEvaluationPage'));
+const EmployeePerformancePage = lazy(() => import('./pages/portal/EmployeePerformancePage'));
+const EmployeeIdCardPage = lazy(() => import('./pages/portal/EmployeeIdCardPage'));
 
 function App() {
   return (
