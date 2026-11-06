@@ -490,6 +490,19 @@ class EmployeesController {
       next(err);
     }
   }
+
+  static async linkUser(req, res, next) {
+    try {
+      const updated = await EmployeesService.linkUserToEmployee(req.params.id, req.body, req);
+      res.status(200).json({
+        success: true,
+        message: 'User account linked to employee record successfully',
+        data: updated,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = EmployeesController;

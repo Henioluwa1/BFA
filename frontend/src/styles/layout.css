@@ -578,6 +578,10 @@
     gap: 0.5rem;
   }
 
+  .topbar-assistant-btn span {
+    display: none;
+  }
+
   .property-switcher-label {
     display: none;
   }
@@ -618,6 +622,10 @@
   .topbar-right {
     gap: 0.35rem;
     flex-shrink: 0;
+  }
+
+  .topbar-assistant-btn {
+    display: none;
   }
 
   .property-select {
@@ -675,6 +683,11 @@
 
 /* Minimum Spec Mobile (<= 360px: e.g. 320px x 568px) */
 @media (max-width: 360px) {
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
   .topbar {
     padding: 0 0.5rem;
   }

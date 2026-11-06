@@ -1,0 +1,776 @@
+/* ==========================================================================
+   BFA TRACK STAY & RESERVATION STATUS TRACKING PAGE
+   Workspace A: Public Website & External Guest Experience
+   Design Language: Luxury Editorial Hospitality (Deep Forest, Ivory, Champagne)
+   ========================================================================== */
+
+.bfa-track-page {
+  background-color: var(--bfa-lux-bg-page, #fbf9f5);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--bfa-lux-text-primary, #202625);
+  padding-top: 72px;
+  font-family: var(--bfa-lux-font-body, 'Plus Jakarta Sans', sans-serif);
+}
+
+.bfa-track-main {
+  flex: 1;
+  padding-top: calc(80px + var(--bfa-lux-space-xl, 32px));
+  padding-bottom: var(--bfa-lux-space-4xl, 96px);
+}
+
+.bfa-track-container {
+  width: 100%;
+  max-width: var(--bfa-lux-content-width, 1200px);
+  margin: 0 auto;
+  padding: 0 var(--bfa-lux-space-lg, 24px);
+  box-sizing: border-box;
+}
+
+/* Breadcrumbs */
+.bfa-track-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--bfa-lux-space-xs, 8px);
+  font-size: 0.82rem;
+  color: var(--bfa-lux-text-muted, #8c948e);
+  margin-bottom: var(--bfa-lux-space-lg, 24px);
+}
+
+.bfa-track-breadcrumbs a {
+  color: var(--bfa-lux-text-secondary, #737a75);
+  text-decoration: none;
+  transition: color var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-track-breadcrumbs a:hover {
+  color: var(--bfa-lux-forest, #192a2a);
+}
+
+.bfa-track-breadcrumbs span.current {
+  color: var(--bfa-lux-champagne, #b99a70);
+  font-weight: 600;
+}
+
+/* Header Section */
+.bfa-track-header {
+  text-align: center;
+  max-width: 680px;
+  margin: 0 auto var(--bfa-lux-space-2xl, 48px);
+}
+
+.bfa-track-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bfa-lux-space-xs, 8px);
+  padding: 4px 12px;
+  background-color: var(--bfa-lux-champagne-dim, rgba(185, 154, 112, 0.12));
+  color: var(--bfa-lux-champagne, #b99a70);
+  border: 1px solid var(--bfa-lux-champagne-border, rgba(185, 154, 112, 0.35));
+  border-radius: var(--bfa-lux-radius-pill, 9999px);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--bfa-lux-space-sm, 12px);
+}
+
+.bfa-track-title {
+  font-family: var(--bfa-lux-font-display, 'Outfit', serif);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0 0 var(--bfa-lux-space-sm, 12px);
+  line-height: 1.2;
+}
+
+.bfa-track-subtitle {
+  font-size: 1rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Lookup Form Card */
+.bfa-track-search-card {
+  background-color: var(--bfa-lux-bg-surface, #ffffff);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  padding: var(--bfa-lux-space-xl, 32px);
+  box-shadow: var(--bfa-lux-shadow-sm, 0 2px 8px rgba(25, 42, 42, 0.06));
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.bfa-track-search-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bfa-lux-space-lg, 24px);
+}
+
+.bfa-track-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bfa-lux-space-xs, 8px);
+}
+
+.bfa-track-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bfa-lux-forest, #192a2a);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bfa-track-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-family: var(--bfa-lux-font-body, sans-serif);
+  font-size: 0.95rem;
+  color: var(--bfa-lux-text-primary, #202625);
+  background-color: var(--bfa-lux-bg-page, #fbf9f5);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-sm, 8px);
+  box-sizing: border-box;
+  transition: all var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-track-input:focus {
+  outline: none;
+  background-color: #ffffff;
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  box-shadow: var(--bfa-lux-focus-ring, 0 0 0 3px rgba(185, 154, 112, 0.25));
+}
+
+.bfa-track-input.code-input {
+  font-family: var(--bfa-lux-font-mono, 'JetBrains Mono', monospace);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bfa-track-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bfa-lux-space-xs, 8px);
+  width: 100%;
+  min-height: var(--bfa-lux-touch-min, 44px);
+  padding: 14px 24px;
+  font-family: var(--bfa-lux-font-body, sans-serif);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--bfa-lux-white, #ffffff);
+  background-color: var(--bfa-lux-forest, #192a2a);
+  border: none;
+  border-radius: var(--bfa-lux-radius-sm, 8px);
+  cursor: pointer;
+  transition: all var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-track-submit-btn:hover:not(:disabled) {
+  background-color: var(--bfa-lux-champagne, #b99a70);
+}
+
+.bfa-track-submit-btn:focus-visible {
+  outline: 2px solid var(--bfa-lux-champagne, #b99a70);
+  outline-offset: 2px;
+}
+
+.bfa-track-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Alert Boxes */
+.bfa-track-alert {
+  padding: 12px 16px;
+  border-radius: var(--bfa-lux-radius-sm, 8px);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: var(--bfa-lux-space-lg, 24px);
+}
+
+.bfa-track-alert.error {
+  background-color: var(--bfa-lux-status-error-bg, #fcf1f1);
+  color: var(--bfa-lux-status-error-text, #9e2323);
+  border: 1px solid var(--bfa-lux-status-error-border, #f7c3c3);
+}
+
+.bfa-track-alert.success {
+  background-color: var(--bfa-lux-status-available-bg, #eef7f2);
+  color: var(--bfa-lux-status-available-text, #1b5e39);
+  border: 1px solid var(--bfa-lux-status-available-border, #b8e2cb);
+}
+
+.bfa-track-alert.info {
+  background-color: var(--bfa-lux-status-confirmed-bg, #edf6fd);
+  color: var(--bfa-lux-status-confirmed-text, #1b5387);
+  border: 1px solid var(--bfa-lux-status-confirmed-border, #bcdcf7);
+}
+
+/* Result Dashboard Layout */
+.bfa-track-result-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: var(--bfa-lux-space-xl, 32px);
+  align-items: start;
+}
+
+/* Main Left Column */
+.bfa-track-main-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bfa-lux-space-xl, 32px);
+}
+
+/* Hero Status Banner */
+.bfa-track-status-banner {
+  background-color: var(--bfa-lux-bg-surface, #ffffff);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  padding: var(--bfa-lux-space-xl, 32px);
+  box-shadow: var(--bfa-lux-shadow-sm, 0 2px 8px rgba(25, 42, 42, 0.06));
+}
+
+.bfa-track-status-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: var(--bfa-lux-space-md, 16px);
+}
+
+.bfa-track-ref-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bfa-lux-text-muted, #8c948e);
+  margin-bottom: 4px;
+}
+
+.bfa-track-ref-val {
+  font-family: var(--bfa-lux-font-mono, monospace);
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--bfa-lux-forest, #192a2a);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bfa-track-copy-icon-btn {
+  background: none;
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-xs, 4px);
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  color: var(--bfa-lux-champagne, #b99a70);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-track-copy-icon-btn:hover {
+  background-color: var(--bfa-lux-champagne-dim, rgba(185, 154, 112, 0.12));
+}
+
+.bfa-track-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--bfa-lux-radius-pill, 9999px);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bfa-track-status-badge.pending {
+  background-color: var(--bfa-lux-status-pending-bg, #fdf8ee);
+  color: var(--bfa-lux-status-pending-text, #8c6014);
+  border: 1px solid var(--bfa-lux-status-pending-border, #f3dfb3);
+}
+
+.bfa-track-status-badge.confirmed {
+  background-color: var(--bfa-lux-status-available-bg, #eef7f2);
+  color: var(--bfa-lux-status-available-text, #1b5e39);
+  border: 1px solid var(--bfa-lux-status-available-border, #b8e2cb);
+}
+
+.bfa-track-status-badge.declined,
+.bfa-track-status-badge.cancelled {
+  background-color: var(--bfa-lux-status-error-bg, #fcf1f1);
+  color: var(--bfa-lux-status-error-text, #9e2323);
+  border: 1px solid var(--bfa-lux-status-error-border, #f7c3c3);
+}
+
+.bfa-track-status-headline {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0 0 var(--bfa-lux-space-xs, 8px);
+}
+
+.bfa-track-status-desc {
+  font-size: 0.92rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Passcode Box (Unlocked state) */
+.bfa-track-passcode-box {
+  background: linear-gradient(135deg, var(--bfa-lux-forest, #192a2a), #101c1c);
+  color: var(--bfa-lux-white, #ffffff);
+  border-radius: var(--bfa-lux-radius-md, 12px);
+  padding: var(--bfa-lux-space-xl, 32px);
+  text-align: center;
+  box-shadow: var(--bfa-lux-shadow-md, 0 8px 24px rgba(25, 42, 42, 0.08));
+  border: 1px solid rgba(185, 154, 112, 0.4);
+}
+
+.bfa-track-passcode-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--bfa-lux-champagne, #b99a70);
+  margin-bottom: 8px;
+}
+
+.bfa-track-passcode-val {
+  font-family: var(--bfa-lux-font-mono, monospace);
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+  margin: 0 0 12px;
+}
+
+.bfa-track-passcode-copy-btn {
+  background-color: var(--bfa-lux-champagne, #b99a70);
+  color: var(--bfa-lux-forest, #192a2a);
+  border: none;
+  border-radius: var(--bfa-lux-radius-pill, 9999px);
+  padding: 8px 20px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background-color var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-track-passcode-copy-btn:hover {
+  background-color: var(--bfa-lux-champagne-hover, #a8885e);
+}
+
+/* Timeline Section */
+.bfa-track-timeline-card {
+  background-color: var(--bfa-lux-bg-surface, #ffffff);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  padding: var(--bfa-lux-space-xl, 32px);
+  box-shadow: var(--bfa-lux-shadow-sm, 0 2px 8px rgba(25, 42, 42, 0.06));
+}
+
+.bfa-track-card-title {
+  font-family: var(--bfa-lux-font-display, 'Outfit', serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0 0 var(--bfa-lux-space-lg, 24px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bfa-track-timeline-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bfa-lux-space-lg, 24px);
+  position: relative;
+}
+
+.bfa-track-timeline-steps::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 15px;
+  width: 2px;
+  background-color: var(--bfa-lux-border-subtle, #e7e4dc);
+  z-index: 1;
+}
+
+.bfa-track-timeline-item {
+  display: flex;
+  gap: var(--bfa-lux-space-md, 16px);
+  position: relative;
+  z-index: 2;
+}
+
+.bfa-track-timeline-node {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--bfa-lux-bg-page, #fbf9f5);
+  border: 2px solid var(--bfa-lux-border-default, #dcd7ce);
+  color: var(--bfa-lux-text-muted, #8c948e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: all var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-track-timeline-item.completed .bfa-track-timeline-node {
+  background-color: var(--bfa-lux-forest, #192a2a);
+  border-color: var(--bfa-lux-forest, #192a2a);
+  color: var(--bfa-lux-white, #ffffff);
+}
+
+.bfa-track-timeline-item.in-progress .bfa-track-timeline-node {
+  background-color: var(--bfa-lux-champagne, #b99a70);
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  color: var(--bfa-lux-white, #ffffff);
+  box-shadow: 0 0 0 4px var(--bfa-lux-champagne-dim, rgba(185, 154, 112, 0.25));
+}
+
+.bfa-track-timeline-item.failed .bfa-track-timeline-node {
+  background-color: #9e2323;
+  border-color: #9e2323;
+  color: #ffffff;
+}
+
+.bfa-track-timeline-content {
+  flex: 1;
+  padding-top: 4px;
+}
+
+.bfa-track-timeline-item-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin-bottom: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bfa-track-timeline-item-detail {
+  font-size: 0.85rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  line-height: 1.5;
+}
+
+/* Particulars Summary Card */
+.bfa-track-particulars-card {
+  background-color: var(--bfa-lux-bg-surface, #ffffff);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  padding: var(--bfa-lux-space-xl, 32px);
+  box-shadow: var(--bfa-lux-shadow-sm, 0 2px 8px rgba(25, 42, 42, 0.06));
+}
+
+.bfa-track-particulars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--bfa-lux-space-lg, 24px);
+}
+
+.bfa-track-particular-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bfa-track-particular-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bfa-lux-text-muted, #8c948e);
+}
+
+.bfa-track-particular-val {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+}
+
+.bfa-track-particular-val.mono {
+  font-family: var(--bfa-lux-font-mono, monospace);
+}
+
+/* Sidebar Column */
+.bfa-track-sidebar-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bfa-lux-space-xl, 32px);
+}
+
+/* Payment Instructions Card */
+.bfa-track-payment-card {
+  background-color: var(--bfa-lux-bg-surface, #ffffff);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  padding: var(--bfa-lux-space-xl, 32px);
+  box-shadow: var(--bfa-lux-shadow-sm, 0 2px 8px rgba(25, 42, 42, 0.06));
+}
+
+.bfa-track-bank-box {
+  background-color: var(--bfa-lux-bg-page, #fbf9f5);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-sm, 8px);
+  padding: 16px;
+  margin: var(--bfa-lux-space-md, 16px) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bfa-track-bank-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.bfa-track-bank-label {
+  color: var(--bfa-lux-text-muted, #8c948e);
+}
+
+.bfa-track-bank-value {
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+}
+
+.bfa-track-disclaimer {
+  font-size: 0.78rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  line-height: 1.5;
+  background-color: var(--bfa-lux-status-pending-bg, #fdf8ee);
+  border-left: 3px solid var(--bfa-lux-champagne, #b99a70);
+  padding: 8px 12px;
+  border-radius: 0 var(--bfa-lux-radius-xs, 4px) var(--bfa-lux-radius-xs, 4px) 0;
+}
+
+/* Actions Card */
+.bfa-track-actions-card {
+  background-color: var(--bfa-lux-bg-surface, #ffffff);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  padding: var(--bfa-lux-space-xl, 32px);
+  box-shadow: var(--bfa-lux-shadow-sm, 0 2px 8px rgba(25, 42, 42, 0.06));
+  display: flex;
+  flex-direction: column;
+  gap: var(--bfa-lux-space-md, 16px);
+}
+
+.bfa-track-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--bfa-lux-touch-min, 44px);
+  padding: 12px 18px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  border-radius: var(--bfa-lux-radius-sm, 8px);
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: all var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-track-action-btn.primary {
+  background-color: var(--bfa-lux-forest, #192a2a);
+  color: var(--bfa-lux-white, #ffffff);
+  border: none;
+}
+
+.bfa-track-action-btn.primary:hover {
+  background-color: var(--bfa-lux-champagne, #b99a70);
+}
+
+.bfa-track-action-btn.secondary {
+  background-color: transparent;
+  color: var(--bfa-lux-forest, #192a2a);
+  border: 1px solid var(--bfa-lux-border-default, #dcd7ce);
+}
+
+.bfa-track-action-btn.secondary:hover {
+  border-color: var(--bfa-lux-forest, #192a2a);
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+}
+
+.bfa-track-action-btn.danger {
+  background-color: transparent;
+  color: var(--bfa-lux-status-error-text, #9e2323);
+  border: 1px solid var(--bfa-lux-status-error-border, #f7c3c3);
+}
+
+.bfa-track-action-btn.danger:hover {
+  background-color: var(--bfa-lux-status-error-bg, #fcf1f1);
+}
+
+.bfa-track-action-btn.whatsapp {
+  background-color: #25d366;
+  color: #ffffff;
+  border: none;
+}
+
+.bfa-track-action-btn.whatsapp:hover {
+  background-color: #128c7e;
+}
+
+/* Modal Dialogs inside Track Page — Luxury Glassmorphic Design */
+.bfa-track-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 26, 26, 0.68);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 9999;
+}
+
+.bfa-track-dialog {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--bfa-lux-space-xl, 32px);
+  box-shadow: 
+    0 30px 70px -15px rgba(25, 42, 42, 0.45), 
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset,
+    0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+}
+
+.bfa-track-dialog-title {
+  font-family: var(--bfa-lux-font-display, 'Outfit', serif);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0 0 8px;
+}
+
+.bfa-track-dialog-desc {
+  font-size: 0.88rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  line-height: 1.5;
+  margin: 0 0 var(--bfa-lux-space-lg, 24px);
+}
+
+.bfa-track-dialog-actions {
+  display: flex;
+  gap: var(--bfa-lux-space-sm, 12px);
+  justify-content: flex-end;
+  margin-top: var(--bfa-lux-space-lg, 24px);
+}
+
+/* Responsive Media Queries */
+@media (max-width: 1024px) {
+  .bfa-track-result-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .bfa-track-main {
+    padding-top: calc(70px + var(--bfa-lux-space-md, 16px));
+    padding-bottom: var(--bfa-lux-space-2xl, 48px);
+  }
+
+  .bfa-track-search-card,
+  .bfa-track-status-banner,
+  .bfa-track-timeline-card,
+  .bfa-track-particulars-card,
+  .bfa-track-payment-card,
+  .bfa-track-actions-card {
+    padding: var(--bfa-lux-space-lg, 24px);
+  }
+
+  .bfa-track-passcode-val {
+    font-size: 1.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .bfa-track-container {
+    padding: 0 var(--bfa-lux-space-md, 16px);
+  }
+
+  .bfa-track-particulars-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bfa-track-dialog {
+    padding: var(--bfa-lux-space-lg, 20px);
+  }
+
+  .bfa-track-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .bfa-track-dialog-actions button {
+    width: 100%;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .bfa-public-nav,
+  .bfa-public-footer,
+  .bfa-track-search-card,
+  .bfa-track-actions-card,
+  .bfa-track-copy-icon-btn,
+  .bfa-track-breadcrumbs {
+    display: none !important;
+  }
+
+  .bfa-track-main {
+    padding: 0 !important;
+  }
+
+  .bfa-track-result-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .bfa-track-status-banner,
+  .bfa-track-timeline-card,
+  .bfa-track-particulars-card,
+  .bfa-track-payment-card {
+    box-shadow: none !important;
+    border: 1px solid #000000 !important;
+    page-break-inside: avoid;
+  }
+}
+

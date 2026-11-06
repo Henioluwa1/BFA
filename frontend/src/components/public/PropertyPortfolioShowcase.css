@@ -1,0 +1,2041 @@
+/* ==========================================================================
+   BFA APARTMENTS — PROPERTY PORTFOLIO & IMMERSIVE EXPLORATION SHOWCASE
+   Visually rich, image-led property discovery, rooms/apartments switcher,
+   and interactive guided apartment tours.
+   ========================================================================== */
+
+.bfa-portfolio-showcase {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  scroll-margin-top: 85px;
+  padding-top: 1.5rem;
+}
+
+/* 1. Portfolio Header */
+.bfa-portfolio-header {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto;
+  scroll-margin-top: 100px;
+  padding-top: 3.5rem;
+}
+
+.bfa-portfolio-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #d4af37;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  padding: 0.25rem 0.85rem;
+  border-radius: 9999px;
+  margin-bottom: 0.75rem;
+}
+
+.bfa-portfolio-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+  font-weight: 800;
+  color: #0b132b;
+  line-height: 1.15;
+  margin: 0 0 0.75rem 0;
+}
+
+.bfa-portfolio-sub {
+  font-size: 0.95rem;
+  color: #475569;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Subtle Representative Image Disclaimer Badges */
+.bfa-representative-badge {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.bfa-representative-badge-sm {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* 2. Three-Building Overview Grid */
+.bfa-buildings-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .bfa-buildings-overview-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}
+
+.bfa-building-overview-card {
+  position: relative;
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+}
+
+.bfa-building-overview-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.22);
+  border-color: #3b82f6;
+}
+
+.bfa-building-overview-card.active-selected {
+  border: 2px solid #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2), 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.bfa-building-overview-visual {
+  position: relative;
+  height: 220px;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+
+.bfa-building-overview-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 19, 43, 0.1) 0%, rgba(11, 19, 43, 0.75) 100%);
+}
+
+.bfa-building-code-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(11, 19, 43, 0.85);
+  color: #fef08a;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  backdrop-filter: blur(6px);
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.bfa-building-avail-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(22, 163, 74, 0.9);
+  color: #ffffff;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+}
+
+.bfa-building-visual-footer {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+  right: 14px;
+  color: #ffffff;
+}
+
+.bfa-building-visual-title {
+  margin: 0;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.bfa-building-visual-location {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.76rem;
+  color: #cbd5e1;
+  margin-top: 0.2rem;
+}
+
+.bfa-building-overview-body {
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.bfa-building-desc-short {
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bfa-building-feature-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.bfa-building-feature-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #334155;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.bfa-building-overview-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
+  margin-top: auto;
+  gap: 0.75rem;
+}
+
+.bfa-building-price-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.bfa-building-price-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.bfa-building-price-val-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+}
+
+.bfa-building-price-val {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #1e3a8a;
+  line-height: 1;
+}
+
+.bfa-building-price-unit {
+  font-size: 0.74rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.bfa-building-explore-btn {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  padding: 0.5rem 0.95rem;
+  border-radius: 9px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bfa-building-explore-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.bfa-building-explore-btn.active-viewing {
+  background: #1e3a8a;
+  color: #ffffff;
+  border-color: #1e3a8a;
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.25);
+}
+
+/* 3. Focused Building Exploration Panel */
+.bfa-focused-building-panel {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 15px 40px rgba(11, 19, 43, 0.12);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  scroll-margin-top: 90px;
+}
+
+/* Building Hero Row */
+.bfa-focused-building-hero {
+  position: relative;
+  min-height: 420px;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  padding: 2.75rem 2.5rem;
+}
+
+.bfa-focused-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 19, 43, 0.3) 0%, rgba(11, 19, 43, 0.92) 100%);
+}
+
+.bfa-focused-hero-content {
+  position: relative;
+  z-index: 5;
+  color: #ffffff;
+  max-width: 860px;
+}
+
+.bfa-focused-hero-tagline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #fef08a;
+  background: rgba(212, 175, 55, 0.22);
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  margin-bottom: 0.75rem;
+  backdrop-filter: blur(6px);
+}
+
+.bfa-focused-hero-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: clamp(1.85rem, 3.5vw, 2.85rem);
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.15;
+  margin: 0 0 0.5rem 0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.bfa-focused-hero-address {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  margin-bottom: 0.75rem;
+}
+
+.bfa-focused-hero-desc {
+  font-size: 0.94rem;
+  color: #e2e8f0;
+  line-height: 1.6;
+  margin: 0 0 1.5rem 0;
+  max-width: 780px;
+}
+
+.bfa-focused-hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding-top: 1.25rem;
+}
+
+.bfa-hero-metric {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.bfa-hero-metric-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.bfa-hero-metric-lbl {
+  font-size: 0.68rem;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+/* 4. Curated Building Environment & Grounds Gallery */
+.bfa-environment-gallery-section {
+  padding: 2rem 2.5rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.bfa-environment-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.bfa-environment-title-wrap h4 {
+  margin: 0;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bfa-environment-title-wrap p {
+  margin: 0.35rem 0 0;
+  font-size: 0.86rem;
+  color: #64748b;
+}
+
+.bfa-expand-gallery-link {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  padding: 0.45rem 0.95rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-expand-gallery-link:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.bfa-environment-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 1.25rem;
+}
+
+.bfa-env-photo-card {
+  position: relative;
+  background: #ffffff;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.bfa-env-photo-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(11, 19, 43, 0.12);
+  border-color: #93c5fd;
+}
+
+.bfa-env-photo-bg {
+  position: relative;
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+
+.bfa-env-photo-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(11, 19, 43, 0.85);
+  color: #fef08a;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  backdrop-filter: blur(4px);
+  padding: 0.22rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  z-index: 2;
+}
+
+.bfa-env-zoom-pill {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(11, 19, 43, 0.8);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 2;
+}
+
+.bfa-env-photo-card:hover .bfa-env-zoom-pill {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bfa-env-card-details {
+  padding: 0.9rem 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  background: #ffffff;
+  flex: 1;
+}
+
+.bfa-env-photo-title {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.bfa-env-photo-desc {
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 5. Clear Rooms vs Apartments Selection Toggle */
+.bfa-category-toggle-container {
+  padding: 1.5rem 2rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+}
+
+.bfa-category-toggle-pills {
+  display: inline-flex;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  padding: 0.35rem;
+  border-radius: 9999px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.bfa-category-pill-btn {
+  border: none;
+  background: transparent;
+  padding: 0.65rem 1.4rem;
+  border-radius: 9999px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bfa-category-pill-btn:hover {
+  color: #0f172a;
+}
+
+.bfa-category-pill-btn.active {
+  background: #1e3a8a;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+}
+
+.bfa-category-pill-count {
+  font-size: 0.72rem;
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  font-weight: 800;
+}
+
+.bfa-category-pill-btn:not(.active) .bfa-category-pill-count {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+/* 6. Units Grid */
+.bfa-units-grid-section {
+  padding: 1.5rem 2rem 2.5rem;
+}
+
+@media (max-width: 640px) {
+  .bfa-units-grid-section {
+    padding: 1rem 1rem 2rem;
+  }
+}
+
+.bfa-units-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  max-width: 100%;
+}
+
+/* ==========================================================================
+   INTERACTIVE ROOM & APARTMENT SHOWCASE CARD (Desktop Side-by-Side, Mobile Stacked)
+   ========================================================================== */
+
+.bfa-unit-showcase-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  display: grid;
+  grid-template-columns: 52% 48%;
+  min-height: 330px;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.28s ease;
+  position: relative;
+}
+
+.bfa-unit-showcase-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12);
+  border-color: #93c5fd;
+}
+
+.bfa-unit-main-visual {
+  position: relative;
+  height: 100%;
+  min-height: 280px;
+  background-size: cover;
+  background-position: center;
+  transition: background-image 0.4s ease-in-out;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.bfa-unit-visual-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 19, 43, 0.25) 0%, rgba(11, 19, 43, 0.05) 40%, rgba(11, 19, 43, 0.8) 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Visual Top Bar (Badges & Slide Dots) */
+.bfa-visual-top-bar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.bfa-unit-visual-badge-type {
+  background: rgba(11, 19, 43, 0.85);
+  color: #93c5fd;
+  border: 1px solid rgba(147, 197, 253, 0.4);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.22rem 0.55rem;
+  border-radius: 6px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+}
+
+.bfa-unit-visual-avail-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border-radius: 9999px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+}
+
+.bfa-unit-visual-avail-badge.available {
+  background: rgba(22, 163, 74, 0.9);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.bfa-unit-visual-avail-badge.unavailable {
+  background: rgba(220, 38, 38, 0.9);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.bfa-unit-vis-pill {
+  background: rgba(10, 15, 24, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #e2ded5;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+
+.bfa-fs-vis-label {
+  background: rgba(10, 15, 24, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e2ded5;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  margin-left: 0.5rem;
+}
+
+/* Slide Navigation Arrows */
+.bfa-slide-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(11, 19, 43, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 6;
+}
+
+.bfa-slide-nav-btn.prev {
+  left: 12px;
+}
+
+.bfa-slide-nav-btn.next {
+  right: 12px;
+}
+
+.bfa-slide-nav-btn:hover {
+  background: #2563eb;
+  border-color: #60a5fa;
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+}
+
+/* Space Description Overlay on the Image */
+.bfa-unit-visual-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, rgba(11, 19, 43, 0) 0%, rgba(11, 19, 43, 0.85) 35%, rgba(11, 19, 43, 0.96) 100%);
+  padding: 2.2rem 1rem 0.75rem 1rem;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+
+.bfa-caption-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fef08a;
+  letter-spacing: 0.02em;
+}
+
+.bfa-caption-counter {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  font-size: 0.64rem;
+  font-weight: 600;
+  margin-left: 0.35rem;
+}
+
+.bfa-caption-desc {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: rgba(248, 250, 252, 0.92);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Slide Indicator Dots */
+.bfa-slide-dots-strip {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  z-index: 6;
+  background: rgba(11, 19, 43, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 4px 8px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.bfa-slide-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.bfa-slide-dot.active {
+  width: 18px;
+  border-radius: 4px;
+  background: #d4af37;
+}
+
+/* Card Body (Right side in desktop, bottom in mobile) */
+.bfa-unit-card-body {
+  padding: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.85rem;
+  flex: 1;
+}
+
+.bfa-unit-property-kicker {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #d4af37;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.bfa-unit-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.bfa-unit-title {
+  margin: 0;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.bfa-unit-specs-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 0.35rem;
+}
+
+/* Space Selector Quick Pills */
+.bfa-card-spaces-pills-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.bfa-spaces-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.bfa-spaces-pills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.bfa-card-space-pill {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-card-space-pill:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.bfa-card-space-pill.active {
+  background: #1e3a8a;
+  border-color: #1e3a8a;
+  color: #ffffff;
+}
+
+/* Card Footer: Rate + 'View Apartment' Button + 'Reserve Now' Button */
+.bfa-unit-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.85rem;
+  border-top: 1px solid #f1f5f9;
+  margin-top: auto;
+  gap: 0.75rem;
+}
+
+.bfa-unit-rate-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-unit-rate-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.bfa-unit-rate-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #059669;
+}
+
+.bfa-unit-rate-unit {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.bfa-unit-actions-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.bfa-unit-view-btn {
+  background: #ffffff;
+  border: 1.5px solid #1e3a8a;
+  color: #1e3a8a;
+  padding: 0.58rem 1rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.bfa-unit-view-btn:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.bfa-unit-book-now-btn {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  color: #ffffff;
+  border: none;
+  padding: 0.6rem 1.15rem;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  white-space: nowrap;
+}
+
+.bfa-unit-book-now-btn:hover {
+  background: linear-gradient(135deg, #172554, #1d4ed8);
+  transform: translateY(-1px);
+}
+
+.bfa-unit-book-now-btn.bfa-btn-alt-date {
+  background: #f1f5f9;
+  color: #1e3a8a;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+}
+
+.bfa-unit-book-now-btn.bfa-btn-alt-date:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* ==========================================================================
+   Full-Screen Apartment & Room Deep-Dive Modal
+   ========================================================================== */
+.bfa-fullscreen-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 19, 43, 0.75);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+@keyframes bfaModalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.bfa-fullscreen-modal-window {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  width: 100%;
+  max-width: 1100px;
+  max-height: 92vh;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 
+    0 30px 70px -15px rgba(0, 0, 0, 0.55), 
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  animation: bfaModalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.bfa-fullscreen-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.75rem;
+  background: rgba(11, 19, 43, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+  gap: 1rem;
+}
+
+.bfa-fullscreen-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.bfa-fullscreen-prop-kicker {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: #d4af37;
+}
+
+.bfa-fullscreen-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.bfa-fullscreen-title-row h2 {
+  margin: 0;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.bfa-fullscreen-type-pill {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+}
+
+.bfa-fullscreen-avail-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+}
+
+.bfa-fullscreen-avail-pill.avail {
+  background: rgba(22, 163, 74, 0.25);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  color: #86efac;
+}
+
+.bfa-fullscreen-avail-pill.res {
+  background: rgba(220, 38, 38, 0.25);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #fca5a5;
+}
+
+.bfa-fullscreen-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-shrink: 0;
+}
+
+.bfa-fullscreen-header-rate {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+
+.bfa-fullscreen-header-rate .bfa-rate-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.bfa-fullscreen-header-rate .bfa-rate-val {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #4ade80;
+  line-height: 1.1;
+}
+
+.bfa-fullscreen-header-rate .bfa-rate-sub {
+  font-size: 0.68rem;
+  color: #cbd5e1;
+}
+
+.bfa-fullscreen-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-fullscreen-close-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.bfa-fullscreen-scroll-content {
+  overflow-y: auto;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bfa-fullscreen-gallery-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bfa-fullscreen-main-photo {
+  position: relative;
+  height: 420px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  transition: background-image 0.3s ease-in-out;
+}
+
+.bfa-fullscreen-photo-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 19, 43, 0.1) 0%, rgba(11, 19, 43, 0.75) 100%);
+  pointer-events: none;
+}
+
+.bfa-fullscreen-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(11, 19, 43, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.bfa-fullscreen-arrow.prev {
+  left: 14px;
+}
+
+.bfa-fullscreen-arrow.next {
+  right: 14px;
+}
+
+.bfa-fullscreen-arrow:hover {
+  background: #2563eb;
+  border-color: #3b82f6;
+  transform: translateY(-50%) scale(1.08);
+}
+
+.bfa-fullscreen-photo-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, rgba(11, 19, 43, 0) 0%, rgba(11, 19, 43, 0.85) 40%, rgba(11, 19, 43, 0.95) 100%);
+  padding: 2.5rem 1.5rem 1.25rem 1.5rem;
+  color: #ffffff;
+  z-index: 5;
+}
+
+.bfa-fs-caption-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 0.35rem;
+}
+
+.bfa-fs-counter {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  color: #cbd5e1;
+}
+
+.bfa-fs-caption-text {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.92);
+  max-width: 800px;
+}
+
+.bfa-fullscreen-thumbnails-strip {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding: 0.35rem 0.2rem;
+  scrollbar-width: thin;
+}
+
+.bfa-fullscreen-thumb {
+  position: relative;
+  width: 105px;
+  height: 64px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  border: 2px solid #cbd5e1;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 5px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.bfa-fullscreen-thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 19, 43, 0.1) 0%, rgba(11, 19, 43, 0.85) 100%);
+  pointer-events: none;
+}
+
+.bfa-fullscreen-thumb:hover {
+  transform: translateY(-2px);
+  border-color: #60a5fa;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.bfa-fullscreen-thumb.active {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.5), 0 4px 14px rgba(0, 0, 0, 0.25);
+  transform: scale(1.04);
+}
+
+.bfa-fs-thumb-label {
+  position: relative;
+  z-index: 2;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.15;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  text-align: left;
+}
+
+.bfa-fullscreen-specs-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.bfa-fs-spec-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.bfa-fs-spec-title {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+}
+
+.bfa-fs-spec-card strong {
+  display: block;
+  font-size: 0.96rem;
+  color: #0f172a;
+  font-weight: 800;
+  margin-bottom: 0.15rem;
+  line-height: 1.25;
+}
+
+.bfa-fs-spec-card span:last-child {
+  display: block;
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.bfa-fullscreen-section-block {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+}
+
+.bfa-fs-section-heading {
+  margin: 0 0 1rem 0;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0b132b;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.bfa-fullscreen-spaces-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.85rem;
+}
+
+.bfa-fs-space-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.65rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-fs-space-item:hover {
+  border-color: #93c5fd;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.bfa-fs-space-item.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.bfa-fs-space-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+.bfa-fs-space-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-fs-space-meta strong {
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.bfa-fs-space-meta span {
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.bfa-fs-amenities-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.bfa-fs-amenity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+}
+
+.bfa-check-bubble {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #15803d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.bfa-fs-amenity-item div strong {
+  display: block;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.bfa-fs-amenity-item div span {
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.bfa-fs-rules-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.85rem;
+}
+
+.bfa-fs-rules-row div strong {
+  display: block;
+  font-size: 0.82rem;
+  color: #1e293b;
+}
+
+.bfa-fs-rules-row div span {
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.bfa-fullscreen-sticky-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.15rem 1.75rem;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+}
+
+.bfa-fs-footer-rate {
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-fs-footer-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.bfa-fs-footer-val {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #059669;
+}
+
+.bfa-fs-footer-unit {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.bfa-fs-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bfa-fs-primary-btn {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  color: #ffffff;
+  border: none;
+  padding: 0.75rem 1.6rem;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+}
+
+.bfa-fs-primary-btn:hover {
+  background: linear-gradient(135deg, #172554, #1d4ed8);
+  transform: translateY(-1px);
+}
+
+.bfa-fs-secondary-btn {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-fs-secondary-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* 8. Lightbox Overlay for Image Enlargement */
+.bfa-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 19, 43, 0.92);
+  backdrop-filter: blur(10px);
+  z-index: 20000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: bfaModalOverlayFade 0.2s ease;
+}
+
+.bfa-lightbox-container {
+  position: relative;
+  max-width: 950px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bfa-lightbox-img-wrap {
+  position: relative;
+  width: 100%;
+  max-height: 75vh;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.bfa-lightbox-img {
+  width: 100%;
+  height: 100%;
+  max-height: 75vh;
+  object-fit: cover;
+  display: block;
+}
+
+.bfa-lightbox-meta {
+  width: 100%;
+  padding: 1rem 0;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bfa-lightbox-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.bfa-lightbox-desc {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin: 0.2rem 0 0;
+}
+
+.bfa-lightbox-close-btn {
+  position: absolute;
+  top: -45px;
+  right: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-lightbox-close-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.bfa-lightbox-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(11, 19, 43, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.bfa-lightbox-nav-btn.prev {
+  left: -22px;
+}
+
+.bfa-lightbox-nav-btn.next {
+  right: -22px;
+}
+
+.bfa-lightbox-nav-btn:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+/* Responsive Layouts for Mobile and Small Screens */
+.bfa-pill-label-mobile {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .bfa-unit-showcase-card {
+    grid-template-columns: 46% 54%;
+    min-height: 290px;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Focused Building Hero & Environment Gallery on Mobile */
+  .bfa-focused-building-hero {
+    padding: 1.5rem 1.25rem !important;
+    min-height: 320px !important;
+  }
+  .bfa-focused-hero-title {
+    font-size: 1.65rem !important;
+    line-height: 1.2 !important;
+  }
+  .bfa-focused-hero-desc {
+    font-size: 0.88rem !important;
+    margin-bottom: 1.15rem !important;
+  }
+  .bfa-focused-hero-metrics {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.6rem !important;
+  }
+  .bfa-hero-metric {
+    padding: 0.55rem 0.75rem !important;
+  }
+  .bfa-hero-metric-val {
+    font-size: 0.95rem !important;
+  }
+  .bfa-hero-metric-lbl {
+    font-size: 0.64rem !important;
+  }
+  .bfa-environment-gallery-section {
+    padding: 1.25rem 1rem !important;
+  }
+  .bfa-environment-strip {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+  .bfa-environment-header-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+  .bfa-expand-gallery-link {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Mobile: Image UP, Details DOWN, then buttons */
+  .bfa-unit-showcase-card {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: auto !important;
+    border-radius: 16px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  }
+
+  .bfa-unit-main-visual {
+    width: 100% !important;
+    height: 250px !important;
+    min-height: 250px !important;
+    border-radius: 16px 16px 0 0 !important;
+  }
+
+  .bfa-unit-card-body {
+    padding: 1.15rem 1rem !important;
+    gap: 0.75rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .bfa-unit-title {
+    font-size: 1.15rem;
+    line-height: 1.25;
+  }
+
+  .bfa-unit-card-footer {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+    align-items: stretch !important;
+  }
+
+  .bfa-unit-rate-stack {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: baseline !important;
+  }
+
+  .bfa-unit-rate-val {
+    font-size: 1.2rem;
+  }
+
+  .bfa-unit-actions-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+  }
+
+  .bfa-unit-view-btn,
+  .bfa-unit-book-now-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0.65rem 1rem !important;
+    font-size: 0.85rem !important;
+    border-radius: 9px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Full-Screen Modal on Mobile View */
+  .bfa-fullscreen-modal-backdrop {
+    padding: 0 !important;
+  }
+
+  .bfa-fullscreen-modal-window {
+    max-height: 100vh !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+  }
+
+  .bfa-fullscreen-header {
+    padding: 0.85rem 1rem !important;
+  }
+
+  .bfa-fullscreen-scroll-content {
+    padding: 1rem !important;
+    gap: 1.25rem !important;
+  }
+
+  .bfa-fullscreen-main-photo {
+    height: 250px !important;
+    border-radius: 10px !important;
+  }
+
+  .bfa-fullscreen-specs-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.65rem !important;
+  }
+
+  .bfa-fullscreen-spaces-list {
+    grid-template-columns: 1fr !important;
+  }
+
+  .bfa-fs-amenities-checklist {
+    grid-template-columns: 1fr !important;
+  }
+
+  .bfa-fs-rules-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .bfa-fullscreen-sticky-footer {
+    padding: 0.85rem 1rem !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .bfa-fs-footer-rate {
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    align-items: baseline !important;
+  }
+
+  .bfa-fs-footer-actions {
+    width: 100% !important;
+    gap: 0.5rem !important;
+  }
+
+  .bfa-fs-secondary-btn {
+    flex: 1 !important;
+    text-align: center !important;
+    padding: 0.7rem 0.6rem !important;
+    font-size: 0.82rem !important;
+  }
+
+  .bfa-fs-primary-btn {
+    flex: 2 !important;
+    justify-content: center !important;
+    padding: 0.7rem 0.85rem !important;
+    font-size: 0.84rem !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Green Marker: Category Toggle fitted in mobile view */
+  .bfa-category-toggle-container {
+    padding: 0.85rem 0.5rem 0.4rem;
+  }
+
+  .bfa-category-toggle-pills {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    max-width: 380px;
+    margin: 0 auto;
+    padding: 0.25rem;
+    border-radius: 12px;
+    gap: 0.25rem;
+    box-sizing: border-box;
+  }
+
+  .bfa-category-pill-btn {
+    width: 100%;
+    padding: 0.52rem 0.35rem;
+    font-size: 0.74rem;
+    justify-content: center;
+    border-radius: 9px;
+    gap: 0.3rem;
+    white-space: nowrap;
+    box-sizing: border-box;
+  }
+
+  .bfa-pill-label-desktop {
+    display: none;
+  }
+
+  .bfa-pill-label-mobile {
+    display: inline;
+  }
+
+  .bfa-category-pill-count {
+    padding: 0.1rem 0.35rem;
+    font-size: 0.65rem;
+  }
+
+  .bfa-portfolio-header {
+    scroll-margin-top: 90px;
+    padding-top: 2rem;
+  }
+
+  .bfa-portfolio-title {
+    font-size: 1.4rem;
+    line-height: 1.25;
+  }
+}
+
+@media (max-width: 380px) {
+  .bfa-unit-main-visual {
+    height: 220px !important;
+    min-height: 220px !important;
+  }
+  .bfa-unit-card-body {
+    padding: 0.85rem 0.75rem !important;
+  }
+  .bfa-unit-title {
+    font-size: 1.05rem !important;
+  }
+}

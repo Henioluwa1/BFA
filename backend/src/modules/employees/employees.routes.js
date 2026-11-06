@@ -49,6 +49,8 @@ router.get('/stats', requireAuth, EmployeesController.getStats);
 
 // 8. Individual Employee Records & Nested Sub-resources
 router.get('/', requireAuth, EmployeesController.getAll);
+router.post('/:id/link-user', requireAuth, requireRoles('SUPER_ADMIN', 'ADMIN'), EmployeesController.linkUser);
+
 router.post('/', requireAuth, requireRoles(...ADMIN_ROLES), EmployeesController.create);
 router.get('/:id', requireAuth, EmployeesController.getById);
 router.put('/:id', requireAuth, requireRoles(...ADMIN_ROLES), EmployeesController.update);

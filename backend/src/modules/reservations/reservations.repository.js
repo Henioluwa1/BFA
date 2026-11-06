@@ -36,23 +36,55 @@ class ReservationsRepository {
     `;
     const params = [];
 
-    // 1. Role-based server-side security scoping
+    // 1. Role-based server-side security scoping (Fail-Closed)
     if (user) {
       const role = (user.role || '').toUpperCase();
-      if (['MANAGER', 'RECEPTIONIST', 'STAFF'].includes(role) && user.propertyId) {
-        sql += ' AND r.property_id = ?';
-        params.push(user.propertyId);
+      if (['OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF'].includes(role)) {
+        const userPropId = parseInt(user.propertyId, 10);
+        if (!user.propertyId || isNaN(userPropId)) {
+          sql += ' AND 1 = 0'; // Fail closed: unassigned staff cannot retrieve reservations
+        } else if (propertyId && propertyId !== 'all' && parseInt(propertyId, 10) !== userPropId) {
+          sql += ' AND 1 = 0'; // Fail closed: staff querying another property
+        } else {
+          sql += ' AND r.property_id = ?';
+          params.push(userPropId);
+        }
+      } else if (role === 'OWNER') {
+        if (user.propertyId) {
+          const ownerPropId = parseInt(user.propertyId, 10);
+          if (propertyId && propertyId !== 'all' && parseInt(propertyId, 10) !== ownerPropId) {
+            sql += ' AND 1 = 0';
+          } else {
+            sql += ' AND r.property_id = ?';
+            params.push(ownerPropId);
+          }
+        } else if (propertyId && propertyId !== 'all') {
+          sql += ' AND r.property_id = ?';
+          params.push(parseInt(propertyId, 10));
+        }
+      } else if (role === 'AGENT') {
+        if (!user.agentId) {
+          sql += ' AND 1 = 0'; // Fail closed: unassigned agent cannot retrieve reservations
+        } else {
+          sql += ' AND r.agent_id = ?';
+          params.push(user.agentId);
+        }
+        if (propertyId && propertyId !== 'all') {
+          sql += ' AND r.property_id = ?';
+          params.push(parseInt(propertyId, 10));
+        }
+      } else if (['SUPER_ADMIN', 'ADMIN'].includes(role)) {
+        if (propertyId && propertyId !== 'all') {
+          sql += ' AND r.property_id = ?';
+          params.push(parseInt(propertyId, 10));
+        }
+      } else {
+        // Unknown role fails closed
+        sql += ' AND 1 = 0';
       }
-      if (role === 'AGENT') {
-        sql += ' AND r.agent_id = ?';
-        params.push(user.agentId || -1); // Strict agent isolation
-      }
-    }
-
-    // 2. Query filters
-    if (propertyId && propertyId !== 'all') {
+    } else if (propertyId && propertyId !== 'all') {
       sql += ' AND r.property_id = ?';
-      params.push(propertyId);
+      params.push(parseInt(propertyId, 10));
     }
 
     if (apartmentId) {

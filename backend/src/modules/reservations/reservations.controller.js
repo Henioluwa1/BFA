@@ -22,7 +22,10 @@ class ReservationsController {
       // Agent data isolation: if user is Agent, restrict strictly to their agentId
       let agentId = req.query.agentId;
       if (req.user?.role === 'AGENT') {
-        agentId = req.user.agentId || 1;
+        if (!req.user.agentId) {
+          throw new ForbiddenError('Agent user account is not linked to any active agent profile.');
+        }
+        agentId = req.user.agentId;
       }
 
       const reservations = await ReservationsRepository.findAll({
@@ -159,6 +162,14 @@ class ReservationsController {
 
   static async getHistory(req, res, next) {
     try {
+      const reservation = await ReservationsRepository.findById(req.params.id);
+      if (!reservation) {
+        throw new NotFoundError("Reservation with ID " + req.params.id + " not found.");
+      }
+
+      // Check property scope
+      ReservationsService.validatePropertyScope(req.user, reservation.property_id);
+
       const history = await ReservationsRepository.getStatusHistory(req.params.id);
       return ApiResponse.success(res, {
         message: 'Reservation status history retrieved successfully',

@@ -620,6 +620,112 @@ class EmployeesService {
     const myProfile = await this.getMyProfile(req);
     return EmployeeIdCardsService.getActiveCardForEmployee(myProfile.id, req);
   }
+
+  /**
+   * Explicit administrative confirmed employee-to-user linking (Stage 2.5B Package A)
+   * Binding policy: DEC-2.5B-01 (Option A)
+   */
+  static async linkUserToEmployee(employeeId, data, req) {
+    const actorUser = req?.user;
+    const actorRole = (actorUser?.role || '').toUpperCase();
+    if (!['SUPER_ADMIN', 'ADMIN'].includes(actorRole)) {
+      throw new ForbiddenError('Only Super Admin or Admin can link user accounts to employee records.');
+    }
+
+    const userId = parseInt(data?.userId || data?.user_id, 10);
+    if (!userId || isNaN(userId)) {
+      throw new ValidationError('A valid numeric userId is required.');
+    }
+    const confirmEmailMismatch = Boolean(data?.confirmEmailMismatch);
+
+    await pool.withTransaction(async (conn) => {
+      // 1. Lock employee record
+      const [empRows] = await conn.query(
+        'SELECT id, employee_code, first_name, last_name, full_name, email, user_id, property_id, employment_status FROM employees WHERE id = ? FOR UPDATE',
+        [employeeId]
+      );
+      if (!empRows || empRows.length === 0) {
+        throw new NotFoundError(`Employee #${employeeId} not found.`);
+      }
+      const employee = empRows[0];
+
+      if (employee.user_id) {
+        if (parseInt(employee.user_id, 10) === userId) {
+          return;
+        }
+        throw new ConflictError(
+          `Employee #${employee.employee_code} (${employee.full_name}) is already linked to user account #${employee.user_id}.`
+        );
+      }
+
+      // 2. Lock user record
+      const [uRows] = await conn.query(
+        'SELECT id, name, email, role, status, property_id FROM users WHERE id = ? FOR UPDATE',
+        [userId]
+      );
+      if (!uRows || uRows.length === 0) {
+        throw new NotFoundError(`User account #${userId} not found.`);
+      }
+      const targetUser = uRows[0];
+
+      // 3. Verify user is not already linked to another employee
+      const [existingLink] = await conn.query(
+        'SELECT id, employee_code, full_name FROM employees WHERE user_id = ? AND id != ? LIMIT 1',
+        [userId, employeeId]
+      );
+      if (existingLink && existingLink.length > 0) {
+        throw new ConflictError(
+          `User #${userId} (${targetUser.email}) is already linked to employee #${existingLink[0].employee_code} (${existingLink[0].full_name}).`
+        );
+      }
+
+      // 4. Email match candidate check (DEC-2.5B-01 Option A)
+      const empEmail = (employee.email || '').trim().toLowerCase();
+      const userEmail = (targetUser.email || '').trim().toLowerCase();
+      if (empEmail !== userEmail && !confirmEmailMismatch) {
+        throw new ValidationError(
+          `Email mismatch: Employee email '${employee.email}' does not match user account email '${targetUser.email}'. ` +
+          'Explicit administrative confirmation is required (pass confirmEmailMismatch: true).'
+        );
+      }
+
+      // 5. Update link
+      await conn.query('UPDATE employees SET user_id = ? WHERE id = ?', [userId, employeeId]);
+
+      // 6. Record activity
+      await EmployeeActivitiesService.recordActivity(
+        {
+          employeeId: employee.id,
+          propertyId: employee.property_id,
+          activityType: 'USER_ACCOUNT_LINKED',
+          activityCategory: 'ADMINISTRATION',
+          description: `Linked employee record to user account #${userId} (${targetUser.email})${empEmail !== userEmail ? ' with email mismatch confirmation' : ''}`,
+          relatedEntityType: 'user',
+          relatedEntityId: userId,
+        },
+        conn
+      );
+    });
+
+    const updatedEmployee = await EmployeesRepository.findById(employeeId);
+
+    // Immutable audit record
+    await AuditService.record({
+      req,
+      actorId: actorUser?.id,
+      actorEmail: actorUser?.email,
+      actorRole: actorUser?.role,
+      action: 'EMPLOYEE_USER_LINKED',
+      entityType: 'employee',
+      entityId: String(employeeId),
+      newValues: {
+        userId,
+        confirmEmailMismatch,
+      },
+    });
+
+    return updatedEmployee;
+  }
 }
 
 module.exports = EmployeesService;

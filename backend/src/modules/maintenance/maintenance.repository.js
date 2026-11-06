@@ -166,12 +166,15 @@ class MaintenanceRepository {
   }
 
   /**
-   * Update maintenance request
+   * Update maintenance request with safe locking boundary (Stage 2.6A Hardening)
+   * Enforces:
+   *  - Direct, lightweight execution for non-blocking edits without acquiring locks
+   *  - Apartment row lock acquisition BEFORE predicate changes for blocking mutations (CRITICAL / blocking_unit)
+   *  - Ascending numeric ID locking order for apartment transfers (min -> max)
+   *  - Reservation-first lock hierarchy when linked reservations exist
+   *  - Re-evaluation of remaining active blocking tickets before clearing restrictions
    */
-  static async update(id, data) {
-    const fields = [];
-    const params = [];
-
+  static async update(id, data, conn = null) {
     const allowedFields = [
       'issue_title',
       'description',
@@ -186,21 +189,159 @@ class MaintenanceRepository {
       'resolved_at',
       'resolution_notes',
       'blocking_unit',
+      'apartment_id',
+      'reservation_id',
     ];
 
-    for (const [key, value] of Object.entries(data)) {
-      if (allowedFields.includes(key)) {
-        fields.push(`${key} = ?`);
-        params.push(value);
+    const blockingSensitiveKeys = ['priority', 'blocking_unit', 'status', 'apartment_id', 'reservation_id'];
+    const touchesBlockingState = Object.keys(data).some((key) => blockingSensitiveKeys.includes(key));
+
+    // Fast-path: Pure non-blocking edits execute without acquiring mutex locks
+    if (!touchesBlockingState) {
+      const fields = [];
+      const params = [];
+      for (const [key, value] of Object.entries(data)) {
+        if (allowedFields.includes(key)) {
+          fields.push(`${key} = ?`);
+          params.push(value);
+        }
       }
+      if (fields.length === 0) return false;
+      params.push(id);
+      const sql = `UPDATE maintenance_requests SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`;
+      const executor = conn || pool;
+      const result = await executor.query(sql, params);
+      return (result.affectedRows || result.changedRows || 0) >= 0;
     }
 
-    if (fields.length === 0) return false;
+    // Blocking-sensitive path: Coordinate via transaction with hierarchical locks
+    const executeInTx = async (txConn) => {
+      // 1. Lock maintenance ticket row
+      const [ticketRows] = await txConn.query(
+        'SELECT id, property_id, apartment_id, reservation_id, priority, blocking_unit, status FROM maintenance_requests WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (!ticketRows || ticketRows.length === 0) {
+        return false;
+      }
+      const ticket = ticketRows[0];
 
-    params.push(id);
-    const sql = `UPDATE maintenance_requests SET ${fields.join(', ')} WHERE id = ?`;
-    const result = await pool.query(sql, params);
-    return result.affectedRows > 0;
+      const oldAptId = ticket.apartment_id ? parseInt(ticket.apartment_id, 10) : null;
+      const newAptId = data.apartment_id !== undefined ? (data.apartment_id ? parseInt(data.apartment_id, 10) : null) : oldAptId;
+
+      const oldResId = ticket.reservation_id ? parseInt(ticket.reservation_id, 10) : null;
+      const newResId = data.reservation_id !== undefined ? (data.reservation_id ? parseInt(data.reservation_id, 10) : null) : oldResId;
+
+      // 2. Preserve reservation-first lock hierarchy
+      const resIds = [...new Set([oldResId, newResId].filter(Boolean))].sort((a, b) => a - b);
+      for (const rId of resIds) {
+        await txConn.query('SELECT id FROM reservations WHERE id = ? FOR UPDATE', [rId]);
+      }
+
+      // 3. For apartment transfers or affected units, lock in strictly ascending ID order
+      const aptIds = [...new Set([oldAptId, newAptId].filter(Boolean))].sort((a, b) => a - b);
+      const lockedApts = {};
+      for (const aId of aptIds) {
+        const [aptRows] = await txConn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [aId]);
+        if (aptRows && aptRows.length > 0) {
+          lockedApts[aId] = aptRows[0];
+        }
+      }
+
+      // 4. Update the maintenance ticket
+      const fields = [];
+      const params = [];
+      for (const [key, value] of Object.entries(data)) {
+        if (allowedFields.includes(key)) {
+          fields.push(`${key} = ?`);
+          params.push(value);
+        }
+      }
+      if (fields.length > 0) {
+        params.push(id);
+        await txConn.query(`UPDATE maintenance_requests SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`, params);
+      }
+
+      // 5. Synchronize operational and maintenance state across all affected apartments
+      for (const aId of aptIds) {
+        const apt = lockedApts[aId];
+        if (!apt) continue;
+
+        // Query remaining active blocking tickets on this apartment
+        const [remRows] = await txConn.query(
+          `SELECT COUNT(*) as count 
+           FROM maintenance_requests 
+           WHERE apartment_id = ? 
+             AND status NOT IN ('RESOLVED', 'CANCELLED') 
+             AND (blocking_unit = 1 OR priority = 'CRITICAL')`,
+          [aId]
+        );
+        const blockingCount = parseInt(remRows[0]?.count || 0, 10);
+
+        if (blockingCount > 0) {
+          // Unit has active blocking maintenance
+          if (apt.status === 'OCCUPIED') {
+            await txConn.query(
+              'UPDATE apartments SET maintenance_status = "UNDER_REPAIR", updated_at = NOW() WHERE id = ?',
+              [aId]
+            );
+          } else {
+            await txConn.query(
+              'UPDATE apartments SET status = "MAINTENANCE", maintenance_status = "UNDER_REPAIR", updated_at = NOW() WHERE id = ?',
+              [aId]
+            );
+          }
+        } else {
+          // Zero blocking tickets remain on this apartment: restore OPERATIONAL
+          await txConn.query(
+            'UPDATE apartments SET maintenance_status = "OPERATIONAL", updated_at = NOW() WHERE id = ?',
+            [aId]
+          );
+
+          // Turnover evaluation if unit was in MAINTENANCE
+          if (apt.status === 'MAINTENANCE') {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const [activeStays] = await txConn.query(
+              `SELECT id FROM reservations 
+               WHERE apartment_id = ? 
+                 AND status = 'CHECKED_IN' 
+                 AND check_in_date <= ? 
+                 AND check_out_date > ? 
+               LIMIT 1`,
+              [aId, todayStr, todayStr]
+            );
+            if (activeStays && activeStays.length > 0) {
+              await txConn.query('UPDATE apartments SET status = "OCCUPIED", updated_at = NOW() WHERE id = ?', [aId]);
+            } else {
+              const [blocked] = await txConn.query(
+                `SELECT id FROM blocked_periods 
+                 WHERE apartment_id = ? 
+                   AND start_date <= ? 
+                   AND end_date >= ? 
+                 LIMIT 1`,
+                [aId, todayStr, todayStr]
+              );
+              if (blocked && blocked.length > 0) {
+                await txConn.query('UPDATE apartments SET status = "BLOCKED", updated_at = NOW() WHERE id = ?', [aId]);
+              } else {
+                await txConn.query(
+                  'UPDATE apartments SET status = "CLEANING", housekeeping_status = "DIRTY", updated_at = NOW() WHERE id = ?',
+                  [aId]
+                );
+              }
+            }
+          }
+        }
+      }
+
+      return true;
+    };
+
+    if (conn) {
+      return await executeInTx(conn);
+    } else {
+      return await pool.withTransaction(executeInTx);
+    }
   }
 
   /**

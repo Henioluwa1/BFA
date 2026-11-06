@@ -8,44 +8,44 @@ const SYSTEM_ROLES = [
   {
     role: 'SUPER_ADMIN',
     name: 'Super Admin',
-    desc: 'Highest technical & administrative authority. Global property visibility, capability overrides, and security control.',
+    desc: 'Technical platform administrator. System diagnostics, technical configuration, and security control.',
     color: 'danger',
+  },
+  {
+    role: 'OWNER',
+    name: 'Property Owner (Sovereign)',
+    desc: 'Executive business oversight, portfolio performance, financial statements, and dual-review publication approvals.',
+    color: 'success',
   },
   {
     role: 'ADMIN',
     name: 'System Admin',
-    desc: 'Full operational administration. Manages users, properties, financial ledgers, and system configurations.',
+    desc: 'Full operational administration. Manages staff accounts, property rates, dual-review approvals, and operational records.',
     color: 'primary',
   },
   {
-    role: 'MANAGER',
-    name: 'Property Manager',
-    desc: 'Property-level oversight. Manages apartments, reservations, staff performance, and maintenance tickets.',
+    role: 'OPERATIONS_MANAGER',
+    name: 'Operations Manager',
+    desc: 'Property-level operational supervision. Manages assigned apartments, staff, workforce rosters, attendance, leave approvals, readiness, and property content submissions.',
     color: 'info',
   },
   {
     role: 'RECEPTIONIST',
     name: 'Reception / Front Desk',
-    desc: 'Guest arrivals, departures, check-in/out, booking verification, and front-desk calendar operations.',
+    desc: 'Guest arrivals, departures, check-in/out, front desk claim desk, and payment receipt recording.',
     color: 'neutral',
   },
   {
     role: 'STAFF',
     name: 'Operations & Staff',
-    desc: 'Housekeeping, unit inspections, maintenance execution, and apartment turnaround updates.',
+    desc: 'Housekeeping status updates, unit inspections, maintenance ticket execution, and turnaround operations.',
     color: 'warning',
   },
   {
     role: 'AGENT',
     name: 'Third-Party Booking Agent',
-    desc: 'External booking partner. Restricted to self-generated reservations and commission payout ledgers.',
+    desc: 'External booking partner. Restricted strictly to self-attributable reservations and commission payouts.',
     color: 'neutral',
-  },
-  {
-    role: 'OWNER',
-    name: 'Property Owner (Sovereign)',
-    desc: 'Executive business oversight, financial health, audit trail, and approval of restricted capability overrides.',
-    color: 'success',
   },
 ];
 
@@ -145,7 +145,8 @@ class UsersService {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanRole = role.toUpperCase();
+    const rawRole = role.toUpperCase();
+    const cleanRole = rawRole === 'MANAGER' ? 'OPERATIONS_MANAGER' : rawRole;
 
     // Check email uniqueness
     const existing = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [cleanEmail]);
@@ -161,9 +162,9 @@ class UsersService {
       }
     }
 
-    // Role elevation safety: Only SUPER_ADMIN can create another SUPER_ADMIN or ADMIN
-    if (['SUPER_ADMIN', 'ADMIN'].includes(cleanRole) && caller && caller.role !== 'SUPER_ADMIN') {
-      throw new ForbiddenError('Only Super Admin is authorized to grant administrative authority.');
+    // Role elevation safety: Only SUPER_ADMIN can create another SUPER_ADMIN, ADMIN, or OWNER
+    if (['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(cleanRole) && caller && caller.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenError('Only Super Admin is authorized to grant administrative or owner authority.');
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -207,16 +208,32 @@ class UsersService {
     const existing = await this.getUserById(id);
 
     // Non-negotiable Admin protection: Admin account cannot be deactivated or downgraded by Manager or Owner
-    if (existing.role === 'ADMIN' || existing.role === 'SUPER_ADMIN') {
+    if (existing.role === 'ADMIN' || existing.role === 'SUPER_ADMIN' || existing.role === 'OWNER') {
       if (caller && !['SUPER_ADMIN'].includes(caller.role) && caller.id !== existing.id) {
-        throw new ForbiddenError('Administrative accounts can only be managed by Super Admin.');
+        throw new ForbiddenError('Administrative and Owner accounts can only be managed by Super Admin.');
       }
       if (data.status && data.status !== 'ACTIVE' && existing.id === 1) {
         throw new ForbiddenError('Primary Super Admin account cannot be deactivated.');
       }
     }
 
-    const cleanRole = data.role ? data.role.toUpperCase() : existing.role;
+    let cleanRole = data.role ? data.role.toUpperCase() : existing.role;
+    if (cleanRole === 'MANAGER') cleanRole = 'OPERATIONS_MANAGER';
+
+    // Self-elevation / self-role change protection
+    if (caller && parseInt(caller.id, 10) === parseInt(id, 10) && data.role && cleanRole !== existing.role) {
+      throw new ForbiddenError('Users are not permitted to change their own role.');
+    }
+
+    // Role elevation safety: Only SUPER_ADMIN can grant administrative or owner roles
+    if (data.role && cleanRole !== existing.role) {
+      if (['SUPER_ADMIN', 'ADMIN'].includes(cleanRole) && caller && caller.role !== 'SUPER_ADMIN') {
+        throw new ForbiddenError('Only Super Admin is authorized to grant administrative authority.');
+      }
+      if (cleanRole === 'OWNER' && caller && caller.role !== 'SUPER_ADMIN') {
+        throw new ForbiddenError('Only Super Admin is authorized to appoint an Owner account.');
+      }
+    }
 
     // Single-Owner Governance Rule check if role is changing to OWNER
     if (cleanRole === 'OWNER' && existing.role !== 'OWNER') {

@@ -16,6 +16,8 @@ router.get('/:id', requireRoles(...viewRoles), ExpensesController.getById);
 router.post('/', requireRoles(...manageRoles), ExpensesController.create);
 router.put('/:id', requireRoles(...manageRoles), ExpensesController.update);
 router.post('/:id/approve', requireRoles(...manageRoles), ExpensesController.approve);
+router.patch('/:id/approve', requireRoles(...manageRoles), ExpensesController.approve);
 router.post('/:id/void', requireRoles(...manageRoles), ExpensesController.void);
+router.patch('/:id/void', requireRoles(...manageRoles), ExpensesController.void);
 
 module.exports = router;

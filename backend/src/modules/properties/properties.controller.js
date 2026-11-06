@@ -77,6 +77,99 @@ class PropertiesController {
       next(err);
     }
   }
+
+  static async uploadMedia(req, res, next) {
+    try {
+      const mediaItems = req.body.images || req.body.mediaItems || req.body;
+      const result = await PropertiesService.uploadPropertyMedia(
+        parseInt(req.params.id, 10),
+        mediaItems,
+        req.user,
+        req
+      );
+      return ApiResponse.created(res, {
+        message: 'Property media uploaded successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getMedia(req, res, next) {
+    try {
+      const media = await PropertiesService.getPropertyMedia(
+        parseInt(req.params.id, 10),
+        req.user
+      );
+      return ApiResponse.success(res, {
+        message: 'Property media retrieved',
+        data: media,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async setCover(req, res, next) {
+    try {
+      const result = await PropertiesService.setCoverImage(
+        parseInt(req.params.id, 10),
+        parseInt(req.params.mediaId, 10),
+        req.user,
+        req
+      );
+      return ApiResponse.success(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async reorderMedia(req, res, next) {
+    try {
+      const result = await PropertiesService.reorderPropertyMedia(
+        parseInt(req.params.id, 10),
+        req.body.orderList || req.body,
+        req.user,
+        req
+      );
+      return ApiResponse.success(res, {
+        message: 'Media reordered successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async publishMedia(req, res, next) {
+    try {
+      const result = await PropertiesService.publishPropertyMedia(
+        parseInt(req.params.id, 10),
+        parseInt(req.params.mediaId, 10),
+        req.body.isPublished !== undefined ? req.body.isPublished : true,
+        req.user,
+        req
+      );
+      return ApiResponse.success(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async deleteMedia(req, res, next) {
+    try {
+      const result = await PropertiesService.deletePropertyMedia(
+        parseInt(req.params.id, 10),
+        parseInt(req.params.mediaId, 10),
+        req.user,
+        req
+      );
+      return ApiResponse.success(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = PropertiesController;

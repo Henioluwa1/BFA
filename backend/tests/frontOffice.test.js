@@ -28,7 +28,8 @@ describe('Front Office Operations & In-House Stays Tests (Phase 5 - Section 18-2
     await pool.query('DELETE FROM booking_authentications WHERE reservation_id IN (SELECT id FROM reservations WHERE apartment_id = 3 AND check_in_date = ?)', [today]);
     await pool.query('DELETE FROM reservation_status_history WHERE reservation_id IN (SELECT id FROM reservations WHERE apartment_id = 3 AND check_in_date = ?)', [today]);
     await pool.query('DELETE FROM reservations WHERE apartment_id = 3 AND check_in_date = ?', [today]);
-    await pool.query('UPDATE apartments SET status = "AVAILABLE" WHERE id = 3');
+    await pool.query('DELETE FROM maintenance_requests WHERE apartment_id = 3 AND status NOT IN ("RESOLVED", "CANCELLED")');
+    await pool.query('UPDATE apartments SET status = "AVAILABLE", housekeeping_status = "INSPECTED_READY", maintenance_status = "OPERATIONAL" WHERE id = 3');
 
     const res = await request(app)
       .post('/api/v1/reservations')
@@ -55,7 +56,8 @@ describe('Front Office Operations & In-House Stays Tests (Phase 5 - Section 18-2
       await pool.query('DELETE FROM reservation_status_history WHERE reservation_id = ?', [createdResId]);
       await pool.query('DELETE FROM reservations WHERE id = ?', [createdResId]);
     }
-    await pool.query('UPDATE apartments SET status = "AVAILABLE" WHERE id = 3');
+    await pool.query('DELETE FROM maintenance_requests WHERE apartment_id = 3 AND status NOT IN ("RESOLVED", "CANCELLED")');
+    await pool.query('UPDATE apartments SET status = "AVAILABLE", housekeeping_status = "INSPECTED_READY", maintenance_status = "OPERATIONAL" WHERE id = 3');
     await pool.closePool();
   });
 

@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-11-03T15:16:44.651Z",
+  "defB09": {
+    "hasSuccessToast": true,
+    "hasTableEntry": true
+  },
+  "dateRangeValidation": {
+    "prevented": true
+  },
+  "documentRequirement": {
+    "detected": true
+  },
+  "balanceDashboard": {
+    "cardCount": 6,
+    "sampleText": "Annual Vacation LeavePaid20 days leftAllotted: 20dUsed: 0dPending: 22d"
+  },
+  "defB10": {
+    "hasToast": true,
+    "hasBadge": true
+  },
+  "delegationLimitEnforcement": {
+    "hasWarning": true,
+    "isApproveDisabled": true,
+    "hasEscalateBtn": true
+  },
+  "escalationWorkflow": {
+    "adminApproved": true
+  },
+  "absenceCalendar": {
+    "hasMonthGrid": true,
+    "hasAgenda": true,
+    "pillCount": 63
+  },
+  "responsiveAudit": [
+    {
+      "viewport": "mobile_compact_320",
+      "width": 320,
+      "height": 700,
+      "scrollWidth": 320,
+      "clientWidth": 320,
+      "pass": true
+    },
+    {
+      "viewport": "mobile_small_360",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "clientWidth": 360,
+      "pass": true
+    },
+    {
+      "viewport": "mobile_standard_390",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "pass": true
+    },
+    {
+      "viewport": "mobile_large_430",
+      "width": 430,
+      "height": 932,
+      "scrollWidth": 430,
+      "clientWidth": 430,
+      "pass": true
+    },
+    {
+      "viewport": "tablet_portrait_768",
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "pass": true
+    },
+    {
+      "viewport": "tablet_landscape_1024",
+      "width": 1024,
+      "height": 768,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "pass": true
+    },
+    {
+      "viewport": "laptop_1280",
+      "width": 1280,
+      "height": 800,
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "pass": true
+    },
+    {
+      "viewport": "desktop_1440",
+      "width": 1440,
+      "height": 900,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "pass": true
+    }
+  ]
+}

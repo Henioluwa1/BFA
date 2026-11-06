@@ -8,6 +8,8 @@ import { frontOfficeService } from '../../services/api';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import PreCheckInReadinessModal from '../portal/PreCheckInReadinessModal';
+import ApartmentReadinessModal from '../portal/ApartmentReadinessModal';
 
 export default function ReceptionistDashboard() {
   const navigate = useNavigate();
@@ -30,17 +32,21 @@ export default function ReceptionistDashboard() {
   });
   const [arrivals, setArrivals] = useState([]);
   const [departures, setDepartures] = useState([]);
-  const [activeTab, setActiveTab] = useState('arrivals'); // 'arrivals' | 'departures'
+  const [pendingBookings, setPendingBookings] = useState([]);
+  const [activeTab, setActiveTab] = useState('arrivals'); // 'arrivals' | 'claim' | 'departures'
+  const [checkInReservation, setCheckInReservation] = useState(null);
+  const [readinessApartment, setReadinessApartment] = useState(null);
 
   const propertyId = isAllProperties ? undefined : activeProperty?.id;
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [statsRes, arrRes, depRes] = await Promise.all([
+      const [statsRes, arrRes, depRes, pendRes] = await Promise.all([
         frontOfficeService.getStats({ propertyId }).catch(() => ({ data: {} })),
         frontOfficeService.getArrivals({ propertyId }).catch(() => ({ data: [] })),
         frontOfficeService.getDepartures({ propertyId }).catch(() => ({ data: [] })),
+        frontOfficeService.getPendingBookings({ propertyId }).catch(() => ({ data: [] })),
       ]);
 
       if (statsRes.data) {
@@ -58,6 +64,7 @@ export default function ReceptionistDashboard() {
       }
       setArrivals(arrRes.data || []);
       setDepartures(depRes.data || []);
+      setPendingBookings(pendRes.data || []);
     } catch (err) {
       addToast(`Failed to load front desk metrics: ${err.message}`, 'error');
     } finally {
@@ -69,14 +76,29 @@ export default function ReceptionistDashboard() {
     loadData();
   }, [propertyId]);
 
-  const handleQuickCheckIn = async (reservationId) => {
+  const handleQuickCheckIn = (reservation) => {
+    setCheckInReservation(reservation);
+  };
+
+  const handleClaimBooking = async (reservationId) => {
     setActionLoadingId(reservationId);
     try {
-      await frontOfficeService.checkIn(reservationId);
-      addToast('Guest checked in successfully! Unit status set to OCCUPIED.', 'success');
+      const res = await frontOfficeService.claimReservation(reservationId);
+      addToast(
+        res.data?.message || 'Reservation claimed and assigned to you!',
+        'success'
+      );
       loadData();
     } catch (err) {
-      addToast(`Check-in failed: ${err.message}`, 'error');
+      const isConflict = err.response?.status === 409;
+      const errMsg = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+      addToast(
+        isConflict
+          ? `[409 CONFLICT] ${errMsg || 'Reservation was already claimed by another receptionist.'}`
+          : `Claim failed: ${errMsg}`,
+        'error'
+      );
+      loadData();
     } finally {
       setActionLoadingId(null);
     }
@@ -104,7 +126,7 @@ export default function ReceptionistDashboard() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
             <h1 className="page-title">Front Desk Operations Console</h1>
-            <Badge status="available">RECEPTIONIST</Badge>
+            <span className="role-badge-receptionist" style={{ padding: '0.2rem 0.65rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>🌸 Front Desk Hospitality</span>
           </div>
           <p className="page-subtitle">
             Daily guest reception, arrivals velocity, departures turnover, and room readiness board
@@ -147,7 +169,7 @@ export default function ReceptionistDashboard() {
               width: '44px',
               height: '44px',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(245, 158, 11, 0.12)',
+              background: 'rgba(244, 63, 94, 0.12)',
               border: '1px solid rgba(245, 158, 11, 0.3)',
               display: 'flex',
               alignItems: 'center',
@@ -339,6 +361,23 @@ export default function ReceptionistDashboard() {
             <span style={{ color: 'var(--border-default)' }}>|</span>
             <button
               type="button"
+              onClick={() => setActiveTab('claim')}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '1rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                color: activeTab === 'claim' ? '#ea580c' : 'var(--text-muted)',
+                borderBottom: activeTab === 'claim' ? '2px solid #ea580c' : '2px solid transparent',
+                paddingBottom: '0.25rem',
+              }}
+            >
+              📋 Claim Desk ({pendingBookings.length})
+            </button>
+            <span style={{ color: 'var(--border-default)' }}>|</span>
+            <button
+              type="button"
               onClick={() => setActiveTab('departures')}
               style={{
                 background: 'none',
@@ -365,6 +404,95 @@ export default function ReceptionistDashboard() {
           <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
             Loading front desk queue...
           </div>
+        ) : activeTab === 'claim' ? (
+          pendingBookings.length === 0 ? (
+            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              No incoming bookings in queue awaiting front desk claim!
+            </div>
+          ) : (
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Guest Details</th>
+                    <th>Booking Code</th>
+                    <th>Unit / Property</th>
+                    <th>Dates</th>
+                    <th>Assignment</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingBookings.map((r) => {
+                    const isAssigned = !!r.assigned_staff_id;
+                    const isAssignedToMe = r.assigned_staff_id === user?.id;
+                    return (
+                      <tr key={r.id}>
+                        <td>
+                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {r.tenant_name || r.guest_name}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {r.tenant_phone}
+                          </div>
+                        </td>
+                        <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                          {r.reservation_code || r.id}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>Unit {r.unit_number || r.apartment_id}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{r.property_name}</div>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '0.8rem' }}>{r.check_in_date} → {r.check_out_date}</div>
+                        </td>
+                        <td>
+                          {isAssigned ? (
+                            <span style={{ color: isAssignedToMe ? '#16a34a' : '#2563eb', fontWeight: 600, fontSize: '0.8rem' }}>
+                              {isAssignedToMe ? '✓ Claimed by You' : `🔒 ${r.assigned_staff_name || 'Staff #' + r.assigned_staff_id}`}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#ea580c', fontWeight: 600, fontSize: '0.8rem' }}>
+                              ⚠️ Unassigned
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {!isAssigned ? (
+                            <Button
+                              variant="primary"
+                              size="small"
+                              loading={actionLoadingId === r.id}
+                              onClick={() => handleClaimBooking(r.id)}
+                              style={{ backgroundColor: '#ea580c', borderColor: '#ea580c' }}
+                            >
+                              Claim Booking
+                            </Button>
+                          ) : isAssignedToMe && r.status === 'CONFIRMED' ? (
+                            <Button
+                              variant="primary"
+                              size="small"
+                              onClick={() => handleQuickCheckIn(r)}
+                            >
+                              Check In
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="small"
+                              onClick={() => navigate('/app/front-office')}
+                            >
+                              View
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : activeTab === 'arrivals' ? (
           arrivals.length === 0 ? (
             <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -416,7 +544,7 @@ export default function ReceptionistDashboard() {
                           variant="primary"
                           size="small"
                           loading={actionLoadingId === r.id}
-                          onClick={() => handleQuickCheckIn(r.id)}
+                          onClick={() => handleQuickCheckIn(r)}
                         >
                           Check In
                         </Button>
@@ -481,6 +609,31 @@ export default function ReceptionistDashboard() {
           )
         )}
       </Card>
+      {/* 5-Point Safe Check-In Modal (PB3) */}
+      {checkInReservation && (
+        <PreCheckInReadinessModal
+          isOpen={!!checkInReservation}
+          onClose={() => setCheckInReservation(null)}
+          reservation={checkInReservation}
+          onSuccess={() => {
+            setCheckInReservation(null);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* Decoupled Room Readiness Desk Modal (PB2) */}
+      {readinessApartment && (
+        <ApartmentReadinessModal
+          isOpen={!!readinessApartment}
+          onClose={() => setReadinessApartment(null)}
+          apartment={readinessApartment}
+          onUpdated={() => {
+            setReadinessApartment(null);
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -19,7 +19,7 @@ function authContext(req, res, next) {
         id: decoded.id,
         name: decoded.name,
         email: decoded.email,
-        role: decoded.role ? decoded.role.toUpperCase() : 'STAFF',
+        role: (decoded.role && decoded.role.toUpperCase() === 'MANAGER') ? 'OPERATIONS_MANAGER' : (decoded.role ? decoded.role.toUpperCase() : 'STAFF'),
         propertyId: decoded.propertyId || null,
         agentId: decoded.agentId || null,
       };
@@ -60,11 +60,11 @@ function requireAuth(req, res, next) {
 /**
  * Role Authorization Guard Middleware
  * Rejects unauthorized roles with HTTP 403.
- * SUPER_ADMIN is granted system-level access to all admin-level routes.
+ * Applies least-privilege principle: role must be explicitly allowed.
  * @param {...string} allowedRoles
  */
 function requireRoles(...allowedRoles) {
-  const normalizedAllowed = allowedRoles.map((r) => r.toUpperCase());
+  const normalizedAllowed = allowedRoles.map((r) => r.toUpperCase()); if (normalizedAllowed.includes('OPERATIONS_MANAGER')) normalizedAllowed.push('MANAGER'); if (normalizedAllowed.includes('MANAGER')) normalizedAllowed.push('OPERATIONS_MANAGER');
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
@@ -82,7 +82,7 @@ function requireRoles(...allowedRoles) {
 
     const userRole = (req.user.role || 'GUEST').toUpperCase();
     const isAuthorized =
-      userRole === 'SUPER_ADMIN' || normalizedAllowed.includes(userRole);
+      normalizedAllowed.includes(userRole);
 
     if (!isAuthorized) {
       return res.status(403).json({

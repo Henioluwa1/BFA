@@ -51,6 +51,23 @@ function validateEnvironment() {
     }
   }
 
+  // 4. Migration Controls Validation
+  const rawAutoMigrate = process.env.AUTO_MIGRATE || process.env.DB_AUTO_MIGRATE;
+  if (rawAutoMigrate !== undefined && rawAutoMigrate !== '') {
+    const norm = String(rawAutoMigrate).trim().toLowerCase();
+    if (!['true', 'false', '1', '0'].includes(norm)) {
+      errors.push(`Invalid AUTO_MIGRATE value: "${rawAutoMigrate}". Expected "true", "false", "1", or "0".`);
+    }
+  }
+
+  const rawStrictSchema = process.env.STRICT_SCHEMA_CHECK;
+  if (rawStrictSchema !== undefined && rawStrictSchema !== '') {
+    const norm = String(rawStrictSchema).trim().toLowerCase();
+    if (!['true', 'false', '1', '0'].includes(norm)) {
+      errors.push(`Invalid STRICT_SCHEMA_CHECK value: "${rawStrictSchema}". Expected "true", "false", "1", or "0".`);
+    }
+  }
+
   if (errors.length > 0) {
     logger.error('CRITICAL: Startup Environment Validation Failed!');
     errors.forEach((err) => logger.error(`  - ${err}`));

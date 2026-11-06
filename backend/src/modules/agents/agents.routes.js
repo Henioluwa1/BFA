@@ -6,8 +6,8 @@ const router = express.Router();
 
 router.use(requireAuth);
 
-router.get('/', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'RECEPTIONIST', 'AGENT'), AgentsController.getAll);
-router.get('/:id', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'RECEPTIONIST', 'AGENT'), AgentsController.getById);
+router.get('/', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'AGENT'), AgentsController.getAll);
+router.get('/:id', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'AGENT'), AgentsController.getById);
 router.get('/:id/clients', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'AGENT'), AgentsController.getClients);
 router.get('/:id/performance', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'AGENT'), AgentsController.getPerformance);
 

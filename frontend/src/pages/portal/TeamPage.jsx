@@ -9,6 +9,53 @@ import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
+
+  const ROLE_CONSEQUENCES = {
+    SUPER_ADMIN: {
+      badge: 'danger',
+      title: 'Technical Platform Administrator',
+      summary: 'Maintains technical diagnostics, audit logs, configuration, and recovery tools. STRICTLY RESTRICTED from business financial approvals, expense payouts, and payment refunds.',
+      authority: 'Global technical access only. No business/financial bypass.',
+    },
+    OWNER: {
+      badge: 'success',
+      title: 'Business Owner & Sovereign',
+      summary: 'Executive portfolio visibility, financial statements, revenue recognition, property publication dual-approvals, and business audit trails.',
+      authority: 'Highest business authority across authorized portfolio.',
+    },
+    ADMIN: {
+      badge: 'primary',
+      title: 'Business & Staff Operations Admin',
+      summary: 'Staff administration, rate configuration, dual-review content approvals, and operational records. CANNOT promote to Super Admin or Owner.',
+      authority: 'Full staff and operational administration.',
+    },
+    MANAGER: {
+      badge: 'info',
+      title: 'Property & Operational Supervisor',
+      summary: 'Assigned building oversight, room turnaround & readiness, staff supervision, property submissions, and operational reporting.',
+      authority: 'Property-scoped operational oversight.',
+    },
+    RECEPTIONIST: {
+      badge: 'neutral',
+      title: 'Front Desk & Guest Reservations',
+      summary: 'Daily arrival/departure handling, front-desk reservation claiming, guest check-in/out, and payment receipt recording.',
+      authority: 'Guest reservations & front desk execution only.',
+    },
+    STAFF: {
+      badge: 'warning',
+      title: 'Operations & Maintenance Staff',
+      summary: 'Housekeeping status updates, room turnaround, unit inspection checklists, and maintenance issue reporting.',
+      authority: 'Room readiness and task updates only.',
+    },
+    AGENT: {
+      badge: 'neutral',
+      title: 'External Referral Partner',
+      summary: 'Limited to generating and monitoring own attributable reservations and approved commission payouts. Isolated from internal records.',
+      authority: 'Attributable bookings only.',
+    },
+  };
+
+
 export default function TeamPage() {
   const { user: currentUser } = useAuth();
   const { properties, activePropertyId } = useProperty();
@@ -478,20 +525,56 @@ export default function TeamPage() {
               <label className="form-label" style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>
                 System Role *
               </label>
-              <select
-                className="form-control"
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-                disabled={selectedUser?.id === 1 && isSuperAdmin} // Keep root super admin
-              >
-                {isSuperAdmin && <option value="SUPER_ADMIN">👑 Super Admin (Full Technical Authority)</option>}
-                <option value="ADMIN">System Admin (Full Operational Authority)</option>
-                <option value="MANAGER">Property Manager</option>
-                <option value="RECEPTIONIST">Receptionist / Front Desk</option>
-                <option value="STAFF">Staff (Housekeeping / Maintenance / Inspections)</option>
-                <option value="AGENT">Third-Party Booking Agent</option>
-                <option value="OWNER">Property Owner (Single Owner Sovereign)</option>
-              </select>
+              {selectedUser && currentUser && parseInt(selectedUser.id, 10) === parseInt(currentUser.id, 10) ? (
+                <div style={{ padding: '0.65rem 0.85rem', background: 'rgba(212, 175, 55, 0.1)', border: '1px solid var(--accent-gold)', borderRadius: '6px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  <strong>🔒 Anti-Elevation Guard:</strong> You cannot modify your own role ({currentUser?.role}). Contact another authorized administrator.
+                </div>
+              ) : (
+                <>
+                  <select
+                    className="form-control"
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                    disabled={selectedUser?.id === 1}
+                  >
+                    {isSuperAdmin && <option value="SUPER_ADMIN">👑 Super Admin (Technical Platform Admin)</option>}
+                    {isSuperAdmin && <option value="OWNER">🏛️ Property Owner (Single Owner Sovereign)</option>}
+                    {isSuperAdmin && <option value="ADMIN">⚙️ System Admin (Business & Staff Admin)</option>}
+                    <option value="MANAGER">🏢 Property Manager (Operational Supervision)</option>
+                    <option value="RECEPTIONIST">🛎️ Receptionist (Front Desk & Check-In)</option>
+                    <option value="STAFF">🧹 Operations Staff (Housekeeping & Maintenance)</option>
+                    <option value="AGENT">🤝 Booking Agent (Referral Partner)</option>
+                  </select>
+                  {!isSuperAdmin && (
+                    <div style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: '#64748b' }}>
+                      ℹ️ System Admins can appoint Managers, Receptionists, Staff, and Agents. Granting Super Admin, System Admin, or Owner roles requires Super Admin authority.
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Dynamic Role Consequence Callout */}
+              {ROLE_CONSEQUENCES[form.role] && (
+                <div style={{
+                  marginTop: '0.65rem',
+                  padding: '0.65rem 0.85rem',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>{ROLE_CONSEQUENCES[form.role].title}</strong>
+                    <Badge status={ROLE_CONSEQUENCES[form.role].badge}>{form.role}</Badge>
+                  </div>
+                  <p style={{ margin: '0 0 0.25rem 0', color: 'var(--text-secondary)' }}>
+                    {ROLE_CONSEQUENCES[form.role].summary}
+                  </p>
+                  <small style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>
+                    Authority Scope: {ROLE_CONSEQUENCES[form.role].authority}
+                  </small>
+                </div>
+              )}
             </div>
 
             <div>

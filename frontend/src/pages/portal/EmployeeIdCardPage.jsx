@@ -29,6 +29,30 @@ import {
   Filter
 } from '../../components/ui/Icons';
 
+
+export function resolveEmployeeRoleTheme(emp) {
+  if (!emp) return 'staff';
+  const role = (emp.role || emp.user_role || '').toLowerCase();
+  if (['super_admin', 'superadmin', 'developer'].includes(role)) return 'super_admin';
+  if (role === 'admin') return 'admin';
+  if (role === 'owner') return 'owner';
+  if (role === 'manager' || role === 'operations_manager') return 'manager';
+  if (role === 'receptionist') return 'receptionist';
+  if (role === 'agent') return 'agent';
+  if (role === 'staff') return 'staff';
+
+  const title = (emp.job_title || '').toLowerCase();
+  const dept = (emp.department || '').toLowerCase();
+  if (title.includes('developer') || title.includes('super admin') || title.includes('tech') || title.includes('system') || dept.includes('it') || dept.includes('engineering')) return 'super_admin';
+  if (title.includes('owner') || title.includes('director') || title.includes('executive') || title.includes('partner') || dept.includes('executive')) return 'owner';
+  if (title.includes('admin') || dept.includes('admin')) return 'admin';
+  if (title.includes('manager') || title.includes('operations') || dept.includes('management') || dept.includes('operations') || title.includes('supervisor')) return 'manager';
+  if (title.includes('reception') || title.includes('front desk') || title.includes('concierge') || title.includes('host')) return 'receptionist';
+  if (title.includes('agent') || title.includes('broker') || title.includes('sales') || dept.includes('sales')) return 'agent';
+
+  return 'staff';
+}
+
 export default function EmployeeIdCardPage() {
   const { id: routeEmpId } = useParams();
   const navigate = useNavigate();
@@ -69,10 +93,10 @@ export default function EmployeeIdCardPage() {
 
   // Check RBAC permissions
   const canGenerate =
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'].includes((user?.role || '').toUpperCase()) ||
+    ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'MANAGER', 'OWNER'].includes((user?.role || '').toUpperCase()) ||
     user?.capabilities?.includes('EMPLOYEE_ID_CARD_GENERATE');
   const canRevoke =
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'].includes((user?.role || '').toUpperCase()) ||
+    ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'MANAGER', 'OWNER'].includes((user?.role || '').toUpperCase()) ||
     user?.capabilities?.includes('EMPLOYEE_ID_CARD_REVOKE');
 
   // Load staff directory
@@ -270,6 +294,7 @@ export default function EmployeeIdCardPage() {
 
   const cardStatus = cardData?.status || 'UNISSUED';
   const isCardActive = cardStatus === 'ACTIVE';
+  const roleCardTheme = resolveEmployeeRoleTheme(selectedEmployee);
 
   // Public QR verification URL for this badge
   const qrVerificationUrl = cardData?.verification_token
@@ -540,7 +565,7 @@ export default function EmployeeIdCardPage() {
             <div className="badge-card-deck">
               {/* === FRONT FACE === */}
               {(badgeSide === 'BOTH' || badgeSide === 'FRONT') && (
-                <div className="badge-card badge-face-front">
+                <div className={`badge-card badge-face-front badge-theme-${roleCardTheme}`} data-role-card={roleCardTheme}>
                   {/* Lanyard Slot Cutout */}
                   <div className="badge-lanyard-slot" title="Lanyard Strap Clip Point" />
 
@@ -549,7 +574,7 @@ export default function EmployeeIdCardPage() {
                     <h2 className="badge-front-title">BFA APARTMENTS</h2>
                     <div className="badge-front-sub">Official Staff Identification</div>
                   </div>
-                  <div className="badge-gold-trim" />
+                  <div className="badge-gold-trim badge-role-trim" />
 
                   {/* Employee Photograph */}
                   <div className="badge-photo-wrapper">
@@ -589,7 +614,7 @@ export default function EmployeeIdCardPage() {
                       <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase' }}>
                         Staff Code
                       </span>
-                      <strong style={{ fontFamily: 'monospace', color: '#1e3a8a' }}>
+                      <strong className="badge-code-val" style={{ fontFamily: 'monospace' }}>
                         {selectedEmployee?.staff_code || selectedEmployee?.employee_code || 'BFA-EMP-000'}
                       </strong>
                     </div>
@@ -612,15 +637,15 @@ export default function EmployeeIdCardPage() {
 
               {/* === BACK FACE === */}
               {(badgeSide === 'BOTH' || badgeSide === 'BACK') && (
-                <div className="badge-card badge-face-back">
+                <div className={`badge-card badge-face-back badge-theme-${roleCardTheme}`} data-role-card={roleCardTheme}>
                   {/* Lanyard Slot Cutout */}
                   <div className="badge-lanyard-slot" title="Lanyard Strap Clip Point" />
 
                   {/* Back Header */}
-                  <div style={{ padding: '8px 14px', background: '#0f172a', color: '#ffffff', textAlign: 'center' }}>
+                  <div className="badge-back-header" style={{ padding: '8px 14px', color: '#ffffff', textAlign: 'center' }}>
                     <div style={{ fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.08em' }}>SECURITY & VERIFICATION</div>
                   </div>
-                  <div className="badge-gold-trim" />
+                  <div className="badge-gold-trim badge-role-trim" />
 
                   {/* Back Content */}
                   <div className="badge-back-content">

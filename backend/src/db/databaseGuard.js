@@ -52,9 +52,38 @@ function assertTestDatabase(dbName, operation = 'Destructive Test Operation') {
   return true;
 }
 
+/**
+ * Asserts that executing migrations on a production/shared database is explicitly authorized.
+ * Throws a fatal Error if target database is a production/shared database and confirmation was not provided.
+ * @param {string} dbName
+ * @param {object} options
+ * @throws {Error}
+ */
+function assertProductionMigrationAuthorized(dbName, options = {}) {
+  if (!dbName || typeof dbName !== 'string') return true;
+  const normalized = dbName.trim().toLowerCase();
+  const isProductionTarget = BLOCKED_SHARED_DATABASES.includes(normalized) || process.env.NODE_ENV === 'production';
+
+  if (isProductionTarget) {
+    const isExplicitlyConfirmed =
+      options.confirmProduction === true ||
+      process.env.CONFIRM_PRODUCTION_MIGRATION === 'true' ||
+      process.env.CONFIRM_PRODUCTION_MIGRATION === '1';
+
+    if (!isExplicitlyConfirmed) {
+      throw new Error(
+        `[FAIL-CLOSED DB GUARD]: Execution on production database '${dbName}' BLOCKED! ` +
+        `Deliberate production migration confirmation required. Pass options.confirmProduction=true, ` +
+        `CLI flag --confirm-prod, or set environment variable CONFIRM_PRODUCTION_MIGRATION=true.`
+      );
+    }
+  }
+  return true;
+}
+
 module.exports = {
   isTestDatabase,
   assertTestDatabase,
+  assertProductionMigrationAuthorized,
   BLOCKED_SHARED_DATABASES,
 };
-

@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { publicService } from '../../services/api';
 import { formatNaira } from '../../utils/currency';
 import PublicTopNav from '../../components/public/PublicTopNav';
+import PublicFooter from '../../components/public/home/PublicFooter';
 import ApartmentDetailModal, {
   getPropertyPhoto,
   getRoomTypePhoto,
@@ -11,7 +12,63 @@ import ApartmentDetailModal, {
 } from '../../components/public/ApartmentDetailModal';
 import FloatingChatWidget from '../../components/public/FloatingChatWidget';
 import Icons8Icon from '../../components/public/Icons8Icon';
+import BookingTrackingModal from '../../components/public/BookingTrackingModal';
+import BookingModal from '../../components/public/BookingModal';
+import { isApartmentCategory, getApartmentInternalSpaces, UnitShowcaseCard, ApartmentFullScreenModal } from '../../components/public/PropertyPortfolioShowcase';
+import {
+  Bed,
+  Layers,
+  Sparkles,
+  ChevronRight,
+  ChevronDown,
+  ChevronLeft,
+  Users,
+  Bath,
+  Wifi,
+  Tv,
+  Wind,
+  ShieldCheck,
+  Coffee,
+  MapPin,
+  Building2,
+  Calendar,
+  Eye,
+  ArrowRight,
+  ArrowLeft,
+  X,
+} from 'lucide-react';
+import '../../components/public/PropertyPortfolioShowcase.css';
 import '../../styles/propertyDetail.css';
+
+function getApartmentHierarchyMeta(unitType = '') {
+  const t = (unitType || '').toLowerCase();
+  if (t.includes('penthouse') || t.includes('presidential')) {
+    return {
+      typeCategory: '👑 Presidential Penthouse Apartment',
+      partLabel: '🛋️ Grand Reception Salon',
+      parts: ['🛋️ Palatial Salon', '🛏️ Emperor Suite', '🍳 Chef Kitchen', '🛁 Spa Bath', '🌄 Sky Terrace'],
+    };
+  }
+  if (t.includes('2-bedroom') || t.includes('3-bedroom') || t.includes('waterfront') || t.includes('luxury') || t.includes('executive')) {
+    return {
+      typeCategory: '🏢 Multi-Room Serviced Apartment',
+      partLabel: '🛋️ Living Salon & Dining Area',
+      parts: ['🛋️ Living Salon', '🛏️ 2 Master Bedrooms', '🍳 Fitted Quartz Kitchen', '🛁 2 Luxury Baths', '🌿 Private Verandah'],
+    };
+  }
+  if (t.includes('deluxe') || t.includes('1-bedroom')) {
+    return {
+      typeCategory: '🛋️ 1-Bedroom Executive Suite',
+      partLabel: '🛏️ Master King Bedroom Suite',
+      parts: ['🛋️ Living Area', '🛏️ King Bed', '🍳 Kitchenette', '🛁 Spa Rain Shower', '💼 Workstation'],
+    };
+  }
+  return {
+    typeCategory: '🔑 Serviced Studio Suite',
+    partLabel: '🛋️ Integrated Studio Living',
+    parts: ['🛋️ Studio Living', '🛏️ Queen/King Bed', '🍳 Kitchenette', '🛁 Rain Shower', '💼 High-Speed Wi-Fi'],
+  };
+}
 
 export default function PropertyDetailPage() {
   const { id } = useParams();
@@ -43,15 +100,39 @@ export default function PropertyDetailPage() {
   const [selectedUnitId, setSelectedUnitId] = useState('');
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [availabilityResult, setAvailabilityResult] = useState(null);
+  const [quoteData, setQuoteData] = useState(null);
   const [availabilityError, setAvailabilityError] = useState('');
 
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
-  const [paymentOption, setPaymentOption] = useState('PAY_AT_PROPERTY');
-  const [paymentChannel, setPaymentChannel] = useState('CARD');
+  const [paymentOption, setPaymentOption] = useState('BANK_TRANSFER');
+  const [paymentConfig, setPaymentConfig] = useState(null);
+  const [proofFile, setProofFile] = useState(null);
+  const [proofBase64, setProofBase64] = useState('');
+  const [proofPreviewUrl, setProofPreviewUrl] = useState('');
+  const [copiedAcctNum, setCopiedAcctNum] = useState(false);
+  const [trackerModalOpen, setTrackerModalOpen] = useState(false);
+  const [trackerRef, setTrackerRef] = useState('');
+  const [trackerEmail, setTrackerEmail] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState('');
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+  const [copiedAuthCode, setCopiedAuthCode] = useState(false);
+
+  // Category selection (Rooms vs Apartments) and Universal Booking Modal
+  const [categoryFilter, setCategoryFilter] = useState('rooms');
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [bookingModalUnit, setBookingModalUnit] = useState(null);
+  const [viewApartmentData, setViewApartmentData] = useState(null);
+  const [activeSpaceByUnit, setActiveSpaceByUnit] = useState({});
+
+  const handleSelectSpace = (unitId, space) => {
+    setActiveSpaceByUnit((prev) => ({
+      ...prev,
+      [unitId]: space,
+    }));
+  };
 
   // Search in Top Nav
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,6 +217,50 @@ export default function PropertyDetailPage() {
     };
   }, [id]);
 
+  // Load payment configuration (Zenith Bank settlement details)
+  useEffect(() => {
+    publicService
+      .getPaymentConfig()
+      .then((res) => {
+        if (res.data?.data) {
+          setPaymentConfig(res.data.data);
+        } else if (res.data) {
+          setPaymentConfig(res.data);
+        }
+      })
+      .catch((err) => console.warn('Payment configuration load warning:', err));
+  }, []);
+
+  const handleProofChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setBookingError('Payment proof file exceeds 5MB limit. Please upload a smaller receipt image.');
+      return;
+    }
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      setBookingError('Only JPG, PNG, and WebP receipts are accepted.');
+      return;
+    }
+    setBookingError('');
+    setProofFile(file);
+    const reader = new FileReader();
+    reader.onload = (uploadEvt) => {
+      const dataUrl = uploadEvt.target.result;
+      setProofBase64(dataUrl);
+      setProofPreviewUrl(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCopyAccountNumber = () => {
+    const acct = paymentConfig?.accountNumber || '1018273645';
+    navigator.clipboard.writeText(acct);
+    setCopiedAcctNum(true);
+    setTimeout(() => setCopiedAcctNum(false), 3000);
+  };
+
   // Catalog fallback data for galleries and extended specs
   const catalogData = property ? APARTMENTS_CATALOG[property.id] || APARTMENTS_CATALOG[1] : APARTMENTS_CATALOG[1];
   const galleryItems = catalogData?.gallery || [];
@@ -146,6 +271,52 @@ export default function PropertyDetailPage() {
 
   const heroPhoto = property ? getPropertyPhoto(property.id, property.code) : '';
 
+  // Calculate cheapest currently available rate
+  const availableUnits = units.filter((u) => u.status === 'AVAILABLE');
+  const cheapestAvailableRate = availableUnits.length > 0
+    ? Math.min(...availableUnits.map((u) => parseFloat(u.rate_per_night)).filter((n) => !isNaN(n) && n > 0))
+    : null;
+
+  // Authoritative verified property amenities parser
+  const getVerifiedPropertyAmenities = (amenities) => {
+    if (!amenities) return [];
+    if (Array.isArray(amenities)) {
+      return amenities.filter((item) => typeof item === 'string' && item.trim().length > 0);
+    }
+    if (typeof amenities === 'string') {
+      try {
+        const parsed = JSON.parse(amenities);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item) => typeof item === 'string' && item.trim().length > 0);
+        }
+      } catch {
+        return amenities.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+      }
+    }
+    return [];
+  };
+  const verifiedPropertyAmenities = property ? getVerifiedPropertyAmenities(property.amenities) : [];
+
+  // Lightbox keyboard navigation & body scroll lock
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setLightboxIndex(null);
+      } else if (e.key === 'ArrowLeft') {
+        setLightboxIndex((prev) => (prev !== null ? (prev - 1 + filteredGallery.length) % filteredGallery.length : null));
+      } else if (e.key === 'ArrowRight') {
+        setLightboxIndex((prev) => (prev !== null ? (prev + 1) % filteredGallery.length : null));
+      }
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [lightboxIndex, filteredGallery.length]);
+
   // Handle availability check
   const handleCheckAvailability = async (e) => {
     if (e) e.preventDefault();
@@ -155,7 +326,9 @@ export default function PropertyDetailPage() {
     }
     setCheckingAvailability(true);
     setAvailabilityError('');
+    setBookingError('');
     setAvailabilityResult(null);
+    setQuoteData(null);
 
     try {
       const res = await publicService.checkAvailability({
@@ -163,6 +336,18 @@ export default function PropertyDetailPage() {
         checkInDate,
       });
       setAvailabilityResult(res.data);
+      if (res.data?.isAvailable) {
+        try {
+          const qRes = await publicService.getQuote({
+            apartmentId: parseInt(selectedUnitId, 10),
+            checkInDate,
+            propertyId: property?.id ? parseInt(property.id, 10) : undefined,
+          });
+          setQuoteData(qRes.data);
+        } catch (quoteErr) {
+          console.warn('Authoritative quote warning:', quoteErr);
+        }
+      }
     } catch (err) {
       setAvailabilityError(err.message || 'Error checking availability.');
     } finally {
@@ -170,45 +355,65 @@ export default function PropertyDetailPage() {
     }
   };
 
-  // Handle direct reservation
+  // Handle direct reservation with manual bank transfer proof or pay at property
   const handleCreateBooking = async (e) => {
     e.preventDefault();
-    if (!guestName || !guestEmail || !guestPhone) {
-      alert('Please fill in your name, email, and phone number.');
+    setBookingError('');
+    if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
+      setBookingError('Please fill in your name, email, and phone number.');
       return;
     }
+
+    if (paymentOption === 'BANK_TRANSFER' && !proofBase64) {
+      setBookingError('Please upload your bank transfer payment receipt or debit confirmation slip before submitting.');
+      return;
+    }
+
     setBookingLoading(true);
 
     try {
       const res = await publicService.createBooking({
         apartmentId: parseInt(selectedUnitId, 10),
-        guestName,
-        guestEmail,
-        guestPhone,
+        guestName: guestName.trim(),
+        guestEmail: guestEmail.trim(),
+        guestPhone: guestPhone.trim(),
         checkInDate,
-        paymentMethod: paymentOption === 'PAY_AT_PROPERTY' ? 'PAY_AT_PROPERTY' : paymentChannel,
+        paymentOption,
+        paymentMethod: paymentOption,
+        quoteToken: quoteData?.quoteToken,
+        proofBase64: proofBase64 || undefined,
+        proofFileName: proofFile?.name || undefined,
       });
-      setConfirmedBooking(res.data);
+
+      const bData = res.data?.data || res.data;
+      setConfirmedBooking(bData);
+      setTrackerRef(bData?.reservationCode || '');
+      setTrackerEmail(guestEmail.trim());
       setAvailabilityResult(null);
+      setQuoteData(null);
     } catch (err) {
-      alert(`Booking failed: ${err.message || 'Please try another unit or date.'}`);
+      const errMsg = err.response?.data?.message || err.response?.data?.error?.message || err.message;
+      setBookingError(errMsg || 'Booking could not be submitted. Please try another unit or date.');
     } finally {
       setBookingLoading(false);
     }
   };
 
+  const handleOpenBookingModalForUnit = (unitObj) => {
+    setBookingModalUnit(unitObj || units[0]);
+    setBookingModalOpen(true);
+  };
+
   const handleSelectRoomTypeForBooking = (rt) => {
+    let unit = null;
     if (rt.units && rt.units.length > 0) {
-      const avail = rt.units.find((u) => u.status === 'AVAILABLE') || rt.units[0];
-      setSelectedUnitId(String(avail.id));
+      unit = rt.units.find((u) => u.status === 'AVAILABLE') || rt.units[0];
     } else if (rt.unitIds && rt.unitIds.length > 0) {
-      setSelectedUnitId(String(rt.unitIds[0]));
+      unit = units.find((u) => u.id === rt.unitIds[0]);
+    } else {
+      unit = units.find((u) => u.unit_type === rt.unitType) || units[0];
     }
-    setAvailabilityResult(null);
-    const el = document.getElementById('property-booking-section');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    handleOpenBookingModalForUnit(unit);
   };
 
   const handleOpenRoomSpecs = (rt) => {
@@ -227,6 +432,10 @@ export default function PropertyDetailPage() {
 
   const selectedUnitObj = units.find((u) => String(u.id) === String(selectedUnitId));
 
+  const propBaseRate = quoteData?.breakdown?.baseRate ?? (availabilityResult?.rate_per_night || availabilityResult?.ratePerNight || selectedUnitObj?.rate_per_night || 0);
+  const propCautionDeposit = quoteData?.breakdown?.cautionDeposit ?? 0;
+  const propTotalAmount = quoteData?.breakdown?.totalAmount ?? (Number(propBaseRate) + Number(propCautionDeposit));
+
   return (
     <div className="bfa-property-detail-page">
       {/* 1. Dynamic Top Display Navigation Bar (Static with ZERO background, shared across public platform) */}
@@ -239,9 +448,7 @@ export default function PropertyDetailPage() {
         onSearchSubmit={() => navigate(`/?search=${encodeURIComponent(searchQuery)}#feed-root`)}
         onBrandClick={() => navigate('/')}
         onVerifyClick={() => {
-          setVerificationError('');
-          setVerificationResult(null);
-          setVerifyModalOpen(true);
+          setTrackerModalOpen(true);
         }}
         searchContainerRef={searchContainerRef}
       />
@@ -279,28 +486,16 @@ export default function PropertyDetailPage() {
               <div className="bfa-property-hero-content">
                 {/* Breadcrumbs */}
                 <nav className="bfa-property-breadcrumbs" aria-label="Breadcrumb">
-                  <Link to="/">BFA Residences</Link>
+                  <Link to="/">Home</Link>
                   <span className="bfa-breadcrumb-sep">/</span>
-                  <Link to="/#properties">Properties</Link>
+                  <Link to="/properties">Residences</Link>
                   <span className="bfa-breadcrumb-sep">/</span>
                   <span className="bfa-breadcrumb-current">{property.name}</span>
                 </nav>
 
-                <div className="bfa-property-hero-badges-row">
-                  <span className="bfa-hero-badge code">✦ {property.code || 'BFA'}</span>
-                  <span className="bfa-hero-badge status">✓ Active Executive Residence</span>
-                  <span className="bfa-hero-badge location">
-                    <Icons8Icon name="location" variant="white" size={13} /> {property.city}, {property.state}
-                  </span>
-                </div>
-
                 <h1 className="bfa-property-hero-title">{property.name}</h1>
                 <p className="bfa-property-hero-address">
-                  <Icons8Icon name="location" variant="blue" size={16} /> {property.address}, {property.city}, {property.state}
-                </p>
-
-                <p className="bfa-property-hero-desc">
-                  {property.description}
+                  <MapPin size={16} /> {property.address}, {property.city}, {property.state}
                 </p>
 
                 {/* Property Quick Metrics */}
@@ -308,16 +503,22 @@ export default function PropertyDetailPage() {
                   <div className="bfa-metric-box">
                     <span className="bfa-metric-box-val">
                       {formatNaira(
-                        roomTypes.length > 0
+                        cheapestAvailableRate != null
+                          ? cheapestAvailableRate
+                          : property.starting_rate
+                          ? parseFloat(property.starting_rate)
+                          : roomTypes.length > 0
                           ? Math.min(...roomTypes.map((r) => r.startingRate))
-                          : '160000'
+                          : 160000
                       )}
                     </span>
-                    <span className="bfa-metric-box-lbl">Starting Rate / Night</span>
+                    <span className="bfa-metric-box-lbl">
+                      {cheapestAvailableRate != null ? 'Available From / Night' : 'Starting Rate / Night'}
+                    </span>
                   </div>
                   <div className="bfa-metric-box">
-                    <span className="bfa-metric-box-val">{roomTypes.length} Categories</span>
-                    <span className="bfa-metric-box-lbl">Configured Room Types</span>
+                    <span className="bfa-metric-box-val">{units.length} Units</span>
+                    <span className="bfa-metric-box-lbl">Configured Residences</span>
                   </div>
                   <div className="bfa-metric-box">
                     <span className="bfa-metric-box-val">
@@ -338,24 +539,27 @@ export default function PropertyDetailPage() {
                     className="bfa-hero-primary-btn"
                     onClick={(e) => scrollToSection(e, 'room-types-section')}
                   >
-                    <span>Explore Room Types ({roomTypes.length})</span>
-                    <Icons8Icon name="chevron-down" variant="white" size={14} />
+                    <span>Explore Suites & Apartments ({units.length})</span>
+                    <ChevronDown size={15} />
                   </button>
                   <button
                     type="button"
                     className="bfa-hero-secondary-btn"
                     onClick={(e) => scrollToSection(e, 'gallery-section')}
                   >
-                    <Icons8Icon name="gallery" variant="white" size={16} />
+                    <Eye size={16} />
                     <span>View Photo Gallery</span>
                   </button>
                   <button
                     type="button"
                     className="bfa-hero-secondary-btn"
-                    onClick={(e) => scrollToSection(e, 'property-booking-section')}
+                    onClick={() => {
+                      const availUnit = units.find((u) => u.status === 'AVAILABLE') || units[0];
+                      handleOpenBookingModalForUnit(availUnit);
+                    }}
                   >
-                    <Icons8Icon name="calendar" variant="white" size={16} />
-                    <span>Check Availability</span>
+                    <Calendar size={16} />
+                    <span>Book a Suite Directly</span>
                   </button>
                 </div>
               </div>
@@ -375,11 +579,7 @@ export default function PropertyDetailPage() {
                       to={`/property/${p.id}`}
                       className={`bfa-switcher-pill ${isActive ? 'active' : ''}`}
                     >
-                      <Icons8Icon
-                        name="building"
-                        variant={isActive ? 'blue' : 'white'}
-                        size={14}
-                      />
+                      <Building2 size={14} />
                       <span>{p.name}</span>
                       <small>({p.city})</small>
                     </Link>
@@ -403,27 +603,31 @@ export default function PropertyDetailPage() {
                 </div>
 
                 <div className="bfa-amenities-grid-columns">
-                  {(Array.isArray(property.amenities) && property.amenities.length > 0
-                    ? property.amenities
-                    : [
-                        '24/7 Solar-Hybrid Power',
-                        'Dedicated Wi-Fi 6 Fiber',
-                        'Infinity Swimming Pool',
-                        'Subterranean Guarded Parking',
-                        'Biometric Access Control',
-                        'Executive Concierge Desk',
-                      ]
-                  ).map((amn, idx) => (
-                    <div key={idx} className="bfa-amenity-feature-card">
-                      <div className="bfa-amenity-feature-icon">
-                        <Icons8Icon name="shield-check" variant="blue" size={18} />
+                  {verifiedPropertyAmenities.length > 0 ? (
+                    verifiedPropertyAmenities.map((amn, idx) => (
+                      <div key={idx} className="bfa-amenity-feature-card">
+                        <div className="bfa-amenity-feature-icon">
+                          <ShieldCheck size={18} />
+                        </div>
+                        <div>
+                          <strong>{amn}</strong>
+                          <span>Authoritative enclave facility with verified operational uptime.</span>
+                        </div>
                       </div>
-                      <div>
-                        <strong>{amn}</strong>
-                        <span>Complimentary resident facility with 24/7 dedicated operational uptime.</span>
+                    ))
+                  ) : (
+                    <div className="bfa-amenity-empty-notice">
+                      <div className="bfa-amenity-notice-icon">
+                        <Sparkles size={20} />
+                      </div>
+                      <div className="bfa-amenity-notice-text">
+                        <h4>Suite-Specific Luxury Amenities</h4>
+                        <p>
+                          Shared property-level facilities are not separately listed for {property.name}. All verified luxury amenities—including 24/7 dual-grid solar power, dedicated fiber Wi-Fi 6, smart climate control, fully equipped kitchens, and en-suite spa baths—are provisioned directly inside each private suite below.
+                        </p>
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </section>
@@ -433,15 +637,11 @@ export default function PropertyDetailPage() {
               <div className="bfa-property-card-container">
                 <div className="bfa-section-header-compact">
                   <div>
-                    <span className="bfa-section-tag">High-Resolution Photography</span>
-                    <h2 className="bfa-section-title">Explore Grounds, Lounges & Suites</h2>
-                    <p className="bfa-section-sub">
-                      Inspect the exterior grounds, resident swimming pool, private terraces, living salons, and master suites.
-                    </p>
+                    <h2 className="bfa-section-title">Explore Grounds, Lounges &amp; Suites</h2>
                   </div>
                   <div className="bfa-representative-disclaimer-banner" role="note">
-                    <Icons8Icon name="info" variant="blue" size={14} />
-                    <span>Representative photography of genuine BFA enclaves</span>
+                    <ShieldCheck size={14} />
+                    <span>Architectural Concept Visualizations & Genuine Suite Photography</span>
                   </div>
                 </div>
 
@@ -498,333 +698,105 @@ export default function PropertyDetailPage() {
               </div>
             </section>
 
-            {/* 6. Room-Types Discovery Section (Heart of the Experience) */}
+            {/* 6. Suites & Apartments Showcase with Guided Internal Spaces Tour */}
             <section className="bfa-property-section-wrap" id="room-types-section">
               <div className="bfa-property-card-container">
                 <div className="bfa-section-header-compact">
                   <div>
-                    <span className="bfa-section-tag">Configured Accommodation Categories</span>
-                    <h2 className="bfa-section-title">Explore Available Room Types</h2>
+                    <span className="bfa-section-tag">Direct Bookable Residences</span>
+                    <h2 className="bfa-section-title">Explore Available Suites & Apartments</h2>
                     <p className="bfa-section-sub">
-                      Every room type is engineered for acoustic quiet, continuous power, and executive luxury. Choose your category below to view floor plans, amenities, and book directly.
+                      Select your room or multi-room apartment below to inspect each internal space, review amenities, and book directly.
                     </p>
                   </div>
                 </div>
 
-                {roomTypes.length === 0 ? (
-                  <div className="bfa-empty-roomtypes-state">
-                    <Icons8Icon name="door" variant="blue" size={36} />
-                    <h3>No Room Types Configured</h3>
-                    <p>There are currently no active room types listed for this building enclave.</p>
+                {/* Rooms vs Apartments Selection Toggle */}
+                <div style={{ display: 'flex', justifyContent: 'center', margin: '0.5rem 0 1.5rem' }}>
+                  <div className="bfa-category-toggle-pills" role="tablist">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={categoryFilter === 'rooms'}
+                      className={`bfa-category-pill-btn ${categoryFilter === 'rooms' ? 'active' : ''}`}
+                      onClick={() => setCategoryFilter('rooms')}
+                    >
+                      <Bed size={16} />
+                      <span>Single Rooms & Studios</span>
+                      <span className="bfa-category-pill-count">
+                        {units.filter((u) => !isApartmentCategory(u)).length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={categoryFilter === 'apartments'}
+                      className={`bfa-category-pill-btn ${categoryFilter === 'apartments' ? 'active' : ''}`}
+                      onClick={() => setCategoryFilter('apartments')}
+                    >
+                      <Layers size={16} />
+                      <span>Multi-Room Serviced Apartments</span>
+                      <span className="bfa-category-pill-count">
+                        {units.filter((u) => isApartmentCategory(u)).length}
+                      </span>
+                    </button>
                   </div>
-                ) : (
-                  <div className="bfa-room-types-catalog-grid">
-                    {roomTypes.map((rt, idx) => {
-                      const photo = getRoomTypePhoto(rt.unitType, property.id);
-                      const isAvailable = rt.availableUnits > 0;
+                </div>
 
-                      return (
-                        <div key={idx} className="bfa-room-type-feature-card">
-                          <div
-                            className="bfa-room-type-cover"
-                            style={{ backgroundImage: `url(${photo})` }}
-                          >
-                            <div className="bfa-room-cover-overlay" />
-                            <div
-                              className={`bfa-room-avail-tag ${isAvailable ? 'available' : 'booked'}`}
-                            >
-                              {isAvailable
-                                ? `✓ ${rt.availableUnits} of ${rt.totalUnits} Units Available`
-                                : 'Fully Reserved'}
-                            </div>
-                            <div className="bfa-photo-disclaimer-tag">Representative image</div>
-                          </div>
-
-                          <div className="bfa-room-type-content">
-                            <div className="bfa-room-type-header-row">
-                              <div>
-                                <h3 className="bfa-room-card-title">{rt.unitType}</h3>
-                                <div className="bfa-room-spec-chips">
-                                  <span>👥 {rt.capacity || 2} Guests</span>
-                                  <span>🛏️ {rt.bedroomCount || 1} Bed</span>
-                                  <span>🛁 {rt.bathroomCount || 1} Bath</span>
-                                </div>
-                              </div>
-                              <div className="bfa-room-price-stack">
-                                <span className="bfa-room-price-val">
-                                  {formatNaira(rt.startingRate)}
-                                </span>
-                                <span className="bfa-room-price-unit">/ night</span>
-                              </div>
-                            </div>
-
-                            <p className="bfa-room-card-description">
-                              Engineered for executive privacy and restful sleep, finished with soundproof acoustic double-glazing, plush Egyptian cotton linens, and smart climate control.
-                            </p>
-
-                            {/* Amenity Pills */}
-                            <div className="bfa-room-amenities-list">
-                              {(Array.isArray(rt.amenities) && rt.amenities.length > 0
-                                ? rt.amenities.slice(0, 4)
-                                : ['Fiber Wi-Fi 6', '24/7 Power', 'Inverter AC', 'Smart 4K TV']
-                              ).map((amn, aIdx) => (
-                                <span key={aIdx} className="bfa-room-amenity-badge">
-                                  ✓ {amn}
-                                </span>
-                              ))}
-                            </div>
-
-                            {/* Actions */}
-                            <div className="bfa-room-card-actions">
-                              <button
-                                type="button"
-                                className="bfa-room-specs-btn"
-                                onClick={() => handleOpenRoomSpecs(rt)}
-                                title="View full photo gallery, bedroom, bathroom, and specifications"
-                              >
-                                <Icons8Icon name="view-eye" variant="blue" size={15} />
-                                <span>View Room Details & Specs</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                className="bfa-room-book-cta"
-                                onClick={() => handleSelectRoomTypeForBooking(rt)}
-                                title="Select this category and proceed to booking"
-                              >
-                                <span>Book This Room Type</span>
-                                <Icons8Icon name="chevron-right" variant="white" size={13} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </section>
-
-            {/* 7. Integrated Online Reservation Engine */}
-            <section className="bfa-property-section-wrap" id="property-booking-section">
-              <div className="bfa-property-card-container">
-                <div className="bfa-section-header-compact">
+                {/* Units Cards Grid */}
+                {categoryFilter === 'rooms' ? (
                   <div>
-                    <span className="bfa-section-tag">Direct Instant Reservation</span>
-                    <h2 className="bfa-section-title">Check Availability & Secure Your Stay</h2>
-                    <p className="bfa-section-sub">
-                      Reserve your suite at {property.name} with instant cryptographic reservation authentication. 1-night maximum stay per reservation applies.
-                    </p>
-                  </div>
-                </div>
-
-                {confirmedBooking ? (
-                  <div className="bfa-booking-confirmed-card animate-scale-up">
-                    <div className="bfa-confirm-icon-badge">✓</div>
-                    <h3 className="bfa-confirm-heading">Reservation Confirmed!</h3>
-                    <p className="bfa-confirm-sub">
-                      Thank you, <strong>{confirmedBooking.guest_name}</strong>. Your stay at{' '}
-                      <strong>{property.name}</strong> has been secured on the authoritative ledger.
-                    </p>
-
-                    <div className="bfa-confirm-details-box">
-                      <div className="bfa-confirm-field">
-                        <span>Reference Code:</span>
-                        <strong>{confirmedBooking.reference_code || confirmedBooking.reference}</strong>
+                    {units.filter((u) => !isApartmentCategory(u)).length === 0 ? (
+                      <div className="bfa-empty-roomtypes-state">
+                        <Bed size={36} color="#64748b" style={{ margin: '0 auto 0.5rem' }} />
+                        <h3 style={{ margin: '0.5rem 0', color: '#0f172a' }}>No Single Rooms Listed</h3>
+                        <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>
+                          This building exclusively features multi-room serviced apartments. Please switch to the Apartments tab above.
+                        </p>
                       </div>
-                      <div className="bfa-confirm-field">
-                        <span>Suite:</span>
-                        <strong>Unit {selectedUnitObj?.unit_number || selectedUnitId}</strong>
+                    ) : (
+                      <div className="bfa-units-cards-grid">
+                        {units
+                          .filter((u) => !isApartmentCategory(u))
+                          .map((unit) => (
+                            <UnitShowcaseCard
+                              key={unit.id}
+                              unit={unit}
+                              building={property}
+                              onOpenBookingModal={(u, b) => handleOpenBookingModalForUnit(u)}
+                              onViewApartment={(u, b, photos, idx) => setViewApartmentData({ unit: u, building: b, photos, initialIdx: idx })}
+                            />
+                          ))}
                       </div>
-                      <div className="bfa-confirm-field">
-                        <span>Check-In Date:</span>
-                        <strong>{checkInDate} (From 14:00)</strong>
-                      </div>
-                      <div className="bfa-confirm-field">
-                        <span>Rate:</span>
-                        <strong>
-                          {formatNaira(
-                            confirmedBooking.total_amount || selectedUnitObj?.rate_per_night || '0'
-                          )}
-                        </strong>
-                      </div>
-                    </div>
-
-                    <div className="bfa-confirm-actions">
-                      <a
-                        href={`https://wa.me/2348000000000?text=Hello%20BFA%20Concierge%2C%20I%20have%20confirmed%20reservation%20${encodeURIComponent(
-                          confirmedBooking.reference_code || confirmedBooking.reference || ''
-                        )}%20at%20${encodeURIComponent(property.name)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bfa-wa-confirm-btn"
-                      >
-                        💬 Receive Confirmation on WhatsApp
-                      </a>
-                      <button
-                        type="button"
-                        className="bfa-new-booking-btn"
-                        onClick={() => {
-                          setConfirmedBooking(null);
-                          setAvailabilityResult(null);
-                        }}
-                      >
-                        Book Another Suite
-                      </button>
-                    </div>
+                    )}
                   </div>
                 ) : (
-                  <form onSubmit={handleCheckAvailability} className="bfa-booking-flow-form">
-                    <div className="bfa-booking-fields-grid">
-                      {/* Check-In Date */}
-                      <div className="bfa-form-input-group">
-                        <label>
-                          <Icons8Icon name="calendar" variant="blue" size={14} /> Check-In Date (1 Night Stay)
-                        </label>
-                        <input
-                          type="date"
-                          value={checkInDate}
-                          min={new Date().toISOString().split('T')[0]}
-                          onChange={(e) => {
-                            setCheckInDate(e.target.value);
-                            setAvailabilityResult(null);
-                          }}
-                          required
-                        />
+                  <div>
+                    {units.filter((u) => isApartmentCategory(u)).length === 0 ? (
+                      <div className="bfa-empty-roomtypes-state">
+                        <Layers size={36} color="#64748b" style={{ margin: '0 auto 0.5rem' }} />
+                        <h3 style={{ margin: '0.5rem 0', color: '#0f172a' }}>No Multi-Room Apartments Listed</h3>
+                        <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>
+                          All units in this building are single rooms or studio suites. Please switch to the Rooms tab above.
+                        </p>
                       </div>
-
-                      {/* Suite Selection */}
-                      <div className="bfa-form-input-group">
-                        <label>
-                          <Icons8Icon name="door" variant="blue" size={14} /> Select Suite or Category
-                        </label>
-                        <select
-                          value={selectedUnitId}
-                          onChange={(e) => {
-                            setSelectedUnitId(e.target.value);
-                            setAvailabilityResult(null);
-                          }}
-                          required
-                        >
-                          <option value="">-- Choose a Suite --</option>
-                          {units.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              Unit {u.unit_number} — {u.unit_name} ({u.unit_type}) • {formatNaira(u.rate_per_night)}/nt
-                              {u.status !== 'AVAILABLE' ? ` [${u.status}]` : ' [Available]'}
-                            </option>
+                    ) : (
+                      <div className="bfa-units-cards-grid">
+                        {units
+                          .filter((u) => isApartmentCategory(u))
+                          .map((unit) => (
+                            <UnitShowcaseCard
+                              key={unit.id}
+                              unit={unit}
+                              building={property}
+                              onOpenBookingModal={(u, b) => handleOpenBookingModalForUnit(u)}
+                              onViewApartment={(u, b, photos, idx) => setViewApartmentData({ unit: u, building: b, photos, initialIdx: idx })}
+                            />
                           ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div style={{ margin: '1.25rem 0' }}>
-                      <button
-                        type="submit"
-                        className="bfa-check-avail-action-btn"
-                        disabled={checkingAvailability}
-                      >
-                        {checkingAvailability ? 'Verifying Inventory...' : 'Check Availability →'}
-                      </button>
-                    </div>
-
-                    {availabilityError && (
-                      <div className="bfa-avail-banner error">
-                        <span>⚠️ {availabilityError}</span>
                       </div>
                     )}
-
-                    {availabilityResult && (
-                      <div className="bfa-avail-banner success animate-scale-up">
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          <div>
-                            <strong>✓ Unit {selectedUnitObj?.unit_number} is Available for {checkInDate}!</strong>
-                            <div style={{ fontSize: '0.82rem', opacity: 0.9 }}>
-                              Rate: {formatNaira(availabilityResult.rate_per_night || selectedUnitObj?.rate_per_night)} / night
-                            </div>
-                          </div>
-                          <span className="bfa-verified-status-tag">Cryptographically Verified</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Guest Information (Unlocks when availability is confirmed) */}
-                    {availabilityResult && (
-                      <div className="bfa-guest-details-section animate-scale-up">
-                        <h4 className="bfa-guest-step-title">Guest Details & Direct Confirmation</h4>
-
-                        <div className="bfa-guest-inputs-grid">
-                          <div className="bfa-form-input-group">
-                            <label>Full Guest Name *</label>
-                            <input
-                              type="text"
-                              placeholder="e.g. Dr. Folake Alabi"
-                              value={guestName}
-                              onChange={(e) => setGuestName(e.target.value)}
-                              required
-                            />
-                          </div>
-                          <div className="bfa-form-input-group">
-                            <label>Email Address *</label>
-                            <input
-                              type="email"
-                              placeholder="e.g. folake@example.com"
-                              value={guestEmail}
-                              onChange={(e) => setGuestEmail(e.target.value)}
-                              required
-                            />
-                          </div>
-                          <div className="bfa-form-input-group">
-                            <label>Phone / WhatsApp *</label>
-                            <input
-                              type="tel"
-                              placeholder="e.g. +234 803 123 4567"
-                              value={guestPhone}
-                              onChange={(e) => setGuestPhone(e.target.value)}
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        {/* Payment Selection */}
-                        <div className="bfa-payment-selection-row">
-                          <label className="bfa-payment-option-pill">
-                            <input
-                              type="radio"
-                              name="paymentOption"
-                              value="PAY_AT_PROPERTY"
-                              checked={paymentOption === 'PAY_AT_PROPERTY'}
-                              onChange={() => setPaymentOption('PAY_AT_PROPERTY')}
-                            />
-                            <span>Pay at Property (Front Desk Settlement)</span>
-                          </label>
-
-                          <label className="bfa-payment-option-pill">
-                            <input
-                              type="radio"
-                              name="paymentOption"
-                              value="PREPAY"
-                              checked={paymentOption === 'PREPAY'}
-                              onChange={() => setPaymentOption('PREPAY')}
-                            />
-                            <span>Instant Digital Prepayment (Card / Transfer)</span>
-                          </label>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="bfa-submit-reservation-btn"
-                          onClick={handleCreateBooking}
-                          disabled={bookingLoading}
-                        >
-                          {bookingLoading
-                            ? 'Creating Cryptographic Reservation...'
-                            : `Complete Reservation • ${formatNaira(
-                                availabilityResult.rate_per_night || selectedUnitObj?.rate_per_night
-                              )}`}
-                        </button>
-                      </div>
-                    )}
-                  </form>
+                  </div>
                 )}
               </div>
             </section>
@@ -909,14 +881,53 @@ export default function PropertyDetailPage() {
         roomTypeData={selectedRoomType}
         initialTab={modalInitialTab}
         onSelectUnitAndBook={(propId, unitId) => {
-          setSelectedUnitId(String(unitId));
+          const unit = units.find((u) => String(u.id) === String(unitId)) || { id: unitId, property_id: propId };
           setDetailModalOpen(false);
-          scrollToSection(null, 'property-booking-section');
+          handleOpenBookingModalForUnit(unit);
         }}
       />
 
-      {/* 10. Static Floating Contact Desk Widget */}
-      <FloatingChatWidget />
+      {/* 9b. Universal Luxury Booking Modal */}
+      <BookingModal
+        isOpen={bookingModalOpen}
+        onClose={() => setBookingModalOpen(false)}
+        unit={bookingModalUnit || units[0]}
+        property={property}
+        initialCheckInDate={checkInDate}
+        onBookingConfirmed={(confirmedData) => {
+          setConfirmedBooking(confirmedData);
+        }}
+      />
+
+      {/* 10. Guest Stay Tracker & Verification Modal */}
+      <BookingTrackingModal
+        isOpen={trackerModalOpen}
+        onClose={() => setTrackerModalOpen(false)}
+        initialReference={trackerRef}
+        initialEmail={trackerEmail}
+      />
+
+      
+      {/* Full-Screen Detailed Apartment & Room Modal */}
+      <ApartmentFullScreenModal
+        isOpen={Boolean(viewApartmentData)}
+        onClose={() => setViewApartmentData(null)}
+        data={viewApartmentData}
+        onReserveNow={() => {
+          const u = viewApartmentData?.unit;
+          setViewApartmentData(null);
+          if (u) handleOpenBookingModalForUnit(u);
+        }}
+      />
+
+      {/* Unified Public Footer with System Settings & Reservation Tracking */}
+      <PublicFooter onOpenTracking={() => setTrackerModalOpen(true)} />
+
+      {/* 11. Static Floating Contact Desk Widget */}
+      <FloatingChatWidget onOpenBooking={() => {
+        const availUnit = units.find((u) => u.status === 'AVAILABLE') || units[0];
+        handleOpenBookingModalForUnit(availUnit);
+      }} />
     </div>
   );
 }

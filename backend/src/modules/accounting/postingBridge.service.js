@@ -1574,6 +1574,55 @@ class PostingBridgeService {
     return PostingBridgeRepository.reconcileSubledger(params);
   }
 
+  /**
+   * Batch synchronize unposted approved operational expenses to the General Ledger
+   */
+  static async syncUnpostedExpenses({ propertyId = null } = {}, { user = null, req = null } = {}) {
+    let sql = `
+      SELECT e.*
+      FROM expenses e
+      LEFT JOIN accounting_subledger_posting_records pr 
+        ON pr.source_module = 'EXPENSES' 
+       AND pr.source_entity_id = CAST(e.id AS CHAR)
+       AND pr.status = 'POSTED'
+      WHERE e.status = 'APPROVED' AND pr.id IS NULL
+    `;
+    const params = [];
+    if (propertyId) {
+      sql += ' AND e.property_id = ?';
+      params.push(propertyId);
+    }
+    sql += ' ORDER BY e.expense_date ASC, e.id ASC';
+
+    const unposted = await pool.query(sql, params);
+    let postedCount = 0;
+    let exceptionCount = 0;
+    const details = [];
+
+    for (const exp of unposted) {
+      try {
+        const record = await this.postExpense(exp.id, { user, req });
+        if (record && record.status === 'POSTED') {
+          postedCount++;
+          details.push({ expenseId: exp.id, expenseCode: exp.expense_code, status: 'POSTED', journalEntryId: record.journal_entry_id });
+        } else {
+          exceptionCount++;
+          details.push({ expenseId: exp.id, expenseCode: exp.expense_code, status: record?.status || 'FAILED', error: record?.last_error || 'Exception recorded' });
+        }
+      } catch (err) {
+        exceptionCount++;
+        details.push({ expenseId: exp.id, expenseCode: exp.expense_code, status: 'ERROR', error: err.message });
+      }
+    }
+
+    return {
+      totalFound: unposted.length,
+      postedCount,
+      exceptionCount,
+      details,
+    };
+  }
+
   static async listAccountMappings() {
     return PostingBridgeRepository.findAllMappings();
   }

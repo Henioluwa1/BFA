@@ -1,0 +1,90 @@
+/* BfaBadge - Luxury Status and Facility Indicator */
+.bfa-lux-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: var(--bfa-lux-radius-pill, 9999px);
+  font-family: var(--bfa-lux-font-body, inherit);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1;
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+/* SIZES */
+.bfa-lux-badge--sm {
+  font-size: 0.725rem;
+  padding: 3px 8px;
+}
+
+.bfa-lux-badge--md {
+  font-size: 0.8125rem;
+  padding: 5px 12px;
+}
+
+/* VARIANTS */
+/* 1. Champagne (WCAG AAA Compliant: 7.09:1 Contrast) */
+.bfa-lux-badge--champagne {
+  background-color: var(--bfa-lux-champagne-dim, rgba(185, 154, 112, 0.12));
+  color: var(--bfa-lux-champagne-text, #70532c);
+  border-color: var(--bfa-lux-champagne-border, rgba(185, 154, 112, 0.35));
+  font-weight: 600;
+}
+
+/* 2. Forest */
+.bfa-lux-badge--forest {
+  background-color: var(--bfa-lux-forest, #192a2a);
+  color: var(--bfa-lux-ivory, #f2eee5);
+  border-color: var(--bfa-lux-forest, #192a2a);
+}
+
+/* 3. Ivory */
+.bfa-lux-badge--ivory {
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+  color: var(--bfa-lux-forest, #192a2a);
+  border-color: var(--bfa-lux-border-default, #dcd7ce);
+}
+
+/* 4. Sage */
+.bfa-lux-badge--sage {
+  background-color: var(--bfa-lux-sage-dim, rgba(119, 125, 117, 0.12));
+  color: var(--bfa-lux-sage, #777d75);
+  border-color: rgba(119, 125, 117, 0.3);
+}
+
+/* 5. Success / Available */
+.bfa-lux-badge--success {
+  background-color: var(--bfa-lux-status-available-bg, #eef7f2);
+  color: var(--bfa-lux-status-available-text, #1b5e39);
+  border-color: var(--bfa-lux-status-available-border, #b8e2cb);
+}
+
+/* 6. Pending Review */
+.bfa-lux-badge--pending {
+  background-color: var(--bfa-lux-status-pending-bg, #fdf8ee);
+  color: var(--bfa-lux-status-pending-text, #8c6014);
+  border-color: var(--bfa-lux-status-pending-border, #f3dfb3);
+}
+
+/* 7. Confirmed */
+.bfa-lux-badge--confirmed {
+  background-color: var(--bfa-lux-status-confirmed-bg, #edf6fd);
+  color: var(--bfa-lux-status-confirmed-text, #1b5387);
+  border-color: var(--bfa-lux-status-confirmed-border, #bcdcf7);
+}
+
+/* 8. Error / Occupied */
+.bfa-lux-badge--error {
+  background-color: var(--bfa-lux-status-error-bg, #fcf1f1);
+  color: var(--bfa-lux-status-error-text, #9e2323);
+  border-color: var(--bfa-lux-status-error-border, #f7c3c3);
+}
+
+.bfa-lux-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9em;
+}

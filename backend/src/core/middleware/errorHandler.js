@@ -27,6 +27,10 @@ function errorHandler(err, req, res, next) {
     statusCode = 400;
     code = 'BAD_JSON';
     message = 'Malformed JSON payload provided in request';
+  } else if (err.type === 'entity.too.large' || err.status === 413) {
+    statusCode = 413;
+    code = 'PAYLOAD_TOO_LARGE';
+    message = 'Request payload exceeds maximum allowed size';
   } else if (err.code === 'ER_CHECK_CONSTRAINT_VIOLATED') {
     statusCode = 422;
     code = 'DATABASE_CONSTRAINT_VIOLATION';

@@ -1,4 +1,5 @@
 const pool = require('../../db/pool');
+const { ForbiddenError } = require('../../core/errors/apiError');
 
 class SearchService {
   /**
@@ -87,7 +88,10 @@ class SearchService {
       // Agent isolation: Agent can only search their own reservations
       if (userRole === 'AGENT') {
         resSql += ' AND r.agent_id = ?';
-        resParams.push(agentId || 1);
+        if (!agentId) {
+          throw new ForbiddenError('Access denied: Agent profile not linked.');
+        }
+        resParams.push(agentId);
       }
 
       if (propertyId && propertyId !== 'all') {
@@ -198,7 +202,10 @@ class SearchService {
 
       if (userRole === 'AGENT') {
         comSql += ' AND c.agent_id = ?';
-        comParams.push(agentId || 1);
+        if (!agentId) {
+          throw new ForbiddenError('Access denied: Agent profile not linked.');
+        }
+        comParams.push(agentId);
       } else if (propertyId && propertyId !== 'all') {
         comSql += ' AND c.property_id = ?';
         comParams.push(propertyId);

@@ -26,3 +26,7 @@ export { default as ReportsPage } from './ReportsPage';
 export { default as ReservationsPage } from './ReservationsPage';
 export { default as SettingsPage } from './SettingsPage';
 export { default as TeamPage } from './TeamPage';
+export { default as WorkforcePage } from './WorkforcePage';
+export { default as MySchedulePage } from './MySchedulePage';
+
+

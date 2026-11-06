@@ -1,0 +1,130 @@
+{
+  "timestamp": "2026-11-04T18:01:27.518Z",
+  "scenarios": [
+    {
+      "scenario": "PB1 - Receptionist Claim Desk UI & Filters",
+      "passed": true,
+      "details": {
+        "hasSearchInput": true,
+        "filterLabels": [
+          "All (8)",
+          "Unassigned (8)",
+          "Claimed by Me (0)",
+          "Locked to Others (0)"
+        ],
+        "hasHandoverNotice": true
+      }
+    },
+    {
+      "scenario": "PB1 - Search & Filtering Responsiveness",
+      "passed": true,
+      "details": "Live client-side filter responsive to unit/guest/code queries"
+    },
+    {
+      "scenario": "PB2 - Decoupled 3D Apartment Readiness Modal",
+      "passed": true,
+      "details": {
+        "title": "Decoupled Room Readiness — Unit 101",
+        "hasHousekeepingTab": true,
+        "hasMaintenanceTab": true,
+        "hasOccupancyTab": true,
+        "hasCleanedWarning": false
+      }
+    },
+    {
+      "scenario": "PB3 - 5-Point Safe Check-In Verification Modal",
+      "passed": true,
+      "details": "Modal component tested and ready for confirmed arrivals"
+    },
+    {
+      "scenario": "Receptionist Dashboard Claim Desk Integration",
+      "passed": true,
+      "details": "Receptionist dashboard includes live Claim Desk queue tab and quick check-in modal linkage"
+    }
+  ],
+  "viewportAudit": [
+    {
+      "viewport": "Desktop Large (1440x900)",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "viewport_desktop_1440_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Laptop Standard (1280x800)",
+      "width": 1280,
+      "height": 800,
+      "screenshot": "viewport_laptop_1280_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Tablet Landscape (1024x768)",
+      "width": 1024,
+      "height": 768,
+      "screenshot": "viewport_tablet_landscape_1024_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Tablet Portrait (768x1024)",
+      "width": 768,
+      "height": 1024,
+      "screenshot": "viewport_tablet_portrait_768_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "iPhone 14 Pro Max (430x932)",
+      "width": 430,
+      "height": 932,
+      "screenshot": "viewport_mobile_large_430_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "iPhone 13/14 (390x844)",
+      "width": 390,
+      "height": 844,
+      "screenshot": "viewport_mobile_standard_390_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Android Common (360x800)",
+      "width": 360,
+      "height": 800,
+      "screenshot": "viewport_mobile_small_360_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Small Mobile (320x700)",
+      "width": 320,
+      "height": 700,
+      "screenshot": "viewport_mobile_compact_320_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    }
+  ],
+  "passed": 5,
+  "failed": 0,
+  "capturedScreenshots": [
+    "01_frontoffice_claim_desk_1440.png",
+    "02_claim_desk_filtered_search.png",
+    "03_decoupled_readiness_modal.png",
+    "04_frontoffice_arrivals_tab.png",
+    "05_precheckin_readiness_modal.png",
+    "06_receptionist_dashboard_view.png",
+    "07_dashboard_claim_desk_tab.png",
+    "viewport_desktop_1440_frontoffice.png",
+    "viewport_laptop_1280_frontoffice.png",
+    "viewport_tablet_landscape_1024_frontoffice.png",
+    "viewport_tablet_portrait_768_frontoffice.png",
+    "viewport_mobile_large_430_frontoffice.png",
+    "viewport_mobile_standard_390_frontoffice.png",
+    "viewport_mobile_small_360_frontoffice.png",
+    "viewport_mobile_compact_320_frontoffice.png"
+  ]
+}

@@ -83,6 +83,23 @@ class ApartmentsController {
     }
   }
 
+  static async updateReadiness(req, res, next) {
+    try {
+      const apartment = await ApartmentsService.updateApartmentReadiness(
+        req.params.id,
+        req.body,
+        req.user,
+        req
+      );
+      return ApiResponse.success(res, {
+        message: 'Apartment readiness status updated successfully',
+        data: apartment,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async checkAvailability(req, res, next) {
     try {
       const checkInDate = req.query.checkInDate || req.query.date || req.body?.checkInDate || req.body?.date;

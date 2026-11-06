@@ -1,0 +1,150 @@
+/* ==========================================================================
+   BFA APARTMENTS MANAGEMENT SYSTEM — EXTERNAL HOSPITALITY DESIGN SYSTEM
+   Workspace A: Public Website & Guest Discovery
+   Approved Luxury Editorial Palette:
+     - Deep Forest:      #192A2A
+     - Warm Ivory:       #F2EEE5
+     - Muted Champagne:  #B99A70
+     - Pure White:       #FFFFFF
+     - Soft Sage:        #777D75
+     - Primary Text:     #202625
+     - Secondary Text:   #737A75
+     - Borders:          #E7E4DC
+   ========================================================================== */
+
+:root {
+  /* Brand Luxury Hospitality Palette */
+  --bfa-lux-forest: #192a2a;
+  --bfa-lux-forest-rgb: 25, 42, 42;
+  --bfa-lux-forest-dark: #101c1c;
+  --bfa-lux-forest-light: #253d3d;
+
+  --bfa-lux-ivory: #f2eee5;
+  --bfa-lux-ivory-rgb: 242, 238, 229;
+  --bfa-lux-ivory-light: #f9f7f2;
+  --bfa-lux-ivory-subtle: #faf8f5;
+
+  --bfa-lux-champagne: #b99a70;
+  --bfa-lux-champagne-rgb: 185, 154, 112;
+  --bfa-lux-champagne-hover: #a8885e;
+  --bfa-lux-champagne-dim: rgba(185, 154, 112, 0.12);
+  --bfa-lux-champagne-border: rgba(185, 154, 112, 0.35);
+
+  --bfa-lux-white: #ffffff;
+  --bfa-lux-white-rgb: 255, 255, 255;
+
+  --bfa-lux-sage: #777d75;
+  --bfa-lux-sage-rgb: 119, 125, 117;
+  --bfa-lux-sage-light: #949b92;
+  --bfa-lux-sage-dim: rgba(119, 125, 117, 0.12);
+
+  /* Typography Colors */
+  --bfa-lux-text-primary: #202625;
+  --bfa-lux-text-secondary: #737a75;
+  --bfa-lux-text-muted: #8c948e;
+  --bfa-lux-text-inverse: #f2eee5;
+  --bfa-lux-text-inverse-white: #ffffff;
+
+  /* Borders & Dividers */
+  --bfa-lux-border-subtle: #e7e4dc;
+  --bfa-lux-border-default: #dcd7ce;
+  --bfa-lux-border-strong: #c8c2b7;
+  --bfa-lux-border-focus: #b99a70;
+
+  /* Surfaces & Backgrounds */
+  --bfa-lux-bg-page: #fbf9f5;
+  --bfa-lux-bg-surface: #ffffff;
+  --bfa-lux-bg-card: #ffffff;
+  --bfa-lux-bg-ivory: #f2eee5;
+  --bfa-lux-bg-glass: rgba(255, 255, 255, 0.94);
+  --bfa-lux-bg-glass-dark: rgba(25, 42, 42, 0.92);
+
+  /* Status Colors */
+  --bfa-lux-status-available-bg: #eef7f2;
+  --bfa-lux-status-available-text: #1b5e39;
+  --bfa-lux-status-available-border: #b8e2cb;
+
+  --bfa-lux-status-pending-bg: #fdf8ee;
+  --bfa-lux-status-pending-text: #8c6014;
+  --bfa-lux-status-pending-border: #f3dfb3;
+
+  --bfa-lux-status-confirmed-bg: #edf6fd;
+  --bfa-lux-status-confirmed-text: #1b5387;
+  --bfa-lux-status-confirmed-border: #bcdcf7;
+
+  --bfa-lux-status-error-bg: #fcf1f1;
+  --bfa-lux-status-error-text: #9e2323;
+  --bfa-lux-status-error-border: #f7c3c3;
+
+  /* Typography Scale */
+  --bfa-lux-font-display: 'Outfit', 'Playfair Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', serif;
+  --bfa-lux-font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bfa-lux-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Layout & Content Widths */
+  --bfa-lux-max-width: 1360px;
+  --bfa-lux-content-width: 1200px;
+  --bfa-lux-narrow-width: 860px;
+
+  /* Spacing Scale */
+  --bfa-lux-space-2xs: 4px;
+  --bfa-lux-space-xs: 8px;
+  --bfa-lux-space-sm: 12px;
+  --bfa-lux-space-md: 16px;
+  --bfa-lux-space-lg: 24px;
+  --bfa-lux-space-xl: 32px;
+  --bfa-lux-space-2xl: 48px;
+  --bfa-lux-space-3xl: 64px;
+  --bfa-lux-space-4xl: 96px;
+
+  /* Elevation Shadows (Restrained, Editorial Hospitality) */
+  --bfa-lux-shadow-xs: 0 1px 3px rgba(25, 42, 42, 0.04);
+  --bfa-lux-shadow-sm: 0 2px 8px rgba(25, 42, 42, 0.06);
+  --bfa-lux-shadow-md: 0 8px 24px rgba(25, 42, 42, 0.08);
+  --bfa-lux-shadow-lg: 0 16px 40px rgba(25, 42, 42, 0.12);
+  --bfa-lux-shadow-xl: 0 24px 60px rgba(25, 42, 42, 0.16);
+
+  /* Border Radii (Refined, Subtle) */
+  --bfa-lux-radius-xs: 4px;
+  --bfa-lux-radius-sm: 8px;
+  --bfa-lux-radius-md: 12px;
+  --bfa-lux-radius-lg: 16px;
+  --bfa-lux-radius-xl: 24px;
+  --bfa-lux-radius-pill: 9999px;
+
+  /* Accessibility & Transitions */
+  --bfa-lux-touch-min: 44px;
+  --bfa-lux-transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --bfa-lux-transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --bfa-lux-transition-smooth: 400ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Focus Ring */
+  --bfa-lux-focus-ring: 0 0 0 3px rgba(185, 154, 112, 0.35);
+}
+
+/* ==========================================================================
+   SCOPED PUBLIC CONTAINER STYLING
+   ========================================================================== */
+.bfa-hospitality-scope {
+  font-family: var(--bfa-lux-font-body);
+  color: var(--bfa-lux-text-primary);
+  background-color: var(--bfa-lux-bg-page);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.bfa-hospitality-scope * {
+  box-sizing: border-box;
+}
+
+/* Accessible focus visible utility */
+.bfa-hospitality-scope button:focus-visible,
+.bfa-hospitality-scope a:focus-visible,
+.bfa-hospitality-scope input:focus-visible,
+.bfa-hospitality-scope select:focus-visible,
+.bfa-hospitality-scope textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--bfa-lux-focus-ring);
+}
+

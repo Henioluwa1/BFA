@@ -2,7 +2,7 @@ const app = require('./app');
 const config = require('./config');
 const logger = require('./utils/logger');
 const pool = require('./db/pool');
-const { runMigrations } = require('./db/migrator');
+const { runMigrations, checkMigrationStatus } = require('./db/migrator');
 const { validateEnvironment } = require('./config/envValidator');
 const HealthController = require('./modules/health/health.controller');
 const http = require('http');
@@ -22,9 +22,28 @@ async function startServer() {
       process.exit(1);
     }
 
-    // 2. Run pending database migrations
-    logger.info('Running database migrations...');
-    await runMigrations();
+    // 2. Database Migration & Schema Compatibility Check
+    const shouldAutoMigrate = config.db.autoMigrate;
+    if (shouldAutoMigrate) {
+      logger.info(`Database auto-migration enabled [Mode: ${config.app.env}]. Executing pending migrations...`);
+      await runMigrations();
+    } else {
+      logger.info(`Database auto-migration disabled [Mode: ${config.app.env}]. Performing read-only schema validation...`);
+      const status = await checkMigrationStatus();
+      if (status.isUpToDate) {
+        logger.info(`Schema validation passed: Database '${status.targetDatabase}' is up to date (${status.appliedCount}/${status.totalMigrations} migrations applied).`);
+      } else {
+        logger.warn('================================================================================');
+        logger.warn(`SCHEMA WARNING: Database '${status.targetDatabase}' has ${status.pendingCount} pending migration(s):`);
+        status.pendingMigrations.forEach((m) => logger.warn(`  - ${m}`));
+        logger.warn('Run "npm run db:migrate" to apply pending migrations before using schema-dependent features.');
+        logger.warn('================================================================================');
+        if (config.db.strictSchemaCheck) {
+          logger.error('CRITICAL: Server startup aborted because STRICT_SCHEMA_CHECK is enabled and database is missing migrations.');
+          process.exit(1);
+        }
+      }
+    }
 
     // 3. Test database connection
     const dbTest = await pool.testConnection();

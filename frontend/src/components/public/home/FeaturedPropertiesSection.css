@@ -1,0 +1,324 @@
+/* ==========================================================================
+   FeaturedPropertiesSection.css — Editorial Grid Layout
+   BFA Tokens: Warm Ivory, Deep Forest, Muted Champagne
+   ========================================================================== */
+
+.bfa-featured-section {
+  padding: 88px 0;
+  background-color: var(--bfa-lux-bg-page, #fbf9f5);
+}
+
+.bfa-featured-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Header */
+.bfa-featured-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin-bottom: 48px;
+  flex-wrap: wrap;
+}
+
+.bfa-featured-header-left {
+  max-width: 680px;
+}
+
+.bfa-featured-title {
+  font-family: var(--bfa-lux-font-display, 'Outfit', 'Playfair Display', serif);
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  letter-spacing: -0.02em;
+  margin: 12px 0 10px;
+}
+
+.bfa-featured-subtitle {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  margin: 0;
+}
+
+.bfa-view-all-link {
+  text-decoration: none;
+}
+
+.bfa-view-all-link .bfa-lux-btn--primary {
+  font-weight: 600;
+  padding: 10px 22px;
+  box-shadow: 0 3px 10px rgba(185, 154, 112, 0.32);
+}
+
+/* Editorial Grid */
+.bfa-featured-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+
+.bfa-featured-card-wrapper {
+  display: flex;
+}
+
+.bfa-featured-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: 12px;
+  background-color: #ffffff;
+}
+
+/* Media Box */
+.bfa-card-media-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background-color: var(--bfa-lux-forest, #192a2a);
+}
+
+.bfa-card-media-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.bfa-featured-card:hover .bfa-card-media-img {
+  transform: scale(1.03);
+}
+
+.bfa-card-media-overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.bfa-card-vis-pill {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(10, 15, 24, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #e2ded5;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Card Body */
+.bfa-card-body-box {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.bfa-card-top-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 0.775rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+}
+
+.bfa-card-loc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bfa-card-loc svg {
+  color: var(--bfa-lux-champagne, #b99a70);
+  flex-shrink: 0;
+}
+
+.bfa-card-checkin-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.725rem;
+  white-space: nowrap;
+}
+
+.bfa-card-name {
+  font-family: var(--bfa-lux-font-display, 'Outfit', 'Playfair Display', serif);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0 0 10px;
+  letter-spacing: -0.01em;
+}
+
+.bfa-card-description {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  margin: 0 0 18px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Amenity Strip */
+.bfa-card-amenity-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 22px;
+  min-height: 28px;
+}
+
+.bfa-amenity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 4px;
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+  color: var(--bfa-lux-text-primary, #202625);
+  font-size: 0.725rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.bfa-amenity-pill svg {
+  color: var(--bfa-lux-champagne, #b99a70);
+}
+
+.bfa-amenity-neutral-pill {
+  font-size: 0.725rem;
+  color: var(--bfa-lux-text-muted, #8c948e);
+  font-style: italic;
+}
+
+/* Footer Row */
+.bfa-card-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+}
+
+.bfa-card-price-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-card-price-label {
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--bfa-lux-text-muted, #8c948e);
+  text-transform: uppercase;
+}
+
+.bfa-card-price-number {
+  font-family: var(--bfa-lux-font-mono, monospace);
+  font-size: 1.175rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+}
+
+.bfa-card-price-unit {
+  font-family: var(--bfa-lux-font-body, sans-serif);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--bfa-lux-text-secondary, #737a75);
+}
+
+.bfa-card-price-note {
+  font-size: 0.6875rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  font-weight: 500;
+  margin-top: 2px;
+  line-height: 1.2;
+}
+
+.bfa-card-price-inquire {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  font-style: italic;
+}
+
+.bfa-card-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bfa-card-explore-btn {
+  text-decoration: none;
+}
+
+.bfa-card-explore-btn .bfa-lux-btn--primary {
+  font-weight: 600;
+  padding: 8px 18px;
+  box-shadow: 0 2px 8px rgba(185, 154, 112, 0.28);
+}
+
+/* Responsive */
+@media (max-width: 1080px) {
+  .bfa-featured-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .bfa-featured-section {
+    padding: 60px 0;
+  }
+  .bfa-featured-grid {
+    grid-template-columns: 1fr;
+  }
+  .bfa-featured-title {
+    font-size: 1.85rem;
+  }
+  .bfa-card-footer-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .bfa-card-buttons-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .bfa-card-buttons-group > * {
+    flex: 1;
+  }
+  .bfa-card-explore-btn button,
+  .bfa-card-buttons-group button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

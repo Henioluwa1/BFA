@@ -16,8 +16,11 @@ class InspectionsService {
     if (['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role)) {
       return true;
     }
-    if (['MANAGER', 'STAFF'].includes(role) && user.propertyId) {
-      if (parseInt(user.propertyId, 10) !== parseInt(propertyId, 10)) {
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+      if (!user.propertyId) {
+        throw new ForbiddenError('Access denied: User is not assigned to any property.');
+      }
+      if (propertyId && propertyId !== 'all' && parseInt(user.propertyId, 10) !== parseInt(propertyId, 10)) {
         throw new ForbiddenError('Access denied: You do not have authorization for this property.');
       }
     }

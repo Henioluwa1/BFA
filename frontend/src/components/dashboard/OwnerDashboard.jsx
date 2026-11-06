@@ -105,16 +105,24 @@ export default function OwnerDashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Header Banner */}
-      <div className="page-header" style={{ marginBottom: 0 }}>
+      {/* Header Banner — Champagne Gold Executive Theme */}
+      <div
+        className="page-header"
+        style={{
+          marginBottom: 0,
+          padding: '1.5rem',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid rgba(212, 175, 55, 0.35)',
+          background: 'linear-gradient(135deg, #ffffff 0%, #fdfbf7 100%)',
+          boxShadow: '0 4px 16px rgba(184, 134, 11, 0.08)',
+        }}
+      >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-            <h1 className="page-title" style={{ margin: 0 }}>Executive Portfolio & Yield Console</h1>
+            <h1 className="page-title" style={{ margin: 0, color: '#1a1608' }}>Executive Portfolio & Yield Console</h1>
             <span
+              className="role-badge-owner"
               style={{
-                background: '#ecfdf5',
-                color: '#065f46',
-                border: '1px solid #a7f3d0',
                 padding: '0.2rem 0.65rem',
                 borderRadius: '9999px',
                 fontSize: '0.75rem',
@@ -125,22 +133,27 @@ export default function OwnerDashboard() {
                 gap: '0.35rem',
               }}
             >
-              💼 Asset Owner
+              👑 Asset Owner
             </span>
             <Badge status="info">
               {isAllProperties ? '🌐 Multi-Property Portfolio' : `📍 ${activeProperty?.name || 'Selected Property'}`}
             </Badge>
           </div>
-          <p className="page-subtitle" style={{ margin: 0 }}>
+          <p className="page-subtitle" style={{ margin: 0, color: 'var(--text-secondary)' }}>
             Authoritative financial yields, net operating income (NOI), expense monitoring, and real estate asset utilization.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <Button variant="outline" size="sm" onClick={loadDashboardData} loading={loading}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <Button variant="outline" size="sm" onClick={loadDashboardData} loading={loading} style={{ borderColor: 'rgba(212, 175, 55, 0.45)', color: '#b45309' }}>
             ↻ Refresh Ledger & Stats
           </Button>
-          <Button variant="primary" size="sm" onClick={() => navigate('/app/reports?tab=financial')}>
+          <Button
+            variant="primary"
+            size="sm"
+            className="btn-glossy-owner"
+            onClick={() => navigate('/app/reports?tab=financial')}
+          >
             📊 Full Financial Reports
           </Button>
         </div>
@@ -178,7 +191,7 @@ export default function OwnerDashboard() {
         }}
       >
         {/* Net Operating Income (NOI) */}
-        <Card>
+        <Card style={{ borderLeft: '4px solid #d4af37' }}>
           <div style={{ padding: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-muted)' }}>
@@ -199,7 +212,7 @@ export default function OwnerDashboard() {
         </Card>
 
         {/* Gross Collections */}
-        <Card>
+        <Card style={{ borderLeft: '4px solid #c5a059' }}>
           <div style={{ padding: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-muted)' }}>
@@ -207,7 +220,7 @@ export default function OwnerDashboard() {
               </span>
               <span style={{ fontSize: '1.25rem' }}>📥</span>
             </div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.25rem' }}>
+            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
               {loading ? '...' : formatNaira(kpis.grossCollected)}
             </div>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
@@ -217,7 +230,7 @@ export default function OwnerDashboard() {
         </Card>
 
         {/* Portfolio Occupancy Rate */}
-        <Card>
+        <Card style={{ borderLeft: '4px solid #b8860b' }}>
           <div style={{ padding: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-muted)' }}>
@@ -225,7 +238,7 @@ export default function OwnerDashboard() {
               </span>
               <span style={{ fontSize: '1.25rem' }}>🏢</span>
             </div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#2563eb', marginBottom: '0.25rem' }}>
+            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#b45309', marginBottom: '0.25rem' }}>
               {loading ? '...' : `${occupancy.occupancyRate}%`}
             </div>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
@@ -235,7 +248,7 @@ export default function OwnerDashboard() {
         </Card>
 
         {/* Operating Expenses */}
-        <Card>
+        <Card style={{ borderLeft: '4px solid #92400e' }}>
           <div style={{ padding: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-muted)' }}>
@@ -243,7 +256,7 @@ export default function OwnerDashboard() {
               </span>
               <span style={{ fontSize: '1.25rem' }}>🧾</span>
             </div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#d97706', marginBottom: '0.25rem' }}>
+            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#b45309', marginBottom: '0.25rem' }}>
               {loading ? '...' : formatNaira(kpis.approvedExpenses)}
             </div>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
@@ -282,8 +295,8 @@ export default function OwnerDashboard() {
                 {formatNaira(kpis.totalRefunded)}
               </span>
             </div>
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/app/financial?tab=payments')}>
+            <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/app/financial?tab=payments')} style={{ color: '#b45309' }}>
                 Audit Financial Transactions →
               </Button>
             </div>
@@ -309,8 +322,8 @@ export default function OwnerDashboard() {
                 {maintenance.criticalCount} Critical
               </span>
             </div>
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/app/maintenance')}>
+            <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/app/maintenance')} style={{ color: '#b45309' }}>
                 Review Maintenance Requests →
               </Button>
             </div>
@@ -351,12 +364,12 @@ export default function OwnerDashboard() {
                           <strong>{formatNaira(catAmount)}</strong> ({pct}%)
                         </span>
                       </div>
-                      {/* Visual progress bar */}
+                      {/* Visual progress bar with Champagne Gold gradient */}
                       <div
                         style={{
                           height: '6px',
                           borderRadius: '9999px',
-                          background: 'var(--border)',
+                          background: 'var(--border-default)',
                           overflow: 'hidden',
                         }}
                       >
@@ -364,7 +377,7 @@ export default function OwnerDashboard() {
                           style={{
                             height: '100%',
                             width: `${pct}%`,
-                            background: '#d97706',
+                            background: 'linear-gradient(90deg, #d4af37, #b8860b)',
                             borderRadius: '9999px',
                           }}
                         />
@@ -384,88 +397,112 @@ export default function OwnerDashboard() {
               onClick={() => navigate('/app/financial')}
               style={{
                 padding: '0.75rem 1rem',
-                border: '1px solid var(--border)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '0.5rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 cursor: 'pointer',
-                transition: 'background 0.2s',
+                transition: 'all 0.2s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#d4af37';
+                e.currentTarget.style.background = 'rgba(212, 175, 55, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-default)';
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Financial Ledger & Invoices</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Audit receivables, payments & balances</div>
               </div>
-              <span style={{ color: 'var(--text-muted)' }}>→</span>
+              <span style={{ color: '#b45309' }}>→</span>
             </div>
 
             <div
-              onClick={() => navigate('/app/expenses')}
+              onClick={() => navigate('/app/financial?tab=expenses')}
               style={{
                 padding: '0.75rem 1rem',
-                border: '1px solid var(--border)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '0.5rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 cursor: 'pointer',
-                transition: 'background 0.2s',
+                transition: 'all 0.2s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#d4af37';
+                e.currentTarget.style.background = 'rgba(212, 175, 55, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-default)';
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Expense Approvals & Outflows</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Track utility, vendor & facility spend</div>
               </div>
-              <span style={{ color: 'var(--text-muted)' }}>→</span>
+              <span style={{ color: '#b45309' }}>→</span>
             </div>
 
             <div
               onClick={() => navigate('/app/properties')}
               style={{
                 padding: '0.75rem 1rem',
-                border: '1px solid var(--border)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '0.5rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 cursor: 'pointer',
-                transition: 'background 0.2s',
+                transition: 'all 0.2s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#d4af37';
+                e.currentTarget.style.background = 'rgba(212, 175, 55, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-default)';
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Property Portfolio Directory</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Inspect buildings, unit counts & statuses</div>
               </div>
-              <span style={{ color: 'var(--text-muted)' }}>→</span>
+              <span style={{ color: '#b45309' }}>→</span>
             </div>
 
             <div
               onClick={() => navigate('/app/reports?tab=financial')}
               style={{
                 padding: '0.75rem 1rem',
-                border: '1px solid var(--border)',
+                border: '1px solid var(--border-default)',
                 borderRadius: '0.5rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 cursor: 'pointer',
-                transition: 'background 0.2s',
+                transition: 'all 0.2s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-subtle)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#d4af37';
+                e.currentTarget.style.background = 'rgba(212, 175, 55, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-default)';
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Financial Statements & Export</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Download official P&L in CSV or PDF format</div>
               </div>
-              <span style={{ color: 'var(--text-muted)' }}>→</span>
+              <span style={{ color: '#b45309' }}>→</span>
             </div>
           </div>
         </Card>

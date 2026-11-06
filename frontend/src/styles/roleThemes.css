@@ -1,46 +1,629 @@
 /* ==========================================================================
-   ROLE-SPECIFIC PRESENTATIONAL HELPERS (UX distinction only, Section 5, 24)
+   BFA APARTMENTS MANAGEMENT SYSTEM — ROLE-SPECIFIC VISUAL THEMES
+   Centralized Theme System for All 7 Operational Roles (Workspace B)
+   1. SUPER_ADMIN: Electric cyan / bright teal (#00E5FF / #0891b2)
+   2. ADMIN:       Violet / purple (#7C3AED / #6D28D9)
+   3. OWNER:       Champagne gold / warm amber (#D4AF37 / #B8860B) + Glassmorphism
+   4. MANAGER:     Terracotta / burnt orange (#C85A32 / #D95D39)
+   5. STAFF:       Emerald green (#059669 / #10B981)
+   6. RECEPTIONIST:Coral / warm rose (#F43F5E / #E11D48)
+   7. AGENT:       Teal / turquoise (#0D9488 / #14B8A6)
    ========================================================================== */
 
-/* Role Badges & Tags */
-.role-badge-super-admin {
-  background: rgba(96, 165, 250, 0.2);
-  color: #60a5fa;
-  border: 1px solid rgba(96, 165, 250, 0.4);
+/* --------------------------------------------------------------------------
+   1. SUPER_ADMIN / DEVELOPER PORTAL THEME
+   Visual Direction: Advanced Technology Operations Environment
+   Strictly Light Canvas (DO NOT use dark background)
+   -------------------------------------------------------------------------- */
+[data-portal-theme="super_admin"] {
+  --role-primary: #0891b2;
+  --role-accent: #00e5ff;
+  --role-secondary: #64748b;
+  --role-surface: #f1f5f9;
+  --role-border: rgba(8, 145, 178, 0.28);
+  --role-text: #0f172a;
+
+  --brand-primary: #0891b2;
+  --brand-accent: #00bcd4;
+  --brand-hover: #06b6d4;
+  --brand-dark: #0e7490;
+  --brand-dim: rgba(0, 188, 212, 0.08);
+  --brand-border: rgba(0, 188, 212, 0.28);
+  --brand-glow: 0 0 16px rgba(0, 229, 255, 0.25);
+
+  --bg-primary: #f1f5f9;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-glass: rgba(255, 255, 255, 0.94);
+
+  --border-subtle: #f1f5f9;
+  --border-default: #e2e8f0;
+  --border-highlight: #00bcd4;
+
+  --sidebar-active-bg: rgba(0, 229, 255, 0.14);
+  --sidebar-active-border: #00e5ff;
+}
+
+/* --------------------------------------------------------------------------
+   2. ADMIN PORTAL THEME
+   Visual Direction: Clean Administrative Management (Conservative Redesign)
+   -------------------------------------------------------------------------- */
+[data-portal-theme="admin"] {
+  --role-primary: #7c3aed;
+  --role-accent: #8b5cf6;
+  --role-secondary: #6d28d9;
+  --role-surface: #faf5ff;
+  --role-border: rgba(124, 58, 237, 0.25);
+  --role-text: #0f172a;
+
+  --brand-primary: #6d28d9;
+  --brand-accent: #7c3aed;
+  --brand-hover: #6d28d9;
+  --brand-dark: #4c1d95;
+  --brand-dim: rgba(124, 58, 237, 0.08);
+  --brand-border: rgba(124, 58, 237, 0.25);
+  --brand-glow: 0 0 16px rgba(124, 58, 237, 0.22);
+
+  --bg-primary: #fdfdff;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-glass: rgba(255, 255, 255, 0.94);
+
+  --border-subtle: #f8fafc;
+  --border-default: #e2e8f0;
+  --border-highlight: #7c3aed;
+
+  --sidebar-active-bg: rgba(124, 58, 237, 0.16);
+  --sidebar-active-border: #7c3aed;
+}
+
+/* --------------------------------------------------------------------------
+   3. OWNER PORTAL THEME
+   Visual Direction: Premium Executive Property Ownership Experience
+   Color Direction: Champagne Gold / Warm Amber + Cream Ivory
+   -------------------------------------------------------------------------- */
+[data-portal-theme="owner"] {
+  --role-primary: #d4af37;
+  --role-accent: #b8860b;
+  --role-secondary: #c5a059;
+  --role-surface: #fdfbf7;
+  --role-border: rgba(212, 175, 55, 0.32);
+  --role-text: #1a1608;
+
+  --brand-primary: #b8860b;
+  --brand-accent: #d4af37;
+  --brand-hover: #c5a059;
+  --brand-dark: #854d0e;
+  --brand-dim: rgba(212, 175, 55, 0.09);
+  --brand-border: rgba(212, 175, 55, 0.32);
+  --brand-glow: 0 0 18px rgba(212, 175, 55, 0.28);
+
+  --bg-primary: #fdfbf7;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #faf8f5;
+  --bg-glass: rgba(255, 255, 255, 0.88);
+
+  --border-subtle: #faf8f5;
+  --border-default: #eedfc1;
+  --border-highlight: #d4af37;
+
+  --sidebar-active-bg: rgba(212, 175, 55, 0.16);
+  --sidebar-active-border: #d4af37;
+}
+
+/* --------------------------------------------------------------------------
+   4. MANAGER / OPERATIONS_MANAGER PORTAL THEME
+   Visual Direction: Property Operations and Management
+   Color Direction: Terracotta / Burnt Orange + Soft Peach
+   -------------------------------------------------------------------------- */
+[data-portal-theme="operations_manager"],
+[data-portal-theme="manager"] {
+  --role-primary: #c85a32;
+  --role-accent: #d95d39;
+  --role-secondary: #9a3412;
+  --role-surface: #fff7ed;
+  --role-border: rgba(200, 90, 50, 0.25);
+  --role-text: #0f172a;
+
+  --brand-primary: #9a3412;
+  --brand-accent: #c85a32;
+  --brand-hover: #b44622;
+  --brand-dark: #7c2d12;
+  --brand-dim: rgba(200, 90, 50, 0.08);
+  --brand-border: rgba(200, 90, 50, 0.25);
+  --brand-glow: 0 0 16px rgba(200, 90, 50, 0.22);
+
+  --bg-primary: #faf8f6;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fdfbf9;
+  --bg-glass: rgba(255, 255, 255, 0.94);
+
+  --border-subtle: #fdfbf9;
+  --border-default: #fed7aa;
+  --border-highlight: #c85a32;
+
+  --sidebar-active-bg: rgba(200, 90, 50, 0.16);
+  --sidebar-active-border: #c85a32;
+}
+
+/* --------------------------------------------------------------------------
+   5. STAFF PORTAL THEME
+   Visual Direction: Everyday Staff Operations (Practical, Welcoming)
+   Color Direction: Emerald Green + Soft Mint
+   -------------------------------------------------------------------------- */
+[data-portal-theme="staff"] {
+  --role-primary: #059669;
+  --role-accent: #10b981;
+  --role-secondary: #047857;
+  --role-surface: #ecfdf5;
+  --role-border: rgba(5, 150, 105, 0.25);
+  --role-text: #0f172a;
+
+  --brand-primary: #047857;
+  --brand-accent: #059669;
+  --brand-hover: #047857;
+  --brand-dark: #064e3b;
+  --brand-dim: rgba(5, 150, 105, 0.08);
+  --brand-border: rgba(5, 150, 105, 0.25);
+  --brand-glow: 0 0 16px rgba(5, 150, 105, 0.22);
+
+  --bg-primary: #f9fcfa;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0fdf4;
+  --bg-glass: rgba(255, 255, 255, 0.94);
+
+  --border-subtle: #f0fdf4;
+  --border-default: #a7f3d0;
+  --border-highlight: #059669;
+
+  --sidebar-active-bg: rgba(5, 150, 105, 0.16);
+  --sidebar-active-border: #059669;
+}
+
+/* --------------------------------------------------------------------------
+   6. RECEPTIONIST PORTAL THEME
+   Visual Direction: Front-Desk Hospitality and Guest Service
+   Color Direction: Coral / Warm Rose + Soft Blush
+   -------------------------------------------------------------------------- */
+[data-portal-theme="receptionist"] {
+  --role-primary: #f43f5e;
+  --role-accent: #e11d48;
+  --role-secondary: #be123c;
+  --role-surface: #fff1f2;
+  --role-border: rgba(244, 63, 94, 0.25);
+  --role-text: #0f172a;
+
+  --brand-primary: #be123c;
+  --brand-accent: #f43f5e;
+  --brand-hover: #e11d48;
+  --brand-dark: #881337;
+  --brand-dim: rgba(244, 63, 94, 0.08);
+  --brand-border: rgba(244, 63, 94, 0.25);
+  --brand-glow: 0 0 16px rgba(244, 63, 94, 0.22);
+
+  --bg-primary: #fffbfb;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fff1f2;
+  --bg-glass: rgba(255, 255, 255, 0.94);
+
+  --border-subtle: #fff1f2;
+  --border-default: #fecdd3;
+  --border-highlight: #f43f5e;
+
+  --sidebar-active-bg: rgba(244, 63, 94, 0.16);
+  --sidebar-active-border: #f43f5e;
+}
+
+/* --------------------------------------------------------------------------
+   7. AGENT PORTAL THEME
+   Visual Direction: Property Sales, Client Relationships & Booking Coordination
+   Color Direction: Teal / Turquoise + Soft Aqua
+   -------------------------------------------------------------------------- */
+[data-portal-theme="agent"] {
+  --role-primary: #0d9488;
+  --role-accent: #14b8a6;
+  --role-secondary: #0f766e;
+  --role-surface: #f0fdfa;
+  --role-border: rgba(13, 148, 136, 0.25);
+  --role-text: #0f172a;
+
+  --brand-primary: #0f766e;
+  --brand-accent: #0d9488;
+  --brand-hover: #0f766e;
+  --brand-dark: #134e4a;
+  --brand-dim: rgba(13, 148, 136, 0.08);
+  --brand-border: rgba(13, 148, 136, 0.25);
+  --brand-glow: 0 0 16px rgba(13, 148, 136, 0.22);
+
+  --bg-primary: #f7fcfc;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0fdfa;
+  --bg-glass: rgba(255, 255, 255, 0.94);
+
+  --border-subtle: #f0fdfa;
+  --border-default: #99f6e4;
+  --border-highlight: #0d9488;
+
+  --sidebar-active-bg: rgba(13, 148, 136, 0.16);
+  --sidebar-active-border: #0d9488;
+}
+
+/* ==========================================================================
+   OWNER PORTAL: MANDATORY GLASSMORPHISM MODAL SYSTEM
+   Every modal rendered in the Owner portal automatically receives glassmorphism
+   ========================================================================== */
+[data-portal-theme="owner"] .modal-overlay {
+  background: rgba(24, 19, 9, 0.38) !important;
+  backdrop-filter: blur(8px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(140%) !important;
+}
+
+[data-portal-theme="owner"] .modal-content,
+.modal-glass {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  border: 1px solid rgba(212, 175, 55, 0.35) !important;
+  box-shadow: 
+    0 24px 48px -12px rgba(184, 134, 11, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.85) inset,
+    0 8px 16px -4px rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-portal-theme="owner"] .modal-header {
+  border-bottom: 1px solid rgba(212, 175, 55, 0.24) !important;
+  background: rgba(253, 251, 247, 0.65) !important;
+}
+
+[data-portal-theme="owner"] .modal-footer {
+  border-top: 1px solid rgba(212, 175, 55, 0.24) !important;
+  background: rgba(253, 251, 247, 0.65) !important;
+}
+
+/* ==========================================================================
+   OWNER PORTAL: GLOSSY BUTTON SYSTEM
+   Subtle gradient surfaces, soft reflective highlights, refined shadows
+   ========================================================================== */
+[data-portal-theme="owner"] .btn-primary,
+.btn-glossy-owner {
+  background: linear-gradient(180deg, #e4c56e 0%, #d4af37 50%, #b8860b 100%) !important;
+  color: #1a1608 !important;
+  font-weight: 600 !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 
+    0 4px 14px rgba(184, 134, 11, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+[data-portal-theme="owner"] .btn-primary:hover:not(:disabled),
+.btn-glossy-owner:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ebd07b 0%, #dfc066 50%, #c59b27 100%) !important;
+  box-shadow: 
+    0 6px 18px rgba(184, 134, 11, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+  transform: translateY(-1px);
+  color: #141004 !important;
+}
+
+[data-portal-theme="owner"] .btn-primary:active:not(:disabled),
+.btn-glossy-owner:active:not(:disabled) {
+  background: linear-gradient(180deg, #c59b27 0%, #b8860b 100%) !important;
+  box-shadow: 
+    0 2px 6px rgba(184, 134, 11, 0.3),
+    inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+  transform: translateY(0);
+}
+
+[data-portal-theme="owner"] .btn-primary:disabled,
+.btn-glossy-owner:disabled {
+  background: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* ==========================================================================
+   SUPER ADMIN / DEVELOPER: TECHNICAL COMMAND CENTER ACCENTS
+   ========================================================================== */
+.tech-grid-pattern {
+  background-image: 
+    linear-gradient(rgba(8, 145, 178, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8, 145, 178, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.telemetry-code {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.82rem;
+  background: rgba(8, 145, 178, 0.08);
+  color: #0891b2;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(8, 145, 178, 0.22);
+}
+
+/* ==========================================================================
+   ROLE BADGES & TAGS (7 Distinct Roles)
+   ========================================================================== */
+.role-badge-super-admin,
+.role-badge-super_admin {
+  background: rgba(0, 229, 255, 0.12) !important;
+  color: #0891b2 !important;
+  border: 1px solid rgba(8, 145, 178, 0.35) !important;
 }
 
 .role-badge-admin {
-  background: rgba(37, 99, 235, 0.15);
-  color: #2563eb;
-  border: 1px solid rgba(37, 99, 235, 0.3);
-}
-
-.role-badge-manager {
-  background: rgba(16, 185, 129, 0.15);
-  color: #059669;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.role-badge-receptionist {
-  background: rgba(245, 158, 11, 0.15);
-  color: #d97706;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.role-badge-staff {
-  background: rgba(100, 116, 139, 0.15);
-  color: #475569;
-  border: 1px solid rgba(100, 116, 139, 0.3);
-}
-
-.role-badge-agent {
-  background: rgba(147, 51, 234, 0.15);
-  color: #9333ea;
-  border: 1px solid rgba(147, 51, 234, 0.3);
+  background: rgba(124, 58, 237, 0.12) !important;
+  color: #6d28d9 !important;
+  border: 1px solid rgba(124, 58, 237, 0.35) !important;
 }
 
 .role-badge-owner {
-  background: rgba(180, 83, 9, 0.15);
-  color: #b45309;
-  border: 1px solid rgba(180, 83, 9, 0.3);
+  background: rgba(212, 175, 55, 0.15) !important;
+  color: #b45309 !important;
+  border: 1px solid rgba(212, 175, 55, 0.4) !important;
+}
+
+.role-badge-manager {
+  background: rgba(200, 90, 50, 0.12) !important;
+  color: #9a3412 !important;
+  border: 1px solid rgba(200, 90, 50, 0.35) !important;
+}
+
+.role-badge-staff {
+  background: rgba(5, 150, 105, 0.12) !important;
+  color: #047857 !important;
+  border: 1px solid rgba(5, 150, 105, 0.35) !important;
+}
+
+.role-badge-receptionist {
+  background: rgba(244, 63, 94, 0.12) !important;
+  color: #be123c !important;
+  border: 1px solid rgba(244, 63, 94, 0.35) !important;
+}
+
+.role-badge-agent {
+  background: rgba(13, 148, 136, 0.12) !important;
+  color: #0f766e !important;
+  border: 1px solid rgba(13, 148, 136, 0.35) !important;
+}
+
+/* ==========================================================================
+   STAFF ID CARD ROLE COLOR IDENTITIES (7 Distinct Identities)
+   ========================================================================== */
+
+/* 1. Super Admin ID Badge (Electric Cyan) */
+.badge-card[data-role-card="super_admin"] .badge-front-header,
+.badge-theme-super_admin .badge-front-header {
+  background: linear-gradient(135deg, #090e17 0%, #0e7490 60%, #00bcd4 100%);
+}
+.badge-card[data-role-card="super_admin"] .badge-role-trim,
+.badge-card[data-role-card="super_admin"] .badge-gold-trim,
+.badge-theme-super_admin .badge-gold-trim {
+  background: linear-gradient(90deg, #0891b2 0%, #00e5ff 50%, #0891b2 100%) !important;
+}
+.badge-card[data-role-card="super_admin"] .badge-photo-frame,
+.badge-theme-super_admin .badge-photo-frame {
+  border: 3.5px solid #00bcd4 !important;
+}
+.badge-card[data-role-card="super_admin"] .badge-staff-role,
+.badge-theme-super_admin .badge-staff-role {
+  color: #0891b2 !important;
+}
+.badge-card[data-role-card="super_admin"] .badge-code-val,
+.badge-theme-super_admin .badge-code-val {
+  color: #0891b2 !important;
+}
+.badge-card[data-role-card="super_admin"] .badge-back-header,
+.badge-theme-super_admin .badge-back-header {
+  background: #090e17 !important;
+}
+
+/* 2. Admin ID Badge (Violet) */
+.badge-card[data-role-card="admin"] .badge-front-header,
+.badge-theme-admin .badge-front-header {
+  background: linear-gradient(135deg, #1e1136 0%, #5b21b6 60%, #7c3aed 100%);
+}
+.badge-card[data-role-card="admin"] .badge-role-trim,
+.badge-card[data-role-card="admin"] .badge-gold-trim,
+.badge-theme-admin .badge-gold-trim {
+  background: linear-gradient(90deg, #6d28d9 0%, #a78bfa 50%, #6d28d9 100%) !important;
+}
+.badge-card[data-role-card="admin"] .badge-photo-frame,
+.badge-theme-admin .badge-photo-frame {
+  border: 3.5px solid #7c3aed !important;
+}
+.badge-card[data-role-card="admin"] .badge-staff-role,
+.badge-theme-admin .badge-staff-role {
+  color: #6d28d9 !important;
+}
+.badge-card[data-role-card="admin"] .badge-code-val,
+.badge-theme-admin .badge-code-val {
+  color: #6d28d9 !important;
+}
+.badge-card[data-role-card="admin"] .badge-back-header,
+.badge-theme-admin .badge-back-header {
+  background: #1e1136 !important;
+}
+
+/* 3. Owner ID Badge (Champagne Gold) */
+.badge-card[data-role-card="owner"] .badge-front-header,
+.badge-theme-owner .badge-front-header {
+  background: linear-gradient(135deg, #1c1404 0%, #78350f 50%, #d4af37 100%);
+}
+.badge-card[data-role-card="owner"] .badge-role-trim,
+.badge-card[data-role-card="owner"] .badge-gold-trim,
+.badge-theme-owner .badge-gold-trim {
+  background: linear-gradient(90deg, #b8860b 0%, #fef08a 50%, #d4af37 100%) !important;
+}
+.badge-card[data-role-card="owner"] .badge-photo-frame,
+.badge-theme-owner .badge-photo-frame {
+  border: 3.5px solid #d4af37 !important;
+}
+.badge-card[data-role-card="owner"] .badge-staff-role,
+.badge-theme-owner .badge-staff-role {
+  color: #b45309 !important;
+}
+.badge-card[data-role-card="owner"] .badge-code-val,
+.badge-theme-owner .badge-code-val {
+  color: #b45309 !important;
+}
+.badge-card[data-role-card="owner"] .badge-back-header,
+.badge-theme-owner .badge-back-header {
+  background: #1c1404 !important;
+}
+
+/* 4. Manager ID Badge (Terracotta) */
+.badge-card[data-role-card="manager"] .badge-front-header,
+.badge-theme-manager .badge-front-header {
+  background: linear-gradient(135deg, #270e04 0%, #9a3412 55%, #c85a32 100%);
+}
+.badge-card[data-role-card="manager"] .badge-role-trim,
+.badge-card[data-role-card="manager"] .badge-gold-trim,
+.badge-theme-manager .badge-gold-trim {
+  background: linear-gradient(90deg, #c85a32 0%, #fed7aa 50%, #c85a32 100%) !important;
+}
+.badge-card[data-role-card="manager"] .badge-photo-frame,
+.badge-theme-manager .badge-photo-frame {
+  border: 3.5px solid #c85a32 !important;
+}
+.badge-card[data-role-card="manager"] .badge-staff-role,
+.badge-theme-manager .badge-staff-role {
+  color: #9a3412 !important;
+}
+.badge-card[data-role-card="manager"] .badge-code-val,
+.badge-theme-manager .badge-code-val {
+  color: #c85a32 !important;
+}
+.badge-card[data-role-card="manager"] .badge-back-header,
+.badge-theme-manager .badge-back-header {
+  background: #270e04 !important;
+}
+
+/* 5. Staff ID Badge (Emerald Green) */
+.badge-card[data-role-card="staff"] .badge-front-header,
+.badge-theme-staff .badge-front-header {
+  background: linear-gradient(135deg, #022016 0%, #065f46 55%, #059669 100%);
+}
+.badge-card[data-role-card="staff"] .badge-role-trim,
+.badge-card[data-role-card="staff"] .badge-gold-trim,
+.badge-theme-staff .badge-gold-trim {
+  background: linear-gradient(90deg, #059669 0%, #a7f3d0 50%, #059669 100%) !important;
+}
+.badge-card[data-role-card="staff"] .badge-photo-frame,
+.badge-theme-staff .badge-photo-frame {
+  border: 3.5px solid #059669 !important;
+}
+.badge-card[data-role-card="staff"] .badge-staff-role,
+.badge-theme-staff .badge-staff-role {
+  color: #047857 !important;
+}
+.badge-card[data-role-card="staff"] .badge-code-val,
+.badge-theme-staff .badge-code-val {
+  color: #059669 !important;
+}
+.badge-card[data-role-card="staff"] .badge-back-header,
+.badge-theme-staff .badge-back-header {
+  background: #022016 !important;
+}
+
+/* 6. Receptionist ID Badge (Coral) */
+.badge-card[data-role-card="receptionist"] .badge-front-header,
+.badge-theme-receptionist .badge-front-header {
+  background: linear-gradient(135deg, #2b030d 0%, #9f1239 55%, #f43f5e 100%);
+}
+.badge-card[data-role-card="receptionist"] .badge-role-trim,
+.badge-card[data-role-card="receptionist"] .badge-gold-trim,
+.badge-theme-receptionist .badge-gold-trim {
+  background: linear-gradient(90deg, #f43f5e 0%, #fecdd3 50%, #f43f5e 100%) !important;
+}
+.badge-card[data-role-card="receptionist"] .badge-photo-frame,
+.badge-theme-receptionist .badge-photo-frame {
+  border: 3.5px solid #f43f5e !important;
+}
+.badge-card[data-role-card="receptionist"] .badge-staff-role,
+.badge-theme-receptionist .badge-staff-role {
+  color: #be123c !important;
+}
+.badge-card[data-role-card="receptionist"] .badge-code-val,
+.badge-theme-receptionist .badge-code-val {
+  color: #f43f5e !important;
+}
+.badge-card[data-role-card="receptionist"] .badge-back-header,
+.badge-theme-receptionist .badge-back-header {
+  background: #2b030d !important;
+}
+
+/* 7. Agent ID Badge (Teal) */
+.badge-card[data-role-card="agent"] .badge-front-header,
+.badge-theme-agent .badge-front-header {
+  background: linear-gradient(135deg, #021f1e 0%, #115e59 55%, #0d9488 100%);
+}
+.badge-card[data-role-card="agent"] .badge-role-trim,
+.badge-card[data-role-card="agent"] .badge-gold-trim,
+.badge-theme-agent .badge-gold-trim {
+  background: linear-gradient(90deg, #0d9488 0%, #99f6e4 50%, #0d9488 100%) !important;
+}
+.badge-card[data-role-card="agent"] .badge-photo-frame,
+.badge-theme-agent .badge-photo-frame {
+  border: 3.5px solid #0d9488 !important;
+}
+.badge-card[data-role-card="agent"] .badge-staff-role,
+.badge-theme-agent .badge-staff-role {
+  color: #0f766e !important;
+}
+.badge-card[data-role-card="agent"] .badge-code-val,
+.badge-theme-agent .badge-code-val {
+  color: #0d9488 !important;
+}
+.badge-card[data-role-card="agent"] .badge-back-header,
+.badge-theme-agent .badge-back-header {
+  background: #021f1e !important;
+}
+
+
+/* ==========================================================================
+   PRINT STYLES FOR OFFICIAL STAFF ID CARDS
+   ========================================================================== */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .badge-card-deck,
+  .badge-card-deck * {
+    visibility: visible !important;
+  }
+  .badge-card-deck {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 24px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    gap: 32px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .badge-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+  }
 }

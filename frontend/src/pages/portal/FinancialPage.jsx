@@ -15,6 +15,13 @@ import {
   accountingService,
 } from '../../services/api';
 import {
+  IncomeStatementTab,
+  BalanceSheetTab,
+  CashFlowTab,
+  ReceivablesTab,
+  RefundsReconciliationTab,
+} from '../../components/financial';
+import {
   LineChart,
   BarChart,
   GroupedBarChart,
@@ -112,6 +119,18 @@ export default function FinancialPage() {
   const [glSelectedAccount, setGlSelectedAccount] = useState('');
   const [glSearch, setGlSearch] = useState('');
 
+  // Financial Statements & Reconciliations Data
+  const [incomeStatement, setIncomeStatement] = useState(null);
+  const [incomeStatementLoading, setIncomeStatementLoading] = useState(false);
+  const [balanceSheet, setBalanceSheet] = useState(null);
+  const [balanceSheetLoading, setBalanceSheetLoading] = useState(false);
+  const [cashFlow, setCashFlow] = useState(null);
+  const [cashFlowLoading, setCashFlowLoading] = useState(false);
+  const [receivablesReport, setReceivablesReport] = useState(null);
+  const [receivablesReportLoading, setReceivablesReportLoading] = useState(false);
+  const [refundsReconciliation, setRefundsReconciliation] = useState(null);
+  const [refundsReconciliationLoading, setRefundsReconciliationLoading] = useState(false);
+
   // Subledger & Transaction Data
   const [ledgerEntries, setLedgerEntries] = useState([]);
   const [ledgerPagination, setLedgerPagination] = useState({ page: 1, totalPages: 1, totalRecords: 0 });
@@ -160,7 +179,22 @@ export default function FinancialPage() {
     if (qPropId) setPropertyFilter(qPropId);
 
     const qTab = searchParams.get('tab');
-    if (qTab && ['overview', 'trial-balance', 'general-ledger', 'ledger', 'payments', 'expenses'].includes(qTab)) {
+    if (
+      qTab &&
+      [
+        'overview',
+        'income-statement',
+        'balance-sheet',
+        'cash-flow',
+        'trial-balance',
+        'general-ledger',
+        'receivables',
+        'refunds-reconciliation',
+        'ledger',
+        'payments',
+        'expenses',
+      ].includes(qTab)
+    ) {
       setActiveTab(qTab);
     }
 
@@ -336,14 +370,110 @@ export default function FinancialPage() {
     }
   };
 
+  // Fetch Income Statement (P&L)
+  const fetchIncomeStatement = async () => {
+    setIncomeStatementLoading(true);
+    try {
+      const res = await accountingService.getIncomeStatement({
+        propertyId: propertyFilter !== 'all' ? propertyFilter : undefined,
+        periodId: selectedPeriodId || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      });
+      setIncomeStatement(res.data?.data || res.data || null);
+    } catch (err) {
+      addToast(`Error loading Profit & Loss statement: ${err.message}`, 'error');
+    } finally {
+      setIncomeStatementLoading(false);
+    }
+  };
+
+  // Fetch Balance Sheet
+  const fetchBalanceSheet = async () => {
+    setBalanceSheetLoading(true);
+    try {
+      const res = await accountingService.getBalanceSheet({
+        propertyId: propertyFilter !== 'all' ? propertyFilter : undefined,
+        periodId: selectedPeriodId || undefined,
+        asOfDate: toDate || undefined,
+      });
+      setBalanceSheet(res.data?.data || res.data || null);
+    } catch (err) {
+      addToast(`Error loading Balance Sheet: ${err.message}`, 'error');
+    } finally {
+      setBalanceSheetLoading(false);
+    }
+  };
+
+  // Fetch Cash Flow
+  const fetchCashFlow = async () => {
+    setCashFlowLoading(true);
+    try {
+      const res = await accountingService.getCashFlow({
+        propertyId: propertyFilter !== 'all' ? propertyFilter : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      });
+      setCashFlow(res.data?.data || res.data || null);
+    } catch (err) {
+      addToast(`Error loading Cash Flow statement: ${err.message}`, 'error');
+    } finally {
+      setCashFlowLoading(false);
+    }
+  };
+
+  // Fetch Receivables
+  const fetchReceivables = async () => {
+    setReceivablesReportLoading(true);
+    try {
+      const res = await accountingService.getReceivables({
+        propertyId: propertyFilter !== 'all' ? propertyFilter : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      });
+      setReceivablesReport(res.data?.data || res.data || null);
+    } catch (err) {
+      addToast(`Error loading Receivables report: ${err.message}`, 'error');
+    } finally {
+      setReceivablesReportLoading(false);
+    }
+  };
+
+  // Fetch Refunds Reconciliation
+  const fetchRefundsReconciliation = async () => {
+    setRefundsReconciliationLoading(true);
+    try {
+      const res = await accountingService.getRefundsReconciliation({
+        propertyId: propertyFilter !== 'all' ? propertyFilter : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      });
+      setRefundsReconciliation(res.data?.data || res.data || null);
+    } catch (err) {
+      addToast(`Error loading Refunds Reconciliation: ${err.message}`, 'error');
+    } finally {
+      setRefundsReconciliationLoading(false);
+    }
+  };
+
   // Refetch when filters or tab change
   useEffect(() => {
     if (activeTab === 'overview') {
       fetchOverview();
+    } else if (activeTab === 'income-statement') {
+      fetchIncomeStatement();
+    } else if (activeTab === 'balance-sheet') {
+      fetchBalanceSheet();
+    } else if (activeTab === 'cash-flow') {
+      fetchCashFlow();
     } else if (activeTab === 'trial-balance') {
       fetchTrialBalance();
     } else if (activeTab === 'general-ledger') {
       fetchGeneralLedger(1);
+    } else if (activeTab === 'receivables') {
+      fetchReceivables();
+    } else if (activeTab === 'refunds-reconciliation') {
+      fetchRefundsReconciliation();
     } else if (activeTab === 'ledger') {
       fetchLedger(1);
     } else if (activeTab === 'payments') {
@@ -759,7 +889,7 @@ export default function FinancialPage() {
             />
           </div>
 
-          {(activeTab === 'trial-balance' || activeTab === 'general-ledger') && (
+          {(activeTab === 'trial-balance' || activeTab === 'general-ledger' || activeTab === 'income-statement' || activeTab === 'balance-sheet') && (
             <div>
               <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Accounting Period</label>
               <select
@@ -799,8 +929,13 @@ export default function FinancialPage() {
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-default)', marginBottom: '1.5rem', gap: '0.5rem', overflowX: 'auto' }}>
         {[
           { id: 'overview', label: 'Financial Overview & Charts' },
+          { id: 'income-statement', label: 'Profit & Loss (P&L)' },
+          { id: 'balance-sheet', label: 'Balance Sheet' },
+          { id: 'cash-flow', label: 'Cash Flow' },
           { id: 'trial-balance', label: 'Trial Balance' },
           { id: 'general-ledger', label: 'General Ledger' },
+          { id: 'receivables', label: 'Accounts Receivable' },
+          { id: 'refunds-reconciliation', label: 'Refunds Reconciliation' },
           { id: 'ledger', label: 'Subledger Transactions' },
           { id: 'payments', label: 'Payments & Collections' },
           { id: 'expenses', label: 'Operational Expenses' },
@@ -825,6 +960,47 @@ export default function FinancialPage() {
           </button>
         ))}
       </div>
+
+      {/* FINANCIAL STATEMENTS & AUDIT TABS */}
+      {activeTab === 'income-statement' && (
+        <IncomeStatementTab
+          data={incomeStatement}
+          loading={incomeStatementLoading}
+          onRefresh={fetchIncomeStatement}
+        />
+      )}
+
+      {activeTab === 'balance-sheet' && (
+        <BalanceSheetTab
+          data={balanceSheet}
+          loading={balanceSheetLoading}
+          onRefresh={fetchBalanceSheet}
+        />
+      )}
+
+      {activeTab === 'cash-flow' && (
+        <CashFlowTab
+          data={cashFlow}
+          loading={cashFlowLoading}
+          onRefresh={fetchCashFlow}
+        />
+      )}
+
+      {activeTab === 'receivables' && (
+        <ReceivablesTab
+          data={receivablesReport}
+          loading={receivablesReportLoading}
+          onRefresh={fetchReceivables}
+        />
+      )}
+
+      {activeTab === 'refunds-reconciliation' && (
+        <RefundsReconciliationTab
+          data={refundsReconciliation}
+          loading={refundsReconciliationLoading}
+          onRefresh={fetchRefundsReconciliation}
+        />
+      )}
 
       {/* TAB 1: OVERVIEW & CHARTS */}
       {activeTab === 'overview' && (

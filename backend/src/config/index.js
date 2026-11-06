@@ -12,6 +12,21 @@ const resolvedDatabase = isTest
   ? (process.env.DB_NAME_TEST || process.env.TEST_DB_NAME || 'bfa_apartments_test_db')
   : (process.env.DB_NAME || process.env.MYSQLDATABASE || 'bfa_apartments_db');
 
+// Migration lifecycle configuration:
+// - In production: autoMigrate strictly defaults to FALSE (controlled manual execution via npm run db:migrate).
+// - In test: autoMigrate defaults to FALSE (isolated test scripts manage test DB).
+// - In development: autoMigrate defaults to TRUE unless explicitly set to false/0.
+const rawAutoMigrate = (process.env.AUTO_MIGRATE || process.env.DB_AUTO_MIGRATE || '').trim().toLowerCase();
+let resolvedAutoMigrate = false;
+if (process.env.NODE_ENV === 'production' || isTest) {
+  resolvedAutoMigrate = rawAutoMigrate === 'true' || rawAutoMigrate === '1';
+} else {
+  resolvedAutoMigrate = rawAutoMigrate === '' ? true : (rawAutoMigrate === 'true' || rawAutoMigrate === '1');
+}
+
+const rawStrictSchema = (process.env.STRICT_SCHEMA_CHECK || '').trim().toLowerCase();
+const resolvedStrictSchema = rawStrictSchema === 'true' || rawStrictSchema === '1';
+
 const config = {
   app: {
     name: process.env.APP_NAME || 'BFA Apartments Management System',
@@ -33,6 +48,8 @@ const config = {
     idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT, 10) || 60000,
     connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT, 10) || 10000,
     timezone: '+00:00',
+    autoMigrate: resolvedAutoMigrate,
+    strictSchemaCheck: resolvedStrictSchema,
   },
   cors: {
     origin: (process.env.CORS_ORIGIN || 'http://localhost:5173')

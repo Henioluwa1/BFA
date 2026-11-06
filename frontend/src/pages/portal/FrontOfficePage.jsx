@@ -9,6 +9,8 @@ import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { formatNaira } from '../../utils/currency';
+import ApartmentReadinessModal from '../../components/portal/ApartmentReadinessModal';
+import PreCheckInReadinessModal from '../../components/portal/PreCheckInReadinessModal';
 
 export default function FrontOfficePage() {
   const navigate = useNavigate();
@@ -17,7 +19,9 @@ export default function FrontOfficePage() {
   const { addToast } = useToast();
 
   const isOwner = user?.role === 'OWNER';
-  const isManagerOrAdmin = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role);
+  const isManagerOrAdmin = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER'].includes(user?.role);
+  const canCheckIn = hasPermission('reservations.checkin') || hasPermission('check_in_out:write') || ['RECEPTIONIST', 'MANAGER', 'OPERATIONS_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user?.role);
+  const canCheckOut = hasPermission('reservations.checkout') || hasPermission('check_in_out:write') || ['RECEPTIONIST', 'MANAGER', 'OPERATIONS_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user?.role);
 
   const [activeTab, setActiveTab] = useState('PENDING_APPROVAL'); // 'PENDING_APPROVAL' | 'ARRIVALS' | 'IN_HOUSE' | 'DEPARTURES' | 'HOUSEKEEPING'
   const [propertyFilter, setPropertyFilter] = useState(activePropertyId || 'all');
@@ -44,9 +48,29 @@ export default function FrontOfficePage() {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
+  // Payment proof inspection modal
+  const [proofPreviewReservation, setProofPreviewReservation] = useState(null);
+  const [isProofModalOpen, setIsProofModalOpen] = useState(false);
+
+  // Decline modal state
+  const [declineModalReservation, setDeclineModalReservation] = useState(null);
+  const [declineReason, setDeclineReason] = useState('TRANSFER_NOT_FOUND');
+  const [declineNotes, setDeclineNotes] = useState('');
+  const [declineLoading, setDeclineLoading] = useState(false);
+
   // Prompt modal for No-Show reason
   const [noShowId, setNoShowId] = useState(null);
   const [noShowReason, setNoShowReason] = useState('');
+
+  // Pre-Check-In readiness modal state (PB3)
+  const [checkInReservation, setCheckInReservation] = useState(null);
+
+  // Decoupled room readiness desk modal state (PB2)
+  const [readinessApartment, setReadinessApartment] = useState(null);
+
+  // Claim Desk search & filtering state (PB1)
+  const [claimSearch, setClaimSearch] = useState('');
+  const [claimFilter, setClaimFilter] = useState('ALL'); // 'ALL' | 'UNASSIGNED' | 'CLAIMED_BY_ME' | 'LOCKED_TO_OTHERS'
 
   // Sync with PropertyContext
   useEffect(() => {
@@ -137,6 +161,76 @@ export default function FrontOfficePage() {
     return () => clearInterval(interval);
   }, [autoRefresh, loadFrontOfficeData]);
 
+  // Claim booking (concurrency guarded)
+  const handleClaimBooking = async (reservationId) => {
+    setActionLoadingId(reservationId);
+    try {
+      const res = await frontOfficeService.claimReservation(reservationId);
+      addToast(
+        res.data?.message || `Reservation claimed and assigned to you!`,
+        'success'
+      );
+      await loadFrontOfficeData(false);
+    } catch (err) {
+      const isConflict = err.response?.status === 409;
+      const errMsg = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+      addToast(
+        isConflict
+          ? `[409 CONFLICT] ${errMsg || 'Reservation was already claimed by another staff member.'}`
+          : `Claim failed: ${errMsg}`,
+        'error'
+      );
+      await loadFrontOfficeData(true);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Verify payment & approve booking
+  const handleApproveBooking = async (reservationId) => {
+    setActionLoadingId(reservationId);
+    try {
+      const res = await frontOfficeService.approveReservation(reservationId);
+      addToast(
+        res.data?.message || 'Payment verified and reservation approved! Guest check-in passcode is active.',
+        'success'
+      );
+      await loadFrontOfficeData(false);
+    } catch (err) {
+      const errMsg = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+      addToast(`Approval failed: ${errMsg}`, 'error');
+      await loadFrontOfficeData(true);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Decline reservation with structured reason
+  const handleSubmitDecline = async (e) => {
+    if (e) e.preventDefault();
+    if (!declineModalReservation) return;
+    setDeclineLoading(true);
+    try {
+      const res = await frontOfficeService.declineReservation(declineModalReservation.id, {
+        reason: declineReason,
+        notes: declineNotes,
+      });
+      addToast(
+        res.data?.message || `Reservation #${declineModalReservation.reservation_code} declined.`,
+        'success'
+      );
+      setDeclineModalReservation(null);
+      setDeclineReason('TRANSFER_NOT_FOUND');
+      setDeclineNotes('');
+      await loadFrontOfficeData(false);
+    } catch (err) {
+      const errMsg = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+      addToast(`Decline failed: ${errMsg}`, 'error');
+    } finally {
+      setDeclineLoading(false);
+    }
+  };
+
   // Accept client & approve booking
   const handleAcceptClient = async (reservationId) => {
     setActionLoadingId(reservationId);
@@ -156,18 +250,9 @@ export default function FrontOfficePage() {
     }
   };
 
-  // Check-In
-  const handleCheckIn = async (reservationId) => {
-    setActionLoadingId(reservationId);
-    try {
-      await frontOfficeService.checkIn(reservationId);
-      addToast('Guest successfully checked in! Unit operational status set to OCCUPIED.', 'success');
-      loadFrontOfficeData(false);
-    } catch (err) {
-      addToast(`Check-in failed: ${err.response?.data?.error?.message || err.message}`, 'error');
-    } finally {
-      setActionLoadingId(null);
-    }
+  // Check-In (Triggers 5-part invariant safety verification modal)
+  const handleCheckIn = (reservation) => {
+    setCheckInReservation(reservation);
   };
 
   // Check-Out
@@ -326,6 +411,28 @@ export default function FrontOfficePage() {
       </div>
     );
   }
+
+  // Filtered pending bookings for Claim Desk (PB1)
+  const filteredPendingBookings = pendingBookings.filter((row) => {
+    const isAssigned = !!row.assigned_staff_id;
+    const isAssignedToMe = row.assigned_staff_id === user?.id;
+
+    if (claimFilter === 'UNASSIGNED' && isAssigned) return false;
+    if (claimFilter === 'CLAIMED_BY_ME' && !isAssignedToMe) return false;
+    if (claimFilter === 'LOCKED_TO_OTHERS' && (!isAssigned || isAssignedToMe)) return false;
+
+    if (claimSearch.trim()) {
+      const q = claimSearch.toLowerCase().trim();
+      const guest = (row.tenant_name || row.guest_name || '').toLowerCase();
+      const code = (row.confirmation_code || row.reservation_code || String(row.id)).toLowerCase();
+      const unit = (row.unit_number || row.unit_name || '').toLowerCase();
+      const prop = (row.property_name || '').toLowerCase();
+      if (!guest.includes(q) && !code.includes(q) && !unit.includes(q) && !prop.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   // FRONT DESK / MANAGEMENT VIEW
   return (
@@ -592,27 +699,122 @@ export default function FrontOfficePage() {
               Loading authoritative front-office records...
             </div>
           ) : activeTab === 'PENDING_APPROVAL' ? (
-            /* Incoming & Pending Bookings List */
-            pendingBookings.length === 0 ? (
-              <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✨</div>
-                <strong>No pending bookings in queue!</strong>
-                <p style={{ fontSize: '0.85rem', margin: '0.25rem 0 0 0', color: 'var(--text-secondary)' }}>
-                  When someone books an apartment online or walk-in, it reflects here immediately for front desk acceptance.
-                </p>
+            /* Incoming & Pending Bookings List (PB1 — Receptionist Claim Desk) */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {/* Shift Handover & Supervisor Reassignment Policy Notice */}
+              <div
+                style={{
+                  padding: '0.65rem 0.85rem',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  color: '#475569',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
+                <div>
+                  <strong>Staff Assignment & Shift Claim Policy:</strong> Each incoming booking is claimed exclusively by one front desk officer to prevent duplicate communication.
+                  <em> Note: Automated shift handover and supervisor reassignment endpoints are deferred to backend Stage 2.6B; manual reassignment currently requires manager/admin action.</em>
+                </div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div style={{ padding: '0.5rem 0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                    Incoming Queue: {pendingBookings.length} booking(s) awaiting front-desk acceptance
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Auto-refreshed: {lastRefreshedAt.toLocaleTimeString()}
-                  </span>
+
+              {/* Search & Filter Controls */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '0.75rem',
+                  backgroundColor: 'var(--bg-card-hover)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                }}
+              >
+                <div style={{ display: 'flex', gap: '0.5rem', flex: 1, minWidth: '240px' }}>
+                  <input
+                    type="text"
+                    placeholder="Search by guest, booking code, unit, property..."
+                    value={claimSearch}
+                    onChange={(e) => setClaimSearch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-default)',
+                      fontSize: '0.82rem',
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+                  {claimSearch && (
+                    <Button variant="ghost" size="sm" onClick={() => setClaimSearch('')}>
+                      Clear
+                    </Button>
+                  )}
                 </div>
 
-                {pendingBookings.map((row) => {
+                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Filter:</span>
+                  {[
+                    { id: 'ALL', label: `All (${pendingBookings.length})` },
+                    { id: 'UNASSIGNED', label: `Unassigned (${pendingBookings.filter((p) => !p.assigned_staff_id).length})` },
+                    { id: 'CLAIMED_BY_ME', label: `Claimed by Me (${pendingBookings.filter((p) => p.assigned_staff_id === user?.id).length})` },
+                    { id: 'LOCKED_TO_OTHERS', label: `Locked to Others (${pendingBookings.filter((p) => p.assigned_staff_id && p.assigned_staff_id !== user?.id).length})` },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setClaimFilter(f.id)}
+                      style={{
+                        padding: '0.3rem 0.65rem',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: claimFilter === f.id ? 700 : 500,
+                        border: '1px solid',
+                        borderColor: claimFilter === f.id ? 'var(--brand-accent)' : 'var(--border-default)',
+                        backgroundColor: claimFilter === f.id ? 'var(--brand-accent)' : 'transparent',
+                        color: claimFilter === f.id ? '#ffffff' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {filteredPendingBookings.length === 0 ? (
+                <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✨</div>
+                  <strong>
+                    {pendingBookings.length === 0
+                      ? 'No pending bookings in queue!'
+                      : 'No bookings match current search / filter criteria.'}
+                  </strong>
+                  <p style={{ fontSize: '0.85rem', margin: '0.25rem 0 0 0', color: 'var(--text-secondary)' }}>
+                    {pendingBookings.length === 0
+                      ? 'When someone books an apartment online or walk-in, it reflects here immediately for front desk acceptance.'
+                      : 'Try clearing the search query or selecting a different assignment filter.'}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ padding: '0.25rem 0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                      Showing {filteredPendingBookings.length} of {pendingBookings.length} booking(s) in Claim Desk
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Auto-refreshed: {lastRefreshedAt.toLocaleTimeString()}
+                    </span>
+                  </div>
+
+                  {filteredPendingBookings.map((row) => {
                   const isUnitAvailable = ['AVAILABLE', 'READY'].includes(row.unit_status);
                   const isAssigned = !!row.assigned_staff_id;
                   const isAssignedToMe = row.assigned_staff_id === user?.id;
@@ -669,19 +871,68 @@ export default function FrontOfficePage() {
                           {' • '}Stay: <strong>{row.check_in_date}</strong> → <strong>{row.check_out_date}</strong>
                         </div>
 
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                           <span>📞 {row.tenant_phone}</span>
                           <span>Total: <strong>{formatNaira(row.total_amount)}</strong></span>
                           <span>Paid: {formatNaira(row.paid_amount)}</span>
 
-                          {/* Staff Assignment Status */}
-                          {isAssigned ? (
-                            <span style={{ color: isAssignedToMe ? '#16a34a' : '#2563eb', fontWeight: 600 }}>
-                              {isAssignedToMe ? '✓ Assigned to You' : `🔒 Assigned to: ${row.assigned_staff_name || 'Staff #' + row.assigned_staff_id}`}
+                          {/* Payment method pill */}
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: row.payment_method === 'BANK_TRANSFER' ? '#eff6ff' : '#fefce8',
+                              color: row.payment_method === 'BANK_TRANSFER' ? '#1e40af' : '#854d0e',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {row.payment_method === 'BANK_TRANSFER' ? '🏦 Bank Transfer' : '🛎️ Pay at Property'}
+                          </span>
+
+                          {/* Proof Status & Quick Preview */}
+                          {row.payment_proof_path ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProofPreviewReservation(row);
+                                setIsProofModalOpen(true);
+                              }}
+                              style={{
+                                fontSize: '0.72rem',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                background: '#dcfce7',
+                                color: '#166534',
+                                border: '1px solid #86efac',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              📄 View Bank Slip ↗
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                              (No Slip Uploaded)
                             </span>
+                          )}
+
+                          {/* Staff Assignment Attribution */}
+                          {isAssigned ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ color: isAssignedToMe ? '#16a34a' : '#2563eb', fontWeight: 600 }}>
+                                {isAssignedToMe ? '✓ Claimed by You' : `🔒 Claimed by: ${row.assigned_staff_name || 'Staff #' + row.assigned_staff_id}`}
+                                {row.assigned_staff_email ? ` (${row.assigned_staff_email})` : ''}
+                              </span>
+                              {row.claimed_at && (
+                                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                  Claimed at: {new Date(row.claimed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span style={{ color: '#ea580c', fontWeight: 600 }}>
-                              ⚠️ Unassigned (Pending Front-Desk Acceptance)
+                              ⚠️ Unassigned (Awaiting Front Desk Claim)
                             </span>
                           )}
                         </div>
@@ -693,39 +944,67 @@ export default function FrontOfficePage() {
                           View Details
                         </Button>
 
-                        {/* Front Desk Acceptance Button */}
+                        {/* Front Desk Claim / Approval Workflow */}
                         {!isAssigned ? (
                           <Button
                             variant="primary"
                             size="sm"
                             disabled={isUnitMaintenance || actionLoadingId === row.id}
                             loading={actionLoadingId === row.id}
-                            onClick={() => handleAcceptClient(row.id)}
+                            onClick={() => handleClaimBooking(row.id)}
                             style={{
                               backgroundColor: isUnitMaintenance ? 'var(--text-muted)' : '#ea580c',
                               borderColor: isUnitMaintenance ? 'var(--border-default)' : '#ea580c',
                             }}
-                            title={
-                              isUnitMaintenance
-                                ? `Unit is in ${row.unit_status} and cannot be booked until cleared.`
-                                : 'Accept client into system, approve booking, and attribute to your performance scorecard.'
-                            }
+                            title="Claim this incoming reservation and take ownership of verification."
                           >
-                            {isUnitMaintenance ? `Unit ${row.unit_status}` : '✓ Accept & Approve Booking'}
+                            {isUnitMaintenance ? `Unit ${row.unit_status}` : '✋ Claim Booking'}
                           </Button>
                         ) : isAssignedToMe ? (
-                          <span
-                            style={{
-                              fontSize: '0.8rem',
-                              fontWeight: 600,
-                              color: '#16a34a',
-                              background: 'rgba(22, 163, 74, 0.1)',
-                              padding: '0.4rem 0.75rem',
-                              borderRadius: 'var(--radius-md)',
-                            }}
-                          >
-                            ✓ Accepted by You
-                          </span>
+                          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                            {row.status !== 'CONFIRMED' ? (
+                              <>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  disabled={actionLoadingId === row.id}
+                                  loading={actionLoadingId === row.id}
+                                  onClick={() => handleApproveBooking(row.id)}
+                                  style={{ backgroundColor: '#16a34a', borderColor: '#16a34a' }}
+                                  title="Confirm payment on bank statement and release official check-in passcode."
+                                >
+                                  ✓ Verify & Approve
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={actionLoadingId === row.id}
+                                  onClick={() => {
+                                    setDeclineModalReservation(row);
+                                    setDeclineReason('TRANSFER_NOT_FOUND');
+                                    setDeclineNotes('');
+                                  }}
+                                  style={{ color: '#dc2626', borderColor: '#fca5a5' }}
+                                  title="Decline transfer verification with a structured reason."
+                                >
+                                  ✕ Decline
+                                </Button>
+                              </>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: '0.8rem',
+                                  fontWeight: 600,
+                                  color: '#16a34a',
+                                  background: 'rgba(22, 163, 74, 0.1)',
+                                  padding: '0.4rem 0.75rem',
+                                  borderRadius: 'var(--radius-md)',
+                                }}
+                              >
+                                ✓ Approved & Verified
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span
                             style={{
@@ -743,12 +1022,12 @@ export default function FrontOfficePage() {
                           </span>
                         )}
 
-                        {/* Check-In if approved and today is check-in */}
-                        {row.status === 'CONFIRMED' && hasPermission('reservations.checkin') && (
+                        {/* Check-In if approved and today is check-in (PB3 Safe Check-in) */}
+                        {row.status === 'CONFIRMED' && canCheckIn && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleCheckIn(row.id)}
+                            onClick={() => handleCheckIn(row)}
                             loading={actionLoadingId === row.id}
                           >
                             🛎 Check-In
@@ -758,8 +1037,9 @@ export default function FrontOfficePage() {
                     </div>
                   );
                 })}
-              </div>
-            )
+                </div>
+              )}
+            </div>
           ) : activeTab === 'HOUSEKEEPING' ? (
             /* Housekeeping Queue Table */
             dirtyApartments.length === 0 ? (
@@ -821,10 +1101,9 @@ export default function FrontOfficePage() {
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() => handleMarkClean(apt.id)}
-                          loading={actionLoadingId === apt.id}
+                          onClick={() => setReadinessApartment(apt)}
                         >
-                          ✓ Mark Ready
+                          🧽 Room Readiness Desk
                         </Button>
                       )}
                     </div>
@@ -909,12 +1188,12 @@ export default function FrontOfficePage() {
                       Booking ↗
                     </Button>
 
-                    {activeTab === 'ARRIVALS' && row.status === 'CONFIRMED' && hasPermission('reservations.checkin') && (
+                    {activeTab === 'ARRIVALS' && row.status === 'CONFIRMED' && canCheckIn && (
                       <>
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() => handleCheckIn(row.id)}
+                          onClick={() => handleCheckIn(row)}
                           loading={actionLoadingId === row.id}
                         >
                           🛎 Check-In Guest
@@ -934,7 +1213,7 @@ export default function FrontOfficePage() {
 
                     {(activeTab === 'IN_HOUSE' || activeTab === 'DEPARTURES') &&
                       row.status === 'CHECKED_IN' &&
-                      hasPermission('reservations.checkout') && (
+                      canCheckOut && (
                         <Button
                           variant="primary"
                           size="sm"
@@ -1115,6 +1394,135 @@ export default function FrontOfficePage() {
             )}
           </div>
         </Modal>
+      )}
+
+      {/* Payment Proof Inspection Modal */}
+      {proofPreviewReservation && (
+        <Modal
+          isOpen={isProofModalOpen}
+          onClose={() => {
+            setIsProofModalOpen(false);
+            setProofPreviewReservation(null);
+          }}
+          size="lg"
+          icon="📄"
+          title={`Payment Proof: ${proofPreviewReservation.reservation_code}`}
+          subtitle={`Uploaded by ${proofPreviewReservation.tenant_name} for Unit ${proofPreviewReservation.unit_number}`}
+          footer={
+            <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+              <a
+                href={frontOfficeService.getPaymentProofUrl(proofPreviewReservation.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '0.85rem', color: '#2563eb', textDecoration: 'underline' }}
+              >
+                Open Full Resolution in New Tab ↗
+              </a>
+              <Button variant="outline" onClick={() => setIsProofModalOpen(false)}>Close</Button>
+            </div>
+          }
+        >
+          <div style={{ textAlign: 'center', padding: '0.5rem' }}>
+            <div style={{ marginBottom: '0.75rem', padding: '0.5rem 1rem', background: '#eff6ff', borderRadius: '6px', fontSize: '0.82rem', color: '#1e40af', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Expected Total: <strong>{formatNaira(proofPreviewReservation.total_amount)}</strong></span>
+              <span>Method: <strong>{proofPreviewReservation.payment_method}</strong></span>
+              <span>Guest: <strong>{proofPreviewReservation.tenant_name}</strong></span>
+            </div>
+            <div style={{ maxHeight: '65vh', overflowY: 'auto', background: '#0f172a', padding: '0.75rem', borderRadius: '8px' }}>
+              <img
+                src={frontOfficeService.getPaymentProofUrl(proofPreviewReservation.id)}
+                alt="Bank Transfer Payment Slip"
+                style={{ maxWidth: '100%', maxHeight: '550px', objectFit: 'contain', borderRadius: '4px' }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = '<div style="color: #cbd5e1; padding: 2rem;">Unable to render receipt image. Click the Open Full Resolution link below.</div>';
+                }}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Decline Transfer Modal */}
+      {declineModalReservation && (
+        <Modal
+          isOpen={!!declineModalReservation}
+          onClose={() => setDeclineModalReservation(null)}
+          size="md"
+          icon="✕"
+          title={`Decline Payment Verification: ${declineModalReservation.reservation_code}`}
+          subtitle="Document the discrepancy or reason why this payment cannot be confirmed"
+          footer={
+            <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
+              <Button variant="outline" onClick={() => setDeclineModalReservation(null)}>Cancel</Button>
+              <Button variant="danger" onClick={handleSubmitDecline} loading={declineLoading}>Confirm Decline</Button>
+            </div>
+          }
+        >
+          <form onSubmit={handleSubmitDecline} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
+                Primary Decline Reason *
+              </label>
+              <select
+                value={declineReason}
+                onChange={(e) => setDeclineReason(e.target.value)}
+                style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+              >
+                <option value="TRANSFER_NOT_FOUND">Transfer Not Reflected on Zenith Bank Statement</option>
+                <option value="AMOUNT_MISMATCH">Amount Transferred Does Not Match Reservation Rate</option>
+                <option value="FRAUDULENT_SLIP">Slip Appears Altered, Forged, or Fraudulent</option>
+                <option value="UNREADABLE_SLIP">Uploaded Receipt is Blurry, Cropped, or Illegible</option>
+                <option value="WRONG_BENEFICIARY">Payment Sent to Wrong Beneficiary Account</option>
+                <option value="DUPLICATE_SLIP">Same Receipt Slip Used on Another Reservation</option>
+                <option value="OTHER">Other Discrepancy</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
+                Staff Discrepancy Notes (Shown to guest on real-time tracker)
+              </label>
+              <textarea
+                rows={3}
+                placeholder="e.g. Received ₦150k but required rate is ₦220k, or reference not found on statement..."
+                value={declineNotes}
+                onChange={(e) => setDeclineNotes(e.target.value)}
+                style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ padding: '0.6rem 0.75rem', background: '#fef2f2', border: '1px solid #fecdd3', borderRadius: '6px', fontSize: '0.78rem', color: '#9f1239' }}>
+              ⚠️ Declining will transition the booking to <code>DECLINED</code> and payment to <code>REJECTED</code>. The guest will see this reason immediately on their live tracker.
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* 5-Point Safe Check-In Modal (PB3) */}
+      {checkInReservation && (
+        <PreCheckInReadinessModal
+          isOpen={!!checkInReservation}
+          onClose={() => setCheckInReservation(null)}
+          reservation={checkInReservation}
+          onSuccess={() => {
+            setCheckInReservation(null);
+            loadFrontOfficeData(false);
+          }}
+        />
+      )}
+
+      {/* Decoupled Room Readiness Turnover Desk (PB2) */}
+      {readinessApartment && (
+        <ApartmentReadinessModal
+          isOpen={!!readinessApartment}
+          onClose={() => setReadinessApartment(null)}
+          apartment={readinessApartment}
+          onUpdated={() => {
+            setReadinessApartment(null);
+            loadFrontOfficeData(false);
+          }}
+        />
       )}
     </div>
   );

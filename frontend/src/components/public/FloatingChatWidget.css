@@ -5,10 +5,11 @@
 
 .bfa-floating-chat-root {
   position: fixed;
-  bottom: 24px;
+  bottom: 82px; /* Lifted up so it does not collide with the hero wallpaper pill */
   right: 28px;
   z-index: 9999;
   font-family: var(--font-body, 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif);
+  transition: bottom 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s ease;
 }
 
 /* Static Floating Button Trigger */
@@ -459,22 +460,24 @@
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
   .bfa-floating-chat-root {
-    bottom: 14px;
-    right: 12px;
+    bottom: 84px; /* Lifted so it never overlaps the sticky mobile booking bar or screen edges */
+    right: 14px;
   }
   .bfa-floating-chat-trigger {
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
     border-radius: 50%;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   }
   .bfa-trigger-icon {
-    font-size: 1.25rem;
+    font-size: 1.3rem;
   }
   .bfa-trigger-label {
     display: none;
@@ -485,9 +488,10 @@
     right: 6px;
   }
   .bfa-chat-window {
-    width: calc(100vw - 24px);
-    right: -4px;
+    width: calc(100vw - 28px);
+    right: 0;
     bottom: calc(100% + 12px);
+    max-height: calc(100vh - 120px);
   }
 }
 

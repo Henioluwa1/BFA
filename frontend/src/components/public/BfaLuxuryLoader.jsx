@@ -1,37 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-export default function BfaLuxuryLoader({ onComplete }) {
+export default function BfaLuxuryLoader({ onComplete, isReady = false }) {
   const [progress, setProgress] = useState(0);
-  const [statusText, setStatusText] = useState('Connecting to Verified Residence Portals...');
+  const [statusText, setStatusText] = useState('Connecting to Verified Residences in Akure...');
   const [fadingOut, setFadingOut] = useState(false);
+  const completedRef = useRef(false);
+
+  const finishLoading = () => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    setProgress(100);
+    setStatusText('Welcome to BFA Apartments.');
+    setTimeout(() => {
+      setFadingOut(true);
+      setTimeout(() => {
+        if (onComplete) onComplete();
+      }, 250);
+    }, 150);
+  };
+
+  // If essential data is ready early, dismiss immediately
+  useEffect(() => {
+    if (isReady && !completedRef.current) {
+      finishLoading();
+    }
+  }, [isReady]);
 
   useEffect(() => {
-    const totalDuration = 5000; // Exact 5 seconds
-    const intervalTime = 50;
+    const totalDuration = 2000; // Capped to maximum 2 seconds
+    const intervalTime = 40;
     const increment = 100 / (totalDuration / intervalTime);
 
     const timer = setInterval(() => {
       setProgress((prev) => {
-        const next = prev + increment;
-        if (next >= 100) {
+        if (completedRef.current) {
           clearInterval(timer);
-          setStatusText('Welcome to BFA Apartments.');
-          setTimeout(() => {
-            setFadingOut(true);
-            setTimeout(() => {
-              if (onComplete) onComplete();
-            }, 550);
-          }, 200);
           return 100;
         }
 
-        // Rotate status text over 5 seconds
-        if (next < 30) {
-          setStatusText('Connecting to Verified Residence Portals...');
-        } else if (next < 60) {
-          setStatusText('Curating Luxury Suites & Penthouses...');
-        } else if (next < 85) {
-          setStatusText('Securing 24/7 Cryptographic Stays...');
+        const next = prev + increment;
+        if (next >= 100) {
+          clearInterval(timer);
+          finishLoading();
+          return 100;
+        }
+
+        // Rotate status text over max 2 seconds
+        if (next < 35) {
+          setStatusText('Connecting to Verified Residences in Akure...');
+        } else if (next < 70) {
+          setStatusText('Curating Serviced Suites & Enclaves...');
         } else {
           setStatusText('Welcome to BFA Serviced Residences.');
         }

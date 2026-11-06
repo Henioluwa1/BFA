@@ -1,0 +1,158 @@
+/* BfaButton - Accessible Hospitality Primitive */
+.bfa-lux-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bfa-lux-space-xs, 8px);
+  font-family: var(--bfa-lux-font-body, inherit);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  border-radius: var(--bfa-lux-radius-sm, 8px);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all var(--bfa-lux-transition-normal, 200ms ease);
+  min-height: var(--bfa-lux-touch-min, 44px);
+  min-width: var(--bfa-lux-touch-min, 44px);
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+/* SIZES */
+.bfa-lux-btn--sm {
+  font-size: 0.8125rem;
+  padding: 8px 14px;
+  min-height: 44px;
+}
+
+.bfa-lux-btn--md {
+  font-size: 0.9375rem;
+  padding: 10px 20px;
+  min-height: 48px;
+}
+
+.bfa-lux-btn--lg {
+  font-size: 1.0625rem;
+  padding: 14px 28px;
+  min-height: 54px;
+  border-radius: var(--bfa-lux-radius-md, 12px);
+}
+
+/* VARIANTS */
+/* 1. Primary: Muted Champagne */
+.bfa-lux-btn--primary {
+  background-color: var(--bfa-lux-champagne, #b99a70);
+  color: #ffffff;
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  box-shadow: 0 2px 6px rgba(185, 154, 112, 0.25);
+}
+
+.bfa-lux-btn--primary:hover:not(:disabled) {
+  background-color: var(--bfa-lux-champagne-hover, #a8885e);
+  border-color: var(--bfa-lux-champagne-hover, #a8885e);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(185, 154, 112, 0.35);
+}
+
+.bfa-lux-btn--primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(185, 154, 112, 0.2);
+}
+
+/* 2. Forest: Deep Luxury Architectural */
+.bfa-lux-btn--forest {
+  background-color: var(--bfa-lux-forest, #192a2a);
+  color: var(--bfa-lux-ivory, #f2eee5);
+  border-color: var(--bfa-lux-forest, #192a2a);
+  box-shadow: 0 2px 8px rgba(25, 42, 42, 0.15);
+}
+
+.bfa-lux-btn--forest:hover:not(:disabled) {
+  background-color: var(--bfa-lux-forest-light, #253d3d);
+  border-color: var(--bfa-lux-forest-light, #253d3d);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(25, 42, 42, 0.25);
+}
+
+.bfa-lux-btn--forest:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* 3. Secondary: Sage / Ivory Tint */
+.bfa-lux-btn--secondary {
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+  color: var(--bfa-lux-forest, #192a2a);
+  border-color: var(--bfa-lux-border-default, #dcd7ce);
+}
+
+.bfa-lux-btn--secondary:hover:not(:disabled) {
+  background-color: #ffffff;
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  color: var(--bfa-lux-forest-dark, #101c1c);
+  transform: translateY(-1px);
+  box-shadow: var(--bfa-lux-shadow-xs, 0 2px 6px rgba(0,0,0,0.05));
+}
+
+/* 4. Outline */
+.bfa-lux-btn--outline {
+  background-color: transparent;
+  color: var(--bfa-lux-forest, #192a2a);
+  border-color: var(--bfa-lux-border-default, #dcd7ce);
+}
+
+.bfa-lux-btn--outline:hover:not(:disabled) {
+  background-color: var(--bfa-lux-ivory-subtle, #faf8f5);
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  color: var(--bfa-lux-forest-dark, #101c1c);
+}
+
+/* 5. Ghost */
+.bfa-lux-btn--ghost {
+  background-color: transparent;
+  color: var(--bfa-lux-text-primary, #202625);
+  border-color: transparent;
+}
+
+.bfa-lux-btn--ghost:hover:not(:disabled) {
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+  color: var(--bfa-lux-forest, #192a2a);
+}
+
+/* STATES */
+.bfa-lux-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--bfa-lux-focus-ring, 0 0 0 3px rgba(185, 154, 112, 0.4));
+}
+
+.bfa-lux-btn--disabled,
+.bfa-lux-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* SPINNER */
+.bfa-lux-btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: bfaLuxSpin 0.7s linear infinite;
+}
+
+@keyframes bfaLuxSpin {
+  to { transform: rotate(360deg); }
+}
+
+.bfa-lux-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+

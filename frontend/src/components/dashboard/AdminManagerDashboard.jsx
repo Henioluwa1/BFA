@@ -139,7 +139,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
             <h1 className="page-title" style={{ margin: 0 }}>
               {role === 'ADMIN' ? 'Property Administrator Command Console' : 'General Operations Dashboard'}
             </h1>
-            <Badge status="available">{role}</Badge>
+            <span className={role === 'ADMIN' ? 'role-badge-admin' : 'role-badge-manager'} style={{ padding: '0.2rem 0.65rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>{role === 'ADMIN' ? '📋 Administrator' : '🏢 Property Manager'}</span>
             <Badge status="info">
               {isAllProperties ? '🌐 All Properties' : `📍 ${activeProperty?.name || 'Selected Property'}`}
             </Badge>
@@ -174,7 +174,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
               <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-muted)' }}>TODAY'S ARRIVALS</span>
               <span style={{ fontSize: '1.25rem' }}>🧳</span>
             </div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#2563eb', marginBottom: '0.25rem' }}>
+            <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--brand-accent)', marginBottom: '0.25rem' }}>
               {loading ? '...' : stats.todaysArrivals}
             </div>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
@@ -358,7 +358,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
                 type="button"
                 onClick={() => setActiveTab('arrivals')}
                 style={{
-                  background: activeTab === 'arrivals' ? 'var(--primary)' : 'transparent',
+                  background: activeTab === 'arrivals' ? 'var(--brand-accent)' : 'transparent',
                   color: activeTab === 'arrivals' ? '#ffffff' : 'var(--text-muted)',
                   border: 'none',
                   padding: '0.35rem 0.85rem',
@@ -374,7 +374,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
                 type="button"
                 onClick={() => setActiveTab('departures')}
                 style={{
-                  background: activeTab === 'departures' ? 'var(--primary)' : 'transparent',
+                  background: activeTab === 'departures' ? 'var(--brand-accent)' : 'transparent',
                   color: activeTab === 'departures' ? '#ffffff' : 'var(--text-muted)',
                   border: 'none',
                   padding: '0.35rem 0.85rem',
@@ -409,7 +409,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
                       const code = val || row?.booking_code;
                       return (
                         <span
-                          style={{ fontWeight: 600, color: 'var(--primary)', cursor: 'pointer' }}
+                          style={{ fontWeight: 600, color: 'var(--brand-accent)', cursor: 'pointer' }}
                           onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(code || '')}`)}
                         >
                           {code}
@@ -492,7 +492,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
                     const code = val || row?.booking_code;
                     return (
                       <span
-                        style={{ fontWeight: 600, color: 'var(--primary)', cursor: 'pointer' }}
+                        style={{ fontWeight: 600, color: 'var(--brand-accent)', cursor: 'pointer' }}
                         onClick={() => navigate(`/app/reservations?search=${encodeURIComponent(code || '')}`)}
                       >
                         {code}
@@ -578,7 +578,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
             cursor: 'pointer',
             transition: 'all 0.2s',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--brand-accent)')}
           onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
         >
           <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🛎️</div>
@@ -596,7 +596,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
             cursor: 'pointer',
             transition: 'all 0.2s',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--brand-accent)')}
           onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
         >
           <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🏢</div>
@@ -614,7 +614,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
             cursor: 'pointer',
             transition: 'all 0.2s',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--brand-accent)')}
           onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
         >
           <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🛠️</div>
@@ -632,7 +632,7 @@ export default function AdminManagerDashboard({ role = 'MANAGER' }) {
             cursor: 'pointer',
             transition: 'all 0.2s',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--brand-accent)')}
           onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
         >
           <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>💳</div>

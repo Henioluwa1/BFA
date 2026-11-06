@@ -20,6 +20,7 @@ export default function ContactPage() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState(null);
+  const [formError, setFormError] = useState('');
 
   // FAQ Accordion State
   const [openFaq, setOpenFaq] = useState(null);
@@ -48,8 +49,9 @@ export default function ContactPage() {
 
   const handleSubmitInquiry = (e) => {
     e.preventDefault();
+    setFormError('');
     if (!fullName.trim() || !email.trim() || !phone.trim() || !message.trim()) {
-      alert('Please fill out all required fields.');
+      setFormError('Please fill out all required fields.');
       return;
     }
     setSubmitting(true);
@@ -119,14 +121,7 @@ export default function ContactPage() {
       <main className="bfa-contact-main">
         {/* Hero Section */}
         <section className="bfa-contact-hero-block">
-          <div className="bfa-contact-hero-tag">
-            <span>✦</span> 24/7 RESIDENT CONTACT DESK & INQUIRIES
-          </div>
           <h1 className="bfa-contact-title">We Are At Your Service.</h1>
-          <p className="bfa-contact-lead">
-            Whether inquiring about executive reservations, corporate lease arrangements, or private
-            walkthroughs, our dedicated hospitality team responds promptly across all channels.
-          </p>
         </section>
 
         {/* Two-Column Experience */}
@@ -178,6 +173,27 @@ export default function ContactPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmitInquiry} className="bfa-contact-form">
+                {formError && (
+                  <div
+                    role="alert"
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '8px',
+                      background: '#fef2f2',
+                      border: '1px solid #fecdd3',
+                      color: '#9f1239',
+                      fontSize: '0.88rem',
+                      marginBottom: '1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span>✕</span>
+                    <span>{formError}</span>
+                  </div>
+                )}
                 <div className="bfa-form-row">
                   <div className="bfa-input-group">
                     <label>Full Name *</label>
@@ -388,7 +404,6 @@ export default function ContactPage() {
             <Link to="/">Home & Availability</Link>
             <Link to="/about">About Us & Showcase</Link>
             <Link to="/contact">Contact Desk</Link>
-            <Link to="/login">Employee & Tenant Login</Link>
           </div>
           <div className="bfa-footer-bottom">
             <span>© {new Date().getFullYear()} BFA Apartments Management System. All rights reserved.</span>

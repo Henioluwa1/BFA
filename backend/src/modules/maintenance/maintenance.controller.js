@@ -97,6 +97,88 @@ class MaintenanceController {
       next(err);
     }
   }
+
+  static async getEligibleTechnicians(req, res, next) {
+    try {
+      const propertyId = req.query.propertyId || req.user?.propertyId;
+      const data = await MaintenanceService.getEligibleTechnicians(propertyId, req.user, req.query);
+      return ApiResponse.success(res, {
+        message: 'Eligible technicians retrieved successfully',
+        data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async uploadEvidence(req, res, next) {
+    try {
+      const result = await MaintenanceService.attachEvidence(req.params.id, req.body, req.user, req);
+      return ApiResponse.created(res, {
+        message: result.isExemption ? 'Written photo exemption documented successfully' : 'Maintenance evidence attached successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async listEvidence(req, res, next) {
+    try {
+      const records = await MaintenanceService.listEvidence(req.params.id, req.user);
+      return ApiResponse.success(res, {
+        message: 'Maintenance evidence attachments retrieved successfully',
+        data: records,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async streamEvidence(req, res, next) {
+    try {
+      const { id, evidenceId } = req.params;
+      const { stream, mimeType, fileName, fileSizeBytes } = await MaintenanceService.getEvidenceStream(
+        id,
+        evidenceId,
+        req.user,
+        req
+      );
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Length', fileSizeBytes);
+      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+      res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+      stream.pipe(res);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async deleteEvidence(req, res, next) {
+    try {
+      const { id, evidenceId } = req.params;
+      const result = await MaintenanceService.deleteEvidence(id, evidenceId, req.body, req.user, req);
+      return ApiResponse.success(res, {
+        message: 'Evidence attachment deleted successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async delete(req, res, next) {
+    try {
+      const result = await MaintenanceService.deleteMaintenance(req.params.id, req.user, req);
+      return ApiResponse.success(res, {
+        message: 'Maintenance work order deleted successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = MaintenanceController;

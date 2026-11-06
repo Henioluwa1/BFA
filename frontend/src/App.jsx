@@ -50,12 +50,15 @@ function NavigateToFinancial() {
   return <Navigate to={`/app/financial${location.search}`} replace />;
 }
 
-// Lazy-Loaded Public Pages
+// Public Pages (Statically bundled for zero-latency public discovery)
 import LandingPage from './pages/landing/LandingPage';
+import ExplorePropertiesPage from './pages/landing/ExplorePropertiesPage';
+import PropertyDetailPage from './pages/landing/PropertyDetailPage';
+import TrackStayPage from './pages/landing/TrackStayPage';
 const LoginPage = lazy(() => import('./pages/portal/LoginPage'));
 const AboutPage = lazy(() => import('./pages/landing/AboutPage'));
 const ContactPage = lazy(() => import('./pages/landing/ContactPage'));
-const PropertyDetailPage = lazy(() => import('./pages/landing/PropertyDetailPage'));
+const DesignSystemPage = lazy(() => import('./pages/landing/DesignSystemPage'));
 
 // Lazy-Loaded Authenticated Pages
 const DashboardPage = lazy(() => import('./pages/portal/DashboardPage'));
@@ -87,6 +90,8 @@ const EmployeeProfilePage = lazy(() => import('./pages/portal/EmployeeProfilePag
 const EmployeeEvaluationPage = lazy(() => import('./pages/portal/EmployeeEvaluationPage'));
 const EmployeePerformancePage = lazy(() => import('./pages/portal/EmployeePerformancePage'));
 const EmployeeIdCardPage = lazy(() => import('./pages/portal/EmployeeIdCardPage'));
+const WorkforcePage = lazy(() => import('./pages/portal/WorkforcePage'));
+const MySchedulePage = lazy(() => import('./pages/portal/MySchedulePage'));
 
 function App() {
   return (
@@ -102,53 +107,61 @@ function App() {
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/about" element={<AboutPage />} />
                   <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/properties" element={<ExplorePropertiesPage />} />
+                  <Route path="/explore" element={<ExplorePropertiesPage />} />
+                  <Route path="/design-system" element={<DesignSystemPage />} />
                   <Route path="/property/:id" element={<PropertyDetailPage />} />
                   <Route path="/properties/:id" element={<PropertyDetailPage />} />
+                  <Route path="/track" element={<TrackStayPage />} />
+                  <Route path="/tracking" element={<TrackStayPage />} />
+                  <Route path="/stay-tracking" element={<TrackStayPage />} />
 
                   {/* Authenticated Portal Shell */}
                   <Route element={<ProtectedRoute />}>
                     <Route path="/app" element={<AppLayout />}>
                       <Route index element={<Navigate to="/app/dashboard" replace />} />
                       <Route path="dashboard" element={<DashboardPage />} />
-                      <Route path="properties" element={<PropertiesPage />} />
-                      <Route path="front-office" element={<FrontOfficePage />} />
-                      <Route path="calendar" element={<CalendarPage />} />
-                      <Route path="reservations" element={<ReservationsPage />} />
-                      <Route path="guests" element={<GuestsPage />} />
-                      <Route path="tenants" element={<GuestsPage />} />
-                      <Route path="apartments" element={<ApartmentsPage />} />
-                      <Route path="financial" element={<FinancialPage />} />
-                      <Route path="financials" element={<NavigateToFinancial />} />
-                      <Route path="reports" element={<ReportsPage />} />
-                      <Route path="analytics" element={<AnalyticsPage />} />
-                      <Route path="agents" element={<AgentsPage />} />
-                      <Route path="employees" element={<EmployeesPage />} />
-                      <Route path="employees/:id" element={<EmployeeProfilePage />} />
-                      <Route path="employees/:id/id-card" element={<EmployeeIdCardPage />} />
-                      <Route path="employees/:id/performance" element={<EmployeePerformancePage />} />
-                      <Route path="employees/:id/evaluation" element={<EmployeeEvaluationPage />} />
-                      <Route path="evaluations" element={<EmployeeEvaluationPage />} />
-                      <Route path="performance" element={<EmployeePerformancePage />} />
-                      <Route path="id-cards" element={<EmployeeIdCardPage />} />
+                      <Route path="properties" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><PropertiesPage /></ProtectedRoute>} />
+                      <Route path="front-office" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST']}><FrontOfficePage /></ProtectedRoute>} />
+                      <Route path="calendar" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'AGENT']}><CalendarPage /></ProtectedRoute>} />
+                      <Route path="reservations" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'AGENT']}><ReservationsPage /></ProtectedRoute>} />
+                      <Route path="guests" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST']}><GuestsPage /></ProtectedRoute>} />
+                      <Route path="tenants" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST']}><GuestsPage /></ProtectedRoute>} />
+                      <Route path="apartments" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><ApartmentsPage /></ProtectedRoute>} />
+                      <Route path="financial" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><FinancialPage /></ProtectedRoute>} />
+                      <Route path="financials" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><NavigateToFinancial /></ProtectedRoute>} />
+                      <Route path="reports" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><ReportsPage /></ProtectedRoute>} />
+                      <Route path="analytics" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><AnalyticsPage /></ProtectedRoute>} />
+                      <Route path="agents" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><AgentsPage /></ProtectedRoute>} />
+                      <Route path="employees" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeesPage /></ProtectedRoute>} />
+                      <Route path="employees/:id" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeProfilePage /></ProtectedRoute>} />
+                      <Route path="employees/:id/id-card" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeIdCardPage /></ProtectedRoute>} />
+                      <Route path="employees/:id/performance" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeePerformancePage /></ProtectedRoute>} />
+                      <Route path="employees/:id/evaluation" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeEvaluationPage /></ProtectedRoute>} />
+                      <Route path="evaluations" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeEvaluationPage /></ProtectedRoute>} />
+                      <Route path="performance" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeePerformancePage /></ProtectedRoute>} />
+                      <Route path="id-cards" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeIdCardPage /></ProtectedRoute>} />
+                      <Route path="workforce" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><WorkforcePage /></ProtectedRoute>} />
+                      <Route path="roster" element={<Navigate to="/app/workforce" replace />} />
+                      <Route path="my-schedule" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><MySchedulePage /></ProtectedRoute>} />
                       <Route path="my-profile" element={<EmployeeProfilePage isSelfService={true} />} />
-                      <Route path="maintenance" element={<MaintenancePage />} />
-                      <Route path="inspection" element={<InspectionPage />} />
-                      <Route path="inspections" element={<InspectionPage />} />
-                      <Route path="audit" element={<AuditPage />} />
-                      <Route path="access-control" element={<AccessControlPage />} />
+                      <Route path="maintenance" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'STAFF']}><MaintenancePage /></ProtectedRoute>} />
+                      <Route path="inspection" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'STAFF']}><InspectionPage /></ProtectedRoute>} />
+                      <Route path="inspections" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'STAFF']}><InspectionPage /></ProtectedRoute>} />
+                      <Route path="audit" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN']}><AuditPage /></ProtectedRoute>} />
+                      <Route path="access-control" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN']}><AccessControlPage /></ProtectedRoute>} />
                       <Route path="communications" element={<CommunicationsPage />} />
                       <Route path="notifications" element={<NotificationsPage />} />
                       <Route path="announcements" element={<AnnouncementsPage />} />
-                      <Route path="team" element={<TeamPage />} />
-                      <Route path="settings" element={<SettingsPage />} />
-                      <Route path="operations" element={<OperationsPage />} />
+                      <Route path="team" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><TeamPage /></ProtectedRoute>} />
+                      <Route path="settings" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><SettingsPage /></ProtectedRoute>} />
+                      <Route path="operations" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><OperationsPage /></ProtectedRoute>} />
                       <Route path="404" element={<NotFoundPage />} />
                     </Route>
                   </Route>
 
                   {/* Legacy / Direct Route Compatibility Redirects */}
                   <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
-                  <Route path="/properties" element={<Navigate to="/app/properties" replace />} />
                   <Route path="/front-office" element={<Navigate to="/app/front-office" replace />} />
                   <Route path="/calendar" element={<Navigate to="/app/calendar" replace />} />
                   <Route path="/reservations" element={<Navigate to="/app/reservations" replace />} />

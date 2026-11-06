@@ -25,6 +25,8 @@ build/
 frontend/scratch/
 frontend/.agents/
 backend/scripts/
+scratch/
+git_status_snapshot.json
 
 # Logs
 logs
@@ -43,9 +45,11 @@ yarn-error.log*
 *.njsproj
 *.sln
 
-# Uploads
+# Uploads & Storage
 backend/uploads/*
 !backend/uploads/**/.gitkeep
+backend/storage/*
+!backend/storage/**/.gitkeep
 
 # Database Backups
 backups/

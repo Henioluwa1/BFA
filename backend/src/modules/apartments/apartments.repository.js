@@ -147,6 +147,25 @@ class ApartmentsRepository {
     return true;
   }
 
+  static async updateReadiness(id, { housekeepingStatus, maintenanceStatus }, updatedBy = null) {
+    const fields = [];
+    const values = [];
+    if (housekeepingStatus) {
+      fields.push('housekeeping_status = ?');
+      values.push(housekeepingStatus);
+    }
+    if (maintenanceStatus) {
+      fields.push('maintenance_status = ?');
+      values.push(maintenanceStatus);
+    }
+    fields.push('updated_by = ?');
+    values.push(updatedBy);
+    values.push(id);
+    const sql = 'UPDATE apartments SET ' + fields.join(', ') + ' WHERE id = ?';
+    await pool.query(sql, values);
+    return true;
+  }
+
   /**
    * Fetch current and upcoming reservations for unit
    */

@@ -260,6 +260,66 @@ class AccountingController {
     }
   }
 
+  static async getIncomeStatement(req, res, next) {
+    try {
+      const statement = await AccountingService.getIncomeStatement(req.query, req.user);
+      return ApiResponse.success(res, {
+        message: 'Income statement retrieved successfully',
+        data: statement,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getBalanceSheet(req, res, next) {
+    try {
+      const balanceSheet = await AccountingService.getBalanceSheet(req.query, req.user);
+      return ApiResponse.success(res, {
+        message: 'Balance sheet statement retrieved successfully',
+        data: balanceSheet,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getCashFlowStatement(req, res, next) {
+    try {
+      const cashFlow = await AccountingService.getCashFlowStatement(req.query, req.user);
+      return ApiResponse.success(res, {
+        message: 'Cash flow statement retrieved successfully',
+        data: cashFlow,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getReceivablesReport(req, res, next) {
+    try {
+      const receivables = await AccountingService.getReceivablesReport(req.query, req.user);
+      return ApiResponse.success(res, {
+        message: 'Receivables and outstanding balances retrieved successfully',
+        data: receivables,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getRefundsReconciliationReport(req, res, next) {
+    try {
+      const refunds = await AccountingService.getRefundsReconciliationReport(req.query, req.user);
+      return ApiResponse.success(res, {
+        message: 'Refunds reconciliation report retrieved successfully',
+        data: refunds,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   /* =========================================================================
    * SUBLEDGER POSTING BRIDGES & AUTOMATED POSTING
    * ========================================================================= */
@@ -381,6 +441,19 @@ class AccountingController {
       return ApiResponse.success(res, {
         message: 'Subledger reconciliation completed',
         data: reconciliation,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async syncUnpostedExpenses(req, res, next) {
+    try {
+      const PostingBridgeService = require('./postingBridge.service');
+      const result = await PostingBridgeService.syncUnpostedExpenses(req.body, { user: req.user, req });
+      return ApiResponse.success(res, {
+        message: `Expense sync completed: ${result.postedCount} posted, ${result.exceptionCount} exceptions recorded.`,
+        data: result,
       });
     } catch (err) {
       next(err);

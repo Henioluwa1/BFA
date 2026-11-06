@@ -1,44 +1,97 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import Icons8Icon from './Icons8Icon';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import {
+  Building2,
+  Calendar,
+  ShieldCheck,
+  Phone,
+  Menu,
+  X,
+  MapPin,
+  CloudSun,
+  ArrowRight,
+  Compass,
+} from 'lucide-react';
+import { BfaButton } from './primitives';
+import BookingTrackingModal from './BookingTrackingModal';
 import './PublicTopNav.css';
 
+/**
+ * PublicTopNav — Premium Editorial Hospitality Navigation Bar
+ * Responsive, accessible, high-contrast, WCAG 2.2 AA compliant.
+ */
 export default function PublicTopNav({
-  activePage = 'home',
-  isScrolled = true,
-  searchVisible = true,
-  searchQuery = '',
+  activePage,
+  activeTab,
+  onOpenBooking,
+  onVerifyClick,
+  onOpenTracking,
+  searchQuery,
   setSearchQuery,
   onSearchSubmit,
-  onNextWallpaper,
   onBrandClick,
-  onVerifyClick,
-  searchContainerRef,
-  children,
+  className = '',
 }) {
   const navigate = useNavigate();
-  const [singleNavOpen, setSingleNavOpen] = useState(false);
-  const singleNavMenuRef = useRef(null);
+  const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [internalTrackingOpen, setInternalTrackingOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const menuRef = useRef(null);
+  const mobileToggleRef = useRef(null);
 
-  // Close flyout menu when clicking outside
+  // Normalize current page identifier
+  const current = activePage || activeTab || (
+    location.pathname === '/' ? 'home' :
+    location.pathname.startsWith('/properties') || location.pathname.startsWith('/property') || location.pathname.startsWith('/explore') ? 'properties' :
+    location.pathname.startsWith('/about') ? 'about' :
+    location.pathname.startsWith('/contact') ? 'contact' : ''
+  );
+
+  // Scroll listener for subtle background blur / elevation
   useEffect(() => {
-    function handleClickOutside(event) {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Click outside and Escape key to close mobile menu
+  useEffect(() => {
+    function handleClickOutside(e) {
       if (
-        singleNavMenuRef.current &&
-        !singleNavMenuRef.current.contains(event.target)
+        mobileMenuOpen &&
+        menuRef.current &&
+        !menuRef.current.contains(e.target) &&
+        !mobileToggleRef.current?.contains(e.target)
       ) {
-        setSingleNavOpen(false);
+        setMobileMenuOpen(false);
       }
     }
-    if (singleNavOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+
+    function handleKeyDown(e) {
+      if (e.key === 'Escape' && mobileMenuOpen) {
+        setMobileMenuOpen(false);
+        mobileToggleRef.current?.focus();
+      }
     }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [singleNavOpen]);
+  }, [mobileMenuOpen]);
 
-  const handleBrandClickInternal = (e) => {
+  const handleBrandClick = (e) => {
     if (onBrandClick) {
       onBrandClick(e);
     } else {
@@ -46,225 +99,236 @@ export default function PublicTopNav({
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      if (onSearchSubmit) {
-        onSearchSubmit(searchQuery);
-      } else {
-        navigate(`/?search=${encodeURIComponent(searchQuery)}`);
-      }
+  const handleOpenTrack = () => {
+    setMobileMenuOpen(false);
+    if (onVerifyClick) {
+      onVerifyClick();
+    } else if (onOpenTracking) {
+      onOpenTracking();
+    } else {
+      navigate('/track');
+    }
+  };
+
+  const handleBookingClick = () => {
+    setMobileMenuOpen(false);
+    if (onOpenBooking) {
+      onOpenBooking();
+    } else {
+      navigate('/properties');
     }
   };
 
   return (
-    <header className="bfa-fixed-nav-bar">
-      <div className="bfa-nav-main-row">
-        {/* Left: ⠿ BFA APARTMENTS Serviced Residences */}
-        <div
-          className="bfa-edge-brand"
-          onClick={handleBrandClickInternal}
-          role="button"
-          tabIndex={0}
-        >
-          <button
-            type="button"
-            className="bfa-grid-icon-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSingleNavOpen((prev) => !prev);
+    <>
+      <header
+        className={`bfa-public-nav ${isScrolled ? 'bfa-public-nav--scrolled' : ''} ${className}`}
+        role="banner"
+      >
+        <div className="bfa-public-nav-container">
+          {/* Brand Mark & Identity */}
+          <div
+            className="bfa-public-nav-brand"
+            onClick={handleBrandClick}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleBrandClick(e);
+              }
             }}
-            title="BFA Portals & Navigation"
-            aria-label="Toggle Portal Services Menu"
+            aria-label="BFA Apartments — Return to Homepage"
           >
-            ⠿
-          </button>
-          <div className="bfa-edge-brand-text">
-            <span className="bfa-edge-brand-name">BFA APARTMENTS</span>
-            <span className="bfa-edge-brand-sub">Serviced Residences</span>
-          </div>
-        </div>
-
-        {/* Middle: Search Bar Input (Fixed at top, zero background) */}
-        <div
-          className={`bfa-nav-center-search ${searchVisible ? 'visible' : 'hidden'}`}
-          ref={searchContainerRef}
-        >
-          <div className="bfa-center-search-box">
-            <span className="bfa-search-icon">
-              <Icons8Icon name="search" variant="white" size={17} alt="Search" />
-            </span>
-            <input
-              type="text"
-              className="bfa-center-search-input"
-              placeholder="Search apartments, properties, or locations in Akure..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery && setSearchQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              aria-label="Search apartments and properties"
-            />
-            {onNextWallpaper && (
-              <button
-                type="button"
-                onClick={onNextWallpaper}
-                className="bfa-nav-wallpaper-btn"
-                title="Change apartment wallpaper"
-                aria-label="Change wallpaper"
-              >
-                <Icons8Icon name="wallpaper" variant="white" size={18} alt="Wallpaper" />
-              </button>
-            )}
-          </div>
-
-          {/* Autocomplete dropdown children if supplied */}
-          {children}
-        </div>
-
-        {/* Right: Unified Single Navigation Element (Akure Weather + Portal Menu + Flyout) */}
-        <div className="bfa-single-nav-control" ref={singleNavMenuRef}>
-          <button
-            type="button"
-            className={`bfa-single-nav-pill ${singleNavOpen ? 'active' : ''}`}
-            onClick={() => setSingleNavOpen((prev) => !prev)}
-            aria-expanded={singleNavOpen}
-            aria-label="Toggle Portal Services Menu"
-            title="BFA Portals & Navigation"
-          >
-            <div className="bfa-nav-weather-badge">
-              <span className="bfa-weather-city">Akure</span>
-              <Icons8Icon name="weather" size={18} alt="Weather" />
-              <span className="bfa-weather-temp">29°C</span>
+            <span className="bfa-brand-glyph" aria-hidden="true">⠿</span>
+            <div className="bfa-brand-copy">
+              <span className="bfa-brand-name">BFA APARTMENTS</span>
+              <span className="bfa-brand-tagline">SERVICED RESIDENCES • AKURE</span>
             </div>
-            <span className="bfa-nav-sep" aria-hidden="true">|</span>
-            <span className="bfa-nav-menu-txt">Portal Menu</span>
-            <span className="bfa-nav-menu-icon">
-              {singleNavOpen ? (
-                <Icons8Icon name="close" variant="white" size={14} alt="Close" />
-              ) : (
-                <Icons8Icon name="menu" variant="white" size={15} alt="Menu" />
-              )}
-            </span>
-          </button>
+          </div>
 
-          {/* Glassmorphism Dropdown Flyout */}
-          {singleNavOpen && (
-            <div className="bfa-single-nav-flyout" role="menu">
-              <div className="bfa-flyout-header">
-                <span className="bfa-flyout-tag">✦ BFA RESIDENCES & PORTAL</span>
-                <span className="bfa-flyout-loc">Akure, Ondo State</span>
+          {/* Desktop Navigation Links */}
+          <nav className="bfa-public-nav-links" aria-label="Main Public Navigation">
+            <Link
+              to="/"
+              className={`bfa-nav-link ${current === 'home' ? 'bfa-nav-link--active' : ''}`}
+            >
+              Home
+            </Link>
+            <Link
+              to="/properties"
+              className={`bfa-nav-link ${current === 'properties' || current === 'residences' ? 'bfa-nav-link--active' : ''}`}
+            >
+              Residences
+            </Link>
+            <Link
+              to="/about"
+              className={`bfa-nav-link ${current === 'about' ? 'bfa-nav-link--active' : ''}`}
+            >
+              About Us
+            </Link>
+            <Link
+              to="/contact"
+              className={`bfa-nav-link ${current === 'contact' ? 'bfa-nav-link--active' : ''}`}
+            >
+              Contact Us
+            </Link>
+          </nav>
+
+          {/* Desktop Actions Group */}
+          <div className="bfa-public-nav-actions">
+            {/* Verified Location Indicator */}
+            <div
+              className="bfa-nav-location-badge"
+              title="Verified Location: Akure, Ondo State"
+              aria-label="Location Akure, Ondo State"
+            >
+              <MapPin size={13} aria-hidden="true" />
+              <span>Akure, Ondo State</span>
+            </div>
+
+            {/* Track Reservation Button */}
+            <button
+              type="button"
+              className="bfa-nav-track-btn"
+              onClick={handleOpenTrack}
+              title="Track existing reservation status & electronic key"
+              aria-label="Track your reservation"
+            >
+              <ShieldCheck size={14} aria-hidden="true" />
+              <span>Track Stay</span>
+            </button>
+
+            {/* Primary Reserve / Book Action */}
+            <BfaButton
+              variant="primary"
+              size="sm"
+              onClick={handleBookingClick}
+              iconRight={<ArrowRight size={13} />}
+            >
+              Book Stay
+            </BfaButton>
+          </div>
+
+          {/* Mobile Right Controls: Compact Track + Burger Toggle */}
+          <div className="bfa-public-nav-mobile-controls">
+            <button
+              type="button"
+              className="bfa-nav-track-mobile-pill"
+              onClick={handleOpenTrack}
+              aria-label="Track your stay"
+            >
+              <ShieldCheck size={14} aria-hidden="true" />
+              <span>Track</span>
+            </button>
+
+            <button
+              ref={mobileToggleRef}
+              type="button"
+              className="bfa-mobile-menu-toggle"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="bfa-mobile-drawer"
+              aria-label={mobileMenuOpen ? 'Close Navigation Menu' : 'Open Navigation Menu'}
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Slide-down Drawer */}
+        {mobileMenuOpen && (
+          <div
+            id="bfa-mobile-drawer"
+            className="bfa-mobile-drawer"
+            ref={menuRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile Navigation Menu"
+          >
+            <div className="bfa-mobile-drawer-inner">
+              <div className="bfa-mobile-drawer-header">
+                <span className="bfa-drawer-brand">⠿ BFA APARTMENTS</span>
+                <span className="bfa-drawer-sub">Akure Enclaves</span>
               </div>
 
-              <div className="bfa-flyout-links">
-                {activePage !== 'home' && (
-                  <Link
-                    to="/"
-                    className="bfa-flyout-link"
-                    onClick={() => setSingleNavOpen(false)}
-                    role="menuitem"
-                  >
-                    <div className="bfa-flyout-icon-box">
-                      <Icons8Icon name="building" variant="white" size={18} alt="Home" />
-                    </div>
-                    <div className="bfa-flyout-link-content">
-                      <strong>Main Public Portal</strong>
-                      <small>Apartment booking & live portfolio</small>
-                    </div>
-                  </Link>
-                )}
-
+              <nav className="bfa-mobile-drawer-nav" aria-label="Mobile Links">
                 <Link
-                  to="/login"
-                  className="bfa-flyout-link highlighted"
-                  onClick={() => setSingleNavOpen(false)}
-                  role="menuitem"
+                  to="/"
+                  className={`bfa-mobile-nav-link ${current === 'home' ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
-                  <div className="bfa-flyout-icon-box">
-                    <Icons8Icon name="login" variant="white" size={18} alt="Login" />
-                  </div>
-                  <div className="bfa-flyout-link-content">
-                    <strong>Staff Portal Login →</strong>
-                    <small>Administrative, front desk & operations access</small>
-                  </div>
+                  <Compass size={17} aria-hidden="true" />
+                  <span>Home</span>
                 </Link>
-
-                {onVerifyClick ? (
-                  <button
-                    type="button"
-                    className="bfa-flyout-link"
-                    onClick={() => {
-                      setSingleNavOpen(false);
-                      onVerifyClick();
-                    }}
-                    role="menuitem"
-                  >
-                    <div className="bfa-flyout-icon-box">
-                      <Icons8Icon name="shield-check" variant="white" size={18} alt="Verify" />
-                    </div>
-                    <div className="bfa-flyout-link-content">
-                      <strong>Verify Stay Authenticity</strong>
-                      <small>Cryptographic ledger verification for reservations</small>
-                    </div>
-                  </button>
-                ) : (
-                  <Link
-                    to="/#verify"
-                    className="bfa-flyout-link"
-                    onClick={() => setSingleNavOpen(false)}
-                    role="menuitem"
-                  >
-                    <div className="bfa-flyout-icon-box">
-                      <Icons8Icon name="shield-check" variant="white" size={18} alt="Verify" />
-                    </div>
-                    <div className="bfa-flyout-link-content">
-                      <strong>Verify Stay Authenticity</strong>
-                      <small>Cryptographic ledger verification for reservations</small>
-                    </div>
-                  </Link>
-                )}
-
+                <Link
+                  to="/properties"
+                  className={`bfa-mobile-nav-link ${current === 'properties' || current === 'residences' ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Building2 size={17} aria-hidden="true" />
+                  <span>Curated Residences</span>
+                </Link>
                 <Link
                   to="/about"
-                  className={`bfa-flyout-link ${activePage === 'about' ? 'primary' : ''}`}
-                  onClick={() => setSingleNavOpen(false)}
-                  role="menuitem"
+                  className={`bfa-mobile-nav-link ${current === 'about' ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
-                  <div className="bfa-flyout-icon-box">
-                    <Icons8Icon name="gallery" variant="white" size={18} alt="Showcase" />
-                  </div>
-                  <div className="bfa-flyout-link-content">
-                    <strong>Apartment Showcase & Gallery</strong>
-                    <small>Explore full photography of all suites & buildings</small>
-                  </div>
+                  <MapPin size={17} aria-hidden="true" />
+                  <span>About Us</span>
                 </Link>
-
                 <Link
                   to="/contact"
-                  className={`bfa-flyout-link ${activePage === 'contact' ? 'primary' : ''}`}
-                  onClick={() => setSingleNavOpen(false)}
-                  role="menuitem"
+                  className={`bfa-mobile-nav-link ${current === 'contact' ? 'active' : ''}`}
+                  onClick={() => setMobileMenuOpen(false)}
                 >
-                  <div className="bfa-flyout-icon-box">
-                    <Icons8Icon name="phone" variant="white" size={18} alt="Contact" />
-                  </div>
-                  <div className="bfa-flyout-link-content">
-                    <strong>Contact Desk</strong>
-                    <small>Direct front desk, WhatsApp & phone support</small>
-                  </div>
+                  <Phone size={17} aria-hidden="true" />
+                  <span>Contact Us</span>
                 </Link>
-              </div>
+                <button
+                  type="button"
+                  className="bfa-mobile-nav-link bfa-mobile-nav-link--track"
+                  onClick={handleOpenTrack}
+                >
+                  <ShieldCheck size={17} aria-hidden="true" />
+                  <span>Track Your Reservation</span>
+                </button>
+              </nav>
 
-              <div className="bfa-flyout-footer">
-                <span>
-                  <Icons8Icon name="location" variant="white" size={12} alt="Location" /> Alagbaka GRA & Ijapo Central, Akure
-                </span>
-                <span>
-                  <Icons8Icon name="lightning" variant="white" size={12} alt="Power" /> 24/7 Redundant Power
-                </span>
+              <div className="bfa-mobile-drawer-cta">
+                <BfaButton
+                  variant="primary"
+                  size="md"
+                  onClick={handleBookingClick}
+                  iconRight={<ArrowRight size={15} />}
+                  className="bfa-mobile-book-btn"
+                >
+                  Book a Residence
+                </BfaButton>
+
+                <div className="bfa-drawer-footer-info">
+                  <div className="bfa-drawer-contact-line">
+                    <Phone size={13} aria-hidden="true" />
+                    <span>Concierge: +234 800 232 4000</span>
+                  </div>
+                  <div className="bfa-drawer-contact-line">
+                    <MapPin size={13} aria-hidden="true" />
+                    <span>Alagbaka GRA • Ijapo • Oba-Ile</span>
+                  </div>
+                </div>
               </div>
             </div>
-          )}
-        </div>
-      </div>
-    </header>
+          </div>
+        )}
+      </header>
+
+      {/* Internal Tracking Modal Fallback if not passed from parent */}
+      {internalTrackingOpen && (
+        <BookingTrackingModal
+          isOpen={internalTrackingOpen}
+          onClose={() => setInternalTrackingOpen(false)}
+        />
+      )}
+    </>
   );
 }
-

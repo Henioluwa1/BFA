@@ -110,7 +110,7 @@ export default function StaffDashboard() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
             <h1 className="page-title">Operations & Facilities Console</h1>
-            <Badge status="pending">STAFF / MAINTENANCE</Badge>
+            <span className="role-badge-staff" style={{ padding: '0.2rem 0.65rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>🌿 Operations & Facilities</span>
           </div>
           <p className="page-subtitle">
             Facilities upkeep, repair tickets, housekeeping room turnover, and inspection tasks

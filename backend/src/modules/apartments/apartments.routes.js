@@ -25,6 +25,12 @@ router.patch(
   ApartmentsController.updateStatus
 );
 
+router.patch(
+  '/:id/readiness',
+  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN', 'STAFF', 'RECEPTIONIST'),
+  ApartmentsController.updateReadiness
+);
+
 // Operational Blocked Periods
 router.get(
   '/:id/blocked-periods',

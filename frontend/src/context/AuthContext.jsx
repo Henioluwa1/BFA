@@ -15,14 +15,15 @@ export function AuthProvider({ children }) {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Synchronize portal theme with authenticated identity (Section 5 & 9)
-  // Super Admin gets GREY background; all other roles get WHITE background
+  // Synchronize portal theme with authenticated identity across all 7 operational roles
   useEffect(() => {
-    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-    document.documentElement.setAttribute(
-      'data-portal-theme',
-      isSuperAdmin ? 'super_admin' : 'default'
-    );
+    let roleKey = (user?.role || '').toLowerCase();
+    if (roleKey === 'operations_manager') {
+      roleKey = 'manager';
+    }
+    const validThemes = ['super_admin', 'admin', 'owner', 'manager', 'staff', 'receptionist', 'agent'];
+    const activeTheme = validThemes.includes(roleKey) ? roleKey : 'default';
+    document.documentElement.setAttribute('data-portal-theme', activeTheme);
   }, [user]);
 
   // Validate existing session on application boot
@@ -81,15 +82,15 @@ export function AuthProvider({ children }) {
 
   const hasPermission = (permission) => {
     if (!user) return false;
-    if (user.role === 'SUPER_ADMIN' || user.permissions?.includes('*')) return true;
-    return user.permissions?.includes(permission);
+    return Boolean(user.permissions?.includes(permission));
   };
 
   // Backward-compatible role object for existing page badges
+  const isOperationsManager = ['OPERATIONS_MANAGER', 'MANAGER'].includes(user?.role);
   const activeRoleObj = {
     id: user?.role?.toLowerCase() || 'guest',
-    name: user?.role || 'Guest',
-    label: user?.role ? user.role.replace('_', ' ') : 'Guest',
+    name: user?.role === 'OPERATIONS_MANAGER' ? 'OPERATIONS_MANAGER' : (user?.role || 'Guest'),
+    label: isOperationsManager ? 'Operations Manager' : (user?.role ? user.role.replace('_', ' ') : 'Guest'),
   };
 
   return (
@@ -100,6 +101,7 @@ export function AuthProvider({ children }) {
         isAuthenticated: !!token && !!user,
         isLoading,
         isSuperAdmin: user?.role === 'SUPER_ADMIN',
+        isOperationsManager,
         login,
         logout,
         hasPermission,

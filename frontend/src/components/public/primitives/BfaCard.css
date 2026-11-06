@@ -1,0 +1,65 @@
+/* BfaCard - Restrained Hospitality Card Primitive */
+.bfa-lux-card {
+  position: relative;
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  background-color: var(--bfa-lux-bg-card, #ffffff);
+  color: var(--bfa-lux-text-primary, #202625);
+  transition: all var(--bfa-lux-transition-normal, 250ms ease);
+  overflow: hidden;
+}
+
+/* VARIANTS */
+.bfa-lux-card--default {
+  background-color: #ffffff;
+  border-color: var(--bfa-lux-border-subtle, #e7e4dc);
+}
+
+.bfa-lux-card--ivory {
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+  border-color: var(--bfa-lux-border-default, #dcd7ce);
+}
+
+.bfa-lux-card--forest {
+  background-color: var(--bfa-lux-forest, #192a2a);
+  color: var(--bfa-lux-ivory, #f2eee5);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.bfa-lux-card--bordered {
+  background-color: #ffffff;
+  border: 1.5px solid var(--bfa-lux-border-default, #dcd7ce);
+}
+
+/* ELEVATION */
+.bfa-lux-card--elevation-none {
+  box-shadow: none;
+}
+
+.bfa-lux-card--elevation-xs {
+  box-shadow: var(--bfa-lux-shadow-xs, 0 1px 3px rgba(25, 42, 42, 0.04));
+}
+
+.bfa-lux-card--elevation-sm {
+  box-shadow: var(--bfa-lux-shadow-sm, 0 2px 8px rgba(25, 42, 42, 0.06));
+}
+
+.bfa-lux-card--elevation-md {
+  box-shadow: var(--bfa-lux-shadow-md, 0 8px 24px rgba(25, 42, 42, 0.08));
+}
+
+.bfa-lux-card--elevation-lg {
+  box-shadow: var(--bfa-lux-shadow-lg, 0 16px 40px rgba(25, 42, 42, 0.12));
+}
+
+/* INTERACTIVE */
+.bfa-lux-card--interactive {
+  cursor: pointer;
+}
+
+.bfa-lux-card--interactive:hover {
+  transform: translateY(-2px);
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  box-shadow: var(--bfa-lux-shadow-md, 0 8px 24px rgba(25, 42, 42, 0.08));
+}
+

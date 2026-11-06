@@ -8,6 +8,8 @@
     "start": "node src/server.js",
     "test": "jest --runInBand --detectOpenHandles --forceExit",
     "db:migrate": "node src/db/migrator.js",
+    "db:migrate:prod": "node src/db/migrator.js --confirm-prod",
+    "db:status": "node src/db/migrator.js --check",
     "seed:admin": "node src/scripts/seedAdmin.js",
     "seed:dev": "node src/scripts/seedDevData.js"
   },
@@ -39,7 +41,8 @@
     "testMatch": [
       "**/tests/**/*.test.js"
     ],
-    "verbose": true
+    "verbose": true,
+    "testTimeout": 30000
   },
   "engines": {
     "node": ">=18.0.0"

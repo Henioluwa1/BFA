@@ -9,6 +9,7 @@ import { propertyService, apartmentService, reservationService, maintenanceServi
 import { useProperty } from '../../context/PropertyContext';
 import { useToast } from '../../context/ToastContext';
 import { formatNaira } from '../../utils/currency';
+import ApartmentReadinessModal from '../../components/portal/ApartmentReadinessModal';
 
 export default function ApartmentsPage() {
   const navigate = useNavigate();
@@ -397,7 +398,32 @@ export default function ApartmentsPage() {
     {
       header: 'Operational Status',
       key: 'status',
-      render: (val) => renderStatusBadge(val),
+      render: (val, row) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div>{renderStatusBadge(row.status)}</div>
+          {row.housekeeping_status && (
+            <div style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>HK:</span>
+              <span
+                style={{
+                  fontWeight: 600,
+                  color: row.housekeeping_status === 'INSPECTED_READY' ? '#16a34a' : '#ea580c',
+                }}
+              >
+                {row.housekeeping_status === 'INSPECTED_READY' ? '✨ INSPECTED' : row.housekeeping_status}
+              </span>
+            </div>
+          )}
+          {row.maintenance_status && row.maintenance_status !== 'OPERATIONAL' && (
+            <div style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Maint:</span>
+              <span style={{ fontWeight: 600, color: '#dc2626' }}>
+                🔧 {row.maintenance_status}
+              </span>
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       header: 'Actions',
@@ -408,7 +434,7 @@ export default function ApartmentsPage() {
             Details
           </Button>
           <Button size="sm" variant="outline" onClick={() => handleOpenStatusModal(row)}>
-            Status
+            Readiness
           </Button>
           <Button size="sm" variant="ghost" onClick={() => handleOpenEditUnit(row)}>
             Edit
@@ -1123,55 +1149,19 @@ export default function ApartmentsPage() {
         </form>
       </Modal>
 
-      {/* 5. STATUS WORKFLOW MODAL */}
-      <Modal
-        isOpen={isStatusModalOpen}
-        onClose={() => setIsStatusModalOpen(false)}
-        size="sm"
-        icon="🧹"
-        title={`Update Status: Unit #${selectedUnit?.unit_number}`}
-        subtitle="Transition physical unit state across housekeeping and maintenance"
-      >
-        <form onSubmit={handleUpdateStatus} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <label className="form-label">Operational Status *</label>
-            <select
-              className="form-control"
-              value={statusUpdateForm.status}
-              onChange={(e) => setStatusUpdateForm({ ...statusUpdateForm, status: e.target.value })}
-            >
-              <option value="AVAILABLE">AVAILABLE (Ready for guest assignment)</option>
-              <option value="READY">READY (Housekeeping inspected)</option>
-              <option value="CLEANING">CLEANING (Housekeeping in progress)</option>
-              <option value="DIRTY">DIRTY (Guest departed, cleaning required)</option>
-              <option value="OCCUPIED">OCCUPIED (Guest currently in-house)</option>
-              <option value="MAINTENANCE">MAINTENANCE (Repairs required)</option>
-              <option value="BLOCKED">BLOCKED (Operational hold)</option>
-              <option value="OUT_OF_SERVICE">OUT OF SERVICE (Decommissioned)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label">Reason / Housekeeping Log Note</label>
-            <textarea
-              className="form-control"
-              rows={3}
-              placeholder="e.g. Completed scheduled linen replacement and AC filter service."
-              value={statusUpdateForm.notes}
-              onChange={(e) => setStatusUpdateForm({ ...statusUpdateForm, notes: e.target.value })}
-            />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-            <Button variant="outline" onClick={() => setIsStatusModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary">
-              Update Status
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      {/* 5. DECOUPLED ROOM READINESS DESK MODAL (PB2) */}
+      {isStatusModalOpen && selectedUnit && (
+        <ApartmentReadinessModal
+          isOpen={isStatusModalOpen}
+          onClose={() => setIsStatusModalOpen(false)}
+          apartment={selectedUnit}
+          onUpdated={() => {
+            setIsStatusModalOpen(false);
+            fetchApartments();
+            refreshProperties();
+          }}
+        />
+      )}
 
       {/* 6. UNIT DETAIL MODAL WITH CONNECTED RECORDS */}
       <Modal

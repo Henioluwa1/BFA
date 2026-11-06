@@ -111,6 +111,11 @@ router.post(
  * ========================================================================= */
 router.get('/ledger', requireRoles(...viewRoles), AccountingController.listLedger);
 router.get('/trial-balance-summary', requireRoles(...viewRoles), AccountingController.getTrialBalanceSummary);
+router.get('/reports/income-statement', requireRoles(...viewRoles), AccountingController.getIncomeStatement);
+router.get('/reports/balance-sheet', requireRoles(...viewRoles), AccountingController.getBalanceSheet);
+router.get('/reports/cash-flow', requireRoles(...viewRoles), AccountingController.getCashFlowStatement);
+router.get('/reports/receivables', requireRoles(...viewRoles), AccountingController.getReceivablesReport);
+router.get('/reports/refunds-reconciliation', requireRoles(...viewRoles), AccountingController.getRefundsReconciliationReport);
 
 /* =========================================================================
  * 5. SUBLEDGER POSTING BRIDGES, OUTBOX & EXCEPTION RESOLUTION
@@ -139,6 +144,12 @@ router.post(
 );
 
 router.get('/reconcile', requireRoles(...viewRoles), AccountingController.reconcileSubledger);
+router.post(
+  '/sync-expenses',
+  requireRoles('SUPER_ADMIN', 'ADMIN'),
+  requireCapability('ACCOUNTING_SUBLEDGER_POST'),
+  AccountingController.syncUnpostedExpenses
+);
 
 router.get('/account-mappings', requireRoles(...viewRoles), AccountingController.listAccountMappings);
 router.put(

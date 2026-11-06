@@ -1,22 +1,23 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import SuperAdminDashboard from '../../components/dashboard/SuperAdminDashboard';
-import AdminManagerDashboard from '../../components/dashboard/AdminManagerDashboard';
+import AdminDashboard from '../../components/dashboard/AdminDashboard';
+import ManagerDashboard from '../../components/dashboard/ManagerDashboard';
 import ReceptionistDashboard from '../../components/dashboard/ReceptionistDashboard';
 import StaffDashboard from '../../components/dashboard/StaffDashboard';
 import AgentDashboard from '../../components/dashboard/AgentDashboard';
 import OwnerDashboard from '../../components/dashboard/OwnerDashboard';
 
 /**
- * Phase 3 Authoritative Role-Specific Dashboard Router
+ * Redefined BFA Role-Specific Dashboard Router
  * Dynamically mounts the appropriate, security-scoped dashboard for each role:
- * - SUPER_ADMIN: Dark canvas, system health telemetry, DB latency, global portfolio
- * - ADMIN: Full operational velocity, unit turnover, front desk, financial summary
- * - MANAGER: Daily operational velocity, unit turnover, front desk, maintenance
+ * - SUPER_ADMIN: Developer/Technical operations console (health, DB latency, services, logs — NO business/financial data)
+ * - OWNER: Business Executive portfolio yield, RevPAR, accounting ledgers, high-risk financial oversight
+ * - ADMIN: Business operations admin, staff directory, properties, reservations, cross-property operational governance
+ * - MANAGER: Property-scoped operational center (strictly requires property assignment; rejected if unassigned)
  * - RECEPTIONIST: Front desk arrivals/departures, in-house guests, unit readiness (zero sensitive financials)
- * - STAFF: Work orders queue, maintenance turnover board, priority tasks (zero financial/billing data)
+ * - STAFF: Work orders queue, maintenance turnover board, priority tasks (zero financial/billing data, room status safety)
  * - AGENT: Personal client bookings pipeline, commissions accrued & pending (strictly scoped to agentId)
- * - OWNER: Portfolio financial yield, NOI, operating expenses, asset occupancy rate
  */
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -47,8 +48,11 @@ export default function DashboardPage() {
       return <SuperAdminDashboard />;
 
     case 'ADMIN':
+      return <AdminDashboard />;
+
+    case 'OPERATIONS_MANAGER':
     case 'MANAGER':
-      return <AdminManagerDashboard role={role} />;
+      return <ManagerDashboard />;
 
     case 'RECEPTIONIST':
       return <ReceptionistDashboard />;
@@ -63,7 +67,6 @@ export default function DashboardPage() {
       return <OwnerDashboard />;
 
     default:
-      // Fallback to operational dashboard scoped as MANAGER
-      return <AdminManagerDashboard role={role || 'STAFF'} />;
+      return <StaffDashboard />;
   }
 }

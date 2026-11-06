@@ -115,7 +115,10 @@ class ReportsService {
 
     if (role === 'AGENT') {
       sql += ' AND r.agent_id = ?';
-      params.push(effectiveAgentId || 1);
+      if (!effectiveAgentId) {
+        throw new ForbiddenError('Access denied: Agent profile not linked.');
+      }
+      params.push(effectiveAgentId);
     }
     if (effectivePropertyId) {
       sql += ' AND r.property_id = ?';

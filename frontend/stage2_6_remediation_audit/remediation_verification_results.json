@@ -1,0 +1,140 @@
+{
+  "timestamp": "2026-11-05T11:20:08.433Z",
+  "findings": {
+    "f01_fail_closed": {
+      "hasServiceNotice": true,
+      "hasRetryButton": true,
+      "gate4Failed": true,
+      "isCheckInDisabled": true,
+      "passed": true
+    },
+    "f02_presentation": {
+      "hasGate5Renamed": true,
+      "hasAuthoritativeNote": true,
+      "checkInBtnDisabled": true,
+      "passed": true
+    },
+    "f03_role_guarding": {
+      "RECEPTIONIST": {
+        "expectedEditable": false,
+        "actualResult": {
+          "hasReadOnlyNotice": true,
+          "hasOccupancyDropdown": false,
+          "hasUpdateBtn": false
+        },
+        "passed": true
+      },
+      "STAFF": {
+        "expectedEditable": false,
+        "actualResult": {
+          "hasReadOnlyNotice": true,
+          "hasOccupancyDropdown": false,
+          "hasUpdateBtn": false
+        },
+        "passed": true
+      },
+      "OPERATIONS_MANAGER": {
+        "expectedEditable": true,
+        "actualResult": {
+          "hasReadOnlyNotice": false,
+          "hasOccupancyDropdown": true,
+          "hasUpdateBtn": true
+        },
+        "passed": true
+      },
+      "ADMIN": {
+        "expectedEditable": true,
+        "actualResult": {
+          "hasReadOnlyNotice": false,
+          "hasOccupancyDropdown": true,
+          "hasUpdateBtn": true
+        },
+        "passed": true
+      },
+      "OWNER": {
+        "expectedEditable": true,
+        "actualResult": {
+          "hasReadOnlyNotice": false,
+          "hasOccupancyDropdown": true,
+          "hasUpdateBtn": true
+        },
+        "passed": true
+      }
+    }
+  },
+  "regression": {
+    "claimDesk": {
+      "hasAllFilter": true,
+      "hasUnassignedFilter": true,
+      "hasClaimedFilter": true,
+      "hasLockedFilter": true,
+      "hasHandoverNotice": true
+    }
+  },
+  "viewportAudit": [
+    {
+      "viewport": "Desktop Large (1440x900)",
+      "width": 1440,
+      "height": 900,
+      "screenshot": "remediation_viewport_desktop_1440_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Laptop Standard (1280x800)",
+      "width": 1280,
+      "height": 800,
+      "screenshot": "remediation_viewport_laptop_1280_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Tablet Landscape (1024x768)",
+      "width": 1024,
+      "height": 768,
+      "screenshot": "remediation_viewport_tablet_landscape_1024_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Tablet Portrait (768x1024)",
+      "width": 768,
+      "height": 1024,
+      "screenshot": "remediation_viewport_tablet_portrait_768_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "iPhone 14 Pro Max (430x932)",
+      "width": 430,
+      "height": 932,
+      "screenshot": "remediation_viewport_mobile_large_430_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "iPhone 13/14 (390x844)",
+      "width": 390,
+      "height": 844,
+      "screenshot": "remediation_viewport_mobile_standard_390_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Android Common (360x800)",
+      "width": 360,
+      "height": 800,
+      "screenshot": "remediation_viewport_mobile_small_360_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    },
+    {
+      "viewport": "Small Mobile (320x700)",
+      "width": 320,
+      "height": 700,
+      "screenshot": "remediation_viewport_mobile_compact_320_frontoffice.png",
+      "horizontalOverflow": false,
+      "status": "PASSED: Fully Responsive"
+    }
+  ]
+}

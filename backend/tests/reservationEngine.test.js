@@ -37,7 +37,8 @@ describe('Authoritative Central Reservation Engine Tests (Section 16-32, 41, 58)
     await pool.query('DELETE FROM payment_transactions WHERE reservation_id IN (SELECT id FROM reservations WHERE check_in_date >= "2029-01-01")');
     await pool.query('DELETE FROM reservation_status_history WHERE reservation_id IN (SELECT id FROM reservations WHERE check_in_date >= "2029-01-01")');
     await pool.query('DELETE FROM reservations WHERE check_in_date >= "2029-01-01"');
-    await pool.query('UPDATE apartments SET status = "AVAILABLE" WHERE id = ?', [testApartmentId]);
+    await pool.query('DELETE FROM maintenance_requests WHERE apartment_id = ? AND status NOT IN ("RESOLVED", "CANCELLED")', [testApartmentId]);
+    await pool.query('UPDATE apartments SET status = "AVAILABLE", housekeeping_status = "INSPECTED_READY", maintenance_status = "OPERATIONAL" WHERE id = ?', [testApartmentId]);
   });
 
   afterAll(async () => {
@@ -49,7 +50,8 @@ describe('Authoritative Central Reservation Engine Tests (Section 16-32, 41, 58)
       await pool.query(`DELETE FROM reservations WHERE id IN (${placeholders})`, createdReservationIds);
     }
     // Restore apartment 1 status to AVAILABLE
-    await pool.query('UPDATE apartments SET status = "AVAILABLE" WHERE id = ?', [testApartmentId]);
+    await pool.query('DELETE FROM maintenance_requests WHERE apartment_id = ? AND status NOT IN ("RESOLVED", "CANCELLED")', [testApartmentId]);
+    await pool.query('UPDATE apartments SET status = "AVAILABLE", housekeeping_status = "INSPECTED_READY", maintenance_status = "OPERATIONAL" WHERE id = ?', [testApartmentId]);
     await pool.closePool();
   });
 

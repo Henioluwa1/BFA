@@ -9,12 +9,14 @@ export default function FloatingChatWidget() {
   const [department, setDepartment] = useState('RESERVATIONS');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [formError, setFormError] = useState('');
   const [submittedTicket, setSubmittedTicket] = useState(null);
 
   const handleSendMessage = (e) => {
     e.preventDefault();
+    setFormError('');
     if (!senderName.trim() || !senderContact.trim() || !message.trim()) {
-      alert('Please provide your name, contact information, and message.');
+      setFormError('Please provide your name, contact information, and message.');
       return;
     }
     setSending(true);
@@ -149,6 +151,12 @@ export default function FloatingChatWidget() {
                       required
                     />
                   </div>
+
+                  {formError && (
+                    <div style={{ color: '#ef4444', fontSize: '0.82rem', marginBottom: '0.65rem' }}>
+                      {formError}
+                    </div>
+                  )}
 
                   <button type="submit" className="bfa-chat-submit-btn" disabled={sending}>
                     {sending ? (

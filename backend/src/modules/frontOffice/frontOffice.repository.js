@@ -2,6 +2,63 @@ const pool = require('../../db/pool');
 
 class FrontOfficeRepository {
   /**
+   * Apply fail-closed property scoping constraint
+   * @param {object} user - Authenticated user context
+   * @param {string|number} requestedPropertyId - Explicit query filter
+   * @param {string} fieldName - Qualified SQL column name (e.g. 'r.property_id' or 'property_id')
+   * @returns {{ clause: string, params: any[] }}
+   */
+  static resolvePropertyScopeConstraint(user, requestedPropertyId, fieldName = 'r.property_id') {
+    const role = (user?.role || '').toUpperCase();
+
+    // 1. Front-Office Staff Roles: OPERATIONS_MANAGER, MANAGER, RECEPTIONIST, STAFF
+    if (['OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF'].includes(role)) {
+      const userPropId = parseInt(user?.propertyId, 10);
+      if (!user?.propertyId || isNaN(userPropId)) {
+        return { clause: 'AND 1 = 0', params: [] }; // Fail closed: unassigned staff cannot access
+      }
+      if (requestedPropertyId && requestedPropertyId !== 'all' && parseInt(requestedPropertyId, 10) !== userPropId) {
+        return { clause: 'AND 1 = 0', params: [] }; // Fail closed: staff querying another property
+      }
+      return { clause: `AND ${fieldName} = ?`, params: [userPropId] };
+    }
+
+    // 2. OWNER: Scoped to their assigned property if set, otherwise can filter by requestedPropertyId
+    if (role === 'OWNER') {
+      if (user?.propertyId) {
+        const ownerPropId = parseInt(user.propertyId, 10);
+        if (requestedPropertyId && requestedPropertyId !== 'all' && parseInt(requestedPropertyId, 10) !== ownerPropId) {
+          return { clause: 'AND 1 = 0', params: [] };
+        }
+        return { clause: `AND ${fieldName} = ?`, params: [ownerPropId] };
+      }
+      if (requestedPropertyId && requestedPropertyId !== 'all') {
+        return { clause: `AND ${fieldName} = ?`, params: [parseInt(requestedPropertyId, 10)] };
+      }
+      return { clause: '', params: [] };
+    }
+
+    // 3. Platform Administration: SUPER_ADMIN, ADMIN (Portfolio-wide, filtered if requested)
+    if (['SUPER_ADMIN', 'ADMIN'].includes(role)) {
+      if (requestedPropertyId && requestedPropertyId !== 'all') {
+        return { clause: `AND ${fieldName} = ?`, params: [parseInt(requestedPropertyId, 10)] };
+      }
+      return { clause: '', params: [] };
+    }
+
+    // 4. Any other authenticated role fails closed for front-office data
+    if (user) {
+      return { clause: 'AND 1 = 0', params: [] };
+    }
+
+    // 5. Unauthenticated public requests (if applicable)
+    if (requestedPropertyId && requestedPropertyId !== 'all') {
+      return { clause: `AND ${fieldName} = ?`, params: [parseInt(requestedPropertyId, 10)] };
+    }
+    return { clause: '', params: [] };
+  }
+
+  /**
    * Get arrivals for specified date (default today)
    */
   static async getArrivals({ propertyId, date, user } = {}) {
@@ -24,14 +81,9 @@ class FrontOfficeRepository {
     `;
     const params = [date];
 
-    if (['MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'].includes(user?.role) && user.propertyId) {
-      sql += ' AND r.property_id = ?';
-      params.push(user.propertyId);
-    }
-    if (propertyId && propertyId !== 'all') {
-      sql += ' AND r.property_id = ?';
-      params.push(propertyId);
-    }
+    const scope = this.resolvePropertyScopeConstraint(user, propertyId, 'r.property_id');
+    sql += ` ${scope.clause}`;
+    params.push(...scope.params);
 
     sql += ' ORDER BY a.unit_number ASC;';
     return pool.query(sql, params);
@@ -60,14 +112,9 @@ class FrontOfficeRepository {
     `;
     const params = [date];
 
-    if (['MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'].includes(user?.role) && user.propertyId) {
-      sql += ' AND r.property_id = ?';
-      params.push(user.propertyId);
-    }
-    if (propertyId && propertyId !== 'all') {
-      sql += ' AND r.property_id = ?';
-      params.push(propertyId);
-    }
+    const scope = this.resolvePropertyScopeConstraint(user, propertyId, 'r.property_id');
+    sql += ` ${scope.clause}`;
+    params.push(...scope.params);
 
     sql += ' ORDER BY a.unit_number ASC;';
     return pool.query(sql, params);
@@ -95,14 +142,9 @@ class FrontOfficeRepository {
     `;
     const params = [];
 
-    if (['MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'].includes(user?.role) && user.propertyId) {
-      sql += ' AND r.property_id = ?';
-      params.push(user.propertyId);
-    }
-    if (propertyId && propertyId !== 'all') {
-      sql += ' AND r.property_id = ?';
-      params.push(propertyId);
-    }
+    const scope = this.resolvePropertyScopeConstraint(user, propertyId, 'r.property_id');
+    sql += ` ${scope.clause}`;
+    params.push(...scope.params);
 
     sql += ' ORDER BY r.checked_in_at DESC;';
     return pool.query(sql, params);
@@ -128,13 +170,9 @@ class FrontOfficeRepository {
     `;
     const params = [];
 
-    if (['MANAGER', 'RECEPTIONIST', 'STAFF'].includes(user?.role) && user.propertyId) {
-      sql += ' AND r.property_id = ?';
-      params.push(user.propertyId);
-    } else if (propertyId && propertyId !== 'all') {
-      sql += ' AND r.property_id = ?';
-      params.push(propertyId);
-    }
+    const scope = this.resolvePropertyScopeConstraint(user, propertyId, 'r.property_id');
+    sql += ` ${scope.clause}`;
+    params.push(...scope.params);
 
     sql += ' ORDER BY r.created_at DESC LIMIT 50;';
     return pool.query(sql, params);
@@ -157,13 +195,9 @@ class FrontOfficeRepository {
     `;
     const params = [];
 
-    if (['MANAGER'].includes(user?.role) && user.propertyId) {
-      sql += ' AND ea.property_id = ?';
-      params.push(user.propertyId);
-    } else if (propertyId && propertyId !== 'all') {
-      sql += ' AND ea.property_id = ?';
-      params.push(propertyId);
-    }
+    const scope = this.resolvePropertyScopeConstraint(user, propertyId, 'ea.property_id');
+    sql += ` ${scope.clause}`;
+    params.push(...scope.params);
 
     sql += ' ORDER BY ea.created_at DESC LIMIT ?;';
     params.push(Math.min(100, Math.max(1, parseInt(limit, 10) || 25)));
@@ -175,15 +209,9 @@ class FrontOfficeRepository {
    * Get operational statistics
    */
   static async getOperationalStats({ propertyId, date, user } = {}) {
-    let propFilter = '';
-    let propParams = [];
-    if (['MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'].includes(user?.role) && user.propertyId) {
-      propFilter = 'AND property_id = ?';
-      propParams = [user.propertyId];
-    } else if (propertyId && propertyId !== 'all') {
-      propFilter = 'AND property_id = ?';
-      propParams = [propertyId];
-    }
+    const scope = this.resolvePropertyScopeConstraint(user, propertyId, 'property_id');
+    const propFilter = scope.clause;
+    const propParams = scope.params;
 
     // 1. Today's arrivals count
     const [arr] = await pool.query(

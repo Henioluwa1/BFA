@@ -58,7 +58,12 @@ const corsMiddleware = cors({
       if (
         isExplicitlyAllowed ||
         origin.startsWith('http://localhost:') ||
-        origin.startsWith('http://127.0.0.1:')
+        origin.startsWith('http://127.0.0.1:') ||
+        origin.endsWith('.loca.lt') ||
+        origin.endsWith('.trycloudflare.com') ||
+        origin.includes('trycloudflare.com') ||
+        origin.includes('loca.lt') ||
+        /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin)
       ) {
         return callback(null, true);
       }

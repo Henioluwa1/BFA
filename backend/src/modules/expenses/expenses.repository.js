@@ -35,10 +35,15 @@ class ExpensesRepository {
     `;
     const params = [];
 
-    // Property scoping
-    if (user?.role === 'MANAGER' && user.propertyId) {
-      sql += ' AND e.property_id = ?';
-      params.push(user.propertyId);
+    // Fail-Closed Property Scoping
+    const role = (user?.role || '').toUpperCase();
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+      if (!user.propertyId) {
+        sql += ' AND 1 = 0';
+      } else {
+        sql += ' AND e.property_id = ?';
+        params.push(user.propertyId);
+      }
     } else if (propertyId && propertyId !== 'all') {
       sql += ' AND e.property_id = ?';
       params.push(propertyId);

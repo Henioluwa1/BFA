@@ -56,7 +56,13 @@ export const publicService = {
   getRoomTypes: (propertyId) => api.get(`/public/properties/${propertyId}/room-types`),
   getApartments: (propertyId, params = {}) => api.get('/public/apartments', { params: { propertyId, ...params } }),
   checkAvailability: (data) => api.post('/public/check-availability', data),
+  getQuote: (data) => api.post('/public/quote', data),
+  getPaymentConfig: () => api.get('/public/payment-config'),
+  uploadPaymentProof: (data) => api.post('/public/upload-proof', data),
   createBooking: (data) => api.post('/public/booking', data),
+  trackBooking: (data) => api.post('/public/booking-tracking/lookup', data),
+  cancelBooking: (data) => api.post('/public/booking-tracking/cancel', data),
+  requestRoomChange: (data) => api.post('/public/booking-tracking/change-room', data),
   getAnnouncements: (params) => api.get('/public/announcements', { params }),
   verifyBooking: (data) => api.post('/public/booking-lookup', data),
 };
@@ -86,12 +92,21 @@ export const propertyService = {
   getApartments: (id) => api.get(`/properties/${id}/apartments`),
 };
 
+export const propertySubmissionService = {
+  getSubmissions: (params) => api.get('/properties/submissions', { params }),
+  getSubmissionById: (id) => api.get(`/properties/submissions/${id}`),
+  createSubmission: (data) => api.post('/properties/submissions', data),
+  reviewSubmission: (id, data) => api.post(`/properties/submissions/${id}/review`, data),
+  publishSubmission: (id) => api.post(`/properties/submissions/${id}/publish`),
+};
+
 export const apartmentService = {
   getAll: (params) => api.get('/apartments', { params }),
   getById: (id) => api.get(`/apartments/${id}`),
   create: (data) => api.post('/apartments', data),
   update: (id, data) => api.put(`/apartments/${id}`, data),
   updateStatus: (id, data) => api.patch(`/apartments/${id}/status`, data),
+  updateReadiness: (id, data) => api.patch(`/apartments/${id}/readiness`, data),
   checkAvailability: (id, params) => api.get(`/apartments/${id}/availability`, { params }),
   getBlockedPeriods: (id) => api.get(`/apartments/${id}/blocked-periods`),
   addBlockedPeriod: (id, data) => api.post(`/apartments/${id}/blocked-periods`, data),
@@ -124,6 +139,10 @@ export const frontOfficeService = {
   getLiveOperationalFeed: (params) => api.get('/front-office/live-feed', { params }),
   getStats: (params) => api.get('/front-office/stats', { params }),
   acceptReservation: (id) => api.post(`/front-office/reservations/${id}/accept`),
+  claimReservation: (reservationId) => api.post('/front-office/claim', { reservationId }),
+  approveReservation: (id) => api.post(`/front-office/reservations/${id}/approve`),
+  declineReservation: (id, data) => api.post(`/front-office/reservations/${id}/decline`, data),
+  getPaymentProofUrl: (id) => `/api/v1/front-office/reservations/${id}/payment-proof`,
   checkIn: (id) => api.post(`/front-office/reservations/${id}/check-in`),
   checkOut: (id) => api.post(`/front-office/reservations/${id}/check-out`),
   noShow: (id, data) => api.post(`/front-office/reservations/${id}/no-show`, data),
@@ -220,6 +239,19 @@ export const maintenanceService = {
   start: (id) => api.post(`/maintenance/${id}/start`),
   resolve: (id, data) => api.post(`/maintenance/${id}/resolve`, data),
   cancel: (id, data) => api.post(`/maintenance/${id}/cancel`, data),
+  delete: (id) => api.delete(`/maintenance/${id}`),
+  getEligibleTechnicians: (params) =>
+    api.get('/maintenance/eligible-technicians', {
+      params: typeof params === 'object' && params !== null ? params : { propertyId: params },
+    }),
+  uploadEvidence: (id, data) => api.post(`/maintenance/${id}/evidence`, data),
+  listEvidence: (id) => api.get(`/maintenance/${id}/evidence`),
+  streamEvidence: (id, evidenceId) =>
+    api.get(`/maintenance/${id}/evidence/${evidenceId}/stream`, { responseType: 'blob' }),
+  deleteEvidence: (id, evidenceId, data = {}) =>
+    api.delete(`/maintenance/${id}/evidence/${evidenceId}`, { data }),
+  documentExemption: (id, data) =>
+    api.post(`/maintenance/${id}/evidence`, { isExemption: true, ...data }),
 };
 
 export const expenseService = {
@@ -235,6 +267,11 @@ export const expenseService = {
 export const financialService = {
   getOverview: (params) => api.get('/financial/overview', { params }),
   getLedger: (params) => api.get('/financial/ledger', { params }),
+  getIncomeStatement: (params) => api.get('/financial/income-statement', { params }),
+  getBalanceSheet: (params) => api.get('/financial/balance-sheet', { params }),
+  getCashFlow: (params) => api.get('/financial/cash-flow', { params }),
+  getReceivables: (params) => api.get('/financial/receivables', { params }),
+  getRefundsReconciliation: (params) => api.get('/financial/refunds-reconciliation', { params }),
 };
 
 export const accountingService = {
@@ -243,6 +280,11 @@ export const accountingService = {
   getAccounts: (params) => api.get('/accounting/accounts', { params }),
   getPeriods: (params) => api.get('/accounting/periods', { params }),
   getAccountById: (id) => api.get(`/accounting/accounts/${id}`),
+  getIncomeStatement: (params) => api.get('/accounting/reports/income-statement', { params }),
+  getBalanceSheet: (params) => api.get('/accounting/reports/balance-sheet', { params }),
+  getCashFlow: (params) => api.get('/accounting/reports/cash-flow', { params }),
+  getReceivables: (params) => api.get('/accounting/reports/receivables', { params }),
+  getRefundsReconciliation: (params) => api.get('/accounting/reports/refunds-reconciliation', { params }),
 };
 
 export const bookingAuthService = {
@@ -381,6 +423,71 @@ export const userService = {
 };
 
 export const teamService = userService;
+
+export const propertyMediaService = {
+  getMedia: (propertyId) => api.get(`/properties/${propertyId}/media`),
+  uploadMedia: (propertyId, mediaItems) => api.post(`/properties/${propertyId}/media`, { images: mediaItems }),
+  setCover: (propertyId, mediaId) => api.patch(`/properties/${propertyId}/media/${mediaId}/cover`),
+  reorderMedia: (propertyId, orderList) => api.put(`/properties/${propertyId}/media/reorder`, { orderList }),
+  publishMedia: (propertyId, mediaId, isPublished) => api.patch(`/properties/${propertyId}/media/${mediaId}/publish`, { isPublished }),
+  deleteMedia: (propertyId, mediaId) => api.delete(`/properties/${propertyId}/media/${mediaId}`),
+};
+
+export const workforceService = {
+  // Templates
+  getTemplates: (params) => api.get('/workforce/templates', { params }),
+  createTemplate: (data) => api.post('/workforce/templates', data),
+  // Rosters
+  getRosters: (params) => api.get('/workforce/rosters', { params }),
+  createRoster: (data) => api.post('/workforce/rosters', data),
+  getRosterById: (id) => api.get(`/workforce/rosters/${id}`),
+  publishRoster: (id) => api.post(`/workforce/rosters/${id}/publish`),
+  // Shifts
+  getShifts: (params) => api.get('/workforce/shifts', { params }),
+  scheduleShift: (data) => api.post('/workforce/shifts', data),
+  updateShift: (id, data) => api.put(`/workforce/shifts/${id}`, data),
+  deleteShift: (id) => api.delete(`/workforce/shifts/${id}`),
+  // Availability
+  submitAvailability: (data) => api.post('/workforce/availability', data),
+  getAvailability: (params) => api.get('/workforce/availability', { params }),
+  // Swaps
+  requestSwap: (data) => api.post('/workforce/swaps', data),
+  getSwaps: (params) => api.get('/workforce/swaps', { params }),
+  reviewSwap: (id, data) => api.patch(`/workforce/swaps/${id}/review`, data),
+  // Attendance & Time Tracking
+  clockIn: (data) => api.post('/workforce/attendance/clock-in', data),
+  clockOut: (data) => api.post('/workforce/attendance/clock-out', data),
+  startBreak: (data) => api.post('/workforce/attendance/break-start', data),
+  endBreak: (data) => api.post('/workforce/attendance/break-end', data),
+  getAttendance: (params) => api.get('/workforce/attendance', { params }),
+  verifyAttendance: (id, data) => api.patch(`/workforce/attendance/${id}/verify`, data),
+  // Attendance Corrections
+  requestCorrection: (data) => api.post('/workforce/attendance/corrections', data),
+  getCorrections: (params) => api.get('/workforce/attendance/corrections', { params }),
+  reviewCorrection: (id, data) => api.patch(`/workforce/attendance/corrections/${id}/review`, data),
+  // Leave
+  getLeaveCategories: () => api.get('/workforce/leave/categories'),
+  getLeaveBalances: (employeeId) => api.get(`/workforce/leave/balances${employeeId ? `/${employeeId}` : ''}`),
+  submitLeave: (data) => api.post('/workforce/leave/requests', data),
+  getLeaveRequests: (params) => api.get('/workforce/leave/requests', { params }),
+  reviewLeave: (id, data) => api.patch(`/workforce/leave/requests/${id}/review`, data),
+  // Timesheets
+  getTimesheets: (params) => api.get('/workforce/timesheets', { params }),
+  exportTimesheetsUrl: (params) => {
+    const q = new URLSearchParams(params || {}).toString();
+    return `/api/v1/workforce/timesheets/export${q ? `?${q}` : ''}`;
+  },
+  // Kiosks & Policies
+  kioskClock: (data) => api.post('/workforce/attendance/kiosk-clock', data),
+  recordManualAttendance: (data) => api.post('/workforce/attendance/manual', data),
+  getPolicy: (propertyId) => api.get(`/workforce/attendance/policies${propertyId ? `/${propertyId}` : ''}`),
+  updatePolicy: (propertyId, data) => api.put(`/workforce/attendance/policies${propertyId ? `/${propertyId}` : ''}`, data),
+  registerKiosk: (data) => api.post('/workforce/kiosks', data),
+  listKiosks: (params) => api.get('/workforce/kiosks', { params }),
+  updateKioskStatus: (id, data) => api.patch(`/workforce/kiosks/${id}/status`, data),
+  rotateKioskSecret: (id, data = {}) => api.post(`/workforce/kiosks/${id}/rotate-secret`, data),
+  escalateLeave: (id, data) => api.patch(`/workforce/leave/requests/${id}/escalate`, data),
+};
 
 export const automationService = {
   getActions: () => api.get('/automation/actions'),

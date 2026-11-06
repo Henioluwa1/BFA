@@ -1,0 +1,174 @@
+/* ==========================================================================
+   SuiteTypesPreviewSection.css — Accommodation Portfolio
+   ========================================================================== */
+
+.bfa-suite-preview-section {
+  padding: 88px 0;
+  background-color: var(--bfa-lux-bg-page, #fbf9f5);
+}
+
+.bfa-suite-preview-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.bfa-suite-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin-bottom: 48px;
+  flex-wrap: wrap;
+}
+
+.bfa-suite-preview-title {
+  font-family: var(--bfa-lux-font-display, 'Outfit', 'Playfair Display', serif);
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  letter-spacing: -0.02em;
+  margin: 12px 0 10px;
+}
+
+.bfa-suite-preview-subtitle {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  max-width: 680px;
+  margin: 0;
+}
+
+.bfa-suite-header-link {
+  text-decoration: none;
+}
+
+/* 3 Suite Cards Grid */
+.bfa-suite-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+
+.bfa-suite-card {
+  background-color: #ffffff;
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.bfa-suite-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+}
+
+.bfa-suite-img-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background-color: #192a2a;
+}
+
+.bfa-suite-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.bfa-suite-card:hover .bfa-suite-img {
+  transform: scale(1.03);
+}
+
+.bfa-suite-tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(25, 42, 42, 0.9);
+  color: var(--bfa-lux-champagne, #b99a70);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(185, 154, 112, 0.3);
+}
+
+.bfa-suite-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.bfa-suite-enclave {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--bfa-lux-champagne, #b99a70);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.bfa-suite-name {
+  font-family: var(--bfa-lux-font-display, 'Outfit', 'Playfair Display', serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0 0 8px;
+  line-height: 1.3;
+}
+
+.bfa-suite-specs {
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  margin-bottom: 12px;
+}
+
+.bfa-suite-desc {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  margin: 0 0 20px;
+  flex: 1;
+}
+
+.bfa-suite-footer {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+}
+
+.bfa-suite-cta-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #70532c;
+  text-decoration: none;
+  transition: gap 0.2s ease, color 0.2s ease;
+}
+
+.bfa-suite-cta-link:hover {
+  gap: 10px;
+  color: var(--bfa-lux-champagne, #b99a70);
+}
+
+@media (max-width: 960px) {
+  .bfa-suite-grid {
+    grid-template-columns: 1fr;
+    max-width: 580px;
+    margin: 0 auto;
+  }
+  .bfa-suite-preview-section {
+    padding: 60px 0;
+  }
+}
+

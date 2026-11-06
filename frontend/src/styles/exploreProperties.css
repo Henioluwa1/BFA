@@ -1,0 +1,638 @@
+/* ==========================================================================
+   BFA EXPLORE PROPERTIES PAGE STYLES
+   Warm Luxury Editorial Hospitality Design
+   ========================================================================== */
+
+.bfa-explore-page {
+  min-height: 100vh;
+  background-color: var(--bfa-lux-bg-page, #fbf9f5);
+  display: flex;
+  flex-direction: column;
+  padding-top: 72px;
+}
+
+/* HERO SECTION */
+.bfa-explore-hero {
+  background: linear-gradient(180deg, #f2eee5 0%, #fbf9f5 100%);
+  border-bottom: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  padding: 120px 24px 48px;
+  text-align: center;
+}
+
+.bfa-explore-hero-inner {
+  max-width: var(--bfa-lux-narrow-width, 860px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--bfa-lux-space-md, 16px);
+}
+
+.bfa-explore-hero-title {
+  font-family: var(--bfa-lux-font-display, serif);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 600;
+  color: var(--bfa-lux-forest, #192a2a);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 8px 0;
+}
+
+.bfa-explore-hero-subtitle {
+  font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+  color: var(--bfa-lux-text-secondary, #737a75);
+  max-width: 680px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* SEARCH WRAPPER */
+.bfa-explore-search-wrapper {
+  width: 100%;
+  max-width: 580px;
+  margin: 12px auto 0;
+}
+
+.bfa-explore-search-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid var(--bfa-lux-border-default, #dcd7ce);
+  border-radius: var(--bfa-lux-radius-pill, 9999px);
+  padding: 4px 16px;
+  box-shadow: var(--bfa-lux-shadow-sm, 0 2px 8px rgba(25, 42, 42, 0.05));
+  transition: all var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-explore-search-input-box:focus-within {
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  box-shadow: 0 0 0 3px rgba(185, 154, 112, 0.2);
+}
+
+.bfa-search-icon {
+  color: var(--bfa-lux-text-secondary, #737a75);
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.bfa-explore-search-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  color: var(--bfa-lux-forest, #192a2a);
+  padding: 10px 0;
+  outline: none;
+}
+
+.bfa-explore-search-input::placeholder {
+  color: var(--bfa-lux-text-muted, #8c948e);
+}
+
+.bfa-search-clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-search-clear-btn:hover {
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+  color: var(--bfa-lux-forest, #192a2a);
+}
+
+.bfa-filter-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.8125rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  margin-top: 8px;
+}
+
+.bfa-reset-filters-btn {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--bfa-lux-champagne, #b99a70);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.bfa-reset-filters-btn:hover {
+  color: var(--bfa-lux-forest, #192a2a);
+}
+
+/* FILTER BAR */
+.bfa-explore-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  background-color: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  padding: 6px;
+  border-radius: var(--bfa-lux-radius-pill, 9999px);
+  border: 1px solid var(--bfa-lux-border-default, #dcd7ce);
+}
+
+.bfa-explore-filter-btn {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  padding: 8px 18px;
+  border-radius: var(--bfa-lux-radius-pill, 9999px);
+  cursor: pointer;
+  transition: all var(--bfa-lux-transition-fast, 150ms ease);
+  min-height: 40px;
+}
+
+.bfa-explore-filter-btn:hover {
+  color: var(--bfa-lux-forest, #192a2a);
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+}
+
+.bfa-explore-filter-btn.active {
+  background-color: var(--bfa-lux-forest, #192a2a);
+  color: var(--bfa-lux-ivory, #f2eee5);
+  box-shadow: 0 2px 6px rgba(25, 42, 42, 0.15);
+}
+
+/* MAIN GRID CONTAINER */
+.bfa-explore-container {
+  max-width: var(--bfa-lux-max-width, 1360px);
+  width: 100%;
+  margin: 0 auto;
+  padding: 48px 24px;
+  flex: 1;
+}
+
+.bfa-explore-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 32px;
+}
+
+/* PROPERTY CARD */
+.bfa-property-card-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-property-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  overflow: hidden;
+  background-color: #ffffff;
+  transition: all var(--bfa-lux-transition-smooth, 400ms cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.bfa-property-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  box-shadow: var(--bfa-lux-shadow-md, 0 8px 24px rgba(25, 42, 42, 0.08));
+}
+
+.bfa-property-card-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background-color: var(--bfa-lux-forest-dark, #101c1c);
+}
+
+.bfa-property-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bfa-property-card:hover .bfa-property-card-img {
+  transform: scale(1.04);
+}
+
+.bfa-property-card-overlay {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.bfa-card-vis-pill {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(10, 15, 24, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #e2ded5;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* CARD BODY */
+.bfa-property-card-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 12px;
+}
+
+.bfa-property-card-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+}
+
+.bfa-property-card-location,
+.bfa-property-card-checkin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bfa-property-card-title {
+  font-family: var(--bfa-lux-font-display, serif);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.bfa-property-card-desc {
+  font-size: 0.875rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* AMENITY CHIPS */
+.bfa-property-card-amenities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+}
+
+.bfa-amenity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--bfa-lux-forest, #192a2a);
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+  padding: 4px 8px;
+  border-radius: var(--bfa-lux-radius-xs, 4px);
+}
+
+.bfa-amenities-empty {
+  min-height: 28px;
+  align-items: center;
+}
+
+.bfa-amenity-suite-verified {
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+  color: var(--bfa-lux-forest, #192a2a);
+  font-weight: 500;
+  border: 1px dashed var(--bfa-lux-champagne, #b99a70);
+}
+
+.bfa-amenity-neutral {
+  font-size: 0.775rem;
+  font-style: italic;
+  color: var(--bfa-lux-text-secondary, #737a75);
+}
+
+/* CARD FOOTER */
+.bfa-property-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 12px;
+  gap: 12px;
+}
+
+.bfa-property-card-price {
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-price-caption {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--bfa-lux-text-muted, #8c948e);
+}
+
+.bfa-price-figure {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  font-family: var(--bfa-lux-font-mono, monospace);
+}
+
+.bfa-price-period {
+  font-size: 0.775rem;
+  font-weight: 400;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  font-family: var(--bfa-lux-font-body, sans-serif);
+}
+
+.bfa-price-notice {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  font-style: italic;
+}
+
+.bfa-price-catalog-note {
+  font-size: 0.6875rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  font-weight: 500;
+  margin-top: 3px;
+  line-height: 1.25;
+}
+
+.bfa-property-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bfa-explore-detail-link {
+  text-decoration: none;
+}
+
+/* ASSURANCE SECTION */
+.bfa-explore-assurance {
+  background-color: var(--bfa-lux-ivory, #f2eee5);
+  border-top: 1px solid var(--bfa-lux-border-default, #dcd7ce);
+  border-bottom: 1px solid var(--bfa-lux-border-default, #dcd7ce);
+  padding: 56px 24px;
+}
+
+.bfa-assurance-inner {
+  max-width: var(--bfa-lux-content-width, 1200px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 32px;
+}
+
+.bfa-assurance-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bfa-assurance-icon {
+  color: var(--bfa-lux-champagne, #b99a70);
+}
+
+.bfa-assurance-card h3 {
+  font-family: var(--bfa-lux-font-display, serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0;
+}
+
+.bfa-assurance-card p {
+  font-size: 0.875rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* FOOTER */
+.bfa-explore-footer {
+  background-color: var(--bfa-lux-forest, #192a2a);
+  color: var(--bfa-lux-ivory, #f2eee5);
+  padding: 48px 24px 24px;
+}
+
+.bfa-footer-inner {
+  max-width: var(--bfa-lux-content-width, 1200px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.bfa-footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bfa-footer-logo {
+  font-family: var(--bfa-lux-font-display, serif);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.bfa-footer-copy {
+  font-size: 0.875rem;
+  color: rgba(242, 238, 229, 0.7);
+  margin: 0;
+}
+
+.bfa-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.bfa-footer-nav a {
+  color: var(--bfa-lux-ivory, #f2eee5);
+  text-decoration: none;
+  font-size: 0.875rem;
+  transition: color var(--bfa-lux-transition-fast, 150ms ease);
+}
+
+.bfa-footer-nav a:hover {
+  color: var(--bfa-lux-champagne, #b99a70);
+}
+
+.bfa-footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.8125rem;
+  color: rgba(242, 238, 229, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 20px;
+}
+
+/* EMPTY SEARCH RESULTS */
+.bfa-explore-empty-search {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  text-align: center;
+  gap: 14px;
+  padding: 48px 24px;
+  background-color: #ffffff;
+  border-radius: var(--bfa-lux-radius-lg, 16px);
+  border: 1px dashed var(--bfa-lux-border-default, #dcd7ce);
+}
+
+.bfa-explore-empty-search h3 {
+  font-family: var(--bfa-lux-font-display, serif);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0;
+}
+
+.bfa-explore-empty-search p {
+  color: var(--bfa-lux-text-secondary, #737a75);
+  font-size: 0.9375rem;
+  max-width: 440px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* LOADING & ERROR */
+.bfa-explore-loading,
+.bfa-explore-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  gap: 16px;
+  color: var(--bfa-lux-text-secondary, #737a75);
+}
+
+.bfa-explore-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--bfa-lux-border-default, #dcd7ce);
+  border-top-color: var(--bfa-lux-champagne, #b99a70);
+  border-radius: 50%;
+  animation: bfaLuxSpin 0.8s linear infinite;
+}
+
+/* ==========================================================================
+   MOBILE RESPONSIVENESS (320px - 768px)
+   Eliminate excessive margins according to User Orange Marker instruction
+   ========================================================================== */
+@media (max-width: 768px) {
+  .bfa-explore-hero {
+    padding: 96px 16px 32px;
+  }
+
+  .bfa-explore-container {
+    padding: 24px 12px; /* Edge-to-edge breathing room */
+  }
+
+  .bfa-explore-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .bfa-property-card-body {
+    padding: 16px;
+  }
+
+  .bfa-property-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .bfa-property-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .bfa-property-card-actions button {
+    width: 100%;
+  }
+
+  .bfa-explore-detail-link {
+    width: 100%;
+  }
+
+  .bfa-explore-detail-link button {
+    width: 100%;
+  }
+
+  .bfa-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .bfa-explore-hero {
+    padding: 88px 12px 24px;
+  }
+
+  .bfa-explore-container {
+    padding: 16px 8px; /* Zero excessive margin for mobile */
+  }
+
+  .bfa-explore-filter-bar {
+    width: 100%;
+    border-radius: var(--bfa-lux-radius-md, 12px);
+  }
+
+  .bfa-explore-filter-btn {
+    flex: 1 1 calc(50% - 8px);
+    text-align: center;
+  }
+}
+

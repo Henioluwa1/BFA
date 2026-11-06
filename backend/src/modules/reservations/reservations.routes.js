@@ -11,13 +11,13 @@ const router = express.Router();
 // ──────────────────────────────────────────────────────────────────────────────
 router.use(requireAuth);
 
-// List & Detail
-router.get('/', ReservationsController.getAll);
-router.get('/:id', ReservationsController.getById);
-router.get('/:id/history', ReservationsController.getHistory);
+// List & Detail (Restricted to authorized front office, management, and agents)
+router.get('/', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'RECEPTIONIST', 'AGENT'), ReservationsController.getAll);
+router.get('/:id', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'RECEPTIONIST', 'AGENT'), ReservationsController.getById);
+router.get('/:id/history', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'RECEPTIONIST'), ReservationsController.getHistory);
 
-// Create Reservation (internal staff / agent — requires authenticated actor)
-router.post('/', ReservationsController.create);
+// Create Reservation (internal front desk / management / agent)
+router.post('/', requireRoles('SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'RECEPTIONIST', 'AGENT'), ReservationsController.create);
 
 // Update Reservation
 router.put(
@@ -35,19 +35,19 @@ router.post(
 
 router.post(
   '/:id/cancel',
-  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN', 'RECEPTIONIST', 'STAFF', 'AGENT'),
+  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN', 'RECEPTIONIST', 'AGENT'),
   ReservationsController.cancel
 );
 
 router.post(
   '/:id/check-in',
-  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN', 'RECEPTIONIST', 'STAFF'),
+  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN', 'RECEPTIONIST'),
   ReservationsController.checkIn
 );
 
 router.post(
   '/:id/check-out',
-  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN', 'RECEPTIONIST', 'STAFF'),
+  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN', 'RECEPTIONIST'),
   ReservationsController.checkOut
 );
 

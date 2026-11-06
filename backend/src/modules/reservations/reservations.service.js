@@ -11,6 +11,24 @@ const logger = require('../../utils/logger');
 const { broadcastOperationalEvent } = require('../../core/socket/socketEmitter');
 const EmployeesRepository = require('../employees/employees.repository');
 
+/**
+ * Deadlock retry helper with jitter for high-concurrency reservation operations
+ */
+async function executeWithDeadlockRetry(operation, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      if ((err.code === 'ER_LOCK_DEADLOCK' || err.errno === 1213) && attempt < maxRetries) {
+        const jitter = Math.floor(Math.random() * 50) + 25 * attempt;
+        await new Promise((resolve) => setTimeout(resolve, jitter));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 class ReservationsService {
   /**
    * Validate the mandatory BFA One-Night Rule
@@ -19,6 +37,12 @@ class ReservationsService {
   static validateOneNightStay(checkInDateStr, checkOutDateStr) {
     if (!checkInDateStr) {
       throw new ValidationError('check_in_date is required in YYYY-MM-DD format.');
+    }
+
+    if (checkInDateStr instanceof Date) {
+      checkInDateStr = checkInDateStr.toISOString().split('T')[0];
+    } else if (typeof checkInDateStr === 'string' && checkInDateStr.includes('T')) {
+      checkInDateStr = checkInDateStr.split('T')[0];
     }
 
     const checkIn = new Date(checkInDateStr + 'T00:00:00Z');
@@ -31,6 +55,12 @@ class ReservationsService {
       const autoOut = new Date(checkIn);
       autoOut.setUTCDate(autoOut.getUTCDate() + 1);
       checkOutDateStr = autoOut.toISOString().split('T')[0];
+    }
+
+    if (checkOutDateStr instanceof Date) {
+      checkOutDateStr = checkOutDateStr.toISOString().split('T')[0];
+    } else if (typeof checkOutDateStr === 'string' && checkOutDateStr.includes('T')) {
+      checkOutDateStr = checkOutDateStr.split('T')[0];
     }
 
     const checkOut = new Date(checkOutDateStr + 'T00:00:00Z');
@@ -61,20 +91,35 @@ class ReservationsService {
   }
 
   /**
-   * Validate user's property scope
+   * Validate user's property scope (Fail-Closed)
+   * Enforces property isolation for OPERATIONS_MANAGER, MANAGER, RECEPTIONIST, and STAFF.
    */
   static validatePropertyScope(user, propertyId) {
-    if (!user) return true;
+    if (!user) return true; // Unauthenticated public requests (e.g., online guest bookings)
     const role = (user.role || '').toUpperCase();
     if (['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role)) {
-      return true;
+      return true; // Portfolio-wide authorized roles
     }
-    if (['MANAGER', 'RECEPTIONIST', 'STAFF'].includes(role) && user.propertyId) {
-      if (parseInt(user.propertyId, 10) !== parseInt(propertyId, 10)) {
+    if (['OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF'].includes(role)) {
+      if (!user.propertyId) {
+        throw new ForbiddenError('Access denied: User is not assigned to any property.');
+      }
+      const userPropId = parseInt(user.propertyId, 10);
+      if (isNaN(userPropId)) {
+        throw new ForbiddenError('Access denied: Invalid property assignment.');
+      }
+      if (!propertyId) {
+        throw new ForbiddenError('Access denied: Target reservation has no valid property assignment.');
+      }
+      if (propertyId !== 'all' && userPropId !== parseInt(propertyId, 10)) {
         throw new ForbiddenError('Access denied: You do not have authorization for this property.');
       }
+      return true;
     }
-    return true;
+    if (role === 'AGENT') {
+      return true; // Agents are isolated by agentId in dedicated service checks
+    }
+    throw new ForbiddenError(`Access denied: Role '${role}' is not authorized for this reservation operation.`);
   }
 
   /**
@@ -190,7 +235,13 @@ class ReservationsService {
       // 4. Agent isolation & attribution validation
       let agentId = data.agent_id || null;
       if (req?.user?.role === 'AGENT') {
-        agentId = req.user.agentId || 1;
+        if (!req.user.agentId) {
+          throw new ForbiddenError('Agent user account is not linked to any active agent profile.');
+        }
+        if (data.agent_id && parseInt(data.agent_id, 10) !== parseInt(req.user.agentId, 10)) {
+          throw new ForbiddenError('Agents are strictly isolated to their own bookings.');
+        }
+        agentId = req.user.agentId;
       }
 
       if (agentId) {
@@ -247,10 +298,27 @@ class ReservationsService {
       // 9. Generate unique, collision-resistant confirmation code
       const reservationCode = `BFA-${apartment.property_code || 'RES'}-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 900 + 100)}`;
 
-      // 10. Financial calculations
+      // 10. Financial calculations & Authoritative Quote verification
       const ratePerNight = parseFloat(apartment.rate_per_night);
-      const totalAmount = data.total_amount ? parseFloat(data.total_amount) : ratePerNight;
-      const paidAmount = data.paid_amount ? parseFloat(data.paid_amount) : 0.00;
+      let calculatedTotal = ratePerNight;
+      let priceSnapshot = null;
+
+      const quoteToken = data.quoteToken || data.quote_token;
+      if (quoteToken) {
+        const PricingService = require('../pricing/pricing.service');
+        const verifiedQuote = PricingService.verifyQuoteToken(quoteToken);
+        if (verifiedQuote.apartmentId !== apartment.id) {
+          throw new ValidationError('Quote token does not match the requested apartment.');
+        }
+        if (verifiedQuote.checkInDate !== checkInDate) {
+          throw new ValidationError('Quote token does not match the requested check-in date.');
+        }
+        calculatedTotal = verifiedQuote.totalAmount;
+        priceSnapshot = verifiedQuote.breakdown || verifiedQuote;
+      }
+
+      const totalAmount = priceSnapshot ? calculatedTotal : (data.total_amount ? parseFloat(data.total_amount) : ratePerNight);
+      const paidAmount = data.paid_amount !== undefined ? parseFloat(data.paid_amount) : 0.00;
       const initialStatus = data.status || 'CONFIRMED';
       const paymentStatus = data.payment_status || (paidAmount >= totalAmount ? 'PAYMENT_SUCCESS' : 'PAYMENT_PENDING');
       const paymentMethod = data.payment_method || 'PAY_AT_PROPERTY';
@@ -299,7 +367,14 @@ class ReservationsService {
         payment_status: paymentStatus,
         payment_method: paymentMethod,
         special_requests: data.special_requests || null,
-        notes: data.notes || null,
+        notes: JSON.stringify({
+          userNotes: data.notes || '',
+          price_snapshot: priceSnapshot || {
+            baseRate: ratePerNight,
+            totalAmount: totalAmount,
+            capturedAt: new Date().toISOString(),
+          },
+        }),
         created_by: req?.user?.id || null,
       };
 
@@ -428,137 +503,303 @@ class ReservationsService {
   }
 
   /**
-   * Update reservation details (with transactional availability re-check if date/unit changed)
+   * Update reservation details (with ascending-ID multi-apartment locking & availability re-check)
    */
   static async updateReservation(id, data, req = null) {
-    await pool.withTransaction(async (conn) => {
-      const existing = await ReservationsRepository.findById(id);
-      if (!existing) {
-        throw new NotFoundError(`Reservation #${id} not found.`);
-      }
+    let postCommitData = null;
 
-      // Property scope check
-      this.validatePropertyScope(req?.user, existing.property_id);
-
-      // Agent isolation
-      if (req?.user?.role === 'AGENT' && existing.agent_id !== req.user.agentId) {
-        throw new ForbiddenError('Access denied: You are not authorized to update this reservation.');
-      }
-
-      const updateData = {};
-      let recheckAvailability = false;
-      const targetApartmentId = data.apartment_id ? parseInt(data.apartment_id, 10) : existing.apartment_id;
-      const targetCheckIn = data.check_in_date || existing.check_in_date;
-
-      if (data.check_in_date && data.check_in_date !== existing.check_in_date) {
-        recheckAvailability = true;
-      }
-      if (data.check_out_date && data.check_out_date !== existing.check_out_date) {
-        recheckAvailability = true;
-      }
-      if (data.apartment_id && parseInt(data.apartment_id, 10) !== existing.apartment_id) {
-        recheckAvailability = true;
-      }
-
-      if (recheckAvailability) {
-        // Enforce 1-night stay on updated dates
-        const { checkInDate, checkOutDate } = this.validateOneNightStay(targetCheckIn, data.check_out_date);
-        updateData.check_in_date = checkInDate;
-        updateData.check_out_date = checkOutDate;
-        updateData.apartment_id = targetApartmentId;
-
-        // Verify target unit exists
-        const targetUnit = await ApartmentsRepository.findById(targetApartmentId);
-        if (!targetUnit) {
-          throw new NotFoundError(`Target unit #${targetApartmentId} not found.`);
+    await executeWithDeadlockRetry(async () => {
+      await pool.withTransaction(async (conn) => {
+        // Priority 1: Acquire exclusive row lock on reservation first
+        const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
+        if (!resRows || resRows.length === 0) {
+          throw new NotFoundError(`Reservation #${id} not found.`);
         }
-        updateData.property_id = targetUnit.property_id;
+        const existing = resRows[0];
 
-        // Concurrency lock check excluding current reservation
-        const isFree = await ReservationsRepository.checkAvailabilityWithLock(conn, targetApartmentId, checkInDate, id);
-        if (!isFree) {
-          throw new ConflictError(
-            `Cannot update reservation: Unit '${targetUnit.unit_name}' is already booked for ${checkInDate}.`
-          );
+        // Property scope check
+        this.validatePropertyScope(req?.user, existing.property_id);
+
+        // Agent isolation
+        if (req?.user?.role === 'AGENT' && existing.agent_id !== req.user.agentId) {
+          throw new ForbiddenError('Access denied: You are not authorized to update this reservation.');
         }
-      }
 
-      if (data.tenant_name) updateData.tenant_name = data.tenant_name.trim();
-      if (data.tenant_email) updateData.tenant_email = data.tenant_email.trim().toLowerCase();
-      if (data.tenant_phone) updateData.tenant_phone = data.tenant_phone.trim();
-      if (data.special_requests !== undefined) updateData.special_requests = data.special_requests;
-      if (data.notes !== undefined) updateData.notes = data.notes;
-      if (data.total_amount !== undefined) updateData.total_amount = parseFloat(data.total_amount);
-      if (data.paid_amount !== undefined) updateData.paid_amount = parseFloat(data.paid_amount);
-      if (data.payment_status !== undefined) updateData.payment_status = data.payment_status;
-      if (data.payment_method !== undefined) updateData.payment_method = data.payment_method;
-      updateData.updated_by = req?.user?.id || null;
+        const updateData = {};
+        const sourceAptId = existing.apartment_id;
+        const targetAptId = data.apartment_id ? parseInt(data.apartment_id, 10) : sourceAptId;
+        const targetCheckIn = data.check_in_date || existing.check_in_date;
+        const targetCheckOut = data.check_out_date || existing.check_out_date;
+        const isUnitTransfer = targetAptId !== sourceAptId;
+        const isDateChange = (data.check_in_date && data.check_in_date !== existing.check_in_date) ||
+                             (data.check_out_date && data.check_out_date !== existing.check_out_date);
 
-      await ReservationsRepository.update(id, updateData, conn);
+        if (isUnitTransfer || isDateChange) {
+          // Enforce 1-night stay on updated dates
+          const { checkInDate, checkOutDate } = this.validateOneNightStay(targetCheckIn, targetCheckOut);
+          updateData.check_in_date = checkInDate;
+          updateData.check_out_date = checkOutDate;
+          updateData.apartment_id = targetAptId;
 
-      // Audit log
+          if (isUnitTransfer) {
+            // Ascending ID order: min(source, target) then max(source, target)
+            const firstAptId = Math.min(sourceAptId, targetAptId);
+            const secondAptId = Math.max(sourceAptId, targetAptId);
+
+            const [firstRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [firstAptId]);
+            const [secondRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [secondAptId]);
+
+            const aptMap = {
+              [firstAptId]: firstRows[0],
+              [secondAptId]: secondRows[0],
+            };
+
+            const sourceUnit = aptMap[sourceAptId];
+            const targetUnit = aptMap[targetAptId];
+
+            if (!targetUnit) {
+              throw new NotFoundError(`Destination unit #${targetAptId} not found.`);
+            }
+            updateData.property_id = targetUnit.property_id;
+
+            // Validate target unit operational readiness
+            if (['MAINTENANCE', 'BLOCKED', 'OUT_OF_SERVICE'].includes(targetUnit.status)) {
+              throw new ConflictError(
+                `Cannot transfer reservation: Destination unit '${targetUnit.unit_name}' is currently in ${targetUnit.status} state.`
+              );
+            }
+            if (targetUnit.status === 'OCCUPIED') {
+              throw new ConflictError(
+                `Cannot transfer reservation: Destination unit '${targetUnit.unit_name}' is currently OCCUPIED.`
+              );
+            }
+
+            // Check blocking maintenance on destination unit
+            const [blkMaint] = await conn.query(
+              `SELECT id, issue_code, priority FROM maintenance_requests 
+               WHERE apartment_id = ? 
+                 AND status NOT IN ('RESOLVED', 'CANCELLED') 
+                 AND (blocking_unit = 1 OR priority = 'CRITICAL') 
+               LIMIT 1`,
+              [targetAptId]
+            );
+            if (blkMaint && blkMaint.length > 0) {
+              throw new ConflictError(
+                `Cannot transfer reservation: Destination unit '${targetUnit.unit_name}' has an active blocking maintenance request (#${blkMaint[0].issue_code || blkMaint[0].id}).`
+              );
+            }
+
+            // Check availability of destination unit
+            const [overlapping] = await conn.query(
+              `SELECT id, reservation_code FROM reservations 
+               WHERE apartment_id = ? 
+                 AND id != ? 
+                 AND status IN ('CONFIRMED', 'CHECKED_IN') 
+                 AND check_in_date < ? 
+                 AND check_out_date > ? 
+               LIMIT 1`,
+              [targetAptId, id, checkOutDate, checkInDate]
+            );
+            if (overlapping && overlapping.length > 0) {
+              throw new ConflictError(
+                `Cannot transfer reservation: Destination unit '${targetUnit.unit_name}' is already booked (#${overlapping[0].reservation_code}) for ${checkInDate}.`
+              );
+            }
+
+            // If reservation is currently in-house (CHECKED_IN), migrate unit occupancy states
+            if (existing.status === 'CHECKED_IN') {
+              await conn.query('UPDATE apartments SET status = "DIRTY", housekeeping_status = "DIRTY", updated_at = NOW() WHERE id = ?', [sourceAptId]);
+              await conn.query('UPDATE apartments SET status = "OCCUPIED", updated_at = NOW() WHERE id = ?', [targetAptId]);
+            }
+          } else {
+            // isDateChange on same apartment
+            const [aptRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [sourceAptId]);
+            if (!aptRows || aptRows.length === 0) {
+              throw new NotFoundError(`Unit #${sourceAptId} not found.`);
+            }
+            const apt = aptRows[0];
+
+            // Check availability on current apartment for new dates excluding self
+            const [overlapping] = await conn.query(
+              `SELECT id, reservation_code FROM reservations 
+               WHERE apartment_id = ? 
+                 AND id != ? 
+                 AND status IN ('CONFIRMED', 'CHECKED_IN') 
+                 AND check_in_date < ? 
+                 AND check_out_date > ? 
+               LIMIT 1`,
+              [sourceAptId, id, checkOutDate, checkInDate]
+            );
+            if (overlapping && overlapping.length > 0) {
+              throw new ConflictError(
+                `Cannot update reservation: Unit '${apt.unit_name}' is already booked (#${overlapping[0].reservation_code}) for ${checkInDate}.`
+              );
+            }
+          }
+        }
+
+        if (data.tenant_name) updateData.tenant_name = data.tenant_name.trim();
+        if (data.tenant_email) updateData.tenant_email = data.tenant_email.trim().toLowerCase();
+        if (data.tenant_phone) updateData.tenant_phone = data.tenant_phone.trim();
+        if (data.special_requests !== undefined) updateData.special_requests = data.special_requests;
+        if (data.notes !== undefined) updateData.notes = data.notes;
+        if (data.total_amount !== undefined) updateData.total_amount = parseFloat(data.total_amount);
+        if (data.paid_amount !== undefined) updateData.paid_amount = parseFloat(data.paid_amount);
+        if (data.payment_status !== undefined) updateData.payment_status = data.payment_status;
+        if (data.payment_method !== undefined) updateData.payment_method = data.payment_method;
+        updateData.updated_by = req?.user?.id || null;
+        updateData.updated_at = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+        await ReservationsRepository.update(id, updateData, conn);
+
+        postCommitData = {
+          id,
+          oldValues: {
+            checkIn: existing.check_in_date,
+            unitId: existing.apartment_id,
+            total: existing.total_amount,
+          },
+          newValues: updateData,
+          user: req?.user,
+        };
+      });
+    });
+
+    if (postCommitData) {
       await AuditService.record({
         req,
         action: 'RESERVATION_UPDATED',
         entityType: 'reservation',
-        entityId: id,
-        oldValues: {
-          checkIn: existing.check_in_date,
-          unitId: existing.apartment_id,
-          total: existing.total_amount,
-        },
-        newValues: updateData,
-      });
-    });
+        entityId: postCommitData.id,
+        oldValues: postCommitData.oldValues,
+        newValues: postCommitData.newValues,
+      }).catch((err) => logger.warn('Update reservation audit failed:', { error: err.message }));
+    }
 
-    return ReservationsRepository.findById(id, conn);
+    return ReservationsRepository.findById(id);
   }
 
   /**
-   * Confirm a PENDING reservation
+   * Confirm a PENDING reservation (Atomic & Concurrency-Guarded)
    */
   static async confirmReservation(id, req = null) {
-    const reservation = await ReservationsRepository.findById(id);
-    if (!reservation) {
-      throw new NotFoundError(`Reservation #${id} not found.`);
+    let postCommitData = null;
+
+    await executeWithDeadlockRetry(async () => {
+      await pool.withTransaction(async (conn) => {
+        // Priority 1: Acquire exclusive row lock on reservation
+        const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
+        if (!resRows || resRows.length === 0) {
+          throw new NotFoundError(`Reservation #${id} not found.`);
+        }
+        const reservation = resRows[0];
+
+        this.validatePropertyScope(req?.user, reservation.property_id);
+
+        if (reservation.status !== 'PENDING') {
+          throw new ValidationError(
+            `Cannot confirm reservation: Current status is '${reservation.status}'. Only PENDING reservations can be confirmed.`
+          );
+        }
+
+        // Priority 2: Acquire exclusive row lock on apartment
+        const [aptRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [reservation.apartment_id]);
+        if (!aptRows || aptRows.length === 0) {
+          throw new NotFoundError(`Assigned unit #${reservation.apartment_id} not found.`);
+        }
+        const apt = aptRows[0];
+
+        // Check unit operational status
+        if (['MAINTENANCE', 'BLOCKED', 'OUT_OF_SERVICE'].includes(apt.status)) {
+          throw new ConflictError(
+            `Cannot confirm reservation: Unit '${apt.unit_name}' is currently in ${apt.status} state.`
+          );
+        }
+
+        // Check date conflict with other confirmed or checked-in reservations
+        const [overlapping] = await conn.query(
+          `SELECT id, reservation_code FROM reservations 
+           WHERE apartment_id = ? 
+             AND id != ? 
+             AND status IN ('CONFIRMED', 'CHECKED_IN') 
+             AND check_in_date < ? 
+             AND check_out_date > ? 
+           LIMIT 1`,
+          [reservation.apartment_id, id, reservation.check_out_date, reservation.check_in_date]
+        );
+        if (overlapping && overlapping.length > 0) {
+          throw new ConflictError(
+            `Cannot confirm reservation: Unit '${apt.unit_name}' has a conflicting active reservation (#${overlapping[0].reservation_code}) for the requested period.`
+          );
+        }
+
+        // Check active blocking maintenance
+        const [blockingMaint] = await conn.query(
+          `SELECT id, issue_code, priority FROM maintenance_requests 
+           WHERE apartment_id = ? 
+             AND status NOT IN ('RESOLVED', 'CANCELLED') 
+             AND (blocking_unit = 1 OR priority = 'CRITICAL') 
+           LIMIT 1`,
+          [apt.id]
+        );
+        if (blockingMaint && blockingMaint.length > 0) {
+          throw new ConflictError(
+            `Cannot confirm reservation: Unit '${apt.unit_name}' has an active blocking maintenance request (#${blockingMaint[0].issue_code || blockingMaint[0].id}).`
+          );
+        }
+
+        await conn.query(
+          `UPDATE reservations 
+           SET status = 'CONFIRMED', 
+               updated_by = ?,
+               updated_at = NOW() 
+           WHERE id = ?`,
+          [req?.user?.id || null, id]
+        );
+
+        await ReservationsRepository.recordStatusHistory(
+          {
+            reservationId: id,
+            fromStatus: 'PENDING',
+            toStatus: 'CONFIRMED',
+            actorId: req?.user?.id || null,
+            actorRole: req?.user?.role || 'STAFF',
+            notes: 'Reservation confirmed by staff/admin with verified availability',
+          },
+          conn
+        );
+
+        postCommitData = {
+          id,
+          propertyId: reservation.property_id,
+          guestEmail: reservation.tenant_email,
+          guestPhone: reservation.tenant_phone,
+          userId: req?.user?.id || null,
+          userRole: req?.user?.role || 'STAFF',
+          userEmail: req?.user?.email || null,
+        };
+      });
+    });
+
+    if (postCommitData) {
+      // Ensure booking auth code is active
+      await BookingAuthService.registerBookingAuth({
+        reservationId: postCommitData.id,
+        guestEmail: postCommitData.guestEmail,
+        guestPhone: postCommitData.guestPhone,
+      }).catch((err) => logger.warn('Booking auth registration failed:', { error: err.message }));
+
+      await AuditService.record({
+        req,
+        actorId: postCommitData.userId,
+        actorEmail: postCommitData.userEmail,
+        actorRole: postCommitData.userRole,
+        action: 'RESERVATION_CONFIRMED',
+        entityType: 'reservation',
+        entityId: String(postCommitData.id),
+        newValues: { status: 'CONFIRMED' },
+      }).catch((err) => logger.warn('Reservation confirmation audit failed:', { error: err.message }));
     }
-
-    this.validatePropertyScope(req?.user, reservation.property_id);
-
-    if (reservation.status !== 'PENDING') {
-      throw new ValidationError(
-        `Cannot confirm reservation: Current status is '${reservation.status}'. Only PENDING reservations can be confirmed.`
-      );
-    }
-
-    await ReservationsRepository.update(id, {
-      status: 'CONFIRMED',
-      updated_by: req?.user?.id || null,
-    });
-
-    await ReservationsRepository.recordStatusHistory({
-      reservationId: id,
-      fromStatus: 'PENDING',
-      toStatus: 'CONFIRMED',
-      actorId: req?.user?.id || null,
-      actorRole: req?.user?.role || 'STAFF',
-      notes: 'Reservation confirmed by staff/admin',
-    });
-
-    // Ensure booking auth code is active
-    await BookingAuthService.registerBookingAuth({
-      reservationId: id,
-      guestEmail: reservation.tenant_email,
-      guestPhone: reservation.tenant_phone,
-    });
-
-    await AuditService.record({
-      req,
-      action: 'RESERVATION_CONFIRMED',
-      entityType: 'reservation',
-      entityId: id,
-      newValues: { status: 'CONFIRMED' },
-    });
 
     return ReservationsRepository.findById(id);
   }
@@ -573,6 +814,16 @@ class ReservationsService {
     }
 
     this.validatePropertyScope(req?.user, reservation.property_id);
+
+    // Agent ownership check: Agents can ONLY cancel their own attributed reservations
+    if (req?.user?.role === 'AGENT') {
+      if (!req.user.agentId) {
+        throw new ForbiddenError('Agent user account is not linked to any active agent profile.');
+      }
+      if (!reservation.agent_id || parseInt(reservation.agent_id, 10) !== parseInt(req.user.agentId, 10)) {
+        throw new ForbiddenError('Access denied: Agents are strictly isolated to their own bookings and cannot cancel other reservations.');
+      }
+    }
 
     if (['COMPLETED', 'CANCELLED'].includes(reservation.status)) {
       throw new ValidationError(`Cannot cancel reservation: Current status is already '${reservation.status}'.`);
@@ -622,84 +873,234 @@ class ReservationsService {
   }
 
   /**
-   * Check In Guest
+   * Check In Guest (Atomic & Serialized with Complete 5-Part Apartment Readiness Invariant)
    * Allowed from: CONFIRMED
+   * Enforces:
+   *  1. apartments.status IN ('AVAILABLE', 'READY') [fail-closed on unknown]
+   *  2. housekeeping_status = 'INSPECTED_READY'
+   *  3. maintenance_status = 'OPERATIONAL'
+   *  4. Zero active blocking maintenance requests (blocking_unit = 1 OR priority = 'CRITICAL')
+   *  5. Zero overlapping active stays (status = 'CHECKED_IN')
    * Updates reservation to CHECKED_IN and apartment operational status to OCCUPIED
    */
   static async checkInReservation(id, req = null) {
-    await pool.withTransaction(async (conn) => {
-      const reservation = await ReservationsRepository.findById(id);
-      if (!reservation) {
-        throw new NotFoundError(`Reservation #${id} not found.`);
-      }
+    let postCommitData = null;
 
-      this.validatePropertyScope(req?.user, reservation.property_id);
+    await executeWithDeadlockRetry(async () => {
+      await pool.withTransaction(async (conn) => {
+        // Priority 1: Exclusive row lock on reservation
+        const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
+        if (!resRows || resRows.length === 0) {
+          throw new NotFoundError(`Reservation #${id} not found.`);
+        }
+        const reservation = resRows[0];
 
-      if (reservation.status !== 'CONFIRMED') {
-        throw new ValidationError(
-          `Cannot check in: Reservation status is '${reservation.status}'. Only CONFIRMED reservations can be checked in.`
+        // Validate Property Scope
+        this.validatePropertyScope(req?.user, reservation.property_id);
+
+        // Validate Reservation Status
+        if (reservation.status === 'CHECKED_IN') {
+          throw new ConflictError(`Cannot check in: Reservation #${id} is already checked in.`);
+        }
+        if (reservation.status !== 'CONFIRMED') {
+          throw new ValidationError(
+            `Cannot check in: Reservation status is '${reservation.status}'. Only CONFIRMED reservations can be checked in.`
+          );
+        }
+
+        // Priority 2: Exclusive row lock on apartment unit
+        const [aptRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [reservation.apartment_id]);
+        if (!aptRows || aptRows.length === 0) {
+          throw new NotFoundError(`Assigned apartment unit #${reservation.apartment_id} not found.`);
+        }
+        const apt = aptRows[0];
+
+        // Invariant Condition 1: Explicit Occupancy Allowlist ['AVAILABLE', 'READY']
+        const ALLOWED_OCCUPANCY_STATUSES = ['AVAILABLE', 'READY'];
+        if (apt.status === 'OCCUPIED') {
+          throw new ConflictError(
+            `Cannot check in: Unit '${apt.unit_name}' is currently OCCUPIED by another guest.`
+          );
+        }
+        if (apt.status === 'MAINTENANCE') {
+          throw new ConflictError(
+            `Cannot check in: Unit '${apt.unit_name}' is currently in MAINTENANCE status.`
+          );
+        }
+        if (['BLOCKED', 'OUT_OF_SERVICE'].includes(apt.status)) {
+          throw new ConflictError(
+            `Cannot check in: Unit '${apt.unit_name}' is currently in ${apt.status} state.`
+          );
+        }
+        if (!ALLOWED_OCCUPANCY_STATUSES.includes(apt.status)) {
+          throw new ValidationError(
+            `Cannot check in: Unit '${apt.unit_name}' has invalid occupancy status '${apt.status}'. Check-in is only permitted for units with status 'AVAILABLE' or 'READY'.`
+          );
+        }
+
+        // Invariant Condition 2: Housekeeping Status = 'INSPECTED_READY'
+        if (apt.housekeeping_status !== 'INSPECTED_READY') {
+          throw new ValidationError(
+            `Cannot check in: Unit '${apt.unit_name}' housekeeping status is '${apt.housekeeping_status}'. Unit must be 'INSPECTED_READY' before guest check-in.`
+          );
+        }
+
+        // Invariant Condition 3: Maintenance Status = 'OPERATIONAL'
+        if (apt.maintenance_status !== 'OPERATIONAL') {
+          throw new ConflictError(
+            `Cannot check in: Unit '${apt.unit_name}' maintenance status is '${apt.maintenance_status}'. Unit must be 'OPERATIONAL' before guest check-in.`
+          );
+        }
+
+        // Invariant Condition 4: Zero Active Blocking Maintenance Tickets (blocking_unit = 1 OR priority = 'CRITICAL')
+        const [blockingMaint] = await conn.query(
+          `SELECT id, issue_code, priority, blocking_unit 
+           FROM maintenance_requests 
+           WHERE apartment_id = ? 
+             AND status NOT IN ('RESOLVED', 'CANCELLED') 
+             AND (blocking_unit = 1 OR priority = 'CRITICAL') 
+           LIMIT 1 LOCK IN SHARE MODE`,
+          [apt.id]
         );
-      }
+        if (blockingMaint && blockingMaint.length > 0) {
+          const blk = blockingMaint[0];
+          throw new ConflictError(
+            `Cannot check in: Unit '${apt.unit_name}' has an active blocking maintenance request (${blk.issue_code || '#' + blk.id}, priority: ${blk.priority}).`
+          );
+        }
 
-      const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        // Invariant Condition 5: Zero Overlapping Active Stays (status = 'CHECKED_IN')
+        const [overlappingStays] = await conn.query(
+          `SELECT id, reservation_code, check_in_date, check_out_date 
+           FROM reservations 
+           WHERE apartment_id = ? 
+             AND id != ? 
+             AND status = 'CHECKED_IN' 
+             AND (
+               (check_in_date < ? AND check_out_date > ?)
+               OR (check_in_date <= CURDATE() AND check_out_date > CURDATE())
+             )
+           LIMIT 1 LOCK IN SHARE MODE`,
+          [apt.id, id, reservation.check_out_date, reservation.check_in_date]
+        );
+        if (overlappingStays && overlappingStays.length > 0) {
+          const ov = overlappingStays[0];
+          throw new ConflictError(
+            `Cannot check in: Unit '${apt.unit_name}' currently has an active in-house stay (Reservation #${ov.reservation_code || ov.id}) from ${ov.check_in_date} to ${ov.check_out_date}.`
+          );
+        }
 
-      // 1. Update reservation status
-      await ReservationsRepository.update(
-        id,
-        {
-          status: 'CHECKED_IN',
-          checked_in_at: nowStr,
-          updated_by: req?.user?.id || null,
-        },
-        conn
-      );
+        const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-      // 2. Transition apartment physical state to OCCUPIED
-      await conn.query('UPDATE apartments SET status = "OCCUPIED" WHERE id = ?', [reservation.apartment_id]);
+        // State Transitions:
+        // 1. Update reservation status to CHECKED_IN
+        await conn.query(
+          `UPDATE reservations 
+           SET status = 'CHECKED_IN', 
+               checked_in_at = ?, 
+               updated_by = ?,
+               updated_at = NOW() 
+           WHERE id = ?`,
+          [nowStr, req?.user?.id || null, id]
+        );
 
-      // 3. Status history
-      await ReservationsRepository.recordStatusHistory(
-        {
-          reservationId: id,
-          fromStatus: 'CONFIRMED',
-          toStatus: 'CHECKED_IN',
-          actorId: req?.user?.id || null,
-          actorRole: req?.user?.role || 'STAFF',
-          notes: 'Guest checked in at front desk',
-        },
-        conn
-      );
+        // 2. Transition apartment physical state to OCCUPIED
+        await conn.query(
+          `UPDATE apartments 
+           SET status = 'OCCUPIED', 
+               updated_at = NOW() 
+           WHERE id = ?`,
+          [apt.id]
+        );
 
-      // 4. Audit
+        // 3. Status history
+        await ReservationsRepository.recordStatusHistory(
+          {
+            reservationId: id,
+            fromStatus: 'CONFIRMED',
+            toStatus: 'CHECKED_IN',
+            actorId: req?.user?.id || null,
+            actorRole: req?.user?.role || 'STAFF',
+            notes: 'Guest checked in at front desk with verified 5-part readiness invariant',
+          },
+          conn
+        );
+
+        // Retrieve truthful committed state snapshot on the active connection before commit
+        const committedSnapshot = await ReservationsRepository.findById(id, conn);
+
+        postCommitData = {
+          id,
+          reservationCode: reservation.reservation_code,
+          tenantName: reservation.tenant_name,
+          propertyId: reservation.property_id,
+          apartmentId: reservation.apartment_id,
+          unitName: apt.unit_name,
+          checkedInAt: nowStr,
+          userId: req?.user?.id || null,
+          userRole: req?.user?.role || 'STAFF',
+          userEmail: req?.user?.email || null,
+          committedSnapshot,
+        };
+
+        return id;
+      });
+    });
+
+    // Post-Commit Safe Side Effects
+    if (postCommitData) {
       await AuditService.record({
         req,
+        actorId: postCommitData.userId,
+        actorEmail: postCommitData.userEmail,
+        actorRole: postCommitData.userRole,
         action: 'RESERVATION_CHECKED_IN',
         entityType: 'reservation',
-        entityId: id,
+        entityId: String(postCommitData.id),
         newValues: {
           status: 'CHECKED_IN',
           apartmentStatus: 'OCCUPIED',
-          checkedInAt: nowStr,
+          checkedInAt: postCommitData.checkedInAt,
         },
-      });
+      }).catch((err) => logger.warn('Check-in audit log failed:', { error: err.message }));
 
-      // Employee activity logging
-      if (req?.user?.id) {
-        EmployeeActivitiesService.recordUserActivity(req.user.id, {
-          property_id: reservation.property_id,
+      if (postCommitData.userId) {
+        EmployeeActivitiesService.recordUserActivity(postCommitData.userId, {
+          property_id: postCommitData.propertyId,
           activity_type: 'GUEST_CHECKED_IN',
           activity_category: 'FRONT_DESK',
           related_entity_type: 'reservation',
-          related_entity_id: id,
-          description: `Checked in guest ${reservation.tenant_name} (${reservation.code})`,
-          metadata: { reservation_code: reservation.code }
-        }).catch(() => {});
+          related_entity_id: postCommitData.id,
+          description: `Checked in guest ${postCommitData.tenantName} (${postCommitData.reservationCode}) to Unit ${postCommitData.unitName}`,
+          metadata: { reservation_code: postCommitData.reservationCode, apartment_id: postCommitData.apartmentId }
+        }).catch((err) => logger.warn('Check-in employee activity record failed:', { error: err.message }));
       }
+    }
 
-      return id;
-    });
+    // Post-commit retrieval with resilience against transient connection drops
+    try {
+      const freshRecord = await ReservationsRepository.findById(id);
+      if (freshRecord) {
+        return freshRecord;
+      }
+    } catch (retrievalErr) {
+      logger.warn(`Post-commit reservation retrieval failed for reservation #${id}: ${retrievalErr.message}. Returning committed state snapshot.`);
+    }
 
-    return ReservationsRepository.findById(id);
+    if (postCommitData?.committedSnapshot) {
+      return postCommitData.committedSnapshot;
+    }
+
+    return {
+      id,
+      reservation_code: postCommitData?.reservationCode,
+      tenant_name: postCommitData?.tenantName,
+      property_id: postCommitData?.propertyId,
+      apartment_id: postCommitData?.apartmentId,
+      unit_name: postCommitData?.unitName,
+      checked_in_at: postCommitData?.checkedInAt,
+      status: 'CHECKED_IN',
+    };
   }
 
   /**
@@ -708,77 +1109,105 @@ class ReservationsService {
    * Updates reservation to COMPLETED and apartment operational status to DIRTY (requiring housekeeping)
    */
   static async checkOutReservation(id, req = null) {
-    await pool.withTransaction(async (conn) => {
-      const reservation = await ReservationsRepository.findById(id);
-      if (!reservation) {
-        throw new NotFoundError(`Reservation #${id} not found.`);
-      }
+    let postCommitData = null;
 
-      this.validatePropertyScope(req?.user, reservation.property_id);
+    await executeWithDeadlockRetry(async () => {
+      await pool.withTransaction(async (conn) => {
+        // Priority 1: Acquire exclusive row lock on reservation
+        const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
+        if (!resRows || resRows.length === 0) {
+          throw new NotFoundError(`Reservation #${id} not found.`);
+        }
+        const reservation = resRows[0];
 
-      if (reservation.status !== 'CHECKED_IN') {
-        throw new ValidationError(
-          `Cannot check out: Reservation status is '${reservation.status}'. Only CHECKED_IN reservations can be checked out.`
+        this.validatePropertyScope(req?.user, reservation.property_id);
+
+        if (reservation.status !== 'CHECKED_IN') {
+          throw new ValidationError(
+            `Cannot check out: Reservation status is '${reservation.status}'. Only CHECKED_IN reservations can be checked out.`
+          );
+        }
+
+        // Priority 2: Acquire exclusive row lock on apartment
+        const [aptRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [reservation.apartment_id]);
+        const apt = aptRows && aptRows.length > 0 ? aptRows[0] : null;
+
+        const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+        // 1. Update reservation status
+        await conn.query(
+          `UPDATE reservations 
+           SET status = 'COMPLETED', 
+               checked_out_at = ?, 
+               updated_by = ?,
+               updated_at = NOW() 
+           WHERE id = ?`,
+          [nowStr, req?.user?.id || null, id]
         );
-      }
 
-      const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        // 2. Transition apartment status to DIRTY and housekeeping_status to DIRTY
+        if (apt) {
+          await conn.query(
+            'UPDATE apartments SET status = "DIRTY", housekeeping_status = "DIRTY", updated_at = NOW() WHERE id = ?',
+            [reservation.apartment_id]
+          );
+        }
 
-      // 1. Update reservation status
-      await ReservationsRepository.update(
-        id,
-        {
-          status: 'COMPLETED',
-          checked_out_at: nowStr,
-          updated_by: req?.user?.id || null,
-        },
-        conn
-      );
+        // 3. Status history
+        await ReservationsRepository.recordStatusHistory(
+          {
+            reservationId: id,
+            fromStatus: 'CHECKED_IN',
+            toStatus: 'COMPLETED',
+            actorId: req?.user?.id || null,
+            actorRole: req?.user?.role || 'STAFF',
+            notes: 'Guest checked out. Unit marked DIRTY for housekeeping.',
+          },
+          conn
+        );
 
-      // 2. Section 29 Operational Workflow: Unit transitions to DIRTY for cleaning
-      await conn.query('UPDATE apartments SET status = "DIRTY" WHERE id = ?', [reservation.apartment_id]);
+        postCommitData = {
+          id,
+          apartmentId: reservation.apartment_id,
+          propertyId: reservation.property_id,
+          tenantName: reservation.tenant_name,
+          reservationCode: reservation.reservation_code,
+          checkedOutAt: nowStr,
+          userId: req?.user?.id || null,
+          userRole: req?.user?.role || 'STAFF',
+          userEmail: req?.user?.email || null,
+        };
+      });
+    });
 
-      // 3. Status history
-      await ReservationsRepository.recordStatusHistory(
-        {
-          reservationId: id,
-          fromStatus: 'CHECKED_IN',
-          toStatus: 'COMPLETED',
-          actorId: req?.user?.id || null,
-          actorRole: req?.user?.role || 'STAFF',
-          notes: 'Guest checked out. Unit marked DIRTY for housekeeping.',
-        },
-        conn
-      );
-
-      // 4. Audit
+    if (postCommitData) {
       await AuditService.record({
         req,
+        actorId: postCommitData.userId,
+        actorEmail: postCommitData.userEmail,
+        actorRole: postCommitData.userRole,
         action: 'RESERVATION_CHECKED_OUT',
         entityType: 'reservation',
-        entityId: id,
+        entityId: String(postCommitData.id),
         newValues: {
           status: 'COMPLETED',
           apartmentStatus: 'DIRTY',
-          checkedOutAt: nowStr,
+          checkedOutAt: postCommitData.checkedOutAt,
         },
-      });
+      }).catch((err) => logger.warn('Check-out audit log failed:', { error: err.message }));
 
-      // Employee activity logging
-      if (req?.user?.id) {
-        EmployeeActivitiesService.recordUserActivity(req.user.id, {
-          property_id: reservation.property_id,
+      if (postCommitData.userId) {
+        EmployeeActivitiesService.recordUserActivity(postCommitData.userId, {
+          property_id: postCommitData.propertyId,
           activity_type: 'GUEST_CHECKED_OUT',
           activity_category: 'FRONT_DESK',
           related_entity_type: 'reservation',
-          related_entity_id: id,
-          description: `Checked out guest ${reservation.tenant_name} (${reservation.code})`,
-          metadata: { reservation_code: reservation.code }
-        }).catch(() => {});
+          related_entity_id: postCommitData.id,
+          description: `Checked out guest ${postCommitData.tenantName} (${postCommitData.reservationCode})`,
+          metadata: { reservation_code: postCommitData.reservationCode, apartment_id: postCommitData.apartmentId }
+        }).catch((err) => logger.warn('Check-out employee activity record failed:', { error: err.message }));
       }
-
-      return id;
-    });
+    }
 
     return ReservationsRepository.findById(id);
   }
@@ -908,6 +1337,18 @@ class ReservationsService {
         );
       }
 
+      // 5b. Log immutable staff assignment audit record in reservation_staff_assignments
+      await conn.query(
+        'UPDATE reservation_staff_assignments SET is_active = 0, ended_at = NOW() WHERE reservation_id = ? AND is_active = 1',
+        [id]
+      );
+      await conn.query(
+        `INSERT INTO reservation_staff_assignments (
+           reservation_id, property_id, assigned_receptionist_id, assigned_by_id, assignment_type, service_status, is_active, claimed_at
+         ) VALUES (?, ?, ?, ?, 'INITIAL_CLAIM', 'CLAIMED', 1, NOW())`,
+        [id, reservation.property_id, userId, userId]
+      );
+
       // 6. Record Status History
       await ReservationsRepository.recordStatusHistory(
         {
@@ -971,6 +1412,295 @@ class ReservationsService {
       } catch (bcErr) {
         logger.warn(`Broadcast failed for client acceptance: ${bcErr.message}`);
       }
+
+      return ReservationsRepository.findById(id, conn);
+    });
+  }
+
+  /**
+   * Concurrency-safe Claim: Front desk receptionist claims pending reservation
+   */
+  static async claimReservation(reservationId, req = null) {
+    const id = parseInt(reservationId, 10);
+    const userId = req?.user?.id;
+    if (!userId) {
+      throw new ForbiddenError('Authentication required to claim reservations.');
+    }
+
+    return pool.withTransaction(async (conn) => {
+      const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
+      if (!resRows || resRows.length === 0) {
+        throw new NotFoundError(`Reservation #${id} not found.`);
+      }
+      const reservation = resRows[0];
+
+      this.validatePropertyScope(req?.user, reservation.property_id);
+
+      // Strict Concurrency Lock: Check if already claimed by someone else
+      if (reservation.assigned_staff_id && reservation.assigned_staff_id !== userId) {
+        const [assignedStaffRows] = await conn.query('SELECT name FROM users WHERE id = ?', [reservation.assigned_staff_id]);
+        const staffName = assignedStaffRows[0]?.name || `Staff #${reservation.assigned_staff_id}`;
+        throw new ConflictError(
+          `One client cannot be assigned to two front desk staffs. This reservation has already been accepted and assigned to ${staffName}.`
+        );
+      }
+
+      const newStatus = reservation.status === 'PENDING_REVIEW' ? 'CLAIMED' : reservation.status;
+
+      await conn.query(
+        `UPDATE reservations 
+         SET assigned_staff_id = ?, 
+             status = ?,
+             updated_by = ?
+         WHERE id = ? AND (assigned_staff_id IS NULL OR assigned_staff_id = ?)`,
+        [userId, newStatus, userId, id, userId]
+      );
+
+      await conn.query(
+        'UPDATE reservation_staff_assignments SET is_active = 0, ended_at = NOW() WHERE reservation_id = ? AND is_active = 1',
+        [id]
+      );
+      await conn.query(
+        `INSERT INTO reservation_staff_assignments (
+           reservation_id, property_id, assigned_receptionist_id, assigned_by_id, assignment_type, service_status, is_active, claimed_at
+         ) VALUES (?, ?, ?, ?, 'INITIAL_CLAIM', 'CLAIMED', 1, NOW())`,
+        [id, reservation.property_id, userId, userId]
+      );
+
+      await ReservationsRepository.recordStatusHistory(
+        {
+          reservationId: id,
+          fromStatus: reservation.status,
+          toStatus: newStatus,
+          actorId: userId,
+          actorRole: req?.user?.role || 'STAFF',
+          notes: `Reservation claimed by ${req?.user?.name || 'Receptionist'}`,
+        },
+        conn
+      );
+
+      const [empRows] = await conn.query('SELECT id, full_name FROM employees WHERE user_id = ?', [userId]);
+      if (empRows && empRows.length > 0) {
+        await conn.query(
+          `INSERT INTO employee_activities (
+             employee_id, property_id, activity_type, description, metadata, created_at
+           ) VALUES (?, ?, 'CLIENT_CLAIMED', ?, ?, NOW())`,
+          [
+            empRows[0].id,
+            reservation.property_id,
+            `Front desk staff claimed booking ${reservation.reservation_code} for ${reservation.tenant_name}`,
+            JSON.stringify({ reservationId: id, reservationCode: reservation.reservation_code }),
+          ]
+        );
+      }
+
+      await AuditService.record({
+        req,
+        action: 'CLIENT_CLAIMED',
+        entityType: 'reservation',
+        entityId: id,
+        newValues: { assigned_staff_id: userId, status: newStatus },
+      });
+
+      return ReservationsRepository.findById(id, conn);
+    });
+  }
+
+  /**
+   * Payment Verification & Final Approval by Front Desk
+   */
+  static async approveReservation(reservationId, req = null) {
+    const id = parseInt(reservationId, 10);
+    const userId = req?.user?.id;
+    if (!userId) {
+      throw new ForbiddenError('Authentication required to approve reservations.');
+    }
+
+    return pool.withTransaction(async (conn) => {
+      const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
+      if (!resRows || resRows.length === 0) {
+        throw new NotFoundError(`Reservation #${id} not found.`);
+      }
+      const reservation = resRows[0];
+
+      this.validatePropertyScope(req?.user, reservation.property_id);
+
+      const [aptRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [reservation.apartment_id]);
+      if (!aptRows || aptRows.length === 0) {
+        throw new NotFoundError(`Assigned unit #${reservation.apartment_id} not found.`);
+      }
+      const apt = aptRows[0];
+      if (['MAINTENANCE', 'BLOCKED', 'OUT_OF_SERVICE'].includes(apt.status)) {
+        throw new BadRequestError(`Unit is currently in ${apt.status} status and cannot be approved.`);
+      }
+
+      const [overlapping] = await conn.query(
+        `SELECT id, reservation_code FROM reservations 
+         WHERE apartment_id = ? 
+           AND id != ? 
+           AND status IN ('CONFIRMED', 'CHECKED_IN')
+           AND check_in_date < ? 
+           AND check_out_date > ? 
+         LIMIT 1`,
+        [reservation.apartment_id, id, reservation.check_out_date, reservation.check_in_date]
+      );
+      if (overlapping && overlapping.length > 0) {
+        throw new ConflictError(
+          `Unit '${apt.unit_name}' has a conflicting active reservation (#${overlapping[0].reservation_code}).`
+        );
+      }
+
+      await conn.query(
+        `UPDATE reservations 
+         SET assigned_staff_id = COALESCE(assigned_staff_id, ?), 
+             accepted_by_user_id = ?, 
+             accepted_at = NOW(), 
+             status = 'CONFIRMED',
+             payment_status = 'VERIFIED',
+             paid_amount = total_amount,
+             updated_by = ?
+         WHERE id = ?`,
+        [userId, userId, userId, id]
+      );
+
+      await conn.query(
+        `UPDATE operational_evidence_attachments 
+         SET verification_status = 'ACCEPTED',
+             verified_by_id = ?,
+             verified_at = NOW(),
+             verification_notes = 'Verified against bank statement by Front Desk'
+         WHERE reservation_id = ?`,
+        [userId, id]
+      );
+
+      await conn.query(
+        `UPDATE payment_receipts 
+         SET verification_status = 'VERIFIED',
+             payment_status = 'PAID',
+             verified_by_id = ?,
+             verified_at = NOW()
+         WHERE reservation_id = ?`,
+        [userId, id]
+      );
+
+      await conn.query(
+        `UPDATE reservation_staff_assignments 
+         SET service_status = 'SERVICE_IN_PROGRESS' 
+         WHERE reservation_id = ? AND is_active = 1`,
+        [id]
+      );
+
+      await ReservationsRepository.recordStatusHistory(
+        {
+          reservationId: id,
+          fromStatus: reservation.status,
+          toStatus: 'CONFIRMED',
+          actorId: userId,
+          actorRole: req?.user?.role || 'STAFF',
+          notes: `Payment verified and reservation approved by ${req?.user?.name || 'Staff'}`,
+        },
+        conn
+      );
+
+      const [empRows] = await conn.query('SELECT id, full_name FROM employees WHERE user_id = ?', [userId]);
+      if (empRows && empRows.length > 0) {
+        await conn.query(
+          `INSERT INTO employee_activities (
+             employee_id, property_id, activity_type, description, metadata, created_at
+           ) VALUES (?, ?, 'CLIENT_ACCEPTED', ?, ?, NOW())`,
+          [
+            empRows[0].id,
+            reservation.property_id,
+            `Front desk verified bank transfer and approved booking ${reservation.reservation_code}`,
+            JSON.stringify({ reservationId: id, reservationCode: reservation.reservation_code, totalAmount: reservation.total_amount }),
+          ]
+        );
+      }
+
+      await AuditService.record({
+        req,
+        action: 'RESERVATION_APPROVED',
+        entityType: 'reservation',
+        entityId: id,
+        newValues: { status: 'CONFIRMED', payment_status: 'VERIFIED', paid_amount: reservation.total_amount },
+      });
+
+      return ReservationsRepository.findById(id, conn);
+    });
+  }
+
+  /**
+   * Decline Reservation with structured reason
+   */
+  static async declineReservation(reservationId, { reason = 'TRANSFER_NOT_FOUND', notes = '' } = {}, req = null) {
+    const id = parseInt(reservationId, 10);
+    const userId = req?.user?.id;
+    if (!userId) {
+      throw new ForbiddenError('Authentication required to decline reservations.');
+    }
+
+    return pool.withTransaction(async (conn) => {
+      const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
+      if (!resRows || resRows.length === 0) {
+        throw new NotFoundError(`Reservation #${id} not found.`);
+      }
+      const reservation = resRows[0];
+
+      this.validatePropertyScope(req?.user, reservation.property_id);
+
+      const fullDeclineReason = notes ? `${reason}: ${notes}` : reason;
+
+      await conn.query(
+        `UPDATE reservations 
+         SET status = 'DECLINED',
+             payment_status = 'REJECTED',
+             decline_reason = ?,
+             declined_at = NOW(),
+             declined_by_user_id = ?,
+             updated_by = ?
+         WHERE id = ?`,
+        [fullDeclineReason, userId, userId, id]
+      );
+
+      await conn.query(
+        `UPDATE operational_evidence_attachments 
+         SET verification_status = 'REJECTED',
+             verified_by_id = ?,
+             verified_at = NOW(),
+             verification_notes = ?
+         WHERE reservation_id = ?`,
+        [userId, fullDeclineReason, id]
+      );
+
+      await conn.query(
+        `UPDATE reservation_staff_assignments 
+         SET service_status = 'CANCELLED',
+             ended_at = NOW(),
+             is_active = 0,
+             reassignment_reason = ?
+         WHERE reservation_id = ? AND is_active = 1`,
+        [fullDeclineReason, id]
+      );
+
+      await ReservationsRepository.recordStatusHistory(
+        {
+          reservationId: id,
+          fromStatus: reservation.status,
+          toStatus: 'DECLINED',
+          actorId: userId,
+          actorRole: req?.user?.role || 'STAFF',
+          notes: `Reservation declined: ${fullDeclineReason}`,
+        },
+        conn
+      );
+
+      await AuditService.record({
+        req,
+        action: 'RESERVATION_DECLINED',
+        entityType: 'reservation',
+        entityId: id,
+        newValues: { status: 'DECLINED', payment_status: 'REJECTED', declineReason: fullDeclineReason },
+      });
 
       return ReservationsRepository.findById(id, conn);
     });

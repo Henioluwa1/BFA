@@ -64,12 +64,23 @@ describe('Front Desk Operations & Staff Performance Integration Suite', () => {
 
     // Reset apartment status to AVAILABLE
     await pool.query('UPDATE apartments SET status = "AVAILABLE" WHERE id = ?', [testApartmentId]);
+
+    // Clean up any lingering reservations for this test apartment from prior aborted runs
+    const lingering = await pool.query('SELECT id FROM reservations WHERE apartment_id = ?', [testApartmentId]);
+    for (const r of lingering) {
+      await pool.query('DELETE FROM reservation_staff_assignments WHERE reservation_id = ?', [r.id]);
+      await pool.query('DELETE FROM employee_activities WHERE metadata LIKE ?', [`%"reservationId":${r.id}%`]);
+      await pool.query('DELETE FROM booking_authentications WHERE reservation_id = ?', [r.id]);
+      await pool.query('DELETE FROM reservation_status_history WHERE reservation_id = ?', [r.id]);
+      await pool.query('DELETE FROM reservations WHERE id = ?', [r.id]);
+    }
   });
 
   afterEach(async () => {
     // Teardown created reservations
     if (createdReservationIds.length > 0) {
       for (const resId of createdReservationIds) {
+        await pool.query('DELETE FROM reservation_staff_assignments WHERE reservation_id = ?', [resId]);
         await pool.query('DELETE FROM employee_activities WHERE metadata LIKE ?', [`%"reservationId":${resId}%`]);
         await pool.query('DELETE FROM booking_authentications WHERE reservation_id = ?', [resId]);
         await pool.query('DELETE FROM reservation_status_history WHERE reservation_id = ?', [resId]);

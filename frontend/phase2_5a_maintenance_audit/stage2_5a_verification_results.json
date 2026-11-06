@@ -1,0 +1,121 @@
+{
+  "timestamp": "2026-11-03T17:26:25.880Z",
+  "scenarios": [
+    {
+      "name": "Maintenance Dashboard Page Header",
+      "passed": true,
+      "details": "Rendered page title: Property Maintenance & Unit Care"
+    },
+    {
+      "name": "Operational KPI Metrics Cards",
+      "passed": true,
+      "details": "Open: true, InProgress: true, Critical: true, Units: true, Cost: true"
+    },
+    {
+      "name": "Create Work Order Modal Open",
+      "passed": true,
+      "details": "Modal displayed with category and priority controls."
+    },
+    {
+      "name": "Deferred Photo Upload Disclosure",
+      "passed": true,
+      "details": "Correctly informs user that photo uploads are deferred pending Workspace C private storage."
+    },
+    {
+      "name": "Work Order vs Unit vs Booking State Matrix",
+      "passed": true,
+      "details": "Drawer clearly distinguishes work order status, apartment operational status, and reservation restrictions."
+    },
+    {
+      "name": "Technician Assignment Governance & Disclaimer",
+      "passed": true,
+      "details": "Ensures staff is labeled as Assigned Property Staff without falsely certifying live on-duty clock-in."
+    },
+    {
+      "name": "Financial Separation & Housekeeping Handoff Disclosures",
+      "passed": true,
+      "details": "Clearly communicates that maintenance cost is not an accounting expense and unit enters CLEANING."
+    },
+    {
+      "name": "Technician Card View Mode",
+      "passed": true,
+      "details": "Mobile-first card layout renders seamlessly."
+    }
+  ],
+  "viewportAudit": [
+    {
+      "viewport": "mobile_compact_320",
+      "width": 320,
+      "height": 700,
+      "scrollWidth": 320,
+      "clientWidth": 320,
+      "passed": true,
+      "screenshot": "stage2_5a_viewport_mobile_compact_320_320x700.png"
+    },
+    {
+      "viewport": "mobile_small_360",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "clientWidth": 360,
+      "passed": true,
+      "screenshot": "stage2_5a_viewport_mobile_small_360_360x800.png"
+    },
+    {
+      "viewport": "mobile_standard_390",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "passed": true,
+      "screenshot": "stage2_5a_viewport_mobile_standard_390_390x844.png"
+    },
+    {
+      "viewport": "mobile_large_430",
+      "width": 430,
+      "height": 932,
+      "scrollWidth": 430,
+      "clientWidth": 430,
+      "passed": true,
+      "screenshot": "stage2_5a_viewport_mobile_large_430_430x932.png"
+    },
+    {
+      "viewport": "tablet_portrait_768",
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "passed": true,
+      "screenshot": "stage2_5a_viewport_tablet_portrait_768_768x1024.png"
+    },
+    {
+      "viewport": "tablet_landscape_1024",
+      "width": 1024,
+      "height": 768,
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "passed": true,
+      "screenshot": "stage2_5a_viewport_tablet_landscape_1024_1024x768.png"
+    },
+    {
+      "viewport": "laptop_1280",
+      "width": 1280,
+      "height": 800,
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "passed": true,
+      "screenshot": "stage2_5a_viewport_laptop_1280_1280x800.png"
+    },
+    {
+      "viewport": "desktop_1440",
+      "width": 1440,
+      "height": 900,
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "passed": true,
+      "screenshot": "stage2_5a_viewport_desktop_1440_1440x900.png"
+    }
+  ],
+  "passed": 16,
+  "failed": 0
+}

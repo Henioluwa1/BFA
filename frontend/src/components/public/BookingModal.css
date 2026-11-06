@@ -1,0 +1,638 @@
+/* ==========================================================================
+   BFA APARTMENTS — LUXURY BOOKING MODAL
+   Compact, elegant, accessible booking wizard and verification lifecycle
+   ========================================================================== */
+
+.bfa-booking-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 19, 43, 0.68);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  overflow-y: auto;
+  animation: bfaModalOverlayFade 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bfaModalOverlayFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.bfa-booking-modal-shell {
+  position: relative;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  color: #0f172a;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 
+    0 30px 70px -15px rgba(11, 19, 43, 0.45), 
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset,
+    0 8px 24px -4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: bfaModalShellPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bfaModalShellPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Close Button — Top Right, Always Visible, Accessible */
+.bfa-booking-modal-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 20;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(11, 19, 43, 0.75);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-booking-modal-close-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  transform: rotate(90deg);
+}
+
+.bfa-booking-modal-close-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Header Visual Banner */
+.bfa-booking-modal-banner {
+  position: relative;
+  height: 190px;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+.bfa-booking-modal-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 19, 43, 0.35) 0%, rgba(11, 19, 43, 0.88) 100%);
+}
+
+.bfa-booking-modal-banner-content {
+  position: absolute;
+  bottom: 14px;
+  left: 20px;
+  right: 60px;
+  color: #ffffff;
+}
+
+.bfa-booking-modal-building-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fef08a;
+  background: rgba(212, 175, 55, 0.2);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  margin-bottom: 0.35rem;
+}
+
+.bfa-booking-modal-title {
+  margin: 0;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.bfa-booking-modal-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  margin-top: 0.35rem;
+}
+
+/* Scrollable Body */
+.bfa-booking-modal-body {
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Section Blocks */
+.bfa-modal-section-card {
+  background: rgba(248, 250, 252, 0.70);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+}
+
+.bfa-modal-section-card.primary-accent {
+  background: rgba(240, 253, 244, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(187, 247, 208, 0.9);
+}
+
+.bfa-modal-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #1e3a8a;
+  margin: 0 0 0.75rem 0;
+}
+
+/* Date & Availability Bar */
+.bfa-modal-date-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.bfa-modal-date-input {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.bfa-modal-date-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.bfa-modal-avail-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.4rem 0.75rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.bfa-modal-avail-badge.available {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.bfa-modal-avail-badge.unavailable {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+/* Pricing Breakdown */
+.bfa-modal-pricing-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.84rem;
+}
+
+.bfa-modal-pricing-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #475569;
+}
+
+.bfa-modal-pricing-row.total {
+  border-top: 1px solid #cbd5e1;
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bfa-modal-pricing-row.total .total-val {
+  color: #059669;
+  font-size: 1.2rem;
+}
+
+/* Guest Form Inputs */
+.bfa-modal-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 520px) {
+  .bfa-modal-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bfa-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.bfa-modal-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.bfa-modal-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.bfa-modal-input {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.88rem;
+  box-sizing: border-box;
+  color: #0f172a;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bfa-modal-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Payment Method Selection */
+.bfa-modal-payment-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+@media (max-width: 520px) {
+  .bfa-modal-payment-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bfa-modal-payment-card {
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  transition: all 0.2s ease;
+}
+
+.bfa-modal-payment-card:hover {
+  border-color: #93c5fd;
+  background: #f8fafc;
+}
+
+.bfa-modal-payment-card.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.bfa-modal-payment-radio {
+  margin-top: 0.2rem;
+  accent-color: #2563eb;
+}
+
+.bfa-modal-payment-text strong {
+  display: block;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.bfa-modal-payment-text span {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+/* Bank Account Card */
+.bfa-modal-bank-card {
+  background: linear-gradient(135deg, #0b132b, #1e3a8a);
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 4px 12px rgba(11, 19, 43, 0.15);
+}
+
+.bfa-modal-bank-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.74rem;
+  color: #d4af37;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.bfa-modal-bank-acct-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  margin: 0.4rem 0;
+}
+
+.bfa-modal-bank-acct-num {
+  font-family: monospace;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fef08a;
+}
+
+.bfa-modal-copy-btn {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: #ffffff;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.2s ease;
+}
+
+.bfa-modal-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.bfa-modal-bank-details {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+}
+
+/* Upload Dropzone */
+.bfa-modal-dropzone {
+  border: 2px dashed #93c5fd;
+  background: #f0fdf4;
+  border-radius: 10px;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bfa-modal-dropzone:hover {
+  border-color: #2563eb;
+  background: #e0f2fe;
+}
+
+.bfa-modal-dropzone-icon {
+  color: #2563eb;
+  margin-bottom: 0.35rem;
+}
+
+.bfa-modal-dropzone-prompt {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.bfa-modal-dropzone-sub {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+/* Uploaded Preview */
+.bfa-modal-proof-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+}
+
+.bfa-modal-preview-thumb {
+  width: 50px;
+  height: 50px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+}
+
+.bfa-modal-preview-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.bfa-modal-preview-name {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bfa-modal-preview-size {
+  display: block;
+  font-size: 0.72rem;
+  color: #15803d;
+  font-weight: 600;
+}
+
+.bfa-modal-remove-proof-btn {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Error Notice */
+.bfa-modal-error-notice {
+  background: #fef2f2;
+  border: 1px solid #fecdd3;
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Modal Footer Actions */
+.bfa-booking-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.bfa-modal-submit-btn {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.75rem 1.75rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.bfa-modal-submit-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #172554, #1d4ed8);
+  transform: translateY(-1px);
+}
+
+.bfa-modal-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bfa-modal-cancel-btn {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.bfa-modal-cancel-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+/* Mobile Responsiveness for Small Devices */
+@media (max-width: 540px) {
+  .bfa-booking-modal-overlay {
+    padding: 0.4rem;
+    align-items: flex-end;
+  }
+  .bfa-booking-modal-shell {
+    max-height: 94vh;
+    border-radius: 16px;
+  }
+  .bfa-booking-modal-banner {
+    height: 105px;
+  }
+  .bfa-booking-modal-banner-content {
+    left: 1rem;
+    right: 1rem;
+    bottom: 0.75rem;
+  }
+  .bfa-booking-modal-title {
+    font-size: 1.15rem;
+  }
+  .bfa-booking-modal-specs {
+    font-size: 0.72rem;
+    gap: 0.5rem;
+  }
+  .bfa-booking-modal-body {
+    padding: 0.85rem 1rem;
+    gap: 1rem;
+  }
+  .bfa-booking-modal-footer {
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+    position: sticky;
+    bottom: 0;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
+    background: #ffffff;
+    z-index: 20;
+  }
+  .bfa-modal-submit-btn {
+    flex: 1;
+    padding: 0.65rem 1rem;
+    font-size: 0.88rem;
+    justify-content: center;
+  }
+  .bfa-modal-cancel-btn {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.82rem;
+  }
+}
+

@@ -1,0 +1,227 @@
+/* ==========================================================================
+   GuestConvenienceSection.css — Guest Tracking & Assistance
+   BFA Tokens: Warm Ivory, Deep Forest, Muted Champagne
+   ========================================================================== */
+
+.bfa-guest-section {
+  padding: 88px 0;
+  background-color: var(--bfa-lux-forest, #192a2a);
+  color: var(--bfa-lux-ivory, #f2eee5);
+}
+
+.bfa-guest-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.bfa-guest-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 36px;
+  align-items: stretch;
+}
+
+/* Tracking Card */
+.bfa-guest-track-card {
+  background: rgba(30, 48, 48, 0.7);
+  border: 1px solid rgba(185, 154, 112, 0.35);
+  border-radius: 14px;
+  padding: 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.bfa-track-card-title {
+  font-family: var(--bfa-lux-font-display, 'Outfit', 'Playfair Display', serif);
+  font-size: 1.85rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 12px 0 10px;
+  line-height: 1.25;
+}
+
+.bfa-track-card-desc {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: #b8c0ba;
+  margin: 0 0 28px;
+}
+
+.bfa-track-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.bfa-track-form-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.bfa-track-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bfa-track-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--bfa-lux-champagne, #b99a70);
+}
+
+.bfa-track-input {
+  height: 48px;
+  background-color: rgba(242, 238, 229, 0.08);
+  border: 1px solid rgba(242, 238, 229, 0.22);
+  border-radius: 8px;
+  padding: 0 14px;
+  color: #ffffff;
+  font-size: 0.9375rem;
+  outline: none;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.bfa-track-input--mono {
+  font-family: var(--bfa-lux-font-mono, monospace);
+  letter-spacing: 0.04em;
+}
+
+.bfa-track-input:focus {
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  background-color: rgba(242, 238, 229, 0.14);
+}
+
+.bfa-track-submit-btn {
+  width: 100%;
+  justify-content: center;
+  height: 48px;
+}
+
+.bfa-track-security-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(242, 238, 229, 0.1);
+  font-size: 0.775rem;
+  color: #9aa49e;
+  line-height: 1.4;
+}
+
+.bfa-track-security-notice svg {
+  color: var(--bfa-lux-champagne, #b99a70);
+  flex-shrink: 0;
+}
+
+/* Column 2: Info Cards */
+.bfa-guest-info-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.bfa-guest-service-card {
+  display: flex;
+  gap: 18px;
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  border-radius: 12px;
+  color: var(--bfa-lux-text-primary, #202625);
+}
+
+.bfa-service-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background-color: rgba(185, 154, 112, 0.14);
+  color: #70532c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bfa-service-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bfa-service-card-title {
+  font-family: var(--bfa-lux-font-display, serif);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--bfa-lux-forest, #192a2a);
+  margin: 0;
+}
+
+.bfa-service-card-text {
+  font-size: 0.875rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.bfa-service-contact-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0;
+  font-size: 0.8125rem;
+  color: var(--bfa-lux-forest, #192a2a);
+}
+
+.bfa-service-card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #70532c;
+  text-decoration: none;
+  margin-top: 4px;
+}
+
+.bfa-service-card-link:hover {
+  color: var(--bfa-lux-champagne, #b99a70);
+}
+
+.bfa-guidelines-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--bfa-lux-text-secondary, #737a75);
+}
+
+.bfa-guidelines-list li {
+  margin-bottom: 4px;
+}
+
+@media (max-width: 960px) {
+  .bfa-guest-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .bfa-guest-section {
+    padding: 60px 0;
+  }
+  .bfa-track-form-fields {
+    grid-template-columns: 1fr;
+  }
+  .bfa-guest-track-card {
+    padding: 24px;
+  }
+}
+

@@ -37,7 +37,10 @@ class AccountingService {
       return true;
     }
 
-    if (['MANAGER', 'STAFF'].includes(role) && user.propertyId) {
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+      if (!user.propertyId) {
+        throw new ForbiddenError('Access denied: User is not assigned to any property.');
+      }
       if (propertyId === null || propertyId === undefined || propertyId === '') {
         if (isDrafting) {
           throw new ForbiddenError(
@@ -947,6 +950,46 @@ class AccountingService {
       params.propertyId = user.propertyId;
     }
     return AccountingRepository.getTrialBalanceSummary(params);
+  }
+
+  static async getIncomeStatement(query = {}, user = null) {
+    const params = { ...query };
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
+      params.propertyId = user.propertyId;
+    }
+    return AccountingRepository.getIncomeStatement(params);
+  }
+
+  static async getBalanceSheet(query = {}, user = null) {
+    const params = { ...query };
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
+      params.propertyId = user.propertyId;
+    }
+    return AccountingRepository.getBalanceSheet(params);
+  }
+
+  static async getCashFlowStatement(query = {}, user = null) {
+    const params = { ...query };
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
+      params.propertyId = user.propertyId;
+    }
+    return AccountingRepository.getCashFlowStatement(params);
+  }
+
+  static async getReceivablesReport(query = {}, user = null) {
+    const params = { ...query };
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
+      params.propertyId = user.propertyId;
+    }
+    return AccountingRepository.getReceivablesReport(params);
+  }
+
+  static async getRefundsReconciliationReport(query = {}, user = null) {
+    const params = { ...query };
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
+      params.propertyId = user.propertyId;
+    }
+    return AccountingRepository.getRefundsReconciliationReport(params);
   }
 }
 

@@ -8,6 +8,7 @@
   color: #0f172a;
   font-family: var(--font-body, 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif);
   overflow-x: hidden;
+  padding-top: 72px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -547,14 +548,38 @@
   .bfa-contact-weather-pill {
     display: none;
   }
+
+  /* Orange Marker: Remove side margins on mobile for full width edge-to-edge coverage */
   .bfa-contact-main {
-    padding: 1rem 1rem 3rem;
+    padding: 70px 0 3rem 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
   }
   .bfa-contact-title {
-    font-size: 2rem;
+    font-size: 1.85rem;
+  }
+  .bfa-contact-hero-block,
+  .bfa-contact-card,
+  .bfa-faq-section {
+    border-radius: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-left: none !important;
+    border-right: none !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    box-sizing: border-box !important;
+  }
+  .bfa-contact-hero-block {
+    margin-top: 0.5rem !important;
+    margin-bottom: 1.5rem !important;
+    padding: 1.5rem 1rem !important;
   }
   .bfa-contact-card {
-    padding: 1.5rem 1.25rem;
+    padding: 1.5rem 1.25rem !important;
   }
   .bfa-form-row {
     grid-template-columns: 1fr;

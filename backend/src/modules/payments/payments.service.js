@@ -41,7 +41,15 @@ class PaymentsService {
     metadata = {},
     user = null,
     req = null,
+    status = null,
+    isUnverified = false,
   }) {
+    // Fail-Closed Guard: Direct payment recording requires corporate administrator (unless guest pending hold)
+    const isGuestPendingHold = isUnverified || status === 'PENDING';
+    if (!isGuestPendingHold && (!user || !['SUPER_ADMIN', 'ADMIN'].includes((user.role || '').toUpperCase()))) {
+      throw new ForbiddenError('Access denied: Direct payment processing is restricted to corporate administrators.');
+    }
+
     // 1. Fetch reservation
     const resRows = await pool.query('SELECT * FROM reservations WHERE id = ?', [reservationId]);
     if (resRows.length === 0) throw new NotFoundError(`Reservation #${reservationId} not found.`);
@@ -133,7 +141,47 @@ class PaymentsService {
       };
     }
 
-    // 5. Online Payment Processing (CARD, BANK_TRANSFER, USSD)
+    // 4b. If BANK_TRANSFER is unverified or marked pending, hold without posting unverified General Ledger entries
+    if (cleanMethod === 'BANK_TRANSFER' && (status === 'PENDING' || isUnverified || provider === 'BANK_TRANSFER_HOLD')) {
+      const txRef = `BFA-BT-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+
+      await pool.query(
+        `INSERT INTO payment_transactions 
+         (reservation_id, transaction_reference, payment_method, amount, currency, status, provider, provider_reference, metadata)
+         VALUES (?, ?, 'BANK_TRANSFER', ?, ?, 'PENDING', 'BANK_TRANSFER_HOLD', ?, ?)`,
+        [reservation.id, txRef, numAmount, currency, txRef, JSON.stringify({ note: 'Unverified bank transfer hold', ...metadata })]
+      );
+
+      await pool.query(
+        `UPDATE reservations 
+         SET payment_status = 'PAYMENT_PENDING', payment_method = 'BANK_TRANSFER' 
+         WHERE id = ?`,
+        [reservation.id]
+      );
+
+      await auditService.record({
+        req,
+        actorId: user?.id || null,
+        actorEmail: user?.email || reservation.tenant_email,
+        actorRole: user?.role || 'GUEST',
+        action: 'PAYMENT_BANK_TRANSFER_HOLD_RECORDED',
+        entityType: 'payment',
+        entityId: txRef,
+        newValues: { reservationId: reservation.id, amount: numAmount, status: 'PENDING' },
+      });
+
+      return {
+        success: true,
+        message: 'Bank transfer hold recorded. Awaiting payment proof verification by staff before ledger posting.',
+        transactionReference: txRef,
+        status: 'PENDING',
+        amount: numAmount,
+        currency,
+        paymentMethod: 'BANK_TRANSFER',
+        paidAmount: parseFloat(reservation.paid_amount || 0),
+        outstandingBalance: numAmount,
+      };
+    }
     const accessCheck = await AccessControlService.canAccess(user, 'ONLINE_PAYMENT');
     if (!accessCheck.allowed) {
       throw new ValidationError(`Online payment processing is currently disabled (${accessCheck.reason}).`);
@@ -241,8 +289,11 @@ class PaymentsService {
     if (['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role)) {
       return true;
     }
-    if (['MANAGER', 'STAFF'].includes(role) && user.propertyId) {
-      if (parseInt(user.propertyId, 10) !== parseInt(propertyId, 10)) {
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+      if (!user.propertyId) {
+        throw new ForbiddenError('Access denied: User is not assigned to any property.');
+      }
+      if (propertyId && propertyId !== 'all' && parseInt(user.propertyId, 10) !== parseInt(propertyId, 10)) {
         throw new ForbiddenError('Access denied: You do not have authorization for this property.');
       }
     }
@@ -275,6 +326,12 @@ class PaymentsService {
    */
   static async refundPayment(id, data = {}, user, req = null) {
     const transaction = await this.getPaymentById(id, user);
+
+    // Corporate Governance Guard: Direct refund execution restricted to Corporate Administration
+    const callerRole = (user?.role || '').toUpperCase();
+    if (!['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(callerRole)) {
+      throw new ForbiddenError('Access denied: Direct refund execution is restricted to Corporate Administration. Operational managers must submit refund requests for administrative review.');
+    }
 
     // Capability check: REFUNDS
     const capCheck = await AccessControlService.canAccess(user, 'REFUNDS');

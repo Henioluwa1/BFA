@@ -79,6 +79,27 @@ class FrontOfficeService {
   }
 
   /**
+   * Atomic Claim: Front-desk receptionist claims incoming booking
+   */
+  static async claimReservation(reservationId, req = null) {
+    return ReservationsService.claimReservation(reservationId, req);
+  }
+
+  /**
+   * Payment Verification & Final Approval by Front Desk
+   */
+  static async approveReservation(reservationId, req = null) {
+    return ReservationsService.approveReservation(reservationId, req);
+  }
+
+  /**
+   * Decline Reservation with structured reason
+   */
+  static async declineReservation(reservationId, data = {}, req = null) {
+    return ReservationsService.declineReservation(reservationId, data, req);
+  }
+
+  /**
    * Perform quick front-office check-in (delegates to central ReservationsService)
    */
   static async quickCheckIn(reservationId, req = null) {

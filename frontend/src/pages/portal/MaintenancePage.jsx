@@ -1,82 +1,100 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Table from '../../components/ui/Table';
-import Modal from '../../components/ui/Modal';
-import { maintenanceService, propertyService, apartmentService } from '../../services/api';
+import { maintenanceService, apartmentService, userService } from '../../services/api';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { formatNaira } from '../../utils/currency';
 
+// Subcomponents
+import CreateTicketModal from '../../components/maintenance/CreateTicketModal';
+import AssignTechnicianModal from '../../components/maintenance/AssignTechnicianModal';
+import ResolveTicketModal from '../../components/maintenance/ResolveTicketModal';
+import CancelTicketModal from '../../components/maintenance/CancelTicketModal';
+import WorkOrderDetailDrawer from '../../components/maintenance/WorkOrderDetailDrawer';
+import TechnicianExecutionCard from '../../components/maintenance/TechnicianExecutionCard';
+
 const CATEGORIES = [
+  'ALL',
   'PLUMBING',
   'ELECTRICAL',
   'HVAC',
+  'CARPENTRY',
   'APPLIANCE',
-  'FURNITURE',
-  'STRUCTURAL',
+  'PAINTING',
   'CLEANING',
-  'PEST_CONTROL',
-  'SECURITY',
-  'OTHER',
+  'GENERAL',
 ];
 
-const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const PRIORITIES = ['ALL', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const STATUSES = ['ALL', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CANCELLED'];
 
 export default function MaintenancePage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { properties, activePropertyId, isAllProperties, activeProperty } = useProperty();
   const { user } = useAuth();
   const { addToast } = useToast();
 
+  const userRole = (user?.role || '').toUpperCase();
+  const isManagerOrAdmin = ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER'].includes(userRole);
+  const isStaff = userRole === 'STAFF';
+
+  // Data State
   const [records, setRecords] = useState([]);
   const [apartments, setApartments] = useState([]);
+  const [statsData, setStatsData] = useState({
+    open: 0,
+    inProgress: 0,
+    criticalOpen: 0,
+    resolved: 0,
+    cancelled: 0,
+    totalCost: 0,
+  });
+  const [unitsInMaintenance, setUnitsInMaintenance] = useState(0);
+
+  // Loading States
   const [loading, setLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // Filters
   const [propertyFilter, setPropertyFilter] = useState(activePropertyId || 'all');
+  const [unitFilter, setUnitFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [onlyMyOrders, setOnlyMyOrders] = useState(false);
+  const [viewMode, setViewMode] = useState('TABLE'); // 'TABLE' or 'CARDS'
 
-  // Modals
+  // Modals & Drawers
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedIssue, setSelectedIssue] = useState(null);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
 
-  // Action Form State
-  const [createForm, setCreateForm] = useState({
-    property_id: '',
-    apartment_id: '',
-    category: 'PLUMBING',
-    priority: 'MEDIUM',
-    issue_title: '',
-    description: '',
-    blocking_unit: true,
-    estimated_cost: '',
-  });
+  // Target Work Order for Modals
+  const [targetWorkOrder, setTargetWorkOrder] = useState(null);
 
-  const [resolveForm, setResolveForm] = useState({
-    actual_cost: '',
-    resolution_notes: '',
-  });
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
 
-  const [assignForm, setAssignForm] = useState({
-    assigned_to_id: '',
-  });
-
-  // Sync propertyFilter with PropertyContext
+  // Sync with global PropertyContext
   useEffect(() => {
-    setPropertyFilter(activePropertyId || 'all');
+    if (activePropertyId) {
+      setPropertyFilter(activePropertyId);
+    }
   }, [activePropertyId]);
 
-  // Synchronize URL search params for deep-linking
+  // Deep-linking via URL query params
   useEffect(() => {
     const qSearch = searchParams.get('search');
     if (qSearch) setSearchQuery(qSearch);
@@ -84,191 +102,161 @@ export default function MaintenancePage() {
     const qPropId = searchParams.get('propertyId');
     if (qPropId) setPropertyFilter(qPropId);
 
+    const qStatus = searchParams.get('status');
+    if (qStatus && STATUSES.includes(qStatus.toUpperCase())) {
+      setStatusFilter(qStatus.toUpperCase());
+    }
+
     const openNew = searchParams.get('openNew');
     if (openNew === 'true') {
-      const qAptId = searchParams.get('apartmentId');
-      setCreateForm((prev) => ({
-        ...prev,
-        property_id: qPropId || prev.property_id,
-        apartment_id: qAptId || prev.apartment_id,
-      }));
       setIsCreateModalOpen(true);
     }
   }, [searchParams]);
 
-  // Load maintenance records
-  const fetchRecords = async () => {
+  // Fetch Work Orders
+  const fetchWorkOrders = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await maintenanceService.getAll({
+      const params = {
         propertyId: propertyFilter !== 'all' ? propertyFilter : undefined,
+        apartmentId: unitFilter !== 'ALL' ? unitFilter : undefined,
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
         category: categoryFilter !== 'ALL' ? categoryFilter : undefined,
         priority: priorityFilter !== 'ALL' ? priorityFilter : undefined,
-      });
-      setRecords(res.data || []);
+      };
+
+      const res = await maintenanceService.getAll(params);
+      const data = Array.isArray(res.data) ? res.data : [];
+      setRecords(data);
+
+      // Deep link to a specific ticket via ?id=X
+      const ticketId = searchParams.get('id');
+      if (ticketId) {
+        const found = data.find((r) => String(r.id) === String(ticketId));
+        if (found) {
+          setTargetWorkOrder(found);
+          setIsDetailDrawerOpen(true);
+        }
+      }
     } catch (err) {
-      addToast(`Failed to load maintenance records: ${err.message}`, 'error');
+      setError(err.message || 'Failed to load maintenance records.');
+      addToast(`Error loading work orders: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [propertyFilter, unitFilter, statusFilter, categoryFilter, priorityFilter, searchParams, addToast]);
 
-  // Load apartments for dropdown
-  useEffect(() => {
-    async function loadApartments() {
-      try {
-        const res = await apartmentService.getAll({
-          propertyId: propertyFilter !== 'all' ? propertyFilter : undefined,
-        });
-        setApartments(res.data || []);
-      } catch (err) {
-        console.error('Failed to load apartments', err);
+  // Fetch Operational Stats & Apartment Units
+  const fetchStatsAndUnits = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const propParam = propertyFilter !== 'all' ? propertyFilter : undefined;
+      const [statsRes, aptRes] = await Promise.all([
+        maintenanceService.getStats({ propertyId: propParam }).catch(() => ({ data: {} })),
+        apartmentService.getAll({ propertyId: propParam }).catch(() => ({ data: [] })),
+      ]);
+
+      if (statsRes.data?.overview) {
+        setStatsData(statsRes.data.overview);
       }
+
+      const aptList = Array.isArray(aptRes.data) ? aptRes.data : [];
+      setApartments(aptList);
+
+      const maintUnits = aptList.filter((a) => a.status === 'MAINTENANCE').length;
+      setUnitsInMaintenance(maintUnits);
+    } catch (err) {
+      console.error('Failed to load maintenance statistics:', err);
+    } finally {
+      setStatsLoading(false);
     }
-    loadApartments();
   }, [propertyFilter]);
 
   useEffect(() => {
-    fetchRecords();
-  }, [propertyFilter, statusFilter, categoryFilter, priorityFilter]);
+    fetchWorkOrders();
+    fetchStatsAndUnits();
+  }, [fetchWorkOrders, fetchStatsAndUnits]);
 
-  // Filter records by search query
+  // Client-Side Search & "My Assigned Work Orders" Filter
   const filteredRecords = useMemo(() => {
-    if (!searchQuery.trim()) return records;
+    let list = records;
+
+    if (onlyMyOrders && user?.id) {
+      list = list.filter((r) => parseInt(r.assigned_to_id, 10) === parseInt(user.id, 10));
+    }
+
+    if (!searchQuery.trim()) return list;
+
     const q = searchQuery.toLowerCase();
-    return records.filter(
+    return list.filter(
       (r) =>
         r.issue_code?.toLowerCase().includes(q) ||
         r.issue_title?.toLowerCase().includes(q) ||
         r.description?.toLowerCase().includes(q) ||
         r.unit_number?.toLowerCase().includes(q) ||
-        r.property_name?.toLowerCase().includes(q)
+        r.property_name?.toLowerCase().includes(q) ||
+        r.assigned_to?.toLowerCase().includes(q)
     );
-  }, [records, searchQuery]);
+  }, [records, searchQuery, onlyMyOrders, user?.id]);
 
-  // Metrics computation
-  const stats = useMemo(() => {
-    const openCount = records.filter((r) => r.status === 'OPEN').length;
-    const inProgressCount = records.filter((r) => r.status === 'IN_PROGRESS').length;
-    const resolvedCount = records.filter((r) => r.status === 'RESOLVED').length;
-    const criticalCount = records.filter((r) => r.priority === 'CRITICAL' && r.status !== 'RESOLVED').length;
-    const totalCost = records.reduce((acc, r) => acc + (parseFloat(r.actual_cost) || parseFloat(r.cost) || 0), 0);
+  // Pagination Slice
+  const paginatedRecords = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredRecords.slice(startIndex, startIndex + pageSize);
+  }, [filteredRecords, currentPage, pageSize]);
 
-    return { openCount, inProgressCount, resolvedCount, criticalCount, totalCost };
-  }, [records]);
+  const totalPages = Math.ceil(filteredRecords.length / pageSize) || 1;
 
-  // Open Create Modal
-  const handleOpenCreate = () => {
-    const defaultPropId = propertyFilter !== 'all' ? propertyFilter : properties[0]?.id || '';
-    setCreateForm({
-      property_id: defaultPropId,
-      apartment_id: '',
-      category: 'PLUMBING',
-      priority: 'MEDIUM',
-      issue_title: '',
-      description: '',
-      blocking_unit: true,
-      estimated_cost: '',
-    });
-    setIsCreateModalOpen(true);
-  };
-
-  // Submit Create Issue
-  const handleCreateSubmit = async (e) => {
-    e.preventDefault();
+  // Actions: Start Work
+  const handleStartWork = async (id) => {
     setActionLoading(true);
     try {
-      await maintenanceService.create(createForm);
-      addToast('Maintenance work order logged successfully!', 'success');
-      setIsCreateModalOpen(false);
-      fetchRecords();
+      const res = await maintenanceService.start(id);
+      addToast(`Work order #${res.data?.issue_code || id} marked as IN_PROGRESS.`, 'success');
+      setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, ...res.data } : r)));
+      if (targetWorkOrder && targetWorkOrder.id === id) {
+        setTargetWorkOrder((prev) => ({ ...prev, ...res.data }));
+      }
+      fetchStatsAndUnits();
     } catch (err) {
-      addToast(`Error creating work order: ${err.message}`, 'error');
+      addToast(`Failed to start work: ${err.message}`, 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Open Detail / Manage Modal
-  const handleOpenDetail = (issue) => {
-    setSelectedIssue(issue);
-    setResolveForm({
-      actual_cost: issue.actual_cost || issue.cost || '',
-      resolution_notes: issue.resolution_notes || '',
-    });
-    setAssignForm({
-      assigned_to_id: issue.assigned_to_id || '',
-    });
-    setIsDetailModalOpen(true);
+  // Open Modals
+  const handleOpenDetail = (workOrder) => {
+    setTargetWorkOrder(workOrder);
+    setIsDetailDrawerOpen(true);
   };
 
-  // Action: Start Work
-  const handleStartWork = async () => {
-    if (!selectedIssue) return;
-    setActionLoading(true);
-    try {
-      const res = await maintenanceService.start(selectedIssue.id);
-      addToast('Work order is now IN_PROGRESS.', 'success');
-      setSelectedIssue(res.data);
-      fetchRecords();
-    } catch (err) {
-      addToast(`Failed to update status: ${err.message}`, 'error');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleOpenAssign = (workOrder) => {
+    setTargetWorkOrder(workOrder);
+    setIsAssignModalOpen(true);
   };
 
-  // Action: Assign Staff
-  const handleAssignStaff = async (e) => {
-    e.preventDefault();
-    if (!selectedIssue) return;
-    setActionLoading(true);
-    try {
-      const res = await maintenanceService.assign(selectedIssue.id, assignForm);
-      addToast('Staff assigned successfully.', 'success');
-      setSelectedIssue(res.data);
-      fetchRecords();
-    } catch (err) {
-      addToast(`Failed to assign staff: ${err.message}`, 'error');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleOpenResolve = (workOrder) => {
+    setTargetWorkOrder(workOrder);
+    setIsResolveModalOpen(true);
   };
 
-  // Action: Resolve Issue
-  const handleResolveIssue = async (e) => {
-    e.preventDefault();
-    if (!selectedIssue) return;
-    setActionLoading(true);
-    try {
-      const res = await maintenanceService.resolve(selectedIssue.id, resolveForm);
-      addToast('Maintenance resolved! Unit operational status updated to CLEANING.', 'success');
-      setSelectedIssue(res.data);
-      setIsDetailModalOpen(false);
-      fetchRecords();
-    } catch (err) {
-      addToast(`Failed to resolve issue: ${err.message}`, 'error');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleOpenCancel = (workOrder) => {
+    setTargetWorkOrder(workOrder);
+    setIsCancelModalOpen(true);
   };
 
-  // Action: Cancel Work Order
-  const handleCancelIssue = async () => {
-    if (!selectedIssue) return;
-    if (!window.confirm('Are you sure you want to cancel this work order?')) return;
-    setActionLoading(true);
-    try {
-      await maintenanceService.cancel(selectedIssue.id, { reason: 'Cancelled by operator' });
-      addToast('Work order cancelled.', 'info');
-      setIsDetailModalOpen(false);
-      fetchRecords();
-    } catch (err) {
-      addToast(`Failed to cancel work order: ${err.message}`, 'error');
-    } finally {
-      setActionLoading(false);
-    }
+  // Reset Filters
+  const handleClearFilters = () => {
+    setPropertyFilter(activePropertyId || 'all');
+    setUnitFilter('ALL');
+    setStatusFilter('ALL');
+    setCategoryFilter('ALL');
+    setPriorityFilter('ALL');
+    setSearchQuery('');
+    setOnlyMyOrders(false);
+    setCurrentPage(1);
   };
 
   // Status Badge Helper
@@ -293,582 +281,642 @@ export default function MaintenancePage() {
       case 'CRITICAL':
         return <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '0.8rem' }}>● CRITICAL</span>;
       case 'HIGH':
-        return <span style={{ color: '#f97316', fontWeight: 600, fontSize: '0.8rem' }}>▲ HIGH</span>;
+        return <span style={{ color: '#f97316', fontWeight: 700, fontSize: '0.8rem' }}>▲ HIGH</span>;
       case 'MEDIUM':
-        return <span style={{ color: '#eab308', fontWeight: 500, fontSize: '0.8rem' }}>■ MEDIUM</span>;
+        return <span style={{ color: '#eab308', fontWeight: 600, fontSize: '0.8rem' }}>■ MEDIUM</span>;
       case 'LOW':
-        return <span style={{ color: '#10b981', fontWeight: 500, fontSize: '0.8rem' }}>▼ LOW</span>;
+        return <span style={{ color: '#10b981', fontWeight: 600, fontSize: '0.8rem' }}>▼ LOW</span>;
       default:
         return priority;
     }
   };
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box' }}>
       {/* Page Header */}
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div
+        className="page-header"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}
+      >
         <div>
-          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span>Maintenance & Operations</span>
-            <Badge status="info">PHASE 7 VERIFIED</Badge>
-          </h1>
-          <p className="page-subtitle">
-            Lifecycle issue tracking, staff assignment, repair resolution, and automated unit state integration.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h1 className="page-title" style={{ margin: 0, fontSize: '1.6rem', fontWeight: 700 }}>
+              Property Maintenance & Unit Care
+            </h1>
+            <Badge status="info">STAGE 2.5B READY</Badge>
+          </div>
+          <p className="page-subtitle" style={{ margin: '0.35rem 0 0 0', color: 'var(--text-secondary)' }}>
+            Work order tracking, property staff assignment, unit operational locking, and housekeeping handoff.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <Button variant="primary" onClick={handleOpenCreate}>
-            + Report Issue
+
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <Button variant="outline" size="small" onClick={() => { fetchWorkOrders(); fetchStatsAndUnits(); }} disabled={loading}>
+            🔄 Refresh
           </Button>
+
+          {isManagerOrAdmin && (
+            <Button variant="primary" onClick={() => setIsCreateModalOpen(true)}>
+              + Report Work Order
+            </Button>
+          )}
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '1rem',
+        }}
+      >
+        {/* Open Work Orders */}
         <Card>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Open Issues</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--color-danger, #ef4444)', marginTop: '0.25rem' }}>
-            {stats.openCount}
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+            Open Work Orders
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Awaiting technician action</div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--color-danger, #ef4444)', marginTop: '0.3rem' }}>
+            {statsLoading ? '...' : statsData.open}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            Awaiting technician start
+          </div>
         </Card>
 
+        {/* In Progress */}
         <Card>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>In Progress</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#f59e0b', marginTop: '0.25rem' }}>
-            {stats.inProgressCount}
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+            In Progress
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Active repairs underway</div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 700, color: '#f59e0b', marginTop: '0.3rem' }}>
+            {statsLoading ? '...' : statsData.inProgress}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            Active repairs in the field
+          </div>
         </Card>
 
+        {/* Emergency / Critical */}
         <Card>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Resolved</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#10b981', marginTop: '0.25rem' }}>
-            {stats.resolvedCount}
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+            Emergency / Critical
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Completed work orders</div>
+          <div
+            style={{
+              fontSize: '1.85rem',
+              fontWeight: 700,
+              color: statsData.criticalOpen > 0 ? '#ef4444' : 'var(--text-primary)',
+              marginTop: '0.3rem',
+            }}
+          >
+            {statsLoading ? '...' : statsData.criticalOpen}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            Auto-blocking unit availability
+          </div>
         </Card>
 
+        {/* Units in Maintenance */}
         <Card>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Critical / Urgent</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: stats.criticalCount > 0 ? '#ef4444' : 'var(--text-primary)', marginTop: '0.25rem' }}>
-            {stats.criticalCount}
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+            Units in Maintenance
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Blocking unit availability</div>
+          <div style={{ fontSize: '1.85rem', fontWeight: 700, color: '#8b5cf6', marginTop: '0.3rem' }}>
+            {statsLoading ? '...' : unitsInMaintenance}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            Blocked from reservation engine
+          </div>
         </Card>
 
+        {/* Total Incurred Cost */}
         <Card>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Total Incurred Cost</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-gold, #c8a951)', marginTop: '0.25rem' }}>
-            {formatNaira(stats.totalCost)}
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+            Total Incurred Cost
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>All recorded repairs</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--accent-gold, #c8a951)', marginTop: '0.3rem' }}>
+            {statsLoading ? '...' : formatNaira(statsData.totalCost || 0)}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            Resolved repairs (Non-ledger)
+          </div>
         </Card>
       </div>
 
-      {/* Filter Bar */}
-      <Card style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Search</label>
-            <input
-              type="text"
-              placeholder="Search code, title, unit..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-            />
+      {/* Filter Bar Card */}
+      <Card>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '0.75rem',
+              alignItems: 'center',
+            }}
+          >
+            {/* Search Query */}
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Search</label>
+              <input
+                type="text"
+                placeholder="Code, title, unit, staff..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {/* Property Selector */}
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Property</label>
+              <select
+                value={propertyFilter}
+                onChange={(e) => {
+                  setPropertyFilter(e.target.value);
+                  setUnitFilter('ALL');
+                  setCurrentPage(1);
+                }}
+                disabled={userRole === 'MANAGER' && !isAllProperties}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="all">All Properties</option>
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Apartment Selector */}
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Apartment Unit</label>
+              <select
+                value={unitFilter}
+                onChange={(e) => {
+                  setUnitFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="ALL">All Units & Common Areas</option>
+                {apartments.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    Unit {a.unit_number} — {a.unit_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Status Selector */}
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="OPEN">Open</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+
+            {/* Priority Selector */}
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Priority</label>
+              <select
+                value={priorityFilter}
+                onChange={(e) => {
+                  setPriorityFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {PRIORITIES.map((pr) => (
+                  <option key={pr} value={pr}>
+                    {pr === 'ALL' ? 'All Priorities' : pr}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Category Selector */}
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Category</label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat === 'ALL' ? 'All Categories' : cat}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Property</label>
-            <select
-              value={propertyFilter}
-              onChange={(e) => setPropertyFilter(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-            >
-              <option value="all">All Properties</option>
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Sub-Filter Controls & View Toggle */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              paddingTop: '0.5rem',
+              borderTop: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.82rem' }}>
+                <input
+                  type="checkbox"
+                  checked={onlyMyOrders}
+                  onChange={(e) => {
+                    setOnlyMyOrders(e.target.checked);
+                    setCurrentPage(1);
+                  }}
+                />
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                  👤 Assigned to Me ({records.filter((r) => parseInt(r.assigned_to_id, 10) === parseInt(user?.id, 10)).length})
+                </span>
+              </label>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="OPEN">Open</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="RESOLVED">Resolved</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-          </div>
+              {(searchQuery || statusFilter !== 'ALL' || categoryFilter !== 'ALL' || priorityFilter !== 'ALL' || unitFilter !== 'ALL' || onlyMyOrders) && (
+                <Button variant="ghost" size="small" onClick={handleClearFilters}>
+                  ✕ Clear Filters
+                </Button>
+              )}
+            </div>
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Category</label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-            >
-              <option value="ALL">All Categories</option>
-              {CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Priority</label>
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-            >
-              <option value="ALL">All Priorities</option>
-              {PRIORITIES.map((pr) => (
-                <option key={pr} value={pr}>{pr}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Button
+                variant={viewMode === 'TABLE' ? 'primary' : 'outline'}
+                size="small"
+                onClick={() => setViewMode('TABLE')}
+              >
+                Table View
+              </Button>
+              <Button
+                variant={viewMode === 'CARDS' ? 'primary' : 'outline'}
+                size="small"
+                onClick={() => setViewMode('CARDS')}
+              >
+                Technician Card View
+              </Button>
+            </div>
           </div>
         </div>
       </Card>
 
-      {/* Work Orders Table */}
+      {/* Main Work Orders Presentation */}
       <Card title={`Maintenance Work Orders (${filteredRecords.length})`}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Loading work orders...</div>
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+            Loading maintenance work orders...
+          </div>
+        ) : error ? (
+          <div style={{ textAlign: 'center', padding: '2.5rem', color: '#ef4444' }}>
+            <p style={{ fontWeight: 700 }}>Error Loading Work Orders</p>
+            <p style={{ fontSize: '0.85rem' }}>{error}</p>
+            <Button variant="outline" size="small" onClick={fetchWorkOrders} style={{ marginTop: '0.75rem' }}>
+              Try Again
+            </Button>
+          </div>
         ) : filteredRecords.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
-            <p style={{ fontSize: '1rem', fontWeight: 600 }}>No maintenance work orders found</p>
-            <p style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>Create an issue or adjust your search filters.</p>
+          <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🔧</div>
+            <p style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              No Maintenance Work Orders Found
+            </p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '420px', margin: '0.25rem auto 1rem' }}>
+              No tickets match your active filter criteria. Adjust your search or report a new issue.
+            </p>
+            {isManagerOrAdmin && (
+              <Button variant="primary" size="small" onClick={() => setIsCreateModalOpen(true)}>
+                + Report New Work Order
+              </Button>
+            )}
+          </div>
+        ) : viewMode === 'CARDS' ? (
+          /* Mobile / Handheld Execution Cards View */
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: '1rem',
+            }}
+          >
+            {paginatedRecords.map((item) => (
+              <TechnicianExecutionCard
+                key={item.id}
+                workOrder={item}
+                onOpenDetail={handleOpenDetail}
+                onStartWork={handleStartWork}
+                onOpenResolve={handleOpenResolve}
+                onOpenEvidence={handleOpenDetail}
+                actionLoading={actionLoading}
+                isAssignedToCurrentUser={parseInt(item.assigned_to_id, 10) === parseInt(user?.id, 10)}
+              />
+            ))}
           </div>
         ) : (
-          <Table>
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Property & Unit</th>
-                <th>Issue Details</th>
-                <th>Category</th>
-                <th>Priority</th>
-                <th>Status</th>
-                <th>Cost</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRecords.map((item) => (
-                <tr key={item.id}>
-                  <td style={{ fontWeight: 600, fontFamily: 'monospace', color: 'var(--accent-gold)' }}>
-                    {item.issue_code}
-                  </td>
-                  <td>
-                    <div
-                      style={{ fontWeight: 600, color: 'var(--brand-accent)', cursor: 'pointer' }}
-                      onClick={() => navigate(`/app/properties?search=${encodeURIComponent(item.property_name || '')}`)}
-                      title="View building in Properties"
-                    >
-                      🏢 {item.property_name} ↗
-                    </div>
-                    <div
-                      style={{ fontSize: '0.8rem', color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600, marginTop: '2px' }}
-                      onClick={() => navigate(`/app/apartments?unitId=${item.apartment_id}&propertyId=${item.property_id}`)}
-                      title="View Unit Details"
-                    >
-                      Unit {item.unit_number} {item.unit_name ? `(${item.unit_name})` : ''} ↗
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{item.issue_title}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.description}
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'var(--bg-surface)', borderRadius: '4px', border: '1px solid var(--border-default)' }}>
-                      {item.category || 'MAINTENANCE'}
-                    </span>
-                  </td>
-                  <td>{getPriorityBadge(item.priority)}</td>
-                  <td>{getStatusBadge(item.status)}</td>
-                  <td style={{ fontWeight: 600 }}>
-                    {formatNaira(item.actual_cost || item.cost || item.estimated_cost || 0)}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Button variant="secondary" size="small" onClick={() => handleOpenDetail(item)}>
-                      Manage
-                    </Button>
-                  </td>
+          /* Authoritative Data Table View */
+          <div style={{ overflowX: 'auto' }}>
+            <Table>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Property & Unit</th>
+                  <th>Issue Details</th>
+                  <th>Category</th>
+                  <th>Priority</th>
+                  <th>Work Status</th>
+                  <th>Unit State</th>
+                  <th>Assigned Staff</th>
+                  <th>Cost</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
+              </thead>
+              <tbody>
+                {paginatedRecords.map((item) => (
+                  <tr key={item.id}>
+                    <td style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--accent-gold)' }}>
+                      {item.issue_code}
+                    </td>
+                    <td>
+                      <div
+                        style={{ fontWeight: 600, color: 'var(--brand-accent)', cursor: 'pointer' }}
+                        onClick={() => navigate(`/app/properties?search=${encodeURIComponent(item.property_name || '')}`)}
+                        title="View building in Properties"
+                      >
+                        🏢 {item.property_name} ↗
+                      </div>
+                      <div
+                        style={{ fontSize: '0.78rem', color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600, marginTop: '2px' }}
+                        onClick={() => {
+                          if (item.apartment_id) {
+                            navigate(`/app/apartments?unitId=${item.apartment_id}&propertyId=${item.property_id}`);
+                          }
+                        }}
+                        title="View Unit Details"
+                      >
+                        {item.unit_number ? `Unit ${item.unit_number} (${item.unit_name || 'Apt'}) ↗` : 'Common Area'}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.issue_title}</div>
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          color: 'var(--text-secondary)',
+                          maxWidth: '240px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {item.description}
+                      </div>
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          padding: '0.15rem 0.45rem',
+                          background: 'var(--bg-surface)',
+                          borderRadius: '4px',
+                          border: '1px solid var(--border-default)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {item.category || 'GENERAL'}
+                      </span>
+                    </td>
+                    <td>{getPriorityBadge(item.priority)}</td>
+                    <td>{getStatusBadge(item.status)}</td>
+                    <td>
+                      {item.blocking_unit === 1 ? (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ef4444' }}>
+                          🔒 MAINTENANCE
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Normal</span>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {item.assigned_to || item.assigned_to_name ? (
+                          <span>👤 {item.assigned_to || item.assigned_to_name}</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>Unassigned</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Assigned Property Staff</div>
+                    </td>
+                    <td style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                      {formatNaira(item.actual_cost || item.cost || item.estimated_cost || 0)}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem' }}>
+                        <Button variant="secondary" size="small" onClick={() => handleOpenDetail(item)}>
+                          Details
+                        </Button>
+                        {item.status === 'OPEN' && (
+                          <Button
+                            variant="outline"
+                            size="small"
+                            onClick={() => handleStartWork(item.id)}
+                            disabled={actionLoading}
+                          >
+                            Start
+                          </Button>
+                        )}
+                        {(item.status === 'IN_PROGRESS' || item.status === 'OPEN') && (
+                          <Button
+                            variant="primary"
+                            size="small"
+                            onClick={() => handleOpenResolve(item)}
+                            disabled={actionLoading}
+                          >
+                            Resolve
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingTop: '1rem',
+              borderTop: '1px solid var(--border-subtle)',
+              marginTop: '1rem',
+              fontSize: '0.82rem',
+              color: 'var(--text-secondary)',
+              flexWrap: 'wrap',
+              gap: '0.5rem',
+            }}
+          >
+            <div>
+              Showing page <strong>{currentPage}</strong> of <strong>{totalPages}</strong> ({filteredRecords.length} work orders)
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <Button
+                variant="outline"
+                size="small"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="small"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         )}
       </Card>
 
-      {/* Create Issue Modal */}
-      <Modal
+      {/* Modals & Drawers */}
+      <CreateTicketModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="Report Operational Maintenance Issue"
-        maxWidth="600px"
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-            <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)} disabled={actionLoading}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleCreateSubmit} disabled={actionLoading}>
-              {actionLoading ? 'Logging Issue...' : 'Log Work Order'}
-            </Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Property *</label>
-              <select
-                required
-                value={createForm.property_id}
-                onChange={(e) => setCreateForm({ ...createForm, property_id: e.target.value, apartment_id: '' })}
-                style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-              >
-                <option value="">Select Property...</option>
-                {properties.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
+        properties={properties}
+        initialPropertyId={propertyFilter !== 'all' ? propertyFilter : ''}
+        onSuccess={() => {
+          fetchWorkOrders();
+          fetchStatsAndUnits();
+        }}
+      />
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Apartment Unit *</label>
-              <select
-                required
-                value={createForm.apartment_id}
-                onChange={(e) => setCreateForm({ ...createForm, apartment_id: e.target.value })}
-                style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-              >
-                <option value="">Select Unit...</option>
-                {apartments
-                  .filter((a) => !createForm.property_id || String(a.property_id) === String(createForm.property_id))
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>Unit {a.unit_number} — {a.unit_name}</option>
-                  ))}
-              </select>
-            </div>
-          </div>
+      <AssignTechnicianModal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        workOrder={targetWorkOrder}
+        onSuccess={() => {
+          fetchWorkOrders();
+        }}
+      />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Category *</label>
-              <select
-                required
-                value={createForm.category}
-                onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })}
-                style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-              >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
+      <ResolveTicketModal
+        isOpen={isResolveModalOpen}
+        onClose={() => setIsResolveModalOpen(false)}
+        workOrder={targetWorkOrder}
+        onSuccess={() => {
+          fetchWorkOrders();
+          fetchStatsAndUnits();
+        }}
+      />
 
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Priority *</label>
-              <select
-                required
-                value={createForm.priority}
-                onChange={(e) => setCreateForm({ ...createForm, priority: e.target.value })}
-                style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-              >
-                {PRIORITIES.map((pr) => (
-                  <option key={pr} value={pr}>{pr}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+      <CancelTicketModal
+        isOpen={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        workOrder={targetWorkOrder}
+        onSuccess={() => {
+          fetchWorkOrders();
+          fetchStatsAndUnits();
+        }}
+      />
 
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Issue Title *</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Master Bedroom AC Leaking Water"
-              value={createForm.issue_title}
-              onChange={(e) => setCreateForm({ ...createForm, issue_title: e.target.value })}
-              style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Detailed Description *</label>
-            <textarea
-              rows={3}
-              required
-              placeholder="Describe symptoms, exact location in unit, safety concerns..."
-              value={createForm.description}
-              onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-              style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', resize: 'vertical' }}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center' }}>
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Estimated Cost (₦)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={createForm.estimated_cost}
-                onChange={(e) => setCreateForm({ ...createForm, estimated_cost: e.target.value })}
-                style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-              />
-            </div>
-
-            <div style={{ paddingTop: '1.25rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                <input
-                  type="checkbox"
-                  checked={createForm.blocking_unit}
-                  onChange={(e) => setCreateForm({ ...createForm, blocking_unit: e.target.checked })}
-                />
-                <span style={{ fontWeight: 600 }}>Block Unit Availability</span>
-              </label>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-                Sets unit status to <code>MAINTENANCE</code> and prevents new bookings.
-              </div>
-            </div>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Detail / Manage Modal */}
-      {selectedIssue && (
-        <Modal
-          isOpen={isDetailModalOpen}
-          onClose={() => setIsDetailModalOpen(false)}
-          title={`Work Order #${selectedIssue.issue_code}`}
-          maxWidth="700px"
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <div>
-                {selectedIssue.status !== 'CANCELLED' && selectedIssue.status !== 'RESOLVED' && (
-                  <Button variant="danger" size="small" onClick={handleCancelIssue} disabled={actionLoading}>
-                    Cancel Order
-                  </Button>
-                )}
-              </div>
-              <Button variant="secondary" onClick={() => setIsDetailModalOpen(false)}>
-                Close
-              </Button>
-            </div>
-          }
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {/* Connected Workflows Bar */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '0.5rem',
-                flexWrap: 'wrap',
-                background: 'var(--bg-card-hover)',
-                padding: '0.65rem 0.85rem',
-                borderRadius: 'var(--radius-md)',
-                alignItems: 'center',
-                border: '1px solid var(--border-default)',
-              }}
-            >
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                Related Workflows:
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setIsDetailModalOpen(false);
-                  navigate(`/app/inspections?apartmentId=${selectedIssue.apartment_id}&propertyId=${selectedIssue.property_id}`);
-                }}
-              >
-                📋 View Unit Inspections
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setIsDetailModalOpen(false);
-                  navigate(`/app/apartments?unitId=${selectedIssue.apartment_id}&propertyId=${selectedIssue.property_id}`);
-                }}
-              >
-                🏢 View Unit Details
-              </Button>
-            </div>
-
-            {/* Header info */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'var(--bg-surface)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>{selectedIssue.issue_title}</h3>
-                <div style={{ fontSize: '0.85rem', marginTop: '0.35rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <span
-                    style={{ color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600 }}
-                    onClick={() => {
-                      setIsDetailModalOpen(false);
-                      navigate(`/app/properties?search=${encodeURIComponent(selectedIssue.property_name || '')}`);
-                    }}
-                    title="View Property"
-                  >
-                    🏢 {selectedIssue.property_name} ↗
-                  </span>
-                  {' • '}
-                  <span
-                    style={{ color: 'var(--brand-accent)', cursor: 'pointer', fontWeight: 600 }}
-                    onClick={() => {
-                      setIsDetailModalOpen(false);
-                      navigate(`/app/apartments?unitId=${selectedIssue.apartment_id}&propertyId=${selectedIssue.property_id}`);
-                    }}
-                    title="View Unit"
-                  >
-                    Unit {selectedIssue.unit_number} ({selectedIssue.unit_name || 'Unit'}) ↗
-                  </span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
-                {getStatusBadge(selectedIssue.status)}
-                {getPriorityBadge(selectedIssue.priority)}
-              </div>
-            </div>
-
-            {/* Description & metadata */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', fontSize: '0.82rem' }}>
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Category:</span>
-                <div style={{ fontWeight: 600, marginTop: '0.15rem' }}>{selectedIssue.category || 'MAINTENANCE'}</div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Reported Date:</span>
-                <div style={{ fontWeight: 600, marginTop: '0.15rem' }}>
-                  {selectedIssue.reported_at ? new Date(selectedIssue.reported_at).toLocaleDateString() : 'N/A'}
-                </div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Assigned Tech:</span>
-                <div style={{ fontWeight: 600, marginTop: '0.15rem' }}>
-                  {selectedIssue.assigned_to_name ? `${selectedIssue.assigned_to_name} (${selectedIssue.assigned_to_role})` : 'Unassigned'}
-                </div>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Unit Blocking:</span>
-                <div style={{ fontWeight: 600, marginTop: '0.15rem', color: selectedIssue.blocking_unit ? '#ef4444' : 'inherit' }}>
-                  {selectedIssue.blocking_unit ? 'YES (MAINTENANCE)' : 'NO'}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Description:</span>
-              <p style={{ margin: '0.35rem 0 0 0', padding: '0.75rem', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)', fontSize: '0.88rem' }}>
-                {selectedIssue.description}
-              </p>
-            </div>
-
-            {/* Staff Assignment Section */}
-            {selectedIssue.status !== 'RESOLVED' && selectedIssue.status !== 'CANCELLED' && (
-              <Card title="Technician Assignment">
-                <form onSubmit={handleAssignStaff} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    placeholder="Enter Staff/Technician User ID"
-                    value={assignForm.assigned_to_id}
-                    onChange={(e) => setAssignForm({ assigned_to_id: e.target.value })}
-                    style={{ flex: 1, padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                  />
-                  <Button variant="secondary" size="small" onClick={handleAssignStaff} disabled={actionLoading || !assignForm.assigned_to_id}>
-                    Assign Staff
-                  </Button>
-                </form>
-              </Card>
-            )}
-
-            {/* Lifecycle Transitions */}
-            {selectedIssue.status === 'OPEN' && (
-              <div style={{ padding: '1rem', background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>Start Repair Work</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    Mark this work order as IN_PROGRESS and log the start time.
-                  </div>
-                </div>
-                <Button variant="primary" onClick={handleStartWork} disabled={actionLoading}>
-                  Start Work
-                </Button>
-              </div>
-            )}
-
-            {selectedIssue.status === 'IN_PROGRESS' && (
-              <Card title="Finalize and Resolve Work Order">
-                <form onSubmit={handleResolveIssue} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'rgba(200, 169, 81, 0.1)', padding: '0.65rem', borderRadius: '4px', border: '1px solid rgba(200, 169, 81, 0.3)' }}>
-                    ℹ Resolving this issue will automatically move the unit to <strong>CLEANING</strong> status so housekeeping can inspect and prepare it before re-opening for guest bookings.
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Actual Repair Cost (₦) *</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={resolveForm.actual_cost}
-                      onChange={(e) => setResolveForm({ ...resolveForm, actual_cost: e.target.value })}
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Resolution Notes *</label>
-                    <textarea
-                      rows={3}
-                      required
-                      placeholder="Detail work performed, replacement parts installed, warranty notes..."
-                      value={resolveForm.resolution_notes}
-                      onChange={(e) => setResolveForm({ ...resolveForm, resolution_notes: e.target.value })}
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', resize: 'vertical' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                    <Button variant="primary" onClick={handleResolveIssue} disabled={actionLoading}>
-                      Resolve & Release to Housekeeping
-                    </Button>
-                  </div>
-                </form>
-              </Card>
-            )}
-
-            {selectedIssue.status === 'RESOLVED' && (
-              <div style={{ padding: '1rem', background: 'rgba(16, 185, 129, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                <div style={{ color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>✓ Work Order Completed & Resolved</div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-                  Resolved at: {selectedIssue.resolved_at ? new Date(selectedIssue.resolved_at).toLocaleString() : 'N/A'}
-                </div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.35rem' }}>
-                  Actual Incurred Cost: {formatNaira(selectedIssue.actual_cost || selectedIssue.cost || 0)}
-                </div>
-                <div style={{ fontSize: '0.82rem', marginTop: '0.5rem', color: 'var(--text-primary)', background: 'var(--bg-surface)', padding: '0.65rem', borderRadius: '4px' }}>
-                  <strong>Resolution Notes:</strong> {selectedIssue.resolution_notes || 'No notes recorded.'}
-                </div>
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
+      <WorkOrderDetailDrawer
+        isOpen={isDetailDrawerOpen}
+        onClose={() => setIsDetailDrawerOpen(false)}
+        workOrder={targetWorkOrder}
+        user={user}
+        onStartWork={handleStartWork}
+        onOpenAssign={handleOpenAssign}
+        onOpenResolve={handleOpenResolve}
+        onOpenCancel={handleOpenCancel}
+        onWorkOrderDeleted={() => {
+          fetchWorkOrders();
+          fetchStatsAndUnits();
+        }}
+        actionLoading={actionLoading}
+      />
     </div>
   );
 }

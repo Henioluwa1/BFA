@@ -1,0 +1,131 @@
+/* BfaInput - Accessible Hospitality Form Control Primitive */
+.bfa-lux-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bfa-lux-space-2xs, 4px);
+  width: 100%;
+  font-family: var(--bfa-lux-font-body, inherit);
+}
+
+.bfa-lux-field-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--bfa-lux-text-primary, #202625);
+  letter-spacing: 0.01em;
+}
+
+.bfa-lux-field-required {
+  color: var(--bfa-lux-status-error-text, #9e2323);
+}
+
+.bfa-lux-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.bfa-lux-input {
+  width: 100%;
+  min-height: var(--bfa-lux-touch-min, 44px);
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  color: var(--bfa-lux-text-primary, #202625);
+  background-color: #ffffff;
+  border: 1px solid var(--bfa-lux-border-default, #dcd7ce);
+  border-radius: var(--bfa-lux-radius-sm, 8px);
+  outline: none;
+  transition: all var(--bfa-lux-transition-normal, 200ms ease);
+}
+
+.bfa-lux-input::placeholder {
+  color: var(--bfa-lux-text-muted, #8c948e);
+  font-size: 0.875rem;
+}
+
+.bfa-lux-input:hover:not(:disabled) {
+  border-color: var(--bfa-lux-border-strong, #c8c2b7);
+}
+
+.bfa-lux-input:focus {
+  border-color: var(--bfa-lux-champagne, #b99a70);
+  box-shadow: var(--bfa-lux-focus-ring, 0 0 0 3px rgba(185, 154, 112, 0.35));
+  background-color: #ffffff;
+}
+
+/* Affixes */
+.bfa-lux-input-affix {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  pointer-events: none;
+}
+
+.bfa-lux-input-affix--left {
+  left: 12px;
+}
+
+.bfa-lux-input-affix--right {
+  right: 12px;
+}
+
+.bfa-lux-input--has-left {
+  padding-left: 40px;
+}
+
+.bfa-lux-input--has-right {
+  padding-right: 40px;
+}
+
+/* Select */
+.bfa-lux-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737a75' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 40px;
+  cursor: pointer;
+}
+
+/* Textarea */
+.bfa-lux-textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* Disabled */
+.bfa-lux-input:disabled {
+  background-color: var(--bfa-lux-ivory-subtle, #faf8f5);
+  color: var(--bfa-lux-text-muted, #8c948e);
+  cursor: not-allowed;
+  border-color: var(--bfa-lux-border-subtle, #e7e4dc);
+}
+
+/* Error State */
+.bfa-lux-field--error .bfa-lux-input {
+  border-color: var(--bfa-lux-status-error-text, #9e2323);
+  background-color: var(--bfa-lux-status-error-bg, #fcf1f1);
+}
+
+.bfa-lux-field--error .bfa-lux-input:focus {
+  box-shadow: 0 0 0 3px rgba(158, 35, 35, 0.25);
+}
+
+.bfa-lux-field-error {
+  font-size: 0.775rem;
+  color: var(--bfa-lux-status-error-text, #9e2323);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.bfa-lux-field-helper {
+  font-size: 0.775rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
+  margin-top: 2px;
+}
+

@@ -30,8 +30,11 @@ class ExpensesService {
     if (['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role)) {
       return true;
     }
-    if (['MANAGER', 'STAFF'].includes(role) && user.propertyId) {
-      if (parseInt(user.propertyId, 10) !== parseInt(propertyId, 10)) {
+    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+      if (!user.propertyId) {
+        throw new ForbiddenError('Access denied: User is not assigned to any property.');
+      }
+      if (propertyId && propertyId !== 'all' && parseInt(user.propertyId, 10) !== parseInt(propertyId, 10)) {
         throw new ForbiddenError('Access denied: You do not have authorization for this property.');
       }
     }
@@ -154,6 +157,9 @@ class ExpensesService {
       },
     });
 
+    // Strict Separation of Duties: All recorded expenses start in RECORDED status.
+    // Client-submitted autoApprove or status=APPROVED is rejected to prevent self-approval bypass.
+
     return created;
   }
 
@@ -217,6 +223,20 @@ class ExpensesService {
    */
   static async approveExpense(id, user, req = null) {
     const expense = await this.getExpenseById(id, user);
+
+    // Role check: Only Corporate Administration can approve operational expenses
+    const approverRole = (user?.role || '').toUpperCase();
+    if (!['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(approverRole)) {
+      throw new ForbiddenError('Only Super Admin, Owner, or Admin can approve operational expenses.');
+    }
+
+    // Separation of Duties: Creators are strictly prohibited from approving their own expenses
+    if (expense.created_by_id && parseInt(expense.created_by_id, 10) === parseInt(user.id, 10)) {
+      const isOwnerOverride = approverRole === 'OWNER' && req?.body?.emergencyOverrideReason && req.body.emergencyOverrideReason.trim().length >= 10;
+      if (!isOwnerOverride) {
+        throw new ForbiddenError('Separation of duties violation: Creators are strictly prohibited from approving their own expenses.');
+      }
+    }
 
     // Capability check: EXPENSE_APPROVAL
     const capCheck = await AccessControlService.canAccess(user, 'EXPENSE_APPROVAL');

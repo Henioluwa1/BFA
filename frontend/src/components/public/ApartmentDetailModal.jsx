@@ -3,7 +3,8 @@ import { formatNaira } from '../../utils/currency';
 import Icons8Icon from './Icons8Icon';
 import './ApartmentDetailModal.css';
 
-// Photography Assets
+// Photography Assets — Building 1: Grand Horizon Tower (Alagbaka GRA)
+import ghtExterior from '../../assets/ght-exterior.jpg';
 import heroArchitecture from '../../assets/hero-architecture.jpg';
 import aptLivingLuxury from '../../assets/apt-living-luxury.jpg';
 import aptPenthouseView from '../../assets/apt-penthouse-view.jpg';
@@ -12,12 +13,27 @@ import aptTerraceWater from '../../assets/apt-terrace-water.jpg';
 import aptKitchenChef from '../../assets/apt-kitchen-chef.jpg';
 import aptBedroomMaster from '../../assets/apt-bedroom-master.jpg';
 import aptBathroomSpa from '../../assets/apt-bathroom-spa.jpg';
+import ghDeluxeBedroom from '../../assets/gh-deluxe-bedroom.jpg';
+
+// Photography Assets — Building 2: Azure Bay Residences (Ijapo Estate)
+import azureBayExterior from '../../assets/azure-bay-exterior.jpg';
+import azureBayPool from '../../assets/azure-bay-pool.jpg';
+import azure201Living from '../../assets/azure-201-living.jpg';
+import azure201Master from '../../assets/azure-201-master.jpg';
+import azure201Kitchen from '../../assets/azure-201-kitchen.jpg';
+import azure201Bathroom from '../../assets/azure-201-bathroom.jpg';
+
+// Photography Assets — Building 3: The Royal Palms Suites (Oba-Ile)
+import royalPalmsExterior from '../../assets/royal-palms-exterior.jpg';
+import royalPalmsCourtyard from '../../assets/royal-palms-courtyard.jpg';
+import royal301Living from '../../assets/royal-301-living.jpg';
+import royal301Bedroom from '../../assets/royal-301-bedroom.jpg';
 
 export const APARTMENTS_CATALOG = {
   1: {
     id: 1,
     name: 'Grand Horizon Tower',
-    tagline: 'Flagship High-Rise Serviced Residences • Alagbaka GRA, Akure',
+    tagline: 'Serviced Residences • Alagbaka GRA, Akure',
     location: 'Plot 14, Alagbaka GRA Extension, Akure, Ondo State',
     city: 'Akure',
     state: 'Ondo State',
@@ -32,7 +48,7 @@ export const APARTMENTS_CATALOG = {
         badge: '🌿 Outdoor Architecture',
         title: 'Contemporary High-Rise Facade',
         desc: 'Striking modern high-rise architecture along Alagbaka GRA with acoustic soundproof double-glazing and private gated porte-cochère.',
-        image: heroArchitecture,
+        image: ghtExterior,
       },
       {
         id: 'gh-pool',
@@ -164,68 +180,52 @@ export const APARTMENTS_CATALOG = {
       'Nestled inside the tranquil, leafy avenues of historic Ijapo Estate, Akure. Azure Bay Residences offer peaceful luxury with manicured garden courtyards, an exclusive resident swimming pool, private terrace lounges, and high-spec interiors designed for long or short executive stays.',
     gallery: [
       {
-        id: 'ab-pool',
-        category: 'outdoor',
-        badge: '🌿 Outdoor Pool & Terrace',
-        title: 'Resident Pool & Garden Pavilion',
-        desc: 'Sparkling freshwater pool flanked by tropical palms, lounge chaises, and a sheltered barbecue terrace.',
-        image: aptTerraceWater,
-      },
-      {
         id: 'ab-ext',
         category: 'outdoor',
-        badge: '🌿 Gated Estate Facade',
-        title: 'Private Gated Entrance',
-        desc: 'Quiet residential estate entrance with paved perimeter driveway, guarded security checkpoint, and floral borders.',
-        image: heroArchitecture,
+        badge: '🏛️ Gated Villa Facade',
+        title: 'Private Gated Entrance & Palms',
+        desc: 'Quiet residential estate entrance with paved perimeter driveway, guarded security checkpoint, and tropical landscaping in Ijapo Estate.',
+        image: azureBayExterior,
+      },
+      {
+        id: 'ab-pool',
+        category: 'outdoor',
+        badge: '🏊 Resident Swimming Pool',
+        title: 'Resident Courtyard Pool & Cabana',
+        desc: 'Sparkling freshwater pool flanked by royal tropical palms, lounge chaises, and sheltered garden pavilion.',
+        image: azureBayPool,
       },
       {
         id: 'ab-living',
         category: 'indoor',
-        badge: '🛋️ Indoor Living Lounge',
+        badge: '🛋️ Living Room Salon',
         title: 'Garden View Living Lounge',
-        desc: 'Airy living space with floor-to-ceiling glass doors opening onto the garden, 65-inch Smart TV, and plush sectional seating.',
-        image: aptLivingLuxury,
+        desc: 'Airy living space with floor-to-ceiling glass doors opening onto the courtyard garden, 65-inch Smart TV, and plush sectional seating.',
+        image: azure201Living,
       },
       {
         id: 'ab-bed',
         category: 'indoor',
-        badge: '🛏️ Indoor Master Bedroom',
-        title: 'Serene Master Bedroom',
-        desc: 'Warm wooden accents, custom king bed, premium memory foam mattress, and reading spotlights.',
-        image: aptBedroomMaster,
+        badge: '🛏️ Master King Bedroom',
+        title: 'Serene Master King Suite',
+        desc: 'Warm wooden accents, custom king bed, premium memory foam mattress, bedside lamps, and serene greenery views.',
+        image: azure201Master,
       },
       {
         id: 'ab-kitchen',
         category: 'indoor',
-        badge: '🍳 Indoor Kitchen',
-        title: 'Modern Equipped Kitchen',
-        desc: 'Integrated gas and induction cooktops, microwave, double-door fridge, breakfast bar, and stainless steel cookware.',
-        image: aptKitchenChef,
+        badge: '🍳 Modern Fitted Kitchen',
+        title: 'Modern Quartz Kitchen & Breakfast Bar',
+        desc: 'Quartz countertops, breakfast bar with barstools, induction hobs, microwave, and full double-door refrigerator.',
+        image: azure201Kitchen,
       },
       {
         id: 'ab-bath',
         category: 'indoor',
-        badge: '🛁 Luxury Spa Bathroom',
-        title: 'Polished Ensuite Bath',
-        desc: 'Frameless glass walk-in rain shower, floating vanity, and high-pressure hot water systems.',
-        image: aptBathroomSpa,
-      },
-      {
-        id: 'ab-terrace-view',
-        category: 'outdoor',
-        badge: '🌿 Private Verandah',
-        title: 'Sunset Verandah',
-        desc: 'Spacious outdoor balcony for morning coffee or sunset drinks overlooking Ijapo estate canopy.',
-        image: aptPenthouseView,
-      },
-      {
-        id: 'ab-desk',
-        category: 'indoor',
-        badge: '💼 Indoor Work Suite',
-        title: 'Private Study Nook',
-        desc: 'Dedicated ergonomic work area with fiber broadband connection.',
-        image: aptInteriorWarm,
+        badge: '🛁 Spa Ensuite Bathroom',
+        title: 'Walk-In Glass Rain Shower',
+        desc: 'Frameless glass walk-in rain shower, floating oak vanity, and high-pressure hot water systems.',
+        image: azure201Bathroom,
       },
     ],
     outdoorFeatures: [
@@ -245,33 +245,33 @@ export const APARTMENTS_CATALOG = {
     ],
     units: [
       {
-        id: 2,
+        id: 4,
         unitNumber: '201',
         unitName: 'Azure Waterfront Suite 201',
         unitType: '2-Bedroom Luxury Suite',
         rate: '280000.00',
-        specs: '2 King Beds • 2 Baths • 105m²',
-        image: aptLivingLuxury,
+        specs: '2 King Beds • 2 Baths • 115m²',
+        image: azure201Living,
         status: 'AVAILABLE',
       },
       {
         id: 5,
-        unitNumber: '101',
-        unitName: 'Garden View Suite 101',
-        unitType: '1-Bedroom Premier',
+        unitNumber: '202',
+        unitName: 'Bayside Studio 202',
+        unitType: 'Studio Standard',
         rate: '140000.00',
-        specs: '1 King Bed • 1 Bath • 52m²',
-        image: aptInteriorWarm,
+        specs: '1 Queen Bed • 1 Bath • 40m²',
+        image: azure201Master,
         status: 'AVAILABLE',
       },
       {
-        id: 6,
-        unitNumber: '102',
-        unitName: 'Azure Executive Bay 102',
-        unitType: '1-Bedroom Luxury',
-        rate: '180000.00',
-        specs: '1 King Bed • 1.5 Baths • 68m²',
-        image: aptTerraceWater,
+        id: 8,
+        unitNumber: '203',
+        unitName: 'Ocean Breeze Suite 203',
+        unitType: '3-Bedroom Royal',
+        rate: '450000.00',
+        specs: '3 King Beds • 3 Baths • 160m²',
+        image: azureBayPool,
         status: 'AVAILABLE',
       },
     ],
@@ -290,68 +290,52 @@ export const APARTMENTS_CATALOG = {
       'Perched along the scenic Airport Road corridor in prestigious Oba-Ile, Akure. The Royal Palms Suites offer presidential-grade privacy with sweeping hillside vistas, an expansive open-air sky terrace, private butler services, and palatial multi-room layouts for distinguished guests.',
     gallery: [
       {
-        id: 'rp-terrace',
-        category: 'outdoor',
-        badge: '🌿 Outdoor Sky Terrace',
-        title: 'Panoramic Penthouse Sky Terrace',
-        desc: 'Expansive private terrace looking out across the picturesque Akure hills, sunset lounge seating, and outdoor dining bar.',
-        image: aptPenthouseView,
-      },
-      {
         id: 'rp-ext',
         category: 'outdoor',
-        badge: '🌿 Gated Estate Grounds',
-        title: 'Presidential Boulevard Facade',
-        desc: 'Gated estate with security gatehouse, manicured royal palm trees, and wide access boulevard.',
-        image: heroArchitecture,
+        badge: '🏛️ Stately Facade',
+        title: 'Neoclassical Architecture & Portico',
+        desc: 'Stately classical-modern serviced mansion with tall white columns along Presidential Boulevard, Oba-Ile.',
+        image: royalPalmsExterior,
+      },
+      {
+        id: 'rp-courtyard',
+        category: 'outdoor',
+        badge: '🌿 Stately Grounds',
+        title: 'Grand Entrance Courtyard & Palms',
+        desc: 'Circular paved entrance driveway with central water fountain, mature royal palm trees, and gated security.',
+        image: royalPalmsCourtyard,
       },
       {
         id: 'rp-living',
         category: 'indoor',
-        badge: '🛋️ Indoor Grand Salon',
-        title: 'Double-Height Grand Salon',
-        desc: 'Palatial living room with chandelier lighting, imported leather salon suite, and 85-inch 4K OLED home theater.',
-        image: aptLivingLuxury,
+        badge: '🛋️ Presidential Grand Salon',
+        title: 'Presidential Salon with Navy & Gold Accents',
+        desc: 'Double-height reception salon with custom Chesterfield leather sofa, marble coffee table, and ambient chandelier lighting.',
+        image: royal301Living,
       },
       {
         id: 'rp-bed',
         category: 'indoor',
-        badge: '🛏️ Indoor Presidential Bedroom',
-        title: 'Presidential Master Suite',
-        desc: 'Custom-crafted emperor king bed, walk-in dressing lounge, integrated mood lighting, and private study.',
-        image: aptBedroomMaster,
-      },
-      {
-        id: 'rp-kitchen',
-        category: 'indoor',
-        badge: '🍳 Gourmet Chef Kitchen',
-        title: 'Chef Kitchen & Wine Bar',
-        desc: 'Commercial-grade stainless steel kitchen with granite dining bar, dishwasher, induction range, and espresso bar.',
-        image: aptKitchenChef,
+        badge: '🛏️ Executive Master Suite',
+        title: 'Executive Master Bedroom Suite',
+        desc: 'Stately tufted king bed with royal navy and gold cushions, rich carpeting, silk drapes, and bedside lighting.',
+        image: royal301Bedroom,
       },
       {
         id: 'rp-bath',
         category: 'indoor',
-        badge: '🛁 Spa Ensuite Bathroom',
-        title: 'Freestanding Tub Spa Bath',
-        desc: 'Freestanding deep soaking bathtub, dual rainfall showers, imported Italian travertine, and heated towel racks.',
-        image: aptBathroomSpa,
+        badge: '🛁 Luxury Spa Bath',
+        title: 'Polished Ensuite Rain Shower',
+        desc: 'High-pressure rainfall shower, designer porcelain tiling, and luxury toiletries.',
+        image: azure201Bathroom,
       },
       {
-        id: 'rp-suite',
-        category: 'indoor',
-        badge: '🛏️ Secondary Guest Suite',
-        title: 'Deluxe Guest Bedroom',
-        desc: 'Sound-insulated secondary suite with plush queen bedding and private ensuite.',
-        image: aptInteriorWarm,
-      },
-      {
-        id: 'rp-pool',
+        id: 'rp-terrace',
         category: 'outdoor',
-        badge: '🌿 Terrace Plunge Pool',
-        title: 'Terrace Plunge Pool',
-        desc: 'Private outdoor terrace plunge pool with infinity edge overlooking the hills.',
-        image: aptTerraceWater,
+        badge: '🌄 Panoramic Sky Terrace',
+        title: 'Hillside Sunset Terrace',
+        desc: 'Open-air balcony overlooking the picturesque hills of Akure and airport corridor.',
+        image: aptPenthouseView,
       },
     ],
     outdoorFeatures: [
@@ -397,54 +381,107 @@ export const APARTMENTS_CATALOG = {
 
 export function getRoomTypePhoto(unitType = '', propertyId = 1) {
   const t = (unitType || '').toLowerCase();
+  const pid = Number(propertyId || 1);
+
+  // Property 2: Azure Bay Residences (Ijapo Estate)
+  if (pid === 2) {
+    if (t.includes('waterfront') || t.includes('luxury') || t.includes('2-bedroom')) {
+      return azure201Living;
+    }
+    if (t.includes('studio') || t.includes('standard')) {
+      return azure201Master;
+    }
+    if (t.includes('royal') || t.includes('3-bedroom') || t.includes('pool')) {
+      return azureBayPool;
+    }
+    return azure201Living;
+  }
+
+  // Property 3: The Royal Palms Suites (Oba-Ile)
+  if (pid === 3) {
+    if (t.includes('presidential') || t.includes('deluxe') || t.includes('salon')) {
+      return royal301Living;
+    }
+    if (t.includes('bedroom') || t.includes('suite') || t.includes('hillside')) {
+      return royal301Bedroom;
+    }
+    return royal301Living;
+  }
+
+  // Property 1: Grand Horizon Tower (Alagbaka GRA)
   if (t.includes('penthouse') || t.includes('presidential') || t.includes('skyline')) {
     return aptPenthouseView;
   }
-  if (t.includes('waterfront') || t.includes('villa') || t.includes('royal') || t.includes('pool')) {
-    return aptTerraceWater;
+  if (t.includes('deluxe') || t.includes('1-bedroom')) {
+    return ghDeluxeBedroom;
   }
-  if (t.includes('2-bedroom') || t.includes('bedroom') || t.includes('master')) {
+  if (t.includes('2-bedroom') || t.includes('executive')) {
     return aptBedroomMaster;
   }
   if (t.includes('studio') || t.includes('standard') || t.includes('prime') || t.includes('minimalist')) {
     return aptInteriorWarm;
   }
-  if (t.includes('deluxe') || t.includes('lounge') || t.includes('executive')) {
+  if (t.includes('lounge') || t.includes('salon')) {
     return aptLivingLuxury;
   }
-  if (propertyId === 1) return heroArchitecture;
-  if (propertyId === 2) return aptTerraceWater;
-  if (propertyId === 3) return aptPenthouseView;
-  return aptInteriorWarm;
+  return heroArchitecture;
 }
 
 export function getPropertyPhoto(propertyId, code = '') {
-  if (propertyId === 1 || code === 'GHT') return heroArchitecture;
-  if (propertyId === 2 || code === 'ABR') return aptLivingLuxury;
-  if (propertyId === 3 || code === 'RPS') return aptPenthouseView;
-  const fallbackImages = [heroArchitecture, aptLivingLuxury, aptPenthouseView, aptTerraceWater, aptInteriorWarm];
-  return fallbackImages[((propertyId || 0) % fallbackImages.length)] || heroArchitecture;
+  const pid = Number(propertyId);
+  if (pid === 1 || code === 'GHT') return ghtExterior;
+  if (pid === 2 || code === 'ABR') return azureBayExterior;
+  if (pid === 3 || code === 'RPS') return royalPalmsExterior;
+  const fallbackImages = [ghtExterior, azureBayExterior, royalPalmsExterior];
+  return fallbackImages[((pid || 0) % fallbackImages.length)] || ghtExterior;
 }
 
 export function getRoomTypeGallery(unitType = '', property = {}) {
   const t = (unitType || '').toLowerCase();
-  if (t.includes('penthouse') || t.includes('presidential')) {
+  const pid = Number(property.id || 1);
+
+  // Property 2: Azure Bay Residences Gallery
+  if (pid === 2) {
     return [
-      { id: 'ph-sky', category: 'outdoor', badge: '🌿 Sky Terrace View', title: 'Private Penthouse Sky Terrace', desc: 'Sweeping panoramic views across Akure with open-air terrace seating.', image: aptPenthouseView },
-      { id: 'ph-salon', category: 'indoor', badge: '🛋️ Palatial Grand Salon', title: 'Penthouse Reception Salon', desc: 'Double-height ceilings, designer furnishings, and bespoke ambient lighting.', image: aptLivingLuxury },
-      { id: 'ph-bed', category: 'indoor', badge: '🛏️ Emperor Master Bedroom', title: 'Presidential Master Suite', desc: 'Handcrafted emperor mattress with luxury Egyptian linens and walk-in dressing lounge.', image: aptBedroomMaster },
-      { id: 'ph-bath', category: 'indoor', badge: '🛁 Spa Ensuite Bathroom', title: 'Freestanding Soaking Tub Spa', desc: 'Deep soaking tub, twin vanities, and rain shower with imported Italian travertine.', image: aptBathroomSpa },
-      { id: 'ph-kitchen', category: 'indoor', badge: '🍳 Gourmet Chef Kitchen', title: 'Appointed Chef Kitchen', desc: 'Granite-topped kitchen island, induction hobs, wine chiller, and microwave.', image: aptKitchenChef },
-      { id: 'ph-pool', category: 'outdoor', badge: '🌿 Terrace Plunge Pool', title: 'Terrace Plunge Pool', desc: 'Private outdoor plunge pool overlooking the lush hills.', image: aptTerraceWater },
+      { id: 'ab-living', category: 'indoor', badge: '🛋️ Living Room Salon', title: 'Garden View Living Lounge', desc: 'Airy open-concept living space with 65-inch Smart TV, plush velvet sectional seating, and courtyard garden view.', image: azure201Living },
+      { id: 'ab-bed', category: 'indoor', badge: '🛏️ Master King Bedroom', title: 'Serene Master King Suite', desc: 'Plush orthopaedic king mattress with premium Egyptian cotton, bedside reading lamps, and quiet estate greenery views.', image: azure201Master },
+      { id: 'ab-kitchen', category: 'indoor', badge: '🍳 Modern Fitted Kitchen', title: 'Modern Quartz Kitchen & Breakfast Bar', desc: 'Quartz countertops, breakfast bar with barstools, induction hobs, microwave, and full double-door refrigerator.', image: azure201Kitchen },
+      { id: 'ab-bath', category: 'indoor', badge: '🛁 Spa Ensuite Bathroom', title: 'Walk-In Glass Rain Shower', desc: 'Frameless glass walk-in rain shower with floating vanity, LED backlit mirror, and pressurized hot water.', image: azure201Bathroom },
+      { id: 'ab-pool', category: 'outdoor', badge: '🏊 Resident Swimming Pool', title: 'Resident Courtyard Pool & Sun Loungers', desc: 'Exclusive resident freshwater pool with teakwood loungers, tropical palm trees, and outdoor relaxation cabana.', image: azureBayPool },
+      { id: 'ab-ext', category: 'outdoor', badge: '🏛️ Gated Estate Facade', title: 'Private Gated Entrance & Palms', desc: 'Quiet residential estate entrance with paved perimeter driveway, guarded security checkpoint, and lush greenery.', image: azureBayExterior },
     ];
   }
-  if (t.includes('waterfront') || t.includes('villa') || t.includes('3-bedroom') || t.includes('royal')) {
+
+  // Property 3: The Royal Palms Suites Gallery
+  if (pid === 3) {
     return [
-      { id: 'wf-pool', category: 'outdoor', badge: '🌿 Resident Pool & Cabana', title: 'Waterfront Infinity Pool & Sundeck', desc: 'Crystal-clear freshwater pool with teakwood loungers and garden cabanas.', image: aptTerraceWater },
-      { id: 'wf-living', category: 'indoor', badge: '🛋️ Waterfront Lounge', title: 'Garden View Living Lounge', desc: 'Airy open-concept living space with 65-inch Smart TV and Italian marble.', image: aptLivingLuxury },
-      { id: 'wf-bed', category: 'indoor', badge: '🛏️ Master King Suite', title: 'Executive Master Bedroom', desc: 'Plush orthopaedic king bed with reading spotlights and private balcony.', image: aptBedroomMaster },
-      { id: 'wf-bath', category: 'indoor', badge: '🛁 Luxury Spa Bath', title: 'Polished Ensuite Rain Shower', desc: 'Walk-in rainfall shower enclosure with pressurized instant hot water.', image: aptBathroomSpa },
-      { id: 'wf-kitchen', category: 'indoor', badge: '🍳 Fitted Kitchen', title: 'Modern Fitted Kitchen', desc: 'Complete dining dinnerware, microwave, refrigerator, and espresso bar.', image: aptKitchenChef },
+      { id: 'rp-living', category: 'indoor', badge: '🛋️ Presidential Grand Salon', title: 'Presidential Salon with Navy & Gold Accents', desc: 'Double-height reception salon with custom Chesterfield leather sofa, marble coffee table, and ambient chandelier lighting.', image: royal301Living },
+      { id: 'rp-bed', category: 'indoor', badge: '🛏️ Executive Master Suite', title: 'Executive Master Bedroom Suite', desc: 'Stately tufted king bed with royal navy and gold cushions, rich carpeting, silk drapes, and bedside lighting.', image: royal301Bedroom },
+      { id: 'rp-courtyard', category: 'outdoor', badge: '🌿 Stately Grounds', title: 'Grand Entrance Courtyard & Palms', desc: 'Circular paved entrance driveway with central water fountain, mature royal palm trees, and gated security.', image: royalPalmsCourtyard },
+      { id: 'rp-ext', category: 'outdoor', badge: '🏛️ Stately Facade', title: 'Neoclassical Architecture & Portico', desc: 'Stately classical-modern serviced mansion with tall white columns along Presidential Boulevard, Oba-Ile.', image: royalPalmsExterior },
+      { id: 'rp-bath', category: 'indoor', badge: '🛁 Luxury Spa Bath', title: 'Polished Ensuite Rain Shower', desc: 'High-pressure rainfall shower, designer porcelain tiling, and luxury toiletries.', image: azure201Bathroom },
+      { id: 'rp-terrace', category: 'outdoor', badge: '🌄 Panoramic Sky Terrace', title: 'Hillside Sunset Terrace', desc: 'Open-air balcony overlooking the picturesque hills of Akure and airport corridor.', image: aptPenthouseView },
+    ];
+  }
+
+  // Property 1: Grand Horizon Tower Gallery (Default)
+  if (t.includes('penthouse') || t.includes('presidential')) {
+    return [
+      { id: 'ph-sky', category: 'outdoor', badge: '🌄 Private Sky Terrace', title: 'Private Penthouse Sky Terrace', desc: 'Sweeping panoramic views across Akure with open-air terrace seating.', image: aptPenthouseView },
+      { id: 'ph-salon', category: 'indoor', badge: '🛋️ Palatial Grand Salon', title: 'Penthouse Reception Salon', desc: 'Double-height ceilings, designer furnishings, Italian marble, and bespoke ambient lighting.', image: aptLivingLuxury },
+      { id: 'ph-bed', category: 'indoor', badge: '🛏️ Emperor Master Bedroom', title: 'Presidential Master Suite', desc: 'Handcrafted emperor mattress with luxury Egyptian linens and automated blackout curtains.', image: aptBedroomMaster },
+      { id: 'ph-bath', category: 'indoor', badge: '🛁 Spa Ensuite Bathroom', title: 'Freestanding Soaking Tub Spa', desc: 'Deep soaking tub, twin vanities, and rain shower with imported Italian travertine.', image: aptBathroomSpa },
+      { id: 'ph-kitchen', category: 'indoor', badge: '🍳 Gourmet Chef Kitchen', title: 'Appointed Chef Kitchen', desc: 'Granite-topped kitchen island, induction hobs, wine chiller, and microwave.', image: aptKitchenChef },
+      { id: 'ph-pool', category: 'outdoor', badge: '🏊 Resident Infinity Pool', title: 'Terrace Plunge Pool & Sundeck', desc: 'Private outdoor infinity pool with landscaped palm gardens and sunbathing terrace.', image: aptTerraceWater },
+    ];
+  }
+  if (t.includes('deluxe') || t.includes('1-bedroom')) {
+    return [
+      { id: 'gh-deluxe-bed', category: 'indoor', badge: '🛏️ Master Bedroom', title: 'Deluxe Suite Master Bedroom', desc: 'Panoramic hill view windows with orthopaedic king bed and floating nightstands.', image: ghDeluxeBedroom },
+      { id: 'gh-living', category: 'indoor', badge: '🛋️ Living Area', title: 'Minimalist Suite Salon', desc: 'Warm oak finishes with comfortable lounge seating and smart entertainment.', image: aptInteriorWarm },
+      { id: 'gh-bath', category: 'indoor', badge: '🛁 Spa Bathroom', title: 'Modern Travertine Ensuite', desc: 'Thermostatic rainfall shower with luxury toiletries and instant hot water.', image: aptBathroomSpa },
+      { id: 'gh-ext', category: 'outdoor', badge: '🏛️ Building Facade', title: 'High-Rise Architectural Facade', desc: 'Striking modern high-rise architecture along Alagbaka GRA with acoustic soundproof double-glazing.', image: heroArchitecture },
+      { id: 'gh-pool', category: 'outdoor', badge: '🏊 Resident Pool', title: 'Resident Infinity Pool', desc: 'Rooftop freshwater infinity pool with private cabana loungers.', image: aptTerraceWater },
     ];
   }
   if (t.includes('2-bedroom') || t.includes('executive')) {
@@ -453,16 +490,16 @@ export function getRoomTypeGallery(unitType = '', property = {}) {
       { id: 'ex-salon', category: 'indoor', badge: '🛋️ Executive Living Salon', title: 'Spacious Salon Lounge', desc: 'Custom Italian furnishings with 4K Smart entertainment system.', image: aptLivingLuxury },
       { id: 'ex-kitchen', category: 'indoor', badge: '🍳 Chef Kitchen', title: 'Granite Countertop Kitchen', desc: 'Equipped with induction hobs, oven, and double-door refrigerator.', image: aptKitchenChef },
       { id: 'ex-bath', category: 'indoor', badge: '🛁 Ensuite Bathroom', title: 'Luxury Marble Ensuite', desc: 'Thermostatic rain shower and illuminated vanity mirrors.', image: aptBathroomSpa },
-      { id: 'ex-terrace', category: 'outdoor', badge: '🌿 Private Balcony', title: 'Scenic Balcony', desc: 'Outdoor balcony with panoramic estate views.', image: aptTerraceWater },
+      { id: 'ex-terrace', category: 'outdoor', badge: '🌄 Private Balcony', title: 'Scenic Balcony', desc: 'Outdoor balcony with panoramic estate views.', image: aptTerraceWater },
     ];
   }
   if (t.includes('studio') || t.includes('standard') || t.includes('prime')) {
     return [
-      { id: 'st-work', category: 'indoor', badge: '💼 Modern Minimalist Suite', title: 'Studio Premier Suite & Workspace', desc: 'Quiet minimalist suite equipped with ergonomic workstation and fiber Wi-Fi 6.', image: aptInteriorWarm },
+      { id: 'st-work', category: 'indoor', badge: '💼 Studio Interior & Workspace', title: 'Studio Premier Suite & Workspace', desc: 'Quiet minimalist suite equipped with ergonomic workstation and fiber Wi-Fi 6.', image: aptInteriorWarm },
       { id: 'st-lounge', category: 'indoor', badge: '🛋️ Living Nook', title: 'Studio Living Area', desc: 'Compact luxury living area with Smart TV and designer seating.', image: aptLivingLuxury },
-      { id: 'st-bed', category: 'indoor', badge: '🛏️ Queen/King Bed', title: 'Plush Suite Bedding', desc: 'Orthopaedic mattress with hypoallergenic duvets and mood lighting.', image: aptBedroomMaster },
+      { id: 'st-bed', category: 'indoor', badge: '🛏️ Master King Bed', title: 'Plush Suite Bedding', desc: 'Orthopaedic mattress with hypoallergenic duvets and mood lighting.', image: ghDeluxeBedroom },
       { id: 'st-bath', category: 'indoor', badge: '🛁 Ensuite Shower', title: 'Modern Rain Shower', desc: 'Walk-in shower enclosure with instant pressurized hot water.', image: aptBathroomSpa },
-      { id: 'st-kitchen', category: 'indoor', badge: '🍳 Kitchenette', title: 'Equipped Kitchenette', desc: 'Microwave, kettle, mini-fridge, and dinnerware.', image: aptKitchenChef },
+      { id: 'st-ext', category: 'outdoor', badge: '🏛️ Building Facade', title: 'High-Rise Architectural Facade', desc: 'Striking modern high-rise architecture along Alagbaka GRA with acoustic soundproof double-glazing.', image: heroArchitecture },
     ];
   }
   return [
@@ -472,6 +509,219 @@ export function getRoomTypeGallery(unitType = '', property = {}) {
     { id: 'dx-kitchen', category: 'indoor', badge: '🍳 Chef Kitchen', title: 'Gourmet Kitchen', desc: 'Granite island, induction hobs, and espresso bar.', image: aptKitchenChef },
     { id: 'dx-terrace', category: 'outdoor', badge: '🌿 Resident Grounds', title: 'Landscaped Grounds & Terrace', desc: 'Lush tropical grounds with evening illumination.', image: aptTerraceWater },
   ];
+}
+
+export function getApartmentInternalSpaces(unitType = '', propertyId = 1) {
+  const t = (unitType || '').toLowerCase();
+  const pid = Number(propertyId || 1);
+
+  // 1. Studio / Single-Zone Suite (Do NOT force into multi-room structure!)
+  if (t.includes('studio') || t.includes('standard') || t.includes('prime') || t.includes('single')) {
+    return {
+      structureType: 'Single-Zone Serviced Studio Suite',
+      badge: '🔑 Serviced Studio Suite',
+      isMultiRoom: false,
+      summary: 'Architecturally designed as an integrated single-zone executive sanctuary. Living, sleeping, and workstation are unified into one spacious open-concept layout with an independent private ensuite bathroom.',
+      spaces: [
+        {
+          id: 'sp-studio-main',
+          name: 'Studio Living & Master Sleeping Zone',
+          type: 'Living & Bedroom Combined',
+          desc: 'Open-concept studio living space with plush king/queen bed, reading armchair, ergonomic work desk, and 50" 4K Smart TV.',
+          photo: pid === 2 ? azure201Master : (pid === 3 ? royal301Bedroom : aptInteriorWarm),
+          specs: 'King/Queen Bed • Workstation • Smart Climate Control',
+          amenities: ['Orthopaedic Bedding', 'Fiber Wi-Fi 6', 'Dedicated Work Desk', '50" 4K Smart TV', 'Inverter AC'],
+        },
+        {
+          id: 'sp-studio-bath',
+          name: 'Private Ensuite Bathroom',
+          type: 'Ensuite Bathroom',
+          desc: 'Private enclosed bathroom with high-pressure rainfall shower, modern vanity mirror, and instant hot water.',
+          photo: pid === 2 ? azure201Bathroom : (pid === 3 ? azure201Bathroom : aptBathroomSpa),
+          specs: 'Walk-In Rain Shower • Designer Vanity',
+          amenities: ['Thermostatic Rain Shower', 'Instant Hot Water', 'Designer Toiletries', 'LED Vanity Mirror'],
+        },
+        {
+          id: 'sp-studio-kitchen',
+          name: 'Studio Kitchenette',
+          type: 'Kitchenette',
+          desc: 'Compact refreshment and meal-prep area with microwave, mini-refrigerator, electric kettle, and dinnerware.',
+          photo: pid === 2 ? azure201Kitchen : aptKitchenChef,
+          specs: 'Microwave • Mini-Fridge • Tea/Coffee Station',
+          amenities: ['Microwave Oven', 'Compact Refrigerator', 'Electric Kettle', 'Coffee & Tea Station'],
+        },
+      ],
+    };
+  }
+
+  // 2. 1-Bedroom Executive Suite
+  if (t.includes('deluxe') || t.includes('1-bedroom')) {
+    return {
+      structureType: '1-Bedroom Executive Suite',
+      badge: '🛋️ 1-Bedroom Executive Suite',
+      isMultiRoom: true,
+      summary: 'Features an independent living salon separated by architectural doors from the private master king bedroom suite, plus an executive kitchenette and spa bathroom.',
+      spaces: [
+        {
+          id: 'sp-1bed-salon',
+          name: 'Independent Living Salon',
+          type: 'Living Salon',
+          desc: 'Private salon lounge separated from the bedroom, equipped with a designer sofa, 55" Smart TV, and coffee table.',
+          photo: pid === 2 ? azure201Living : (pid === 3 ? royal301Living : aptLivingLuxury),
+          specs: 'Executive Lounge • 55" 4K Smart TV • Inverter AC',
+          amenities: ['Designer Sectional', '55" 4K TV with Netflix', 'Inverter Climate Control', 'Ambient Lighting'],
+        },
+        {
+          id: 'sp-1bed-master',
+          name: 'Master King Bedroom Suite',
+          type: 'Enclosed Bedroom',
+          desc: 'Enclosed master bedroom with plush king mattress, automated blackout drapes, and bedside lighting.',
+          photo: pid === 2 ? azure201Master : (pid === 3 ? royal301Bedroom : ghDeluxeBedroom),
+          specs: 'King Bed • Walk-In Wardrobe • Acoustic Insulation',
+          amenities: ['Orthopaedic King Bed', '600-Thread Linens', 'Acoustic Soundproofing', 'Automated Blackout Curtains'],
+        },
+        {
+          id: 'sp-1bed-kitchen',
+          name: 'Fitted Kitchenette & Dining Nook',
+          type: 'Kitchenette',
+          desc: 'Modern kitchen counter with induction hobs, microwave, refrigerator, and 2-guest breakfast bar.',
+          photo: pid === 2 ? azure201Kitchen : aptKitchenChef,
+          specs: 'Induction Hob • Microwave • Breakfast Bar',
+          amenities: ['Induction Cooktop', 'Microwave', 'Refrigerator', 'Dining Barstools'],
+        },
+        {
+          id: 'sp-1bed-bath',
+          name: 'Spa Ensuite Bathroom',
+          type: 'Ensuite Bathroom',
+          desc: 'Imported porcelain ensuite with frameless rainfall shower, illuminated mirror, and organic bath essentials.',
+          photo: pid === 2 ? azure201Bathroom : (pid === 3 ? azure201Bathroom : aptBathroomSpa),
+          specs: 'Rain Shower • Soaking Hot Water',
+          amenities: ['Rainfall Shower Enclosure', 'Instant Pressurized Hot Water', 'Hairdryer & Bathrobes'],
+        },
+      ],
+    };
+  }
+
+  // 3. Multi-Room Serviced Apartment (2-Bedroom / 3-Bedroom / Luxury Suite)
+  if (t.includes('2-bedroom') || t.includes('3-bedroom') || t.includes('waterfront') || t.includes('luxury') || t.includes('executive')) {
+    return {
+      structureType: 'Multi-Room Serviced Apartment',
+      badge: '🏢 Multi-Room Serviced Apartment',
+      isMultiRoom: true,
+      summary: 'A complete residential home layout featuring separate reception salon, formal dining room, multiple master and guest bedroom suites, full chef kitchen, and private balconies.',
+      spaces: [
+        {
+          id: 'sp-multi-salon',
+          name: 'Grand Living Salon & Dining Area',
+          type: 'Living & Dining Room',
+          desc: 'Expansive family and executive salon with large plush seating, 65" 4K Smart TV, and formal dining table seating 6.',
+          photo: pid === 2 ? azure201Living : (pid === 3 ? royal301Living : aptLivingLuxury),
+          specs: 'Italian Marble • Formal Dining for 6 • 65" 4K TV',
+          amenities: ['Plush Velvet Sectional', '6-Guest Dining Suite', 'Bang & Olufsen Soundbar', 'Wine Storage'],
+        },
+        {
+          id: 'sp-multi-master',
+          name: 'Primary Master Bedroom Suite',
+          type: 'Master Bedroom (Ensuite)',
+          desc: 'Palatial master bedroom with orthopaedic king mattress, custom dressing area, and private ensuite travertine bath.',
+          photo: pid === 2 ? azure201Master : (pid === 3 ? royal301Bedroom : aptBedroomMaster),
+          specs: 'King Bed • Ensuite Bath • Garden/Skyline Views',
+          amenities: ['King Bed with Egyptian Cotton', 'Dedicated Dressing Wardrobe', 'Acoustic Soundproofing', 'Private Ensuite'],
+        },
+        {
+          id: 'sp-multi-second',
+          name: 'Second Bedroom Suite',
+          type: 'Secondary Bedroom',
+          desc: 'Full-sized second bedroom with orthopaedic bed, reading lamps, and built-in wardrobes.',
+          photo: pid === 2 ? azure201Master : (pid === 3 ? royal301Bedroom : ghDeluxeBedroom),
+          specs: 'Queen/King Bed • Separate AC Zone',
+          amenities: ['Orthopaedic Mattress', 'Double Wardrobe', 'Bedside USB Sockets', 'Independent AC'],
+        },
+        {
+          id: 'sp-multi-kitchen',
+          name: 'Full Gourmet Chef Kitchen',
+          type: 'Gourmet Kitchen',
+          desc: 'Spacious fitted kitchen with quartz/granite countertops, induction cooktop, double-door refrigerator, and cookware.',
+          photo: pid === 2 ? azure201Kitchen : aptKitchenChef,
+          specs: 'Double-Door Fridge • Oven & Microwave • Induction Island',
+          amenities: ['Induction Island', 'Double-Door Refrigerator', 'Oven & Microwave', 'Complete Cookware & Stemware'],
+        },
+        {
+          id: 'sp-multi-baths',
+          name: 'Spa Ensuites & Guest Powder Room',
+          type: 'Multiple Bathrooms (2+ Baths)',
+          desc: 'Multiple luxury bathrooms featuring deep soaking bathtubs and frameless glass rainfall showers.',
+          photo: pid === 2 ? azure201Bathroom : (pid === 3 ? azure201Bathroom : aptBathroomSpa),
+          specs: 'Deep Soaking Tub • Twin Vanities • Instant Hot Water',
+          amenities: ['Deep Soaking Tub', 'Glass Rain Shower', 'Twin Vanity', 'Organic Bath Amenities'],
+        },
+        {
+          id: 'sp-multi-balcony',
+          name: 'Private Verandah / Scenic Balcony',
+          type: 'Outdoor Balcony',
+          desc: 'Covered outdoor balcony with comfortable outdoor seating overlooking the estate grounds or pool pavilion.',
+          photo: pid === 2 ? azureBayPool : (pid === 3 ? royalPalmsCourtyard : aptTerraceWater),
+          specs: 'Private Outdoor Terrace • Scenic Views',
+          amenities: ['Outdoor Armchairs', 'Estate & Garden Views', 'Evening Ambient Lighting'],
+        },
+      ],
+    };
+  }
+
+  // 4. Presidential Penthouse Apartment
+  return {
+    structureType: 'Presidential Penthouse Apartment',
+    badge: '👑 Presidential Penthouse Apartment',
+    isMultiRoom: true,
+    summary: 'The ultimate serviced penthouse experience with double-height salon, multiple presidential master suites, bespoke chef kitchen, and private panoramic skyline terrace.',
+    spaces: [
+      {
+        id: 'sp-ph-salon',
+        name: 'Double-Height Presidential Salon',
+        type: 'Grand Salon Lounge',
+        desc: 'Stately reception salon with double-height ceiling, bespoke custom sofas, chandelier lighting, and 85" 4K theater system.',
+        photo: pid === 3 ? royal301Living : aptLivingLuxury,
+        specs: 'Double-Height Ceilings • Chandelier • 85" 4K OLED',
+        amenities: ['85" 4K OLED Theater', 'Chesterfield Seating', 'Chandelier Lighting', 'Reception Wet Bar'],
+      },
+      {
+        id: 'sp-ph-master',
+        name: 'Emperor Master Bedroom Suite',
+        type: 'Emperor Master Bedroom',
+        desc: 'Handcrafted emperor mattress with luxury Egyptian cotton, walk-in dressing salon, and automated blackout curtains.',
+        photo: pid === 3 ? royal301Bedroom : aptBedroomMaster,
+        specs: 'Emperor Bed • Walk-in Dressing Salon',
+        amenities: ['Handcrafted Emperor Bed', 'Walk-in Dressing Salon', 'Automated Blackout Curtains', 'Butler Service Station'],
+      },
+      {
+        id: 'sp-ph-bath',
+        name: 'Italian Travertine Spa Ensuite',
+        type: 'Spa Ensuite Bathroom',
+        desc: 'Freestanding soaking tub overlooking panoramic vistas, twin vanities, and multi-jet thermostatic rain shower.',
+        photo: pid === 2 ? azure201Bathroom : aptBathroomSpa,
+        specs: 'Freestanding Soaking Tub • Twin Vanities',
+        amenities: ['Freestanding Bath', 'Multi-Jet Rain Shower', 'Heated Towel Warmers', 'Complimentary Bottega Veneta Toiletries'],
+      },
+      {
+        id: 'sp-ph-kitchen',
+        name: 'Executive Chef Kitchen',
+        type: 'Chef Kitchen',
+        desc: 'Fully appointed culinary kitchen with wine chiller, induction hobs, double ovens, and private chef preparation area.',
+        photo: pid === 2 ? azure201Kitchen : aptKitchenChef,
+        specs: 'Wine Chiller • Chef Induction Island',
+        amenities: ['Wine Chiller', 'Induction Island', 'Double Oven', 'Espresso Machine'],
+      },
+      {
+        id: 'sp-ph-terrace',
+        name: 'Private Skyline Sun Terrace',
+        type: 'Panoramic Sky Terrace',
+        desc: 'Expansive private open-air terrace with lounge chaises and panoramic sunset views across the hills of Ondo State.',
+        photo: pid === 3 ? royalPalmsExterior : aptPenthouseView,
+        specs: 'Panoramic 360° Hillside Views • Sun Deck',
+        amenities: ['Outdoor Sun Deck', 'Lounge Chaises', 'Sunset Panorama', 'Private Open-Air Dining'],
+      },
+    ],
+  };
 }
 
 export default function ApartmentDetailModal({
@@ -526,6 +776,87 @@ export default function ApartmentDetailModal({
         status: u.status,
       }))
     : (property.units || baseProperty.units);
+
+  const internalSpaces = getApartmentInternalSpaces(
+    roomTypeData ? roomTypeData.unitType : (property.units?.[0]?.unitType || 'Apartment'),
+    property.id
+  );
+
+  const buildingOutdoor = (() => {
+    const pid = Number(property.id || 1);
+    if (pid === 2) {
+      return {
+        ext: azureBayExterior,
+        extTag: 'GATED VILLA FACADE',
+        extTitle: 'Contemporary Gated Tropical Villa',
+        extDesc: 'Quiet residential estate entrance with paved perimeter driveway, guarded security checkpoint, and tropical landscaping in Ijapo Estate.',
+        grounds: azureBayPool,
+        groundsTag: 'RESIDENT POOL & CABANAS',
+        groundsTitle: 'Resident Courtyard Swimming Pool & Cabanas',
+        groundsDesc: 'Sparkling freshwater pool flanked by royal tropical palms, teakwood loungers, and sheltered garden pavilion.',
+      };
+    }
+    if (pid === 3) {
+      return {
+        ext: royalPalmsExterior,
+        extTag: 'NEOCLASSICAL FACADE',
+        extTitle: 'Neoclassical Architecture & Grand Portico',
+        extDesc: 'Stately classical-modern serviced mansion with tall white columns along Presidential Boulevard, Oba-Ile.',
+        grounds: royalPalmsCourtyard,
+        groundsTag: 'STATELY GROUNDS & PALMS',
+        groundsTitle: 'Grand Fountain Courtyard & Mature Royal Palms',
+        groundsDesc: 'Circular paved entrance driveway with central water fountain, mature royal palm trees, and gated security checkpoint.',
+      };
+    }
+    return {
+      ext: heroArchitecture,
+      extTag: 'ARCHITECTURAL FACADE',
+      extTitle: 'Contemporary High-Rise Structure',
+      extDesc: 'Acoustic soundproof double-glazing, automated porte-cochère, and guarded reception entry along Alagbaka GRA.',
+      grounds: aptTerraceWater,
+      groundsTag: 'GROUNDS & RECREATION',
+      groundsTitle: 'Resident Infinity Swimming Pool & Terrace',
+      groundsDesc: 'Open-air pool deck, shaded cabanas, manicured tropical gardens, and outdoor relaxation areas.',
+    };
+  })();
+
+  const buildingIndoor = (() => {
+    const pid = Number(property.id || 1);
+    if (pid === 2) {
+      return {
+        lounge: azure201Living,
+        loungeTitle: 'Garden View Living Lounge',
+        bed: azure201Master,
+        bedTitle: 'Serene Master King Suite',
+        kitchen: azure201Kitchen,
+        kitchenTitle: 'Modern Quartz Kitchen & Breakfast Bar',
+        bath: azure201Bathroom,
+        bathTitle: 'Walk-In Glass Rain Shower',
+      };
+    }
+    if (pid === 3) {
+      return {
+        lounge: royal301Living,
+        loungeTitle: 'Presidential Double-Height Salon',
+        bed: royal301Bedroom,
+        bedTitle: 'Executive Master Bedroom Suite',
+        kitchen: aptKitchenChef,
+        kitchenTitle: 'Executive Chef Kitchen',
+        bath: azure201Bathroom,
+        bathTitle: 'Polished Ensuite Rain Shower',
+      };
+    }
+    return {
+      lounge: aptLivingLuxury,
+      loungeTitle: 'Executive Living Lounge',
+      bed: ghDeluxeBedroom,
+      bedTitle: 'Master King Suite',
+      kitchen: aptKitchenChef,
+      kitchenTitle: "Chef's Gourmet Kitchen",
+      bath: aptBathroomSpa,
+      bathTitle: 'Luxury Spa Ensuite',
+    };
+  })();
 
   const displayTitle = roomTypeData
     ? `${property.name} — ${roomTypeData.unitType}`
@@ -634,6 +965,14 @@ export default function ApartmentDetailModal({
         <div className="bfa-apt-modal-tabs">
           <button
             type="button"
+            className={`bfa-apt-tab-btn ${activeTab === 'spaces' ? 'active' : ''}`}
+            onClick={() => setActiveTab('spaces')}
+          >
+            <Icons8Icon name="sofa" variant={activeTab === 'spaces' ? 'blue' : 'white'} size={18} />
+            <span>Internal Rooms & Spaces ({internalSpaces.spaces.length})</span>
+          </button>
+          <button
+            type="button"
             className={`bfa-apt-tab-btn ${activeTab === 'gallery' ? 'active' : ''}`}
             onClick={() => setActiveTab('gallery')}
           >
@@ -653,8 +992,8 @@ export default function ApartmentDetailModal({
             className={`bfa-apt-tab-btn ${activeTab === 'indoor' ? 'active' : ''}`}
             onClick={() => setActiveTab('indoor')}
           >
-            <Icons8Icon name="sofa" variant={activeTab === 'indoor' ? 'blue' : 'white'} size={18} />
-            <span>Indoor Living & Luxuries</span>
+            <Icons8Icon name="lightning" variant={activeTab === 'indoor' ? 'blue' : 'white'} size={18} />
+            <span>Building Luxuries & Amenities</span>
           </button>
           <button
             type="button"
@@ -668,6 +1007,55 @@ export default function ApartmentDetailModal({
 
         {/* Modal Body Scroll Container */}
         <div className="bfa-apt-modal-body">
+          {/* TAB 0: INTERNAL ROOMS & SPACES BREAKDOWN */}
+          {activeTab === 'spaces' && (
+            <div className="bfa-apt-tab-pane spaces-pane">
+              <div className="bfa-structure-type-banner">
+                <span className="bfa-structure-type-badge">{internalSpaces.badge}</span>
+                <h3 className="bfa-structure-type-title">
+                  {internalSpaces.structureType} — {roomTypeData ? roomTypeData.unitType : property.name}
+                </h3>
+                <p className="bfa-structure-type-summary">{internalSpaces.summary}</p>
+                <div className="bfa-viewer-disclaimer-tag" style={{ marginTop: '0.65rem' }} role="note">
+                  <Icons8Icon name="info" variant="white" size={13} />
+                  <span>Representative demonstration images — actual room appearance and layout may vary.</span>
+                </div>
+              </div>
+
+              {/* Grid of Itemized Internal Spaces */}
+              <div className="bfa-spaces-matrix-grid">
+                {internalSpaces.spaces.map((sp) => (
+                  <div key={sp.id} className="bfa-space-card">
+                    <div
+                      className="bfa-space-card-visual"
+                      style={{ backgroundImage: `url(${sp.photo})` }}
+                    >
+                      <div className="bfa-space-card-overlay" />
+                      <span className="bfa-space-card-badge">{sp.type}</span>
+                    </div>
+
+                    <div className="bfa-space-card-body">
+                      <h4 className="bfa-space-card-title">{sp.name}</h4>
+                      <div className="bfa-space-specs-chip">
+                        <Icons8Icon name="view-eye" variant="blue" size={13} />
+                        <span>{sp.specs}</span>
+                      </div>
+                      <p className="bfa-space-card-desc">{sp.desc}</p>
+
+                      <div className="bfa-space-amenities-wrap">
+                        {sp.amenities.map((am, i) => (
+                          <span key={i} className="bfa-space-amenity-pill">
+                            ✓ {am}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: INTERACTIVE PHOTO GALLERY */}
           {activeTab === 'gallery' && (
             <div className="bfa-apt-tab-pane gallery-pane">
@@ -809,23 +1197,23 @@ export default function ApartmentDetailModal({
               <div className="bfa-outdoor-visual-grid">
                 <div
                   className="bfa-outdoor-photo-card"
-                  style={{ backgroundImage: `url(${heroArchitecture})` }}
+                  style={{ backgroundImage: `url(${buildingOutdoor.ext})` }}
                 >
                   <div className="bfa-photo-card-overlay">
-                    <span className="bfa-card-tag">ARCHITECTURAL FACADE</span>
-                    <h4>Contemporary High-Rise Structure</h4>
-                    <p>Acoustic soundproof double-glazing, automated porte-cochère, and guarded reception entry.</p>
+                    <span className="bfa-card-tag">{buildingOutdoor.extTag}</span>
+                    <h4>{buildingOutdoor.extTitle}</h4>
+                    <p>{buildingOutdoor.extDesc}</p>
                   </div>
                 </div>
 
                 <div
                   className="bfa-outdoor-photo-card"
-                  style={{ backgroundImage: `url(${aptTerraceWater})` }}
+                  style={{ backgroundImage: `url(${buildingOutdoor.grounds})` }}
                 >
                   <div className="bfa-photo-card-overlay">
-                    <span className="bfa-card-tag">GROUNDS & RECREATION</span>
-                    <h4>Resident Swimming Pool & Terrace</h4>
-                    <p>Open-air pool deck, shaded cabanas, manicured gardens, and outdoor relaxation areas.</p>
+                    <span className="bfa-card-tag">{buildingOutdoor.groundsTag}</span>
+                    <h4>{buildingOutdoor.groundsTitle}</h4>
+                    <p>{buildingOutdoor.groundsDesc}</p>
                   </div>
                 </div>
               </div>
@@ -868,41 +1256,41 @@ export default function ApartmentDetailModal({
               <div className="bfa-indoor-visual-grid">
                 <div
                   className="bfa-indoor-photo-box"
-                  style={{ backgroundImage: `url(${aptLivingLuxury})` }}
+                  style={{ backgroundImage: `url(${buildingIndoor.lounge})` }}
                 >
                   <div className="bfa-photo-box-caption">
                     <span className="box-badge">LOUNGE</span>
-                    <strong>Executive Living Lounge</strong>
+                    <strong>{buildingIndoor.loungeTitle}</strong>
                   </div>
                 </div>
 
                 <div
                   className="bfa-indoor-photo-box"
-                  style={{ backgroundImage: `url(${aptBedroomMaster})` }}
+                  style={{ backgroundImage: `url(${buildingIndoor.bed})` }}
                 >
                   <div className="bfa-photo-box-caption">
                     <span className="box-badge">BEDROOM</span>
-                    <strong>Master King Suite</strong>
+                    <strong>{buildingIndoor.bedTitle}</strong>
                   </div>
                 </div>
 
                 <div
                   className="bfa-indoor-photo-box"
-                  style={{ backgroundImage: `url(${aptKitchenChef})` }}
+                  style={{ backgroundImage: `url(${buildingIndoor.kitchen})` }}
                 >
                   <div className="bfa-photo-box-caption">
                     <span className="box-badge">KITCHEN</span>
-                    <strong>Chef's Gourmet Kitchen</strong>
+                    <strong>{buildingIndoor.kitchenTitle}</strong>
                   </div>
                 </div>
 
                 <div
                   className="bfa-indoor-photo-box"
-                  style={{ backgroundImage: `url(${aptBathroomSpa})` }}
+                  style={{ backgroundImage: `url(${buildingIndoor.bath})` }}
                 >
                   <div className="bfa-photo-box-caption">
                     <span className="box-badge">BATHROOM</span>
-                    <strong>Luxury Spa Ensuite</strong>
+                    <strong>{buildingIndoor.bathTitle}</strong>
                   </div>
                 </div>
               </div>

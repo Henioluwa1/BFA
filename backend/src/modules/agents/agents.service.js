@@ -9,10 +9,35 @@ class AgentsService {
    * List agents with filtering and scoping
    */
   static async listAgents(query, req = null) {
-    return AgentsRepository.findAll({
+    const result = await AgentsRepository.findAll({
       ...query,
       user: req?.user,
     });
+
+    const callerRole = (req?.user?.role || '').toUpperCase();
+    const isPrivileged = ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER'].includes(callerRole);
+
+    // Sanitize banking information for non-privileged viewers
+    if (!isPrivileged) {
+      result.agents = result.agents.map((agent) => {
+        const isSelf = callerRole === 'AGENT' && req?.user?.agentId === agent.id;
+        if (!isSelf) {
+          return {
+            ...agent,
+            bank_name: null,
+            account_number: null,
+            account_name: null,
+            commission_rate: null,
+            total_commission_earned: null,
+            pending_commission: null,
+            paid_commission: null,
+          };
+        }
+        return agent;
+      });
+    }
+
+    return result;
   }
 
   /**

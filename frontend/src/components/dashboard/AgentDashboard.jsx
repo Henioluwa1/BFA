@@ -8,12 +8,84 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { formatNaira } from '../../utils/currency';
 
+function NoAgentProfileGuard({ user }) {
+  return (
+    <div
+      style={{
+        minHeight: '65vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem',
+      }}
+    >
+      <div
+        style={{
+          maxWidth: '480px',
+          width: '100%',
+          background: 'var(--bg-card)',
+          border: '1.5px solid #fed7aa',
+          borderLeft: '5px solid #ea580c',
+          borderRadius: '0.75rem',
+          padding: '2.5rem 2rem',
+          textAlign: 'center',
+          boxShadow: '0 4px 24px rgba(234, 88, 12, 0.08)',
+        }}
+      >
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🤝</div>
+        <h2
+          style={{
+            fontSize: '1.25rem',
+            fontWeight: 700,
+            color: '#c2410c',
+            marginBottom: '0.5rem',
+          }}
+        >
+          No Agent Profile Linked
+        </h2>
+        <p
+          style={{
+            fontSize: '0.9375rem',
+            color: 'var(--text-muted)',
+            lineHeight: 1.6,
+            marginBottom: '1.5rem',
+          }}
+        >
+          Your account (<strong>{user?.email}</strong>) is not linked to an authorized BFA agent profile.
+          By system policy, agent dashboards are strictly isolated to authenticated broker profiles with an active agent ID.
+        </p>
+
+        <div
+          style={{
+            background: '#fff7ed',
+            border: '1px solid #ffedd5',
+            borderRadius: '0.5rem',
+            padding: '0.85rem 1rem',
+            marginBottom: '1.5rem',
+            fontSize: '0.85rem',
+            color: '#9a3412',
+            textAlign: 'left',
+          }}
+        >
+          <strong>To resolve this:</strong>
+          <ul style={{ marginTop: '0.4rem', paddingLeft: '1.25rem', lineHeight: 1.8 }}>
+            <li>Contact an operations administrator</li>
+            <li>Request linkage of your login to your approved agent registration</li>
+            <li>Refresh this page after profile linkage is complete</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AgentDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addToast } = useToast();
 
   const [loading, setLoading] = useState(true);
+  const [unlinked, setUnlinked] = useState(false);
   const [agentData, setAgentData] = useState({
     name: user?.name || 'Agent Partner',
     agency_name: '',
@@ -35,18 +107,38 @@ export default function AgentDashboard() {
         reservationService.getAll().catch(() => ({ data: [] })),
       ]);
 
-      const myAgentRecord = Array.isArray(agentRes.data)
-        ? agentRes.data[0] || {}
-        : agentRes.data || {};
+      const agentsList = Array.isArray(agentRes.data)
+        ? agentRes.data
+        : agentRes.data ? [agentRes.data] : [];
+
+      // STRICT AGENT ID ISOLATION:
+      // Never fall back to agentsList[0] if user is unlinked!
+      const userAgentId = user?.agent_id || user?.agentId;
+      const myAgentRecord = agentsList.find(
+        (a) => (userAgentId && a.id === userAgentId) || (a.user_id && a.user_id === user?.id) || (a.email && a.email === user?.email)
+      );
+
+      if (!myAgentRecord && !userAgentId) {
+        setUnlinked(true);
+        setLoading(false);
+        return;
+      }
+
+      setUnlinked(false);
+      const activeRecord = myAgentRecord || {};
+      const resolvedAgentId = activeRecord.id || userAgentId;
 
       setAgentData((prev) => ({
         ...prev,
-        ...myAgentRecord,
+        ...activeRecord,
       }));
 
-      // Agent is automatically scoped on backend, or filter by user.agentId
+      // Filter reservations strictly to this agent's ID
       const allReservations = Array.isArray(resRes.data) ? resRes.data : [];
-      setClientReservations(allReservations);
+      const scopedReservations = allReservations.filter(
+        (r) => resolvedAgentId && (r.agent_id === resolvedAgentId || r.agentId === resolvedAgentId)
+      );
+      setClientReservations(scopedReservations);
     } catch (err) {
       addToast(`Error loading agent portal metrics: ${err.message}`, 'error');
     } finally {
@@ -56,7 +148,11 @@ export default function AgentDashboard() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
+
+  if (unlinked) {
+    return <NoAgentProfileGuard user={user} />;
+  }
 
   return (
     <div>
@@ -91,6 +187,7 @@ export default function AgentDashboard() {
         style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border-default)',
+          borderLeft: '4px solid #ea580c',
           borderRadius: 'var(--radius-lg)',
           padding: '1.25rem',
           marginBottom: '1.5rem',
@@ -108,19 +205,19 @@ export default function AgentDashboard() {
               width: '46px',
               height: '46px',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(147, 51, 234, 0.12)',
-              border: '1px solid rgba(147, 51, 234, 0.3)',
+              background: 'rgba(234, 88, 12, 0.12)',
+              border: '1px solid rgba(234, 88, 12, 0.3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '1.3rem',
-              color: '#9333ea',
+              color: '#ea580c',
             }}
           >
             🤝
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--brand-accent)', fontWeight: 700 }}>
+            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#ea580c', fontWeight: 700 }}>
               Registered Broker Partner
             </div>
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
@@ -135,9 +232,6 @@ export default function AgentDashboard() {
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <Button variant="outline" size="sm" onClick={() => navigate('/app/calendar')}>
             Check Availability Calendar →
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => navigate('/app/agents')}>
-            View Commission Ledger →
           </Button>
         </div>
       </div>
@@ -156,6 +250,7 @@ export default function AgentDashboard() {
           style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
+            borderLeft: '4px solid #ea580c',
             borderRadius: 'var(--radius-lg)',
             padding: '1.25rem',
             boxShadow: 'var(--shadow-sm)',
@@ -167,7 +262,7 @@ export default function AgentDashboard() {
             </span>
             <span style={{ fontSize: '1.25rem' }}>📑</span>
           </div>
-          <div style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--brand-accent)', marginBottom: '0.25rem' }}>
+          <div style={{ fontSize: '2.25rem', fontWeight: 800, color: '#ea580c', marginBottom: '0.25rem' }}>
             {loading ? '—' : agentData.total_reservations || clientReservations.length}
           </div>
           <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
@@ -180,6 +275,7 @@ export default function AgentDashboard() {
           style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
+            borderLeft: '4px solid #10b981',
             borderRadius: 'var(--radius-lg)',
             padding: '1.25rem',
             boxShadow: 'var(--shadow-sm)',
@@ -204,6 +300,7 @@ export default function AgentDashboard() {
           style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
+            borderLeft: '4px solid #3b82f6',
             borderRadius: 'var(--radius-lg)',
             padding: '1.25rem',
             boxShadow: 'var(--shadow-sm)',
@@ -228,6 +325,7 @@ export default function AgentDashboard() {
           style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
+            borderLeft: '4px solid #10b981',
             borderRadius: 'var(--radius-lg)',
             padding: '1.25rem',
             boxShadow: 'var(--shadow-sm)',
@@ -252,6 +350,7 @@ export default function AgentDashboard() {
           style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
+            borderLeft: '4px solid #f59e0b',
             borderRadius: 'var(--radius-lg)',
             padding: '1.25rem',
             boxShadow: 'var(--shadow-sm)',
@@ -289,7 +388,7 @@ export default function AgentDashboard() {
           <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading client records...</div>
         ) : clientReservations.length === 0 ? (
           <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            No client reservations booked yet. Use the "+ Book for Client" button to create your first reservation!
+            No client reservations booked under your account yet. Use the "+ Book for Client" button to create your first reservation!
           </div>
         ) : (
           <div className="table-responsive">

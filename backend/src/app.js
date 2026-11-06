@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const { helmetMiddleware, corsMiddleware, apiLimiter } = require('./core/security/security');
 const requestLogger = require('./core/middleware/requestLogger');
 const { authContext } = require('./core/middleware/authContext');
@@ -36,6 +37,7 @@ const employeesRoutes = require('./modules/employees/employees.routes');
 const usersRoutes = require('./modules/users/users.routes');
 const automationRoutes = require('./modules/automation/automation.routes');
 const chatRoutes = require('./modules/chat/chat.routes');
+const workforceRoutes = require('./modules/workforce/workforce.routes');
 
 const app = express();
 
@@ -45,9 +47,12 @@ app.set('trust proxy', 1);
 app.use(helmetMiddleware);
 app.use(corsMiddleware);
 
-// Request body parsers
+// Request body parsers (supports image base64 payloads up to 10MB)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Static file serving for uploads (property photos, employee pictures, payment receipts)
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 // Request tracing & logging
 app.use(requestLogger);
@@ -93,6 +98,7 @@ apiV1Router.use('/employees', employeesRoutes);
 apiV1Router.use('/users', usersRoutes);
 apiV1Router.use('/automation', automationRoutes);
 apiV1Router.use('/chat', chatRoutes);
+apiV1Router.use('/workforce', workforceRoutes);
 
 app.use('/api/v1', apiV1Router);
 
