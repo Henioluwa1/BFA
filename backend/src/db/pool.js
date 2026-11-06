@@ -2,6 +2,7 @@ const mysql = require('mysql2/promise');
 const config = require('../config');
 const logger = require('../utils/logger');
 const { assertTestDatabase } = require('./databaseGuard');
+const { getTlsOptions } = require('./tlsOptions');
 
 let pool = null;
 
@@ -16,6 +17,7 @@ function getPool() {
     }
 
     pool = mysql.createPool({
+      ...getTlsOptions(config.db.tls),
       host: config.db.host,
       port: config.db.port,
       user: config.db.user,

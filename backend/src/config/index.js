@@ -47,6 +47,11 @@ const config = {
     queueLimit: parseInt(process.env.DB_QUEUE_LIMIT, 10) || 0,
     idleTimeout: parseInt(process.env.DB_IDLE_TIMEOUT, 10) || 60000,
     connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT, 10) || 10000,
+    tls: {
+      enabled: ['true', '1'].includes((process.env.DB_TLS || '').trim().toLowerCase()),
+      ca: process.env.DB_TLS_CA || '',
+      caPath: process.env.DB_TLS_CA_PATH || '',
+    },
     timezone: '+00:00',
     autoMigrate: resolvedAutoMigrate,
     strictSchemaCheck: resolvedStrictSchema,

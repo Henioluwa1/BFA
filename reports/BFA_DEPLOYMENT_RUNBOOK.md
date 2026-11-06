@@ -44,6 +44,9 @@ Create a production `.env` file in the project root on the target server.
 | `DB_NAME` | Production database schema name | Yes | `bfa_apartments_db` |
 | `DB_USER` | Application database user | Yes | `bfa_prod_user` |
 | `DB_PASSWORD` | Application database password | Yes | High-entropy password |
+| `DB_TLS` | Enable verified database TLS | No | Set to `true` for TiDB Cloud; defaults to `false` for local XAMPP |
+| `DB_TLS_CA` | CA certificate PEM content | Conditional | Use this or `DB_TLS_CA_PATH` when `DB_TLS=true` |
+| `DB_TLS_CA_PATH` | Path to CA certificate PEM file | Conditional | Use this or `DB_TLS_CA` when `DB_TLS=true` |
 | `DB_ROOT_PASSWORD` | MariaDB root administrative password | Yes | High-entropy password |
 | `DB_CONNECTION_LIMIT` | MySQL connection pool size | No | Default: `25` |
 | `JWT_SECRET` | Secret key for signing and verifying JWTs | Yes | **Minimum 32 characters**; random entropy |
@@ -73,6 +76,18 @@ Copy these generated values into the production `.env` file on the deployment ho
 ```bash
 chmod 600 .env
 ```
+
+### Render deployment with TiDB Cloud
+
+For the BFA backend service in Render:
+
+1. In the TiDB Cloud connection dialog, select the Node.js/MySQL connection details and copy the endpoint hostname, port, database name, username, and password for the intended cluster. Use those values for `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in Render's **Environment** page. TiDB Cloud Serverless commonly uses port `4000`; use the port shown for your cluster.
+2. Set `NODE_ENV=production` and `DB_TLS=true`.
+3. Download/export the cluster's CA certificate from TiDB Cloud's connection instructions. In the Render service's **Environment → Secret Files**, add a file named `tidb-ca.pem` and paste the complete PEM certificate, including its BEGIN/END lines.
+4. Set `DB_TLS_CA_PATH=/etc/secrets/tidb-ca.pem` in the service environment. Leave `DB_TLS_CA` unset. Render mounts Secret Files at `/etc/secrets/<filename>`; make sure the backend service can read the file.
+5. Save the environment changes and deploy. TLS requires a readable CA; BFA fails with a configuration error if it is missing or unreadable. Certificate verification remains enabled.
+
+Do not paste the CA into source control or into a committed `.env` file. For local XAMPP, leave `DB_TLS=false` (or unset it) and omit both CA variables.
 
 ---
 

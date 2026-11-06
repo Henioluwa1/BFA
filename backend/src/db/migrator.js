@@ -4,6 +4,7 @@ const mysql = require('mysql2/promise');
 const config = require('../config');
 const logger = require('../utils/logger');
 const { assertTestDatabase, assertProductionMigrationAuthorized } = require('./databaseGuard');
+const { getTlsOptions } = require('./tlsOptions');
 
 /**
  * Migration Engine for BFA Apartments Management System
@@ -75,6 +76,7 @@ async function checkMigrationStatus(targetDbOrOptions = null) {
     .sort();
 
   const connection = await mysql.createConnection({
+    ...getTlsOptions(config.db.tls),
     host: config.db.host,
     port: config.db.port,
     user: config.db.user,
@@ -144,6 +146,7 @@ async function runMigrations(targetDbOrOptions = null, maybeOptions = {}) {
   logger.info(`Starting migration execution in: ${migrationsDir} (Target DB: ${targetDatabase})`);
 
   const connection = await mysql.createConnection({
+    ...getTlsOptions(config.db.tls),
     host: config.db.host,
     port: config.db.port,
     user: config.db.user,
