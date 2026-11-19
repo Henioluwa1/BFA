@@ -413,7 +413,7 @@ class PrivateStorageService {
    */
   static async getRetentionDays() {
     const rows = await pool.query(
-      'SELECT setting_value FROM system_settings WHERE setting_key = "maintenance_evidence_retention_days" LIMIT 1'
+      "SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_evidence_retention_days' LIMIT 1"
     );
     if (rows && rows.length > 0 && !isNaN(parseInt(rows[0].setting_value, 10))) {
       return parseInt(rows[0].setting_value, 10);

@@ -250,19 +250,15 @@ CREATE TABLE IF NOT EXISTS `payment_receipts` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 10. Decoupled Housekeeping & Maintenance from Occupancy
-SET @exist_hk_col := (SELECT COUNT(*) FROM information_schema.COLUMNS 
-                      WHERE TABLE_SCHEMA = DATABASE() 
-                        AND TABLE_NAME = 'apartments' 
-                        AND COLUMN_NAME = 'housekeeping_status');
+-- Keep each object independently retryable. TiDB validates each ALTER against
+-- the table schema at the start of that statement, so dependent columns and
+-- the index must be added only after their referenced columns exist.
+ALTER TABLE `apartments`
+  ADD COLUMN IF NOT EXISTS `housekeeping_status` ENUM('DIRTY', 'CLEANING_IN_PROGRESS', 'CLEANED', 'INSPECTED_READY') NOT NULL DEFAULT 'INSPECTED_READY' AFTER `status`;
 
-SET @add_readiness_sql := IF(@exist_hk_col = 0, 
-  'ALTER TABLE `apartments`
-     ADD COLUMN `housekeeping_status` ENUM(\'DIRTY\', \'CLEANING_IN_PROGRESS\', \'CLEANED\', \'INSPECTED_READY\') NOT NULL DEFAULT \'INSPECTED_READY\' AFTER `status`,
-     ADD COLUMN `maintenance_status` ENUM(\'OPERATIONAL\', \'INSPECTION_REQUIRED\', \'UNDER_REPAIR\', \'OUT_OF_ORDER\') NOT NULL DEFAULT \'OPERATIONAL\' AFTER `housekeeping_status`,
-     ADD INDEX `idx_apt_readiness` (`property_id`, `housekeeping_status`, `maintenance_status`, `status`)',
-  'SELECT "housekeeping_status already exists on apartments"');
+ALTER TABLE `apartments`
+  ADD COLUMN IF NOT EXISTS `maintenance_status` ENUM('OPERATIONAL', 'INSPECTION_REQUIRED', 'UNDER_REPAIR', 'OUT_OF_ORDER') NOT NULL DEFAULT 'OPERATIONAL' AFTER `housekeeping_status`;
 
-PREPARE stmt_readiness FROM @add_readiness_sql;
-EXECUTE stmt_readiness;
-DEALLOCATE PREPARE stmt_readiness;
+ALTER TABLE `apartments`
+  ADD INDEX IF NOT EXISTS `idx_apt_readiness` (`property_id`, `housekeeping_status`, `maintenance_status`, `status`);
 

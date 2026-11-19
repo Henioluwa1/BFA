@@ -8,6 +8,25 @@ import { formatNaira } from '../../utils/currency';
 export default function ReceivablesTab({ data, loading, onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [agingFilter, setAgingFilter] = useState('ALL');
+  const summary = data?.summary || { totalBilled: 0, totalCollected: 0, totalOutstanding: 0, debtorCount: 0 };
+  const receivables = Array.isArray(data?.receivables) ? data.receivables : [];
+  const filteredList = useMemo(() => {
+    return receivables.filter((r) => {
+      const matchSearch =
+        !searchTerm ||
+        r.reservationCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.tenantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.propertyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      let matchAging = true;
+      if (agingFilter === 'CURRENT') matchAging = r.daysOverdue === 0;
+      else if (agingFilter === 'OVERDUE_1_30') matchAging = r.daysOverdue >= 1 && r.daysOverdue <= 30;
+      else if (agingFilter === 'OVERDUE_30_PLUS') matchAging = r.daysOverdue > 30;
+
+      return matchSearch && matchAging;
+    });
+  }, [receivables, searchTerm, agingFilter]);
 
   if (loading) {
     return (
@@ -32,30 +51,6 @@ export default function ReceivablesTab({ data, loading, onRefresh }) {
       </Card>
     );
   }
-
-  const {
-    summary = { totalBilled: 0, totalCollected: 0, totalOutstanding: 0, debtorCount: 0 },
-    receivables = [],
-  } = data;
-
-  // Filtered by search and aging
-  const filteredList = useMemo(() => {
-    return receivables.filter((r) => {
-      const matchSearch =
-        !searchTerm ||
-        r.reservationCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.tenantName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.propertyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-
-      let matchAging = true;
-      if (agingFilter === 'CURRENT') matchAging = r.daysOverdue === 0;
-      else if (agingFilter === 'OVERDUE_1_30') matchAging = r.daysOverdue >= 1 && r.daysOverdue <= 30;
-      else if (agingFilter === 'OVERDUE_30_PLUS') matchAging = r.daysOverdue > 30;
-
-      return matchSearch && matchAging;
-    });
-  }, [receivables, searchTerm, agingFilter]);
 
   const handleExportCSV = () => {
     const headers = [

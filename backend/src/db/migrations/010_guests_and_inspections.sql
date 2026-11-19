@@ -29,10 +29,33 @@ CREATE TABLE IF NOT EXISTS guests (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. Link Reservations to Authoritative Guests Table
+-- TiDB validates ALTER clauses against the table's original schema, so add
+-- guest_id before creating objects that reference it.
 ALTER TABLE reservations
-  ADD COLUMN IF NOT EXISTS guest_id INT NULL AFTER tenant_phone,
-  ADD CONSTRAINT fk_reservations_guest FOREIGN KEY (guest_id) REFERENCES guests(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS guest_id INT NULL AFTER tenant_phone;
+
+ALTER TABLE reservations
   ADD INDEX IF NOT EXISTS idx_res_guest (guest_id);
+
+-- Foreign keys cannot use ADD CONSTRAINT IF NOT EXISTS. Follow the repository's
+-- information_schema + prepared DDL convention so this object can be retried
+-- independently after a partial migration run.
+SET @guest_fk_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.TABLE_CONSTRAINTS
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'reservations'
+    AND CONSTRAINT_NAME = 'fk_reservations_guest'
+    AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+SET @guest_fk_sql := IF(
+  @guest_fk_exists = 0,
+  'ALTER TABLE reservations ADD CONSTRAINT fk_reservations_guest FOREIGN KEY (guest_id) REFERENCES guests(id) ON DELETE SET NULL',
+  'SELECT 1'
+);
+PREPARE stmt_reservations_guest_fk FROM @guest_fk_sql;
+EXECUTE stmt_reservations_guest_fk;
+DEALLOCATE PREPARE stmt_reservations_guest_fk;
 
 -- 3. Create Inspections Table
 CREATE TABLE IF NOT EXISTS inspections (

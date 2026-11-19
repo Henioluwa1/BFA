@@ -2,18 +2,22 @@
 -- Description: Expand agents profile and commission parameters, and provision authoritative commissions ledger
 
 -- 1. Expand agents table
-ALTER TABLE agents
-  ADD COLUMN IF NOT EXISTS agency_name VARCHAR(150) NULL AFTER name,
-  ADD COLUMN IF NOT EXISTS commission_type ENUM('PERCENTAGE', 'FIXED') NOT NULL DEFAULT 'PERCENTAGE' AFTER commission_rate,
-  ADD COLUMN IF NOT EXISTS property_id INT NULL AFTER commission_type,
-  ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100) NULL AFTER property_id,
-  ADD COLUMN IF NOT EXISTS account_number VARCHAR(50) NULL AFTER bank_name,
-  ADD COLUMN IF NOT EXISTS account_name VARCHAR(150) NULL AFTER account_number,
-  ADD COLUMN IF NOT EXISTS notes TEXT NULL AFTER account_name,
-  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at,
-  ADD CONSTRAINT fk_agent_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE SET NULL,
-  ADD INDEX IF NOT EXISTS idx_agent_property (property_id),
-  ADD INDEX IF NOT EXISTS idx_agent_status (status);
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS agency_name VARCHAR(150) NULL AFTER name;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS commission_type ENUM('PERCENTAGE', 'FIXED') NOT NULL DEFAULT 'PERCENTAGE' AFTER commission_rate;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS property_id INT NULL AFTER commission_type;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100) NULL AFTER property_id;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS account_number VARCHAR(50) NULL AFTER bank_name;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS account_name VARCHAR(150) NULL AFTER account_number;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS notes TEXT NULL AFTER account_name;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at;
+ALTER TABLE agents ADD INDEX IF NOT EXISTS idx_agent_property (property_id);
+ALTER TABLE agents ADD INDEX IF NOT EXISTS idx_agent_status (status);
+
+SET @agent_fk_exists := (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'agents' AND CONSTRAINT_NAME = 'fk_agent_property' AND CONSTRAINT_TYPE = 'FOREIGN KEY');
+SET @agent_fk_sql := IF(@agent_fk_exists = 0, 'ALTER TABLE agents ADD CONSTRAINT fk_agent_property FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE SET NULL', 'SELECT 1');
+PREPARE stmt_agent_property_fk FROM @agent_fk_sql;
+EXECUTE stmt_agent_property_fk;
+DEALLOCATE PREPARE stmt_agent_property_fk;
 
 -- 2. Create authoritative commissions table
 CREATE TABLE IF NOT EXISTS commissions (

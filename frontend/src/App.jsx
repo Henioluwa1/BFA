@@ -145,17 +145,17 @@ function App() {
                       <Route path="roster" element={<Navigate to="/app/workforce" replace />} />
                       <Route path="my-schedule" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><MySchedulePage /></ProtectedRoute>} />
                       <Route path="my-profile" element={<EmployeeProfilePage isSelfService={true} />} />
-                      <Route path="maintenance" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'STAFF']}><MaintenancePage /></ProtectedRoute>} />
+                        <Route path="maintenance" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><MaintenancePage /></ProtectedRoute>} />
                       <Route path="inspection" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'STAFF']}><InspectionPage /></ProtectedRoute>} />
                       <Route path="inspections" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'STAFF']}><InspectionPage /></ProtectedRoute>} />
                       <Route path="audit" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN']}><AuditPage /></ProtectedRoute>} />
-                      <Route path="access-control" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN']}><AccessControlPage /></ProtectedRoute>} />
+                      <Route path="access-control" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}><AccessControlPage /></ProtectedRoute>} />
                       <Route path="communications" element={<CommunicationsPage />} />
                       <Route path="notifications" element={<NotificationsPage />} />
                       <Route path="announcements" element={<AnnouncementsPage />} />
                       <Route path="team" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><TeamPage /></ProtectedRoute>} />
                       <Route path="settings" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><SettingsPage /></ProtectedRoute>} />
-                      <Route path="operations" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><OperationsPage /></ProtectedRoute>} />
+                      <Route path="operations" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><OperationsPage /></ProtectedRoute>} />
                       <Route path="404" element={<NotFoundPage />} />
                     </Route>
                   </Route>

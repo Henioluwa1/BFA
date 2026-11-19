@@ -565,14 +565,25 @@ export function DoughnutChart({
   title,
   formatValue = (v) => v,
   totalLabel = 'Total Value',
+  labelKey = 'label',
+  valueKey = 'value',
+  centerLabel,
+  centerSub,
   size = 240,
   emptyMessage,
 }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
+  const chartData = Array.isArray(data)
+    ? data.map((slice) => ({
+        ...slice,
+        label: slice[labelKey] ?? slice.label ?? '',
+        value: slice[valueKey] ?? slice.value ?? 0,
+      }))
+    : [];
 
-  const total = data.reduce((acc, d) => acc + (parseFloat(d.value) || 0), 0);
+  const total = chartData.reduce((acc, d) => acc + (parseFloat(d.value) || 0), 0);
 
-  if (!data || data.length === 0 || total === 0) {
+  if (chartData.length === 0 || total === 0) {
     return <ChartEmptyState title={title} message={emptyMessage || 'No breakdown data available.'} />;
   }
 
@@ -591,7 +602,7 @@ export function DoughnutChart({
         {/* SVG Donut */}
         <div style={{ position: 'relative', width: `${size}px`, height: `${size}px` }}>
           <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', display: 'block' }}>
-            {data.map((slice, idx) => {
+            {chartData.map((slice, idx) => {
               const val = parseFloat(slice.value) || 0;
               const percent = val / total;
               const strokeDasharray = `${circumference * percent} ${circumference * (1 - percent)}`;
@@ -633,14 +644,14 @@ export function DoughnutChart({
             }}
           >
             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
-              {hoveredIdx !== null ? data[hoveredIdx].label : totalLabel}
+              {hoveredIdx !== null ? chartData[hoveredIdx].label : (centerLabel || totalLabel)}
             </div>
             <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.15rem' }}>
-              {hoveredIdx !== null ? formatValue(data[hoveredIdx].value) : formatValue(total)}
+              {hoveredIdx !== null ? formatValue(chartData[hoveredIdx].value) : (centerSub ?? formatValue(total))}
             </div>
             {hoveredIdx !== null && (
               <div style={{ fontSize: '0.7rem', color: 'var(--brand-accent)', fontWeight: 700 }}>
-                {Math.round(((data[hoveredIdx].value || 0) / total) * 100)}%
+                {Math.round(((chartData[hoveredIdx].value || 0) / total) * 100)}%
               </div>
             )}
           </div>
@@ -648,7 +659,7 @@ export function DoughnutChart({
 
         {/* Legend */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '180px', flex: '1 1 200px' }}>
-          {data.map((item, idx) => {
+          {chartData.map((item, idx) => {
             const color = item.color || CHART_COLORS[idx % CHART_COLORS.length];
             const pct = Math.round(((parseFloat(item.value) || 0) / total) * 100);
             const isHovered = hoveredIdx === idx;

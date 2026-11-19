@@ -20,9 +20,9 @@ Access to the Operations Control Center is strictly restricted at both the API g
 
 | Role | Access Level | Permissions & Capabilities |
 | :--- | :--- | :--- |
-| `SUPER_ADMIN` | **Full Administrative Control** | Read telemetry, toggle non-core modules, create manual backups, modify system thresholds, view all audit events. |
-| `ADMIN` | **System Administrator** | Read telemetry, toggle non-core modules, create manual backups, modify system thresholds, view audit events. |
-| `OWNER` | **Executive Sovereign Audit** | Read-only executive visibility across all telemetry, diagnostics, user distribution, backups, and audit trails. |
+| `SUPER_ADMIN` | **Full Administrative Control** | All OCC functions, including module governance, backups and migrations, thresholds, system development diagnostics, and governance. |
+| `ADMIN` | **No Operations Center Access** | Cannot open the page, read its overview API, or access its tabs. Other application permissions remain governed by their own routes. |
+| `OWNER` | **No Operations Center Access** | Cannot open the page, read its overview API, or access its tabs. Other application permissions remain governed by their own routes. |
 | `MANAGER` | *Restricted* | Cannot access OCC UI or endpoints (403 Forbidden). |
 | `STAFF` / `RECEPTIONIST` | *Denied* | Cannot access OCC UI or endpoints (403 Forbidden). |
 | `AGENT` | *Denied* | Cannot access OCC UI or endpoints (403 Forbidden). |
@@ -31,7 +31,7 @@ Access to the Operations Control Center is strictly restricted at both the API g
 
 ## 3. Console Navigation & Tab Architecture
 
-The Operations Control Center is organized into 6 dedicated operational tabs:
+The Operations Control Center is available only to SUPER_ADMIN. Every tab and control in the page is restricted to that role. ADMIN, OWNER and operational/staff roles cannot open `/app/operations` or retrieve the Operations Center overview API. The global Audit Trail remains at `/app/audit`; it is not an OCC tab.
 
 ### Tab 1: Health & Diagnostics
 - **Real-Time KPIs**: Database query latency in milliseconds, Node.js heap memory usage, total active subsystems, and server uptime.
@@ -44,7 +44,7 @@ The Operations Control Center is organized into 6 dedicated operational tabs:
   - *Socket.IO Real-Time Gateway*: Live event propagation and client broadcast channels.
 - **Security & Warning Feed**: Aggregates recent security notices and 24-hour warning events.
 
-### Tab 2: Modules & Governance Toggles
+### SUPER_ADMIN: Modules & Governance Toggles
 - **18 Registered Modules**: Searchable and filterable by functional domain (`CORE`, `OPERATIONS`, `FINANCE`, `STAFF`, `GOVERNANCE`).
 - **Protected Core Modules (Locked)**:
   - `dashboard` (Command Center)
@@ -57,27 +57,36 @@ The Operations Control Center is organized into 6 dedicated operational tabs:
   *Protected core modules cannot be disabled via API or UI. Attempts return `403 Forbidden`.*
 - **Toggleable Operational Modules**: Non-critical modules (e.g., `maintenance`, `inspections`, `agents`, `commissions`, `announcements`, `communications`) can be safely enabled or disabled with a mandatory audit reason.
 
-### Tab 3: User Governance & Sovereignty
+### SUPER_ADMIN: User Governance & Sovereignty
 - **Sovereign Invariants**:
   - *Single Super Admin Rule*: Exactly 1 global Super Administrator account (`olawale@gmail.com`).
   - *Single Owner Stakeholder Rule*: Exactly 1 registered Sovereign Owner account (`owner@bfa.ng`).
   - *Property Scoping Rule*: Front desk and staff accounts are bound strictly to Property 1 or Property 2.
 - **User Directory**: Tabular view of all registered platform identities, roles, property bindings, and creation timestamps.
 
-### Tab 4: Settings & Policy Thresholds
+### SUPER_ADMIN: Settings & Policy Thresholds
 - **Operational Rules**: Enforces default 1-night maximum stay booking policy, standard check-in time (`14:00`), and check-out time (`11:00`).
 - **Financial Rules**: Base VAT rate (`7.5%`), default agent commission rate (`10%`), base currency (`NGN ₦`).
 - **Persistence**: Persisted directly to `system_settings` table and broadcast to the application.
 
-### Tab 5: Real-Time Audit Trail
-- Live inspection of administrative actions and state mutations.
-- Records timestamp, actor email, assigned role, action code (e.g., `MODULE_TOGGLED`, `BACKUP_CREATED`, `SETTINGS_UPDATED`), target entity, and client IP address.
+Governance change history is available in the User Governance tab through the existing filtered audit API. Audit logging and the global Audit Trail page remain enabled.
 
-### Tab 6: Backups & Disaster Recovery
+### SUPER_ADMIN: Backups & Disaster Recovery
 - **Snapshot Inventory**: Displays all verified SQL backup files stored in `backups/`.
 - **Manual Snapshot Generator**: Generates timestamped SQL snapshots on demand with table manifests and foreign-key check wrappers.
 - **Migration Synchronization**: Full catalog of applied schema migrations (`001` through `023`) confirming 100% database schema synchronization.
 - **Recovery Runbook**: Standard operational restoration procedures for disaster recovery.
+
+### Continuous Development
+- **System Development Status** is available only to SUPER_ADMIN through the existing `dev.get_system_status` action. Its automation action and assistant entry points enforce the same server-side role boundary.
+- **Plan a Development Task** is available to SUPER_ADMIN and ADMIN through the existing `dev.plan_task` operation. OWNER and other roles cannot invoke this privileged planning action.
+- The development register remains part of the wider development system but is not displayed or fetched by the OCC.
+
+### Data boundary
+- Module registry details, backup history and migration information are returned only to SUPER_ADMIN by the OCC overview. Their dedicated endpoints also require SUPER_ADMIN.
+- Only SUPER_ADMIN can retrieve the OCC overview, module registry, backup inventory, migration information, governance details, or Operations Center settings.
+- Capability and override detail endpoints require ADMIN, MANAGER or SUPER_ADMIN. Pending access request listing and review require SUPER_ADMIN. The Access Control Policies screen is routed to ADMIN and SUPER_ADMIN only.
+- Owner notification feeds omit capability approval requests; new Owner-restricted override request notices go to SUPER_ADMIN.
 
 ---
 

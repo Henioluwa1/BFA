@@ -8,9 +8,10 @@ const router = express.Router();
 router.get('/info', SystemController.getInfo);
 
 // Operations Control Center & System Governance
-router.get('/operations/overview', requireRoles('SUPER_ADMIN', 'ADMIN', 'OWNER'), SystemController.getOperationsOverview);
-router.put('/operations/modules/:id/toggle', requireRoles('SUPER_ADMIN', 'ADMIN'), SystemController.toggleModule);
-router.post('/operations/backup', requireRoles('SUPER_ADMIN', 'ADMIN'), SystemController.createBackup);
+router.get('/operations/overview', requireRoles('SUPER_ADMIN'), SystemController.getOperationsOverview);
+router.get('/operations/migrations', requireRoles('SUPER_ADMIN'), SystemController.getMigrationCatalog);
+router.put('/operations/modules/:id/toggle', requireRoles('SUPER_ADMIN'), SystemController.toggleModule);
+router.post('/operations/backup', requireRoles('SUPER_ADMIN'), SystemController.createBackup);
 
 // Operational Settings
 router.get('/settings', requireRoles('ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER'), SystemController.getSettings);

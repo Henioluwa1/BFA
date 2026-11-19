@@ -4,7 +4,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Table from '../../components/ui/Table';
-import { maintenanceService, apartmentService, userService } from '../../services/api';
+import { maintenanceService, apartmentService } from '../../services/api';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -17,6 +17,7 @@ import ResolveTicketModal from '../../components/maintenance/ResolveTicketModal'
 import CancelTicketModal from '../../components/maintenance/CancelTicketModal';
 import WorkOrderDetailDrawer from '../../components/maintenance/WorkOrderDetailDrawer';
 import TechnicianExecutionCard from '../../components/maintenance/TechnicianExecutionCard';
+import EditWorkOrderModal from '../../components/maintenance/EditWorkOrderModal';
 
 const CATEGORIES = [
   'ALL',
@@ -35,14 +36,19 @@ const STATUSES = ['ALL', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CANCELLED'];
 
 export default function MaintenancePage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { properties, activePropertyId, isAllProperties, activeProperty } = useProperty();
+  const [searchParams] = useSearchParams();
+  const { properties, activePropertyId, isAllProperties } = useProperty();
   const { user } = useAuth();
   const { addToast } = useToast();
 
   const userRole = (user?.role || '').toUpperCase();
   const isManagerOrAdmin = ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER'].includes(userRole);
-  const isStaff = userRole === 'STAFF';
+  const isPropertyScoped = ['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(userRole);
+  const isWorker = ['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'STAFF'].includes(userRole);
+  const accessibleProperties = useMemo(
+    () => properties.filter((property) => !isPropertyScoped || String(property.id) === String(user?.propertyId)),
+    [properties, isPropertyScoped, user?.propertyId]
+  );
 
   // Data State
   const [records, setRecords] = useState([]);
@@ -64,12 +70,13 @@ export default function MaintenancePage() {
   const [error, setError] = useState(null);
 
   // Filters
-  const [propertyFilter, setPropertyFilter] = useState(activePropertyId || 'all');
+  const [propertyFilter, setPropertyFilter] = useState(isPropertyScoped && user?.propertyId ? String(user.propertyId) : (activePropertyId || 'all'));
   const [unitFilter, setUnitFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [onlyMyOrders, setOnlyMyOrders] = useState(false);
   const [viewMode, setViewMode] = useState('TABLE'); // 'TABLE' or 'CARDS'
 
@@ -78,6 +85,7 @@ export default function MaintenancePage() {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
 
   // Target Work Order for Modals
@@ -89,10 +97,12 @@ export default function MaintenancePage() {
 
   // Sync with global PropertyContext
   useEffect(() => {
-    if (activePropertyId) {
+    if (isPropertyScoped && user?.propertyId) {
+      setPropertyFilter(String(user.propertyId));
+    } else if (activePropertyId) {
       setPropertyFilter(activePropertyId);
     }
-  }, [activePropertyId]);
+  }, [activePropertyId, isPropertyScoped, user?.propertyId]);
 
   // Deep-linking via URL query params
   useEffect(() => {
@@ -113,6 +123,15 @@ export default function MaintenancePage() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setAppliedSearch(searchQuery.trim()), 250);
+    return () => window.clearTimeout(timeout);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [propertyFilter, unitFilter, statusFilter, categoryFilter, priorityFilter, searchQuery, onlyMyOrders]);
+
   // Fetch Work Orders
   const fetchWorkOrders = useCallback(async () => {
     setLoading(true);
@@ -124,10 +143,19 @@ export default function MaintenancePage() {
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
         category: categoryFilter !== 'ALL' ? categoryFilter : undefined,
         priority: priorityFilter !== 'ALL' ? priorityFilter : undefined,
+        search: appliedSearch || undefined,
+        pageSize: 100,
       };
 
-      const res = await maintenanceService.getAll(params);
-      const data = Array.isArray(res.data) ? res.data : [];
+      let data = [];
+      let page = 1;
+      let batch = [];
+      do {
+        const res = await maintenanceService.getAll({ ...params, page });
+        batch = Array.isArray(res.data) ? res.data : [];
+        data = data.concat(batch);
+        page += 1;
+      } while (batch.length === params.pageSize);
       setRecords(data);
 
       // Deep link to a specific ticket via ?id=X
@@ -137,6 +165,8 @@ export default function MaintenancePage() {
         if (found) {
           setTargetWorkOrder(found);
           setIsDetailDrawerOpen(true);
+        } else {
+          addToast('That work order is unavailable or outside your access scope.', 'error');
         }
       }
     } catch (err) {
@@ -145,33 +175,40 @@ export default function MaintenancePage() {
     } finally {
       setLoading(false);
     }
-  }, [propertyFilter, unitFilter, statusFilter, categoryFilter, priorityFilter, searchParams, addToast]);
+  }, [propertyFilter, unitFilter, statusFilter, categoryFilter, priorityFilter, appliedSearch, searchParams, addToast]);
 
   // Fetch Operational Stats & Apartment Units
   const fetchStatsAndUnits = useCallback(async () => {
     setStatsLoading(true);
     try {
       const propParam = propertyFilter !== 'all' ? propertyFilter : undefined;
-      const [statsRes, aptRes] = await Promise.all([
-        maintenanceService.getStats({ propertyId: propParam }).catch(() => ({ data: {} })),
-        apartmentService.getAll({ propertyId: propParam }).catch(() => ({ data: [] })),
+      const [statsResult, apartmentsResult] = await Promise.allSettled([
+        maintenanceService.getStats({ propertyId: propParam }),
+        apartmentService.getAll({ propertyId: propParam }),
       ]);
 
-      if (statsRes.data?.overview) {
-        setStatsData(statsRes.data.overview);
+      if (statsResult.status === 'fulfilled' && statsResult.value.data?.overview) {
+        setStatsData(statsResult.value.data.overview);
+      } else if (statsResult.status === 'rejected') {
+        addToast(`Unable to refresh maintenance counts: ${statsResult.reason.message}`, 'error');
       }
 
-      const aptList = Array.isArray(aptRes.data) ? aptRes.data : [];
-      setApartments(aptList);
+      if (apartmentsResult.status === 'fulfilled') {
+        const aptList = Array.isArray(apartmentsResult.value.data) ? apartmentsResult.value.data : [];
+        setApartments(aptList);
 
-      const maintUnits = aptList.filter((a) => a.status === 'MAINTENANCE').length;
-      setUnitsInMaintenance(maintUnits);
+        const maintUnits = aptList.filter((a) => a.status === 'MAINTENANCE').length;
+        setUnitsInMaintenance(maintUnits);
+      } else {
+        addToast(`Unable to refresh apartment status counts: ${apartmentsResult.reason.message}`, 'error');
+      }
     } catch (err) {
       console.error('Failed to load maintenance statistics:', err);
+      addToast(`Unable to refresh maintenance dashboard data: ${err.message}`, 'error');
     } finally {
       setStatsLoading(false);
     }
-  }, [propertyFilter]);
+  }, [propertyFilter, addToast]);
 
   useEffect(() => {
     fetchWorkOrders();
@@ -218,6 +255,7 @@ export default function MaintenancePage() {
       if (targetWorkOrder && targetWorkOrder.id === id) {
         setTargetWorkOrder((prev) => ({ ...prev, ...res.data }));
       }
+      fetchWorkOrders();
       fetchStatsAndUnits();
     } catch (err) {
       addToast(`Failed to start work: ${err.message}`, 'error');
@@ -227,9 +265,14 @@ export default function MaintenancePage() {
   };
 
   // Open Modals
-  const handleOpenDetail = (workOrder) => {
-    setTargetWorkOrder(workOrder);
-    setIsDetailDrawerOpen(true);
+  const handleOpenDetail = async (workOrder) => {
+    try {
+      const response = await maintenanceService.getById(workOrder.id);
+      setTargetWorkOrder(response.data);
+      setIsDetailDrawerOpen(true);
+    } catch (err) {
+      addToast(`Unable to open work order: ${err.message}`, 'error');
+    }
   };
 
   const handleOpenAssign = (workOrder) => {
@@ -247,9 +290,14 @@ export default function MaintenancePage() {
     setIsCancelModalOpen(true);
   };
 
+  const handleOpenEdit = (workOrder) => {
+    setTargetWorkOrder(workOrder);
+    setIsEditModalOpen(true);
+  };
+
   // Reset Filters
   const handleClearFilters = () => {
-    setPropertyFilter(activePropertyId || 'all');
+    setPropertyFilter(isPropertyScoped && user?.propertyId ? String(user.propertyId) : (activePropertyId || 'all'));
     setUnitFilter('ALL');
     setStatusFilter('ALL');
     setCategoryFilter('ALL');
@@ -454,7 +502,7 @@ export default function MaintenancePage() {
                   setUnitFilter('ALL');
                   setCurrentPage(1);
                 }}
-                disabled={userRole === 'MANAGER' && !isAllProperties}
+                disabled={isPropertyScoped || (userRole === 'MANAGER' && !isAllProperties)}
                 style={{
                   width: '100%',
                   padding: '0.5rem 0.75rem',
@@ -466,7 +514,7 @@ export default function MaintenancePage() {
                 }}
               >
                 <option value="all">All Properties</option>
-                {properties.map((p) => (
+                {accessibleProperties.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -672,7 +720,7 @@ export default function MaintenancePage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
               gap: '1rem',
             }}
           >
@@ -686,6 +734,7 @@ export default function MaintenancePage() {
                 onOpenEvidence={handleOpenDetail}
                 actionLoading={actionLoading}
                 isAssignedToCurrentUser={parseInt(item.assigned_to_id, 10) === parseInt(user?.id, 10)}
+                canExecute={isWorker}
               />
             ))}
           </div>
@@ -765,7 +814,7 @@ export default function MaintenancePage() {
                     <td>{getPriorityBadge(item.priority)}</td>
                     <td>{getStatusBadge(item.status)}</td>
                     <td>
-                      {item.blocking_unit === 1 ? (
+                      {item.blocking_unit === 1 || item.blocking_unit === true || item.blocking_unit === '1' ? (
                         <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ef4444' }}>
                           🔒 MAINTENANCE
                         </span>
@@ -791,7 +840,7 @@ export default function MaintenancePage() {
                         <Button variant="secondary" size="small" onClick={() => handleOpenDetail(item)}>
                           Details
                         </Button>
-                        {item.status === 'OPEN' && (
+                        {isWorker && item.status === 'OPEN' && (
                           <Button
                             variant="outline"
                             size="small"
@@ -801,7 +850,7 @@ export default function MaintenancePage() {
                             Start
                           </Button>
                         )}
-                        {(item.status === 'IN_PROGRESS' || item.status === 'OPEN') && (
+                        {isWorker && (item.status === 'IN_PROGRESS' || item.status === 'OPEN') && (
                           <Button
                             variant="primary"
                             size="small"
@@ -865,7 +914,7 @@ export default function MaintenancePage() {
       <CreateTicketModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        properties={properties}
+        properties={accessibleProperties}
         initialPropertyId={propertyFilter !== 'all' ? propertyFilter : ''}
         onSuccess={() => {
           fetchWorkOrders();
@@ -902,6 +951,18 @@ export default function MaintenancePage() {
         }}
       />
 
+      <EditWorkOrderModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        workOrder={targetWorkOrder}
+        onSuccess={(updated) => {
+          setRecords((current) => current.map((record) => String(record.id) === String(updated.id) ? { ...record, ...updated } : record));
+          setTargetWorkOrder((current) => current && String(current.id) === String(updated.id) ? { ...current, ...updated } : current);
+          fetchWorkOrders();
+          fetchStatsAndUnits();
+        }}
+      />
+
       <WorkOrderDetailDrawer
         isOpen={isDetailDrawerOpen}
         onClose={() => setIsDetailDrawerOpen(false)}
@@ -911,6 +972,7 @@ export default function MaintenancePage() {
         onOpenAssign={handleOpenAssign}
         onOpenResolve={handleOpenResolve}
         onOpenCancel={handleOpenCancel}
+        onOpenEdit={handleOpenEdit}
         onWorkOrderDeleted={() => {
           fetchWorkOrders();
           fetchStatsAndUnits();

@@ -58,7 +58,7 @@ export default function FinancialPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { properties, activePropertyId, isAllProperties, activeProperty } = useProperty();
-  const { user, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const { addToast } = useToast();
 
   const [activeTab, setActiveTab] = useState('overview'); 
@@ -291,6 +291,7 @@ export default function FinancialPage() {
     try {
       const res = await accountingService.getLedger({
         accountId: glSelectedAccount || undefined,
+        search: glSearch.trim() || undefined,
         periodId: selectedPeriodId || undefined,
         propertyId: propertyFilter !== 'all' ? propertyFilter : undefined,
         fromDate: fromDate || undefined,
@@ -298,13 +299,14 @@ export default function FinancialPage() {
         page,
         limit: 50,
       });
-      const raw = res.data?.data || res.data?.items || res.data || [];
-      const list = Array.isArray(raw) ? raw : (raw.data || []);
+      const payload = res.data?.data ?? res.data?.items ?? res.data ?? [];
+      const list = Array.isArray(payload) ? payload : (payload.data || payload.items || []);
+      const pagination = res.data?.meta?.pagination || payload.pagination || {};
       setGlEntries(list);
       setGlPagination({
-        page: Number(res.data?.page || page),
-        limit: Number(res.data?.limit || 50),
-        total: Number(res.data?.total || list.length),
+        page: Number(pagination.page || payload.page || page),
+        limit: Number(pagination.limit || payload.limit || 50),
+        total: Number(pagination.total ?? payload.total ?? list.length),
       });
     } catch (err) {
       addToast(`Error loading General Ledger: ${err.message}`, 'error');
@@ -481,7 +483,7 @@ export default function FinancialPage() {
     } else if (activeTab === 'expenses') {
       fetchExpenses();
     }
-  }, [propertyFilter, fromDate, toDate, activeTab, searchFilter, selectedPeriodId, glSelectedAccount]);
+  }, [propertyFilter, fromDate, toDate, activeTab, searchFilter, selectedPeriodId, glSelectedAccount, glSearch]);
 
   // Open Record Expense Modal
   const handleOpenExpenseModal = () => {
@@ -682,6 +684,13 @@ export default function FinancialPage() {
     return trialBalance.accounts.filter((a) => a.account_type === accountTypeFilter);
   }, [trialBalance.accounts, accountTypeFilter]);
 
+  // Compact totals meter uses the same account classification filter as the table.
+  const tbFilteredTotals = useMemo(() => filteredTbAccounts.reduce((totals, account) => ({
+    debits: totals.debits + Number(account.total_debit || 0),
+    credits: totals.credits + Number(account.total_credit || 0),
+  }), { debits: 0, credits: 0 }), [filteredTbAccounts]);
+  const tbMeterMax = Math.max(tbFilteredTotals.debits, tbFilteredTotals.credits);
+
   // Grouped trial balance data by account type for Doughnut Chart
   const tbTypeDistribution = useMemo(() => {
     const map = {};
@@ -694,6 +703,8 @@ export default function FinancialPage() {
       total_amount,
     }));
   }, [trialBalance.accounts]);
+
+  const hasTrialBalanceActivity = trialBalance.accounts.length > 0;
 
   // GL activity summary by Source Type
   const glSourceActivity = useMemo(() => {
@@ -791,6 +802,15 @@ export default function FinancialPage() {
             {overview.anomalies?.map((a, i) => (
               <li key={i}>
                 <span style={{ fontWeight: 600, color: a.severity === 'CRITICAL' ? '#ef4444' : '#f59e0b' }}>[{a.code}]</span>: {a.message}
+                {a.records?.length > 0 && (
+                  <ul style={{ margin: '0.35rem 0 0.5rem', paddingLeft: '1.25rem', display: 'grid', gap: '0.2rem' }}>
+                    {a.records.map((record) => (
+                      <li key={record.reservationId}>
+                        {record.reservationCode || `Reservation ${record.reservationId}`}: header paid {formatNaira(record.reservationPaid)}, ledger net {formatNaira(record.ledgerNetPaid)}, variance {formatNaira(record.variance)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>
@@ -1098,22 +1118,24 @@ export default function FinancialPage() {
               gap: '1rem',
               padding: '1.25rem',
               borderRadius: 'var(--radius-md, 8px)',
-              background: trialBalance.isBalanced ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-              border: `1px solid ${trialBalance.isBalanced ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              background: !hasTrialBalanceActivity ? 'var(--bg-secondary)' : trialBalance.isBalanced ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+              border: `1px solid ${!hasTrialBalanceActivity ? 'var(--border-default)' : trialBalance.isBalanced ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
             }}
           >
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>{trialBalance.isBalanced ? '⚖️' : '⚠️'}</span>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', color: trialBalance.isBalanced ? '#10b981' : '#ef4444' }}>
-                  {trialBalance.isBalanced ? 'Trial Balance is Mathematically Balanced' : 'Trial Balance Out of Equilibrium'}
+                <span style={{ fontSize: '1.25rem' }}>{!hasTrialBalanceActivity ? '📊' : trialBalance.isBalanced ? '⚖️' : '⚠️'}</span>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', color: !hasTrialBalanceActivity ? 'var(--text-secondary)' : trialBalance.isBalanced ? '#10b981' : '#ef4444' }}>
+                  {!hasTrialBalanceActivity ? 'No Posted Trial Balance Activity' : trialBalance.isBalanced ? 'Trial Balance is Mathematically Balanced' : 'Trial Balance Out of Equilibrium'}
                 </h3>
-                <Badge status={trialBalance.isBalanced ? 'success' : 'danger'}>
-                  {trialBalance.isBalanced ? 'BALANCED' : 'IMBALANCE DETECTED'}
+                <Badge status={!hasTrialBalanceActivity ? 'neutral' : trialBalance.isBalanced ? 'success' : 'danger'}>
+                  {!hasTrialBalanceActivity ? 'NO ACTIVITY' : trialBalance.isBalanced ? 'BALANCED' : 'IMBALANCE DETECTED'}
                 </Badge>
               </div>
               <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                Total debits equal total credits across all posting accounts. Difference: {formatNaira(trialBalance.difference)}.
+                {!hasTrialBalanceActivity
+                  ? `No posted journal lines are available in this scope. Difference: ${formatNaira(trialBalance.difference)}.`
+                  : `Total debits equal total credits across all posting accounts. Difference: ${formatNaira(trialBalance.difference)}.`}
               </p>
             </div>
 
@@ -1135,6 +1157,37 @@ export default function FinancialPage() {
               </Button>
             </div>
           </div>
+
+          <Card title="Debit / Credit Summary">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+              {[
+                { label: 'Debits', value: tbFilteredTotals.debits, color: '#10b981' },
+                { label: 'Credits', value: tbFilteredTotals.credits, color: '#3b82f6' },
+              ].map((item) => (
+                <div key={item.label}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem', marginBottom: '0.4rem' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{item.label}</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>{formatNaira(item.value)}</span>
+                  </div>
+                  <div
+                    role="meter"
+                    aria-label={`${item.label} total`}
+                    aria-valuemin={0}
+                    aria-valuemax={tbMeterMax || 0}
+                    aria-valuenow={item.value}
+                    style={{ height: '7px', background: 'var(--bg-secondary)', borderRadius: '999px', overflow: 'hidden' }}
+                  >
+                    <div style={{ width: `${tbMeterMax ? Math.min(100, (item.value / tbMeterMax) * 100) : 0}%`, height: '100%', background: item.color, borderRadius: 'inherit', transition: 'width 0.2s ease' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {!hasTrialBalanceActivity && (
+              <div style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                No posted account activity in this scope.
+              </div>
+            )}
+          </Card>
 
           {/* Account Type Distribution Chart */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
@@ -1352,7 +1405,6 @@ export default function FinancialPage() {
                   onClick={() => {
                     setGlSelectedAccount('');
                     setGlSearch('');
-                    fetchGeneralLedger(1);
                   }}
                 >
                   Reset GL Filters

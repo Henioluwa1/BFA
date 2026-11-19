@@ -9,7 +9,8 @@
 
 -- 2. Add requires_review flag to attendance_records to support fast querying and filtering of flagged exceptions
 ALTER TABLE `attendance_records`
-  ADD COLUMN IF NOT EXISTS `requires_review` BOOLEAN NOT NULL DEFAULT FALSE AFTER `is_verified`,
+  ADD COLUMN IF NOT EXISTS `requires_review` BOOLEAN NOT NULL DEFAULT FALSE AFTER `is_verified`;
+ALTER TABLE `attendance_records`
   ADD INDEX IF NOT EXISTS `idx_att_requires_review` (`requires_review`, `property_id`);
 
 -- 3. Backfill requires_review for existing unverified punches that carry geofence exceptions

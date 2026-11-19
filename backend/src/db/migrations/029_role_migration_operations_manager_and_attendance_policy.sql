@@ -49,12 +49,20 @@ CREATE TABLE IF NOT EXISTS `property_kiosks` (
   INDEX `idx_kiosk_code` (`kiosk_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5. Seed Default Global and Property Attendance Policies
+-- 5. Seed the global default using an explicit NULL check. A nullable UNIQUE
+-- property_id permits multiple NULL values, so INSERT IGNORE is not sufficient
+-- to make this row retry-safe after partial migration execution.
+INSERT INTO `attendance_policies` (
+  `property_id`, `allow_mobile`, `allow_gps`, `require_gps`, `allow_kiosk`, `allow_manager_assisted`,
+  `geofence_lat`, `geofence_lng`, `geofence_radius_meters`, `grace_period_minutes`, `overtime_threshold_hours`
+) SELECT NULL, TRUE, TRUE, TRUE, TRUE, TRUE, 6.42810000, 3.42190000, 200, 15, 40.00
+WHERE NOT EXISTS (SELECT 1 FROM `attendance_policies` WHERE `property_id` IS NULL);
+
+-- Property IDs retain the existing idempotent seed behavior.
 INSERT IGNORE INTO `attendance_policies` (
   `property_id`, `allow_mobile`, `allow_gps`, `require_gps`, `allow_kiosk`, `allow_manager_assisted`,
   `geofence_lat`, `geofence_lng`, `geofence_radius_meters`, `grace_period_minutes`, `overtime_threshold_hours`
 ) VALUES
-(NULL, TRUE, TRUE, TRUE, TRUE, TRUE, 6.42810000, 3.42190000, 200, 15, 40.00),
 (1, TRUE, TRUE, TRUE, TRUE, TRUE, 6.42810000, 3.42190000, 250, 15, 40.00),
 (2, TRUE, TRUE, TRUE, TRUE, TRUE, 6.43500000, 3.44000000, 200, 15, 40.00);
 

@@ -8,6 +8,22 @@ import { formatNaira } from '../../utils/currency';
 export default function RefundsReconciliationTab({ data, loading, onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [methodFilter, setMethodFilter] = useState('ALL');
+  const summary = data?.summary || { totalOriginalAmount: 0, totalRefunded: 0, netRetained: 0, refundCount: 0 };
+  const refunds = Array.isArray(data?.refunds) ? data.refunds : [];
+  const filteredRefunds = useMemo(() => {
+    return refunds.filter((r) => {
+      const matchSearch =
+        !searchTerm ||
+        r.transactionReference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.reservationCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.propertyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.refundReason?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchMethod = methodFilter === 'ALL' || r.paymentMethod === methodFilter;
+
+      return matchSearch && matchMethod;
+    });
+  }, [refunds, searchTerm, methodFilter]);
 
   if (loading) {
     return (
@@ -32,26 +48,6 @@ export default function RefundsReconciliationTab({ data, loading, onRefresh }) {
       </Card>
     );
   }
-
-  const {
-    summary = { totalOriginalAmount: 0, totalRefunded: 0, netRetained: 0, refundCount: 0 },
-    refunds = [],
-  } = data;
-
-  const filteredRefunds = useMemo(() => {
-    return refunds.filter((r) => {
-      const matchSearch =
-        !searchTerm ||
-        r.transactionReference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.reservationCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.propertyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.refundReason?.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchMethod = methodFilter === 'ALL' || r.paymentMethod === methodFilter;
-
-      return matchSearch && matchMethod;
-    });
-  }, [refunds, searchTerm, methodFilter]);
 
   const handleExportCSV = () => {
     const headers = [

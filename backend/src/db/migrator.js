@@ -5,6 +5,7 @@ const config = require('../config');
 const logger = require('../utils/logger');
 const { assertTestDatabase, assertProductionMigrationAuthorized } = require('./databaseGuard');
 const { getTlsOptions } = require('./tlsOptions');
+const { assertTiDbMigrationRequirements } = require('./migrationRequirements');
 
 /**
  * Migration Engine for BFA Apartments Management System
@@ -163,6 +164,10 @@ async function runMigrations(targetDbOrOptions = null, maybeOptions = {}) {
     // 2. Acquire advisory lock
     await acquireAdvisoryLock(connection, lockName, timeoutSeconds);
     lockAcquired = true;
+
+    // Refuse to start if TiDB would silently omit CHECK constraints or if
+    // foreign-key enforcement is disabled. This runs before any schema DDL.
+    await assertTiDbMigrationRequirements(connection);
 
     // 3. Ensure schema_migrations table exists
     await connection.query(`

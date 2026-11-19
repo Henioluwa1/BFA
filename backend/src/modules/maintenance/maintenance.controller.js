@@ -50,6 +50,18 @@ class MaintenanceController {
     }
   }
 
+  static async update(req, res, next) {
+    try {
+      const updated = await MaintenanceService.updateMaintenance(req.params.id, req.body, req.user, req);
+      return ApiResponse.success(res, {
+        message: 'Maintenance work order updated successfully',
+        data: updated,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async start(req, res, next) {
     try {
       const updated = await MaintenanceService.startWork(req.params.id, req.user, req);

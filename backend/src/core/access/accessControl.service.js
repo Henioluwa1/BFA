@@ -45,13 +45,17 @@ class AccessControlService {
   /**
    * List all capabilities with live restriction status, active overrides, and pending approval requests
    */
-  static async listCapabilities() {
+  static async listCapabilities({ includePendingApprovalDetails = false } = {}) {
+    const pendingApprovalFields = includePendingApprovalDetails
+      ? `
+        (SELECT COUNT(*) FROM access_approval_requests r WHERE r.capability_id = c.id AND r.status = 'PENDING') AS pending_requests_count,
+        (SELECT r.id FROM access_approval_requests r WHERE r.capability_id = c.id AND r.status = 'PENDING' ORDER BY r.id DESC LIMIT 1) AS latest_pending_request_id,
+        (SELECT r.request_reason FROM access_approval_requests r WHERE r.capability_id = c.id AND r.status = 'PENDING' ORDER BY r.id DESC LIMIT 1) AS latest_pending_reason,`
+      : '';
     const sql = `
       SELECT 
         c.*,
-        (SELECT COUNT(*) FROM access_approval_requests r WHERE r.capability_id = c.id AND r.status = 'PENDING') AS pending_requests_count,
-        (SELECT r.id FROM access_approval_requests r WHERE r.capability_id = c.id AND r.status = 'PENDING' ORDER BY r.id DESC LIMIT 1) AS latest_pending_request_id,
-        (SELECT r.request_reason FROM access_approval_requests r WHERE r.capability_id = c.id AND r.status = 'PENDING' ORDER BY r.id DESC LIMIT 1) AS latest_pending_reason,
+        ${pendingApprovalFields}
         (SELECT o.override_type FROM access_overrides o WHERE o.capability_id = c.id AND o.is_active = 1 ORDER BY o.id DESC LIMIT 1) AS active_override_type
       FROM capabilities c
       ORDER BY c.category ASC, c.name ASC
@@ -209,12 +213,12 @@ class AccessControlService {
       [cap.id, user.id, reason.trim()]
     );
 
-    // Trigger Notification for Owner
+    // Keep the internal approval request visible to Super Admin only.
     await pool.query(
       `INSERT INTO notifications (recipient_role, title, message, category, priority, source_entity_type, source_entity_id, link_url)
-       VALUES ('OWNER', 'Access Override Request', ?, 'APPROVAL', 'HIGH', 'capability', ?, '/app/access-control')`,
+       VALUES ('SUPER_ADMIN', 'Owner-Restricted Override Request', ?, 'APPROVAL', 'HIGH', 'capability', ?, '/app/access-control')`,
       [
-        `Super Admin has requested to override your restriction on '${cleanName}'. Reason: ${reason.trim()}`,
+        `An override request was opened for Owner-restricted capability '${cleanName}'. Reason: ${reason.trim()}`,
         String(cap.id),
       ]
     );
@@ -238,11 +242,11 @@ class AccessControlService {
   }
 
   /**
-   * Owner reviews (Approve / Reject) pending override request
+   * Super Admin reviews (Approve / Reject) pending override request
    */
   static async reviewApprovalRequest({ requestId, approved, user, reviewNotes = '', req = null }) {
-    if (!user || !['OWNER', 'SUPER_ADMIN'].includes(user.role)) {
-      throw new ForbiddenError('Only Owner or Super Admin can review access approval requests.');
+    if (!user || String(user.role || '').toUpperCase() !== 'SUPER_ADMIN') {
+      throw new ForbiddenError('Only Super Admin can review access approval requests.');
     }
 
     const rows = await pool.query(

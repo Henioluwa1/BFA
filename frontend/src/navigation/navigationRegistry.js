@@ -36,7 +36,7 @@ export const ROUTES = [
     path: '/app/apartments',
     displayName: 'Apartments & Units',
     moduleGroup: 'PROPERTIES_UNITS',
-    permittedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'],
+    permittedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF', 'OWNER'],
     aliases: ['apartments', 'units', 'rooms', 'vacant units', 'available units', 'open apartments'],
   },
   {
@@ -185,7 +185,7 @@ export const ROUTES = [
     path: '/app/access-control',
     displayName: 'Access Control Policies',
     moduleGroup: 'SYSTEM_ADMIN',
-    permittedRoles: ['SUPER_ADMIN', 'OWNER', 'MANAGER', 'ADMIN'],
+    permittedRoles: ['SUPER_ADMIN', 'ADMIN'],
     aliases: ['access control', 'access policies', 'capabilities', 'policy management', 'open access control'],
   },
   {
@@ -209,7 +209,7 @@ export const ROUTES = [
     path: '/app/operations',
     displayName: 'Operations Control Center',
     moduleGroup: 'SYSTEM_ADMIN',
-    permittedRoles: ['SUPER_ADMIN', 'ADMIN', 'OWNER'],
+    permittedRoles: ['SUPER_ADMIN'],
     aliases: ['operations control center', 'operations center', 'control center', 'operations', 'system governance', 'governance', 'subsystem health', 'operations control', 'open operations'],
   },
   {

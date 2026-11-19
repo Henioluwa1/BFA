@@ -2,15 +2,21 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
-import { systemService, auditService } from '../../services/api';
+import { systemService, auditService, automationService, accessService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export default function OperationsPage() {
   const { user } = useAuth();
   const { addToast } = useToast();
+  const role = String(user?.role || '').toUpperCase();
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isAdmin = role === 'ADMIN';
+  const isOwner = role === 'OWNER';
+  const allowedTabs = isSuperAdmin
+    ? ['health', 'flow', 'modules', 'governance', 'settings', 'backups', 'development']
+    : [];
 
   const [activeTab, setActiveTab] = useState('health');
   const [isLoading, setIsLoading] = useState(true);
@@ -24,6 +30,8 @@ export default function OperationsPage() {
   const [isToggling, setIsToggling] = useState(false);
   const [moduleSearch, setModuleSearch] = useState('');
   const [moduleGroupFilter, setModuleGroupFilter] = useState('ALL');
+  const [selectedModule, setSelectedModule] = useState(null);
+  const [selectedGovernanceUser, setSelectedGovernanceUser] = useState(null);
 
   // Backup creation state
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
@@ -42,9 +50,21 @@ export default function OperationsPage() {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Audit logs state
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [auditLoading, setAuditLoading] = useState(false);
-  const [auditFilter, setAuditFilter] = useState('');
+  const [governanceChanges, setGovernanceChanges] = useState([]);
+  const [governanceChangesLoading, setGovernanceChangesLoading] = useState(false);
+  const [governanceChangesError, setGovernanceChangesError] = useState('');
+  const [migrationCatalog, setMigrationCatalog] = useState(null);
+  const [migrationError, setMigrationError] = useState('');
+  const [devStatus, setDevStatus] = useState(null);
+  const [devError, setDevError] = useState('');
+  const [devLoading, setDevLoading] = useState(false);
+  const [devForm, setDevForm] = useState({ taskTitle: '', taskDescription: '', category: 'OPERATIONS', priority: 'MEDIUM', expectedOutcome: '', implementationContext: '' });
+  const [devValidationError, setDevValidationError] = useState('');
+  const [taskPlan, setTaskPlan] = useState(null);
+  const [accessGovernance, setAccessGovernance] = useState({ capabilities: [], overrides: [], approvals: [] });
+  const [accessGovError, setAccessGovError] = useState('');
+  const [accessGovLoading, setAccessGovLoading] = useState(false);
+  const [accessGovLoaded, setAccessGovLoaded] = useState(false);
 
   // Fetch Operations Overview
   const fetchOverview = useCallback(async (quiet = false) => {
@@ -72,33 +92,88 @@ export default function OperationsPage() {
     }
   }, []);
 
-  // Fetch Audit Logs when Audit tab is selected
-  const fetchAuditLogs = useCallback(async () => {
-    setAuditLoading(true);
+  // Reuse the global audit service to show real governance changes in this tab.
+  const fetchGovernanceChanges = useCallback(async () => {
+    setGovernanceChangesLoading(true);
+    setGovernanceChangesError('');
     try {
-      const res = await auditService.getLogs({ limit: 40 });
+      const res = await auditService.getLogs({ action: 'GOVERNANCE_ACTIONS', limit: 20 });
       const data = res.data?.logs || res.logs || res.data || [];
-      setAuditLogs(Array.isArray(data) ? data : []);
+      const records = Array.isArray(data) ? data : [];
+      setGovernanceChanges(records);
     } catch (err) {
-      console.warn('Failed to load audit logs:', err.message);
+      setGovernanceChangesError(err.message || 'Governance change history could not be loaded.');
     } finally {
-      setAuditLoading(false);
+      setGovernanceChangesLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchOverview();
+    if (allowedTabs.length) fetchOverview();
   }, [fetchOverview]);
 
   useEffect(() => {
-    if (activeTab === 'audit') {
-      fetchAuditLogs();
-    }
-  }, [activeTab, fetchAuditLogs]);
+    if (activeTab === 'governance' && !isOwner) fetchGovernanceChanges();
+  }, [activeTab, isOwner, fetchGovernanceChanges]);
+
+  useEffect(() => {
+    if (activeTab !== 'governance' || isOwner || accessGovLoading || accessGovLoaded) return;
+    setAccessGovLoading(true);
+    setAccessGovError('');
+    const requests = [accessService.getCapabilities(), accessService.getOverrides()];
+    if (isSuperAdmin) requests.push(accessService.getApprovalRequests({ status: 'PENDING' }));
+    Promise.all(requests).then(([caps, overrides, approvals]) => setAccessGovernance({
+      capabilities: caps.data || caps || [],
+      overrides: overrides.data || overrides || [],
+      approvals: approvals?.data || approvals || [],
+    })).catch((err) => setAccessGovError(err.message || 'Access governance data could not be loaded.')).finally(() => { setAccessGovLoading(false); setAccessGovLoaded(true); });
+  }, [activeTab, isOwner, isSuperAdmin, accessGovLoading, accessGovLoaded]);
+
+  useEffect(() => {
+    if (activeTab !== 'backups' || migrationCatalog) return;
+    systemService.getMigrationCatalog().then((res) => setMigrationCatalog(res.data || res)).catch((err) => setMigrationError(err.message || 'Migration catalog unavailable.'));
+  }, [activeTab, migrationCatalog]);
+
+  const runDevAction = async (actionId, parameters = {}) => {
+    setDevLoading(true);
+    setDevError('');
+    try {
+      const res = await automationService.execute({ actionId, parameters });
+      return res.data?.result || res.result;
+    } catch (err) {
+      setDevError(err.message || 'Development action failed.');
+      return null;
+    } finally { setDevLoading(false); }
+  };
+
+  const loadDevelopmentCenter = async () => {
+    if (!isSuperAdmin) return;
+    const status = await runDevAction('dev.get_system_status');
+    if (status) setDevStatus(status);
+  };
+
+  const handlePlanTask = async (event) => {
+    event.preventDefault();
+    setDevValidationError('');
+    if (devForm.taskTitle.trim().length < 3) { setDevValidationError('Enter a task title with at least 3 characters.'); return; }
+    if (devForm.taskDescription.trim().length < 20) { setDevValidationError('Provide at least 20 characters describing the task and its current behavior.'); return; }
+    if (devForm.expectedOutcome.trim().length < 5) { setDevValidationError('Describe the expected outcome in at least 5 characters.'); return; }
+    setTaskPlan(null);
+    const result = await runDevAction('dev.plan_task', { ...devForm, taskTitle: devForm.taskTitle.trim(), taskDescription: devForm.taskDescription.trim(), expectedOutcome: devForm.expectedOutcome.trim(), implementationContext: devForm.implementationContext.trim() });
+    if (result) setTaskPlan(result);
+  };
+
+  useEffect(() => {
+    if (allowedTabs.length && !allowedTabs.includes(activeTab)) setActiveTab(allowedTabs[0]);
+  }, [allowedTabs, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'development' && isSuperAdmin && !devStatus && !devLoading) loadDevelopmentCenter();
+  }, [activeTab, isSuperAdmin, devStatus, devLoading]);
 
   // Handle Module Toggle
   const handleOpenToggleModal = (mod) => {
-    if (mod.isCore) {
+    if (mod.isProtectedCore) {
       addToast(`Core module "${mod.name}" is locked and cannot be disabled.`, 'warning');
       return;
     }
@@ -108,12 +183,13 @@ export default function OperationsPage() {
 
   const handleConfirmToggle = async () => {
     if (!moduleToToggle) return;
+    if (!isSuperAdmin) { addToast('Only Super Admin can change module availability.', 'error'); return; }
     setIsToggling(true);
     try {
       const newEnabled = !moduleToToggle.isEnabled;
       await systemService.toggleModule(moduleToToggle.id, {
         isEnabled: newEnabled,
-        reason: toggleReason || 'Administrative toggle via Operations Control Center',
+        reason: toggleReason.trim(),
       });
 
       addToast(`Module "${moduleToToggle.name}" has been ${newEnabled ? 'enabled' : 'disabled'}.`, 'success');
@@ -128,6 +204,7 @@ export default function OperationsPage() {
 
   // Handle Manual Backup Creation
   const handleCreateBackup = async () => {
+    if (!isSuperAdmin) { addToast('Only Super Admin can create backups.', 'error'); return; }
     setIsCreatingBackup(true);
     try {
       const res = await systemService.createBackupSnapshot();
@@ -144,6 +221,7 @@ export default function OperationsPage() {
   // Handle Settings Save
   const handleSaveSettings = async (e) => {
     e.preventDefault();
+    if (!isAdmin && !isSuperAdmin) { addToast('Only Administrators can update system settings.', 'error'); return; }
     setIsSavingSettings(true);
     try {
       await systemService.updateSettings(settingsForm);
@@ -163,7 +241,7 @@ export default function OperationsPage() {
       const matchSearch =
         m.name.toLowerCase().includes(moduleSearch.toLowerCase()) ||
         m.id.toLowerCase().includes(moduleSearch.toLowerCase());
-      const matchGroup = moduleGroupFilter === 'ALL' || m.group === moduleGroupFilter;
+      const matchGroup = moduleGroupFilter === 'ALL' || m.category === moduleGroupFilter;
       return matchSearch && matchGroup;
     });
   }, [overview?.modules, moduleSearch, moduleGroupFilter]);
@@ -174,6 +252,19 @@ export default function OperationsPage() {
   const governance = overview?.governance || {};
   const backups = overview?.backups || {};
   const migrations = overview?.migrations || {};
+  const backupSnapshots = backups.snapshots || backups.history || [];
+  const systemsOperational = diagnostics.status === 'ALL_SYSTEMS_OPERATIONAL' || diagnostics.status === 'HEALTHY';
+  const healthColor = systemsOperational ? '#4ade80' : diagnostics.status === 'UNKNOWN' ? '#fbbf24' : '#f87171';
+  const subsystemHealthy = (status) => ['OPERATIONAL', 'HEALTHY'].includes(status);
+  const governanceRoleRows = governance.roles?.length
+    ? governance.roles.map((roleInfo) => ({
+      ...roleInfo,
+      total: governance.roleDistribution?.find((item) => item.role === roleInfo.role)?.total ?? 0,
+    }))
+    : (governance.roleDistribution || []).map((item) => ({ ...item, name: item.role, capabilities: null, desc: null }));
+
+  if (!overview && isLoading) return <div className="page-container" role="status" style={{ padding: '2rem' }}>Loading Operations Control Center telemetry…</div>;
+  if (!overview && error) return <div className="page-container" style={{ padding: '2rem', maxWidth: 900 }}><h1>Operations Control Center</h1><section role="alert" style={{ padding: '1.25rem', border: '1px solid #ef4444', borderRadius: 8 }}><strong>Telemetry unavailable</strong><p>{error}</p><p>The system state is unknown because the overview request failed. This does not mean the services themselves are degraded.</p><Button onClick={() => fetchOverview()}>Retry telemetry</Button></section></div>;
 
   return (
     <div className="operations-page page-container" style={{ padding: '1.5rem', maxWidth: '1440px', margin: '0 auto' }}>
@@ -193,13 +284,13 @@ export default function OperationsPage() {
                 fontWeight: 600,
                 padding: '3px 10px',
                 borderRadius: '9999px',
-                background: diagnostics.status === 'ALL_SYSTEMS_OPERATIONAL' ? 'rgba(74, 222, 128, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                color: diagnostics.status === 'ALL_SYSTEMS_OPERATIONAL' ? '#4ade80' : '#f87171',
-                border: diagnostics.status === 'ALL_SYSTEMS_OPERATIONAL' ? '1px solid rgba(74, 222, 128, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                background: systemsOperational ? 'rgba(74, 222, 128, 0.15)' : diagnostics.status === 'UNKNOWN' ? 'rgba(251,191,36,0.12)' : 'rgba(239, 68, 68, 0.15)',
+                color: healthColor,
+                border: `1px solid ${healthColor}55`,
               }}
             >
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'currentColor' }} />
-              {diagnostics.status === 'ALL_SYSTEMS_OPERATIONAL' ? 'All Systems Operational' : 'System Degraded'}
+              {systemsOperational ? 'All Systems Operational' : diagnostics.status === 'UNKNOWN' ? 'Health Partially Known' : 'System Degraded'}
             </span>
             <span
               style={{
@@ -212,12 +303,15 @@ export default function OperationsPage() {
                 border: '1px solid rgba(56, 189, 248, 0.3)',
               }}
             >
-              Env: {diagnostics.system?.platform ? 'Production' : 'Ready'}
+              Env: {diagnostics.environment || 'Unknown'}
             </span>
           </div>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
             System Telemetry, Subsystem Diagnostics, Feature Governance & Continuous Development
           </p>
+            <p style={{ margin: '0.35rem 0 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+              Last telemetry check: {diagnostics.timestamp ? new Date(diagnostics.timestamp).toLocaleString() : 'Unknown'}
+            </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -257,12 +351,12 @@ export default function OperationsPage() {
         {[
           { key: 'health', label: 'Health & Diagnostics', icon: '🩺' },
           { key: 'flow', label: 'Operational System Flow', icon: '⚡' },
-          { key: 'modules', label: `Modules & Toggles (${overview?.modules?.length || 18})`, icon: '🎛️' },
-          { key: 'governance', label: `User Governance (${governance.totalUsers || 9})`, icon: '👥' },
+          { key: 'modules', label: `Modules & Toggles (${overview?.modules?.length ?? 0})`, icon: '🎛️' },
+          { key: 'governance', label: `User Governance (${governance.totalUsers ?? 0})`, icon: '👥' },
           { key: 'settings', label: 'Settings & Thresholds', icon: '⚙️' },
-          { key: 'audit', label: 'Audit Trail', icon: '📜' },
           { key: 'backups', label: `Backups & Migrations (${backups.totalBackups || 0})`, icon: '💾' },
-        ].map((tab) => (
+          { key: 'development', label: 'Continuous Development', icon: '🧭' },
+        ].filter((tab) => allowedTabs.includes(tab.key)).map((tab) => (
           <button
             key={tab.key}
             type="button"
@@ -302,7 +396,7 @@ export default function OperationsPage() {
                 {diagnostics.database?.latencyMs ?? '...'} ms
               </div>
               <div style={{ fontSize: '0.75rem', color: '#4ade80' }}>
-                ✓ {diagnostics.database?.appliedMigrationsCount || 23}/23 Schema Migrations In Sync
+                {diagnostics.database?.appliedMigrationsCount ?? '—'} / {diagnostics.database?.totalMigrationFilesCount ?? '—'} Schema Migrations
               </div>
             </Card>
 
@@ -317,12 +411,12 @@ export default function OperationsPage() {
             </Card>
 
             <Card style={{ padding: '1.25rem' }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Active Subsystems</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Healthy Subsystem Probes</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#4ade80', marginBottom: '0.25rem' }}>
-                {subsystems.filter((s) => s.status === 'OPERATIONAL').length} / {subsystems.length || 6}
+                {subsystems.filter((s) => subsystemHealthy(s.status)).length} / {subsystems.length}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Gateway, MariaDB, Double-Entry GL, Reports, Socket.IO
+                {subsystems.filter((s) => subsystemHealthy(s.status)).map((s) => s.name).join(', ') || 'None'} · {subsystems.filter((s) => !subsystemHealthy(s.status)).length} unknown or degraded
               </div>
             </Card>
 
@@ -369,8 +463,8 @@ export default function OperationsPage() {
                             borderRadius: '4px',
                             fontSize: '0.75rem',
                             fontWeight: 600,
-                            background: sub.status === 'OPERATIONAL' ? 'rgba(74, 222, 128, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            color: sub.status === 'OPERATIONAL' ? '#4ade80' : '#f87171',
+                            background: subsystemHealthy(sub.status) ? 'rgba(74, 222, 128, 0.15)' : sub.status === 'UNKNOWN' ? 'rgba(251,191,36,0.12)' : 'rgba(239, 68, 68, 0.15)',
+                            color: subsystemHealthy(sub.status) ? '#4ade80' : sub.status === 'UNKNOWN' ? '#fbbf24' : '#f87171',
                           }}
                         >
                           ● {sub.status}
@@ -380,7 +474,7 @@ export default function OperationsPage() {
                         {sub.detail || sub.endpoint || 'Internal Loopback'}
                       </td>
                       <td style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                        {new Date().toLocaleTimeString()}
+                        {diagnostics.timestamp ? new Date(diagnostics.timestamp).toLocaleTimeString() : 'Not checked'}
                       </td>
                     </tr>
                   ))}
@@ -399,8 +493,8 @@ export default function OperationsPage() {
                 {diagnostics.recentWarnings.map((w, i) => (
                   <div key={i} style={{ padding: '0.75rem', background: 'rgba(251, 191, 36, 0.08)', borderLeft: '4px solid #fbbf24', borderRadius: '4px', fontSize: '0.85rem' }}>
                     <div style={{ fontWeight: 600, color: '#fbbf24' }}>{w.action || 'WARNING'}</div>
-                    <div style={{ color: 'var(--text-secondary)' }}>{w.details || w.message}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{w.timestamp}</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>{w.actor_email} · {w.entity_type}{w.entity_id ? ` #${w.entity_id}` : ''}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{w.created_at ? new Date(w.created_at).toLocaleString() : 'Timestamp unavailable'}</div>
                   </div>
                 ))}
               </div>
@@ -424,111 +518,38 @@ export default function OperationsPage() {
                   Authoritative Operational Flow & Telemetry
                 </h2>
                 <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                  Real-time architectural flow from booking ingestion, concurrency-locked front desk assignment, to performance tracking.
+                  Interactive view of registered module dependencies, activation settings, and live subsystem probe results.
                 </p>
               </div>
-              <Badge status="available">PIPELINE ACTIVE</Badge>
+              <Badge status={diagnostics.status === 'DEGRADED' ? 'danger' : diagnostics.status === 'UNKNOWN' ? 'warning' : 'available'}>{diagnostics.status || 'UNKNOWN'}</Badge>
             </div>
 
-            {/* Architecture Pipeline Stages */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-              {/* Stage 1 */}
-              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #38bdf8' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '1.25rem' }}>📥</span>
-                  <strong style={{ fontSize: '0.9rem', color: '#38bdf8' }}>Stage 1: Booking Ingestion</strong>
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                  Client initiates reservation. Broadcasts <code>frontdesk:new_booking</code> event to front desk consoles immediately.
-                </p>
-              </div>
-
-              {/* Stage 2 */}
-              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #f59e0b' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '1.25rem' }}>🔒</span>
-                  <strong style={{ fontSize: '0.9rem', color: '#f59e0b' }}>Stage 2: Front Desk Concurrency Lock</strong>
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                  Atomic check: one client cannot be assigned to two staff members. Rejects duplicate assignment with <code>409 Conflict</code>.
-                </p>
-              </div>
-
-              {/* Stage 3 */}
-              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #10b981' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '1.25rem' }}>🛡️</span>
-                  <strong style={{ fontSize: '0.9rem', color: '#10b981' }}>Stage 3: Availability Verification</strong>
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                  Checks unit status against <code>MAINTENANCE</code> or <code>BLOCKED</code> and verifies no overlapping active reservations exist.
-                </p>
-              </div>
-
-              {/* Stage 4 */}
-              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #8b5cf6' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '1.25rem' }}>📈</span>
-                  <strong style={{ fontSize: '0.9rem', color: '#8b5cf6' }}>Stage 4: Performance Attribution</strong>
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                  Logs <code>CLIENT_ACCEPTED</code> into <code>employee_activities</code> and increments staff member's live <code>clientsAccepted</code> score.
-                </p>
-              </div>
-
-              {/* Stage 5 */}
-              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #06b6d4' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '1.25rem' }}>🛎️</span>
-                  <strong style={{ fontSize: '0.9rem', color: '#06b6d4' }}>Stage 5: Check-In & In-House</strong>
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                  Front desk verifies booking auth code. Transitions unit to <code>OCCUPIED</code> and activates guest stay profile.
-                </p>
-              </div>
-
-              {/* Stage 6 */}
-              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ec4899' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '1.25rem' }}>🧹</span>
-                  <strong style={{ fontSize: '0.9rem', color: '#ec4899' }}>Stage 6: Housekeeping Turnover</strong>
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                  Departure releases unit to <code>DIRTY</code> status. Housekeeping cleaning & inspection cycle resets unit to <code>READY</code>.
-                </p>
-              </div>
+            {/* BFA's documented hierarchy and live module relationships. The dependency edges are sourced from the backend registry. */}
+            <div style={{ padding: '1rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+              <h3 style={{ margin: '0 0 .5rem' }}>BFA business hierarchy</h3>
+              <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Company <span aria-label="contains">→</span> Properties <span aria-label="contain">→</span> Apartments / Units <span aria-label="booked by">→</span> Reservations <span aria-label="associated with">→</span> Tenants / Guests</p>
+              <small style={{ color: 'var(--text-muted)' }}>Hierarchy from the system architecture specification. Operational modules below show their registered dependency edges.</small>
             </div>
-
-            {/* Role-Based Telemetry Matrix */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '.75rem', fontSize: '.78rem', color: 'var(--text-secondary)' }}>
+              <span>Legend:</span><span>● Green = probe healthy</span><span>● Amber = unknown / unprobed</span><span>● Red = degraded / unavailable</span><span>· Enabled means configured, not health checked</span>
+            </div>
+            <h3>Registered dependency flow</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Arrows show dependency direction (dependency → module). Select a module for its purpose, route, roles and current probe coverage.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '0.8rem' }}>
+              {(overview?.modules || []).map((mod) => <button key={mod.id} type="button" onClick={() => setSelectedModule(mod)} style={{ textAlign: 'left', padding: '1rem', borderRadius: 8, border: selectedModule?.id === mod.id ? '2px solid var(--brand-accent)' : '1px solid var(--border-color)', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}><strong>{(mod.dependencies || []).length ? (mod.dependencies || []).map((dep) => `${dep} →`).join('  ') : 'No registered upstream dependency'} {mod.id}</strong><div style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.75rem', marginTop: '.3rem' }}>{mod.route || mod.id}</div><div style={{ marginTop: '0.5rem', fontSize: '0.8rem' }}>{mod.name} · {mod.category} · {mod.isEnabled ? 'Configured enabled' : 'Disabled'}{mod.isProtectedCore ? ' · Protected core' : ''}</div><div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.35rem' }}>{mod.description}</div></button>)}
+              {!overview?.modules?.length && <p>{isSuperAdmin ? 'Module relationship data is unavailable because the operations overview did not return the module registry.' : 'Detailed module registry and dependency governance are restricted to Super Admin. This view continues to show the documented business hierarchy and live subsystem diagnostics.'}</p>}
+            </div>
+            {selectedModule && <Card style={{ marginTop: '1rem', padding: '1rem' }}><button type="button" onClick={() => setSelectedModule(null)} aria-label="Close module details" style={{ float: 'right' }}>Close</button><h3>{selectedModule.name}</h3><p>{selectedModule.description}</p><p><strong>Route:</strong> {selectedModule.route || 'Not registered'}</p><p><strong>Activation:</strong> {selectedModule.isEnabled ? 'Enabled' : 'Disabled'} · <strong>Live status:</strong> {selectedModule.isEnabled ? 'UNKNOWN — module-specific health probe is not registered' : 'Disabled'}</p><p><strong>Dependencies:</strong> {(selectedModule.dependencies || []).join(', ') || 'None registered'}</p><p><strong>Authorized roles:</strong> {(selectedModule.roles || []).join(', ')}</p><p><strong>Governance:</strong> {selectedModule.isProtectedCore ? 'Protected core module' : 'Toggle permitted to authorized administrators'}</p><p><strong>Last successful module check:</strong> Not available; no module-specific probe exists.</p></Card>}
+            <div style={{ marginTop: '1.25rem' }}><h3>Live subsystem probes</h3>{subsystems.length ? subsystems.map((system) => <div key={system.name} style={{ padding: '0.75rem 0', borderBottom: '1px solid var(--border-color)' }}><strong>{system.name}</strong> · {system.status}<div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{system.detail}</div><small style={{ color: 'var(--text-muted)' }}>Last checked: {diagnostics.timestamp ? new Date(diagnostics.timestamp).toLocaleString() : 'Not checked'}</small></div>) : <p>Subsystem health is unavailable.</p>}</div>
+              {/* OCC role boundary */}
             <div style={{ marginTop: '1.5rem', padding: '1.25rem', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
               <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1rem', fontWeight: 600 }}>
-                Role Visibility & Access Control Matrix
+                Operations Center Access
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', fontSize: '0.82rem' }}>
-                <div>
-                  <strong style={{ color: '#ea580c' }}>Front Desk Staff:</strong>
-                  <div style={{ color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                    Sees incoming queue, accepts & approves available units, manages arrivals & departures.
-                  </div>
-                </div>
-                <div>
-                  <strong style={{ color: '#2563eb' }}>Manager & Admin:</strong>
-                  <div style={{ color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                    Full operational control + live operational activity feed of all desk events.
-                  </div>
-                </div>
-                <div>
-                  <strong style={{ color: '#16a34a' }}>Owner:</strong>
-                  <div style={{ color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                    Executive view: High-level metrics + overall performance scorecards of all employees.
-                  </div>
-                </div>
-                <div>
-                  <strong style={{ color: '#38bdf8' }}>Developer:</strong>
-                  <div style={{ color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                    Operational telemetry pipeline, database integrity diagnostics, and system health.
-                  </div>
-                </div>
+                <p><strong>SUPER_ADMIN / ADMIN</strong><br/>Administrative diagnostics and authorized system governance controls.</p>
+                <p><strong>OWNER</strong><br/>Read-only health, system flow, and aggregate governance counts. User records, capabilities, approvals, module controls, backups, migrations, and development tools are restricted.</p>
+                <p><strong>OPERATIONS_MANAGER / RECEPTIONIST / STAFF / AGENT</strong><br/>This system governance center is not available to these roles.</p>
               </div>
             </div>
           </Card>
@@ -536,7 +557,7 @@ export default function OperationsPage() {
       )}
 
       {/* Tab 2: Modules & Toggles */}
-      {activeTab === 'modules' && (
+      {activeTab === 'modules' && isSuperAdmin && (
         <div>
           {/* Controls Bar */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
@@ -569,16 +590,17 @@ export default function OperationsPage() {
                 }}
               >
                 <option value="ALL">All Categories</option>
-                <option value="CORE">Core Domain</option>
-                <option value="OPERATIONS">Operations & Desk</option>
-                <option value="FINANCE">Finance & Accounting</option>
-                <option value="STAFF">Staff & Partners</option>
-                <option value="GOVERNANCE">Governance & Audit</option>
+                <option value="Core">Core</option>
+                <option value="Front Office">Front Office</option>
+                <option value="Finance">Finance</option>
+                <option value="Staff & HR">Staff & HR</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Governance">Governance</option>
               </select>
             </div>
 
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Showing {filteredModules.length} of {overview?.modules?.length || 18} registered modules
+              Showing {filteredModules.length} of {overview?.modules?.length ?? 0} registered modules
             </div>
           </div>
 
@@ -604,7 +626,7 @@ export default function OperationsPage() {
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{mod.id}</div>
                       </td>
                       <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>
-                        {mod.group}
+                        {mod.category}
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
@@ -642,7 +664,7 @@ export default function OperationsPage() {
                         </span>
                       </td>
                       <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
-                        {mod.isCore ? (
+                        {mod.isProtectedCore ? (
                           <span
                             style={{
                               display: 'inline-flex',
@@ -687,43 +709,32 @@ export default function OperationsPage() {
       {/* Tab 3: User Governance */}
       {activeTab === 'governance' && (
         <div>
-          {/* Governance Rules Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-            <Card style={{ padding: '1.25rem', borderLeft: '4px solid #38bdf8' }}>
-              <div style={{ fontWeight: 600, color: '#38bdf8', marginBottom: '0.35rem' }}>
-                Single Super Admin Sovereignty
-              </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Rule: Exactly 1 global Super Administrator account (ID: 1, <code>olawale@gmail.com</code>). Prevents privilege escalation and duplicate sovereign identities.
-              </div>
-            </Card>
+          <Card style={{ padding: '1.25rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: '.75rem', marginBottom: '1rem' }}>
+              {[['Registered users', governance.totalUsers], ['Active', governance.activeUsers], ['Inactive', governance.inactiveUsers]].map(([label, value]) => <div key={label} style={{ padding: '.85rem', borderRadius: 8, background: 'var(--bg-surface)' }}><div style={{ color: 'var(--text-secondary)', fontSize: '.8rem' }}>{label}</div><strong style={{ fontSize: '1.35rem' }}>{value ?? '—'}</strong></div>)}
+            </div>
+            <h3 style={{ margin: '0 0 .75rem' }}>Role distribution</h3>
+            <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr><th align="left">Role</th><th align="left">Accounts</th><th align="left">Permission summary</th><th align="left">OCC access</th></tr></thead><tbody>
+              {governanceRoleRows.map((roleInfo) => {
+                const occAccess = roleInfo.role === 'SUPER_ADMIN' ? 'Full authorized access' : roleInfo.role === 'ADMIN' ? 'Administrative access' : roleInfo.role === 'OWNER' ? 'Read-only summary' : 'Denied';
+                const permissions = roleInfo.capabilities ? `${roleInfo.capabilities.length} capabilities · ${roleInfo.desc}` : 'Permission details are restricted in the Owner view.';
+                return <tr key={roleInfo.role} style={{ borderTop: '1px solid var(--border-color)' }}><td style={{ padding: '.65rem' }}><strong>{roleInfo.role}</strong></td><td style={{ padding: '.65rem' }}>{roleInfo.total}</td><td style={{ padding: '.65rem', color: 'var(--text-secondary)' }}>{permissions}</td><td style={{ padding: '.65rem' }}>{occAccess}</td></tr>;
+              })}
+              {!governanceRoleRows.length && <tr><td colSpan="4" role="status">Role distribution is unavailable.</td></tr>}
+            </tbody></table></div>
+          </Card>
+          {!isOwner && <Card style={{ padding: '1.25rem', marginBottom: '1rem' }}><h3>Role permissions</h3>{(governance.roles || []).map((roleInfo) => <details key={roleInfo.role} style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--border-color)' }}><summary><strong>{roleInfo.name}</strong> · {roleInfo.role}</summary><p>{roleInfo.desc}</p><p><strong>Capabilities:</strong> {(roleInfo.capabilities || []).join(', ') || 'No capability list returned'}</p></details>)}</Card>}
+          {!isOwner && <Card style={{ padding: '1.25rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}><h3 style={{ margin: 0 }}>Access governance</h3><a href="/app/access-control">Open Access Control Policies</a></div>{accessGovLoading && <p>Loading capabilities and access requests…</p>}{accessGovError && <p role="alert" style={{ color: '#f87171' }}>{accessGovError}</p>}{!accessGovLoading && !accessGovError && <><h4>Capabilities ({accessGovernance.capabilities.length})</h4>{accessGovernance.capabilities.length ? accessGovernance.capabilities.map((cap) => <span key={cap.name || cap.id} style={{ display: 'inline-block', margin: '0.2rem', padding: '0.3rem 0.55rem', borderRadius: 12, background: cap.is_enabled ? 'rgba(74,222,128,.12)' : 'rgba(251,191,36,.12)' }}>{cap.name} · {cap.is_enabled ? 'Enabled' : 'Disabled'}</span>) : <p>No capabilities returned.</p>}<h4>Access overrides ({accessGovernance.overrides.length})</h4>{accessGovernance.overrides.length ? accessGovernance.overrides.map((row) => <p key={row.id}>Override #{row.id} · {row.capability_name} · {row.override_type} · {row.is_active ? 'Active' : 'Inactive'}</p>) : <p>No access overrides recorded.</p>}{isSuperAdmin && <><h4>Pending access requests ({accessGovernance.approvals.length})</h4>{accessGovernance.approvals.length ? accessGovernance.approvals.map((row) => <p key={row.id}>Request #{row.id} · {row.capability_name || row.capabilityName} · {row.status}</p>) : <p>No pending approval requests.</p>}</>}</>}</Card>}
 
-            <Card style={{ padding: '1.25rem', borderLeft: '4px solid #4ade80' }}>
-              <div style={{ fontWeight: 600, color: '#4ade80', marginBottom: '0.35rem' }}>
-                Single Owner Stakeholder
-              </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Rule: Exactly 1 registered Owner account (ID: 7, <code>owner@bfa.ng</code>). Read-only executive financial audit access and sovereign oversight.
-              </div>
-            </Card>
-
-            <Card style={{ padding: '1.25rem', borderLeft: '4px solid #fbbf24' }}>
-              <div style={{ fontWeight: 600, color: '#fbbf24', marginBottom: '0.35rem' }}>
-                Property Scoping Isolation
-              </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Rule: Front desk and staff users are strictly assigned to Property 1 or Property 2. Cross-property data leakage is blocked by tenant filters.
-              </div>
-            </Card>
-          </div>
+          {!isOwner && <Card style={{ padding: '1.25rem', marginBottom: '1rem' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}><h3 style={{ margin: 0 }}>Recent governance changes</h3><Button type="button" variant="outline" size="sm" onClick={fetchGovernanceChanges} disabled={governanceChangesLoading}>{governanceChangesLoading ? 'Refreshing…' : 'Refresh changes'}</Button></div>{governanceChangesLoading && <p role="status">Loading governance history…</p>}{governanceChangesError && <p role="alert" style={{ color: '#f87171' }}>{governanceChangesError}</p>}{!governanceChangesLoading && !governanceChangesError && (governanceChanges.length ? governanceChanges.slice(0, 10).map((change) => <p key={change.id}><strong>{change.action}</strong> · {change.actor_email || `User #${change.actor_id}`} · {change.created_at ? new Date(change.created_at).toLocaleString() : 'Time unavailable'}</p>) : <p>No matching governance changes were returned from the audit service.</p>)}</Card>}
 
           {/* User Table */}
           <Card style={{ padding: '0', overflow: 'hidden' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color, #334155)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                System Users & Role Hierarchy ({governance.totalUsers || 9} Accounts)
+                System Users & Role Hierarchy ({governance.totalUsers ?? 0} Accounts)
               </h3>
-              <span style={{ fontSize: '0.75rem', color: '#4ade80' }}>✓ 100% Active Accounts</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{governance.activeUsers ?? 0} active · {governance.inactiveUsers ?? 0} inactive</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
@@ -735,6 +746,7 @@ export default function OperationsPage() {
                     <th style={{ padding: '0.75rem 1rem' }}>Assigned Property</th>
                     <th style={{ padding: '0.75rem 1rem' }}>Status</th>
                     <th style={{ padding: '0.75rem 1rem' }}>Account Created</th>
+                    {!isOwner && <th style={{ padding: '0.75rem 1rem' }}>Access details</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -779,13 +791,15 @@ export default function OperationsPage() {
                         {u.property_name || (u.property_id ? `Property #${u.property_id}` : 'Global (All)')}
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
-                        <span style={{ color: '#4ade80', fontSize: '0.75rem', fontWeight: 600 }}>● Active</span>
+                        <span style={{ color: u.status === 'ACTIVE' ? '#4ade80' : '#f87171', fontSize: '0.75rem', fontWeight: 600 }}>● {u.status || 'Unknown'}</span>
                       </td>
                       <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
                         {u.created_at ? new Date(u.created_at).toLocaleDateString() : 'Baseline'}
                       </td>
+                      {!isOwner && <td style={{ padding: '0.75rem 1rem' }}><Button type="button" variant="outline" size="sm" onClick={() => setSelectedGovernanceUser(u)}>View details</Button></td>}
                     </tr>
                   ))}
+                  {!(governance.users || []).length && <tr><td colSpan={isOwner ? 6 : 7} style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{isOwner ? 'Individual user records are restricted for the Owner view.' : 'No user records were returned.'}</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -794,7 +808,7 @@ export default function OperationsPage() {
       )}
 
       {/* Tab 4: Settings & Thresholds */}
-      {activeTab === 'settings' && (
+      {activeTab === 'settings' && (isAdmin || isSuperAdmin) && (
         <Card style={{ padding: '1.5rem', maxWidth: '800px' }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
             System Configuration & Policy Thresholds
@@ -940,83 +954,20 @@ export default function OperationsPage() {
         </Card>
       )}
 
-      {/* Tab 5: Audit Trail */}
-      {activeTab === 'audit' && (
-        <Card style={{ padding: '0', overflow: 'hidden' }}>
-          <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color, #334155)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-              Real-Time Security & Mutation Audit Trail
-            </h3>
-            <Button variant="outline" size="sm" onClick={fetchAuditLogs} disabled={auditLoading}>
-              {auditLoading ? 'Loading...' : 'Refresh Logs'}
-            </Button>
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-color, #334155)', background: 'rgba(0,0,0,0.15)', textAlign: 'left', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '0.75rem 1rem' }}>Timestamp</th>
-                  <th style={{ padding: '0.75rem 1rem' }}>Actor</th>
-                  <th style={{ padding: '0.75rem 1rem' }}>Role</th>
-                  <th style={{ padding: '0.75rem 1rem' }}>Action Code</th>
-                  <th style={{ padding: '0.75rem 1rem' }}>Entity</th>
-                  <th style={{ padding: '0.75rem 1rem' }}>IP Address</th>
-                </tr>
-              </thead>
-              <tbody>
-                {auditLogs.length > 0 ? (
-                  auditLogs.map((log) => (
-                    <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                        {new Date(log.created_at).toLocaleString()}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {log.actor_email || `User #${log.actor_id}`}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem' }}>
-                        <span style={{ padding: '1px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', fontSize: '0.72rem' }}>
-                          {log.actor_role}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', color: '#38bdf8' }}>
-                        {log.action}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>
-                        {log.entity_type} {log.entity_id ? `#${log.entity_id}` : ''}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                        {log.ip_address || '127.0.0.1'}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      {auditLoading ? 'Loading audit trail logs...' : 'No audit records returned.'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
       {/* Tab 6: Backups & Migrations */}
-      {activeTab === 'backups' && (
+      {activeTab === 'backups' && isSuperAdmin && (
         <div>
           {/* Top Backup Action Card */}
           <Card style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
             <div>
               <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                Database Snapshot Management
+                Local SQL Backup Artifacts
               </h3>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Create verifiable point-in-time SQL snapshots in <code>backups/</code> with table integrity verification.
+                {backups.engine} · Files found in the local backups directory. The file inventory does not verify backup contents or restore integrity.
               </p>
             </div>
-            <Button
+            {backups.engine === 'MySQL' && (isAdmin || isSuperAdmin) && <Button
               variant="primary"
               onClick={handleCreateBackup}
               disabled={isCreatingBackup}
@@ -1024,14 +975,15 @@ export default function OperationsPage() {
             >
               <span>💾</span>
               {isCreatingBackup ? 'Generating Snapshot...' : 'Create Manual Snapshot'}
-            </Button>
+            </Button>}
+            {backups.engine === 'PostgreSQL' && <p role="status" style={{ color: '#fbbf24', margin: 0 }}>Snapshot generation is unavailable because this deployment has no PostgreSQL backup provider configured.</p>}
           </Card>
 
           {/* Backup Files List */}
           <Card style={{ padding: '0', overflow: 'hidden', marginBottom: '1.5rem' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color, #334155)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                Available Database Snapshots ({backups.totalBackups || 0} Files on Disk)
+                Local SQL Files ({backups.totalBackups ?? 0})
               </h4>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Storage: Local FS / backups/</span>
             </div>
@@ -1042,15 +994,15 @@ export default function OperationsPage() {
                     <th style={{ padding: '0.75rem 1rem' }}>Snapshot Filename</th>
                     <th style={{ padding: '0.75rem 1rem' }}>Size</th>
                     <th style={{ padding: '0.75rem 1rem' }}>Created At</th>
-                    <th style={{ padding: '0.75rem 1rem' }}>Type</th>
-                    <th style={{ padding: '0.75rem 1rem' }}>Integrity</th>
+                    <th style={{ padding: '0.75rem 1rem' }}>Artifact</th>
+                    <th style={{ padding: '0.75rem 1rem' }}>Availability</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(backups.snapshots || []).map((b, idx) => (
+                  {backupSnapshots.map((b, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {b.name}
+                        {b.name || b.filename}
                       </td>
                       <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)' }}>
                         {b.sizeFormatted || `${Math.round((b.sizeBytes || 0) / 1024)} KB`}
@@ -1060,11 +1012,11 @@ export default function OperationsPage() {
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
                         <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' }}>
-                          Full Schema & Data
+                          SQL file
                         </span>
                       </td>
                       <td style={{ padding: '0.75rem 1rem' }}>
-                        <span style={{ color: '#4ade80', fontSize: '0.75rem', fontWeight: 600 }}>✓ Verified</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>Present on disk · engine unverified</span>
                       </td>
                     </tr>
                   ))}
@@ -1077,10 +1029,12 @@ export default function OperationsPage() {
           <Card style={{ padding: '0', overflow: 'hidden', marginBottom: '1.5rem' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color, #334155)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                Applied Schema Migrations (23 / 23 Applied)
+                Migration Catalog {migrationCatalog ? `(${migrationCatalog.appliedMigrations}/${migrationCatalog.totalMigrations} applied)` : ''}
               </h4>
-              <span style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 600 }}>● 100% In Sync</span>
+              <span style={{ fontSize: '0.75rem', color: migrationCatalog?.status === 'IN_SYNC' ? '#4ade80' : '#fbbf24', fontWeight: 600 }}>{migrationCatalog?.status || (migrationError ? 'UNAVAILABLE' : 'Loading')}</span>
             </div>
+            {migrationError && <p style={{ padding: '0.8rem 1rem', color: '#f87171' }}>{migrationError}</p>}
+            {migrationCatalog && <p style={{ padding: '0.5rem 1rem', margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem' }}>{migrationCatalog.engine} · {migrationCatalog.migrationSystem} · {migrationCatalog.pendingMigrations} pending · Checked {new Date(migrationCatalog.checkedAt).toLocaleString()}</p>}
             <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
@@ -1091,16 +1045,16 @@ export default function OperationsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(migrations.applied || []).map((m, idx) => (
+                  {(migrationCatalog?.migrations || []).map((m, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <td style={{ padding: '0.65rem 1rem', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
                         {m.name}
                       </td>
                       <td style={{ padding: '0.65rem 1rem' }}>
-                        <span style={{ color: '#4ade80', fontSize: '0.75rem', fontWeight: 600 }}>APPLIED</span>
+                        <span style={{ color: m.status === 'APPLIED' ? '#4ade80' : '#fbbf24', fontSize: '0.75rem', fontWeight: 600 }}>{m.status}</span>
                       </td>
                       <td style={{ padding: '0.65rem 1rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                        {m.executed_at ? new Date(m.executed_at).toLocaleString() : 'Baseline Initializer'}
+                        {m.executedAt ? new Date(m.executedAt).toLocaleString() : '—'}
                       </td>
                     </tr>
                   ))}
@@ -1116,18 +1070,74 @@ export default function OperationsPage() {
             </h4>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               <p style={{ margin: '0 0 0.5rem 0' }}>
-                To restore from a point-in-time SQL snapshot, execute the following command in terminal:
+                Recovery must use the database client and engine matching the configured environment. Confirm the target and backup before restoring.
               </p>
               <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '4px', overflowX: 'auto', color: '#86efac', fontFamily: 'monospace', fontSize: '0.8rem', margin: '0 0 0.5rem 0' }}>
-                mysql -u bfa_user -p bfa_apartments_db &lt; backups/bfa_apartments_db_backup_YYYYMMDD_HHMMSS.sql
+                Select a snapshot from the inventory and follow the deployment recovery procedure for the active database engine.
               </pre>
               <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                Foreign key constraints are disabled during restoration and safely re-enabled at EOF.
+                The Operations Center does not execute restores or modify database state.
               </p>
             </div>
           </Card>
         </div>
       )}
+
+      {activeTab === 'development' && (isSuperAdmin || isAdmin) && (
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          {devError && <p role="alert" style={{ color: '#f87171', margin: 0 }}>{devError}</p>}
+          {isSuperAdmin && <Card style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div><h3 style={{ margin: 0 }}>System Development Status</h3><p style={{ color: 'var(--text-secondary)', marginBottom: 0 }}>Super Admin diagnostic summary from the existing development status operation.</p></div>
+              <Button variant="outline" onClick={loadDevelopmentCenter} disabled={devLoading}>{devLoading ? 'Refreshing…' : 'Refresh status'}</Button>
+            </div>
+            {devLoading && !devStatus && <p role="status">Loading system development status…</p>}
+            {!devLoading && !devError && !devStatus && <p>No development status response is available.</p>}
+            {devStatus && <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: '.75rem', marginBottom: 0 }}>
+              <div><dt>Status</dt><dd>{devStatus.status || 'UNKNOWN'}</dd></div>
+              <div><dt>Uptime</dt><dd>{devStatus.uptime || 'Unavailable'}</dd></div>
+              <div><dt>Database latency</dt><dd>{devStatus.database?.latencyMs ?? 'Unknown'} ms</dd></div>
+              <div><dt>Migrations</dt><dd>{devStatus.database?.inSync == null ? 'Restricted / unavailable' : `${devStatus.database.appliedMigrations} applied · ${devStatus.database.inSync ? 'in sync' : 'out of sync'}`}</dd></div>
+              <div><dt>Runtime</dt><dd>{devStatus.runtime?.nodeVersion || 'Unknown'} · {devStatus.runtime?.platform || 'Unknown'}</dd></div>
+              <div><dt>Users / modules</dt><dd>{devStatus.totalUsers ?? '—'} / {devStatus.totalModules ?? '—'}</dd></div>
+            </dl>}
+          </Card>}
+          <Card style={{ padding: '1.25rem' }}>
+            <div style={{ marginBottom: '1rem' }}><h3 style={{ margin: 0 }}>Plan a Development Task</h3><p style={{ color: 'var(--text-secondary)', margin: '.35rem 0 0' }}>Build a structured implementation plan with the existing BFA development planning operation. Submitted text is treated as task context, not executable instructions.</p></div>
+            {devValidationError && <p role="alert" style={{ color: '#f87171' }}>{devValidationError}</p>}
+            <form onSubmit={handlePlanTask} style={{ display: 'grid', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: '1rem' }}>
+                <label style={{ display: 'grid', gap: '.4rem' }}>Task title<input required minLength={3} maxLength={180} value={devForm.taskTitle} onChange={(e) => setDevForm({ ...devForm, taskTitle: e.target.value })} placeholder="Short name for the proposed work" /></label>
+                <label style={{ display: 'grid', gap: '.4rem' }}>Task category<select value={devForm.category} onChange={(e) => setDevForm({ ...devForm, category: e.target.value })}><option value="OPERATIONS">Operations</option><option value="ACCOUNTING">Accounting</option><option value="SECURITY">Security</option><option value="REPORTS">Reports</option><option value="INFRASTRUCTURE">Infrastructure</option><option value="GOVERNANCE">Governance</option></select></label>
+                <label style={{ display: 'grid', gap: '.4rem' }}>Priority<select value={devForm.priority} onChange={(e) => setDevForm({ ...devForm, priority: e.target.value })}><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option><option value="CRITICAL">Critical</option></select></label>
+              </div>
+              <label style={{ display: 'grid', gap: '.4rem' }}>Detailed task description<textarea required minLength={20} maxLength={12000} rows={5} value={devForm.taskDescription} onChange={(e) => setDevForm({ ...devForm, taskDescription: e.target.value })} placeholder="Describe the current behavior, requested change, and relevant workflow." /></label>
+              <label style={{ display: 'grid', gap: '.4rem' }}>Expected outcome<textarea required minLength={5} maxLength={3000} rows={2} value={devForm.expectedOutcome} onChange={(e) => setDevForm({ ...devForm, expectedOutcome: e.target.value })} placeholder="How will a successful result be observed?" /></label>
+              <label style={{ display: 'grid', gap: '.4rem' }}>Implementation context and constraints<textarea maxLength={6000} rows={3} value={devForm.implementationContext} onChange={(e) => setDevForm({ ...devForm, implementationContext: e.target.value })} placeholder="Relevant modules, compatibility needs, permissions, or constraints." /></label>
+              <div><Button type="submit" disabled={devLoading}>{devLoading ? 'Preparing plan…' : 'Generate implementation plan'}</Button>{devLoading && <span role="status" style={{ marginLeft: '.75rem', color: 'var(--text-secondary)' }}>The existing planning operation is working…</span>}</div>
+            </form>
+            {taskPlan && <section aria-live="polite" style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-surface)' }}>
+              <h4 style={{ marginTop: 0 }}>Planning response · {taskPlan.framework}</h4>
+              <p><strong>{taskPlan.task?.title}</strong> · {taskPlan.task?.category} · {taskPlan.task?.priority}</p>
+              <p><strong>Expected outcome:</strong> {taskPlan.task?.expectedOutcome}</p>
+              {taskPlan.task?.implementationContext && <p><strong>Context:</strong> {taskPlan.task.implementationContext}</p>}
+              {taskPlan.steps?.length ? <ol>{taskPlan.steps.map((step) => <li key={step.step}><strong>{step.phase}:</strong> {step.description}</li>)}</ol> : <p>The planning operation returned no implementation steps.</p>}
+              {taskPlan.inputHandling && <small>{taskPlan.inputHandling}</small>}
+            </section>}
+          </Card>
+        </div>
+      )}
+
+      <Modal isOpen={Boolean(selectedGovernanceUser)} onClose={() => setSelectedGovernanceUser(null)} title="User access details">
+        {selectedGovernanceUser && <div style={{ display: 'grid', gap: '.75rem' }}>
+          <p><strong>{selectedGovernanceUser.name}</strong><br /><span style={{ color: 'var(--text-secondary)' }}>{selectedGovernanceUser.email}</span></p>
+          <p><strong>Account:</strong> #{selectedGovernanceUser.id} · {selectedGovernanceUser.status || 'Status unavailable'} · {selectedGovernanceUser.last_login_at ? `Last login ${new Date(selectedGovernanceUser.last_login_at).toLocaleString()}` : 'No recorded last login'}</p>
+          <p><strong>Role:</strong> {selectedGovernanceUser.role}<br /><span>{(governance.roles || []).find((roleInfo) => roleInfo.role === selectedGovernanceUser.role)?.desc || 'No role description is registered.'}</span></p>
+          <p><strong>Property scope:</strong> {selectedGovernanceUser.property_name || (selectedGovernanceUser.property_id ? `Property #${selectedGovernanceUser.property_id}` : 'Global scope')}</p>
+          <p><strong>Role capabilities:</strong> {Array.isArray(selectedGovernanceUser.permissions) ? selectedGovernanceUser.permissions.join(', ') || 'No capabilities assigned' : 'Permission summary unavailable'}</p>
+          <p><strong>Management:</strong> User identity and role are managed in the existing Team interface. <a href="/app/team">Open Team & RBAC</a></p>
+        </div>}
+      </Modal>
 
       {/* Confirmation Modal for Module Toggle */}
       <Modal
@@ -1141,11 +1151,13 @@ export default function OperationsPage() {
           </p>
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-              Audit Reason (Required for compliance log):
+              Audit Reason (Required for compliance log, at least 3 characters):
             </label>
             <input
               type="text"
-              placeholder="e.g. Temporary maintenance or administrative toggle"
+              required
+              minLength={3}
+              placeholder="Explain why this module needs to change"
               value={toggleReason}
               onChange={(e) => setToggleReason(e.target.value)}
               style={{
@@ -1163,7 +1175,7 @@ export default function OperationsPage() {
             <Button variant="outline" onClick={() => setModuleToToggle(null)} disabled={isToggling}>
               Cancel
             </Button>
-            <Button variant={moduleToToggle?.isEnabled ? 'danger' : 'primary'} onClick={handleConfirmToggle} disabled={isToggling}>
+            <Button variant={moduleToToggle?.isEnabled ? 'danger' : 'primary'} onClick={handleConfirmToggle} disabled={isToggling || toggleReason.trim().length < 3}>
               {isToggling ? 'Updating...' : `Confirm ${moduleToToggle?.isEnabled ? 'Disable' : 'Enable'}`}
             </Button>
           </div>

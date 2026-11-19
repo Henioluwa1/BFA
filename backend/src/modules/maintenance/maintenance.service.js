@@ -21,6 +21,8 @@ const VALID_CATEGORIES = [
   'CLEANING',
 ];
 const VALID_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CANCELLED'];
+const PROPERTY_SCOPED_ROLES = new Set(['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST']);
+const MAINTENANCE_EDIT_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']);
 
 /**
  * Deadlock retry helper with jitter
@@ -41,23 +43,36 @@ async function executeWithDeadlockRetry(operation, maxRetries = 3) {
 }
 
 class MaintenanceService {
+  static getAuthorizedPropertyId(user, requestedPropertyId) {
+    const role = String(user?.role || '').toUpperCase();
+    const requested = requestedPropertyId && requestedPropertyId !== 'all'
+      ? Number(requestedPropertyId)
+      : null;
+
+    if (requestedPropertyId && requestedPropertyId !== 'all' && (!Number.isInteger(requested) || requested < 1)) {
+      throw new ValidationError('Property ID must be a positive integer.');
+    }
+
+    if (PROPERTY_SCOPED_ROLES.has(role)) {
+      const assignedPropertyId = Number(user?.propertyId);
+      if (!Number.isInteger(assignedPropertyId) || assignedPropertyId < 1) {
+        throw new ForbiddenError('Access denied: User is not assigned to any property.');
+      }
+      if (requested && requested !== assignedPropertyId) {
+        throw new ForbiddenError('Access denied: You do not have authorization for this property.');
+      }
+      return assignedPropertyId;
+    }
+
+    return requested || null;
+  }
+
   /**
    * Validate property scoping for role
    */
   static validatePropertyScope(user, propertyId) {
     if (!user) return true;
-    const role = (user.role || '').toUpperCase();
-    if (['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role)) {
-      return true;
-    }
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
-      if (!user.propertyId) {
-        throw new ForbiddenError('Access denied: User is not assigned to any property.');
-      }
-      if (propertyId && propertyId !== 'all' && parseInt(user.propertyId, 10) !== parseInt(propertyId, 10)) {
-        throw new ForbiddenError('Access denied: You do not have authorization for this property.');
-      }
-    }
+    this.getAuthorizedPropertyId(user, propertyId);
     return true;
   }
 
@@ -65,8 +80,42 @@ class MaintenanceService {
    * List maintenance work orders
    */
   static async listMaintenance(params, user = null) {
+    const input = params && typeof params === 'object' ? { ...params } : {};
+    const propertyId = this.getAuthorizedPropertyId(user, input.propertyId);
+    for (const [field, allowed] of [['status', VALID_STATUSES], ['priority', VALID_PRIORITIES], ['category', VALID_CATEGORIES]]) {
+      if (input[field] && String(input[field]).toUpperCase() !== 'ALL') {
+        const value = String(input[field]).trim().toUpperCase();
+        if (!allowed.includes(value)) throw new ValidationError(`Invalid ${field} filter '${input[field]}'.`);
+        input[field] = value;
+      }
+    }
+    if (input.apartmentId === 'ALL' || input.apartmentId === '') {
+      delete input.apartmentId;
+    } else if (input.apartmentId !== undefined) {
+      const apartmentId = Number(input.apartmentId);
+      if (!Number.isInteger(apartmentId) || apartmentId < 1) throw new ValidationError('Apartment ID must be a positive integer.');
+      input.apartmentId = apartmentId;
+    }
+    if (input.assignedToId !== undefined && input.assignedToId !== '') {
+      const assignedToId = Number(input.assignedToId);
+      if (!Number.isInteger(assignedToId) || assignedToId < 1) throw new ValidationError('Assigned staff ID must be a positive integer.');
+      input.assignedToId = assignedToId;
+    }
+    if (input.search !== undefined && (typeof input.search !== 'string' || input.search.length > 200)) {
+      throw new ValidationError('Search must be text no longer than 200 characters.');
+    }
+    for (const field of ['page', 'pageSize']) {
+      if (input[field] !== undefined) {
+        const value = Number(input[field]);
+        if (!Number.isInteger(value) || value < 1 || (field === 'pageSize' && value > 100)) {
+          throw new ValidationError(`${field} must be a positive integer${field === 'pageSize' ? ' no greater than 100' : ''}.`);
+        }
+        input[field] = value;
+      }
+    }
     return MaintenanceRepository.findAll({
-      ...params,
+      ...input,
+      propertyId,
       user,
     });
   }
@@ -91,11 +140,54 @@ class MaintenanceService {
    * Create new maintenance request
    */
   static async createMaintenance(data, user = null, req = null) {
-    if (!data.property_id || !data.issue_title) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new ValidationError('A work-order payload is required.');
+    }
+    const propertyId = Number(data.property_id);
+    const apartmentId = data.apartment_id === null || data.apartment_id === '' || data.apartment_id === undefined
+      ? null
+      : Number(data.apartment_id);
+    const estimatedCost = data.estimated_cost === undefined || data.estimated_cost === null || data.estimated_cost === ''
+      ? 0
+      : Number(data.estimated_cost);
+    if (!Number.isInteger(propertyId) || propertyId < 1) {
+      throw new ValidationError('Property ID must be a positive integer.');
+    }
+    if (apartmentId !== null && (!Number.isInteger(apartmentId) || apartmentId < 1)) {
+      throw new ValidationError('Apartment ID must be a positive integer.');
+    }
+    if (typeof data.issue_title !== 'string' || !data.issue_title.trim()) {
       throw new ValidationError('Property ID and issue title are required.');
     }
+    if (data.issue_title.trim().length > 255) {
+      throw new ValidationError('Issue title cannot exceed 255 characters.');
+    }
+    if (data.description !== undefined && data.description !== null && typeof data.description !== 'string') {
+      throw new ValidationError('Description must be text.');
+    }
+    if (!Number.isFinite(estimatedCost) || estimatedCost < 0) {
+      throw new ValidationError('Estimated cost must be a valid non-negative number.');
+    }
+    if (data.blocking_unit !== undefined && ![true, false, 1, 0, '1', '0'].includes(data.blocking_unit)) {
+      throw new ValidationError('Blocking-unit flag must be true or false.');
+    }
+    if (data.assigned_to_id !== undefined && data.assigned_to_id !== null && data.assigned_to_id !== '') {
+      const staffId = Number(data.assigned_to_id);
+      if (!Number.isInteger(staffId) || staffId < 1) {
+        throw new ValidationError('Assigned staff ID must be a positive integer.');
+      }
+      data.assigned_to_id = staffId;
+    }
+    data = {
+      ...data,
+      property_id: propertyId,
+      apartment_id: apartmentId,
+      issue_title: data.issue_title.trim(),
+      description: typeof data.description === 'string' ? data.description.trim() || null : null,
+      estimated_cost: estimatedCost,
+    };
 
-    this.validatePropertyScope(user, data.property_id);
+    this.validatePropertyScope(user, propertyId);
 
     // Verify property exists
     const property = await PropertiesRepository.findById(data.property_id);
@@ -105,12 +197,12 @@ class MaintenanceService {
 
     // Verify apartment if supplied
     let apartment = null;
-    if (data.apartment_id) {
-      apartment = await ApartmentsRepository.findById(data.apartment_id);
+    if (apartmentId) {
+      apartment = await ApartmentsRepository.findById(apartmentId);
       if (!apartment) {
         throw new NotFoundError(`Apartment unit #${data.apartment_id} not found.`);
       }
-      if (parseInt(apartment.property_id, 10) !== parseInt(data.property_id, 10)) {
+      if (parseInt(apartment.property_id, 10) !== propertyId) {
         throw new ValidationError('Data Integrity Violation: Unit does not belong to specified property.');
       }
     }
@@ -174,7 +266,7 @@ class MaintenanceService {
 
           // DEC-2.5B-02 (Option A): Attendance exception check
           const [attRows] = await conn.query(
-            'SELECT id, requires_review, verification_notes FROM attendance_records WHERE employee_id = ? AND work_date = CURDATE() AND clock_out_time IS NULL ORDER BY id DESC LIMIT 1',
+            'SELECT id, requires_review, verification_notes FROM attendance_records WHERE employee_id = ? AND work_date = CURRENT_DATE AND clock_out_time IS NULL ORDER BY id DESC LIMIT 1',
             [employee.id]
           );
           if (attRows.length > 0 && (attRows[0].requires_review == 1 || attRows[0].requires_review === true)) {
@@ -190,12 +282,12 @@ class MaintenanceService {
 
           // DEC-2.5B-03 (Option B): Workload warning threshold
           const [wRows] = await conn.query(
-            'SELECT COUNT(*) as count FROM maintenance_requests WHERE assigned_to_id = ? AND status IN ("OPEN", "IN_PROGRESS")',
+            "SELECT COUNT(*) as count FROM maintenance_requests WHERE assigned_to_id = ? AND status IN ('OPEN', 'IN_PROGRESS')",
             [staff.id]
           );
           const activeCount = parseInt(wRows[0].count, 10);
           const [settRows] = await conn.query(
-            'SELECT setting_value FROM system_settings WHERE setting_key = "maintenance_workload_warning_threshold" LIMIT 1'
+            "SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_workload_warning_threshold' LIMIT 1"
           );
           const threshold = settRows.length > 0 ? parseInt(settRows[0].setting_value, 10) : 5;
           if (activeCount >= threshold) {
@@ -212,7 +304,7 @@ class MaintenanceService {
 
     // Concurrency Hardening: Every operation creating a blocking maintenance restriction
     // must coordinate through the apartment row lock before writing that restriction.
-    if (data.apartment_id && isBlocking) {
+    if (apartmentId && isBlocking) {
       insertId = await executeWithDeadlockRetry(async () => {
         return pool.withTransaction(async (conn) => {
           // Priority: Lock apartment row first
@@ -252,12 +344,12 @@ class MaintenanceService {
           // If apartment is vacant/available/ready, update status = 'MAINTENANCE' and maintenance_status = 'UNDER_REPAIR'
           if (lockedApt.status === 'OCCUPIED') {
             await conn.query(
-              'UPDATE apartments SET maintenance_status = "UNDER_REPAIR", updated_at = NOW() WHERE id = ?',
+              "UPDATE apartments SET maintenance_status = 'UNDER_REPAIR', updated_at = NOW() WHERE id = ?",
               [lockedApt.id]
             );
           } else {
             await conn.query(
-              'UPDATE apartments SET status = "MAINTENANCE", maintenance_status = "UNDER_REPAIR", updated_at = NOW() WHERE id = ?',
+              "UPDATE apartments SET status = 'MAINTENANCE', maintenance_status = 'UNDER_REPAIR', updated_at = NOW() WHERE id = ?",
               [lockedApt.id]
             );
           }
@@ -375,8 +467,8 @@ class MaintenanceService {
    * Policies: DEC-2.5B-01, DEC-2.5B-02, DEC-2.5B-03
    */
   static async assignStaff(id, data, user, req = null) {
-    const staffId = parseInt(data?.staffId || data?.assigned_to_id, 10);
-    if (!staffId || isNaN(staffId)) {
+    const staffId = Number(data?.staffId ?? data?.assigned_to_id);
+    if (!Number.isInteger(staffId) || staffId < 1) {
       throw new ValidationError('staffId is required for assignment.');
     }
 
@@ -450,7 +542,7 @@ class MaintenanceService {
 
         // 4. DEC-2.5B-02 (Option A): Attendance Exception Check
         const [attRows] = await conn.query(
-          'SELECT id, requires_review, verification_notes FROM attendance_records WHERE employee_id = ? AND work_date = CURDATE() AND clock_out_time IS NULL ORDER BY id DESC LIMIT 1',
+          'SELECT id, requires_review, verification_notes FROM attendance_records WHERE employee_id = ? AND work_date = CURRENT_DATE AND clock_out_time IS NULL ORDER BY id DESC LIMIT 1',
           [employee.id]
         );
         if (attRows.length > 0 && (attRows[0].requires_review == 1 || attRows[0].requires_review === true)) {
@@ -467,12 +559,12 @@ class MaintenanceService {
 
         // 5. DEC-2.5B-03 (Option B): Workload warning capacity calculation
         const [wRows] = await conn.query(
-          'SELECT COUNT(*) as count FROM maintenance_requests WHERE assigned_to_id = ? AND status IN ("OPEN", "IN_PROGRESS") AND id != ?',
+          "SELECT COUNT(*) as count FROM maintenance_requests WHERE assigned_to_id = ? AND status IN ('OPEN', 'IN_PROGRESS') AND id != ?",
           [staff.id, id]
         );
         activeWorkload = parseInt(wRows[0].count, 10);
         const [settRows] = await conn.query(
-          'SELECT setting_value FROM system_settings WHERE setting_key = "maintenance_workload_warning_threshold" LIMIT 1'
+          "SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_workload_warning_threshold' LIMIT 1"
         );
         threshold = settRows.length > 0 ? parseInt(settRows[0].setting_value, 10) : 5;
         if (activeWorkload >= threshold) {
@@ -578,13 +670,75 @@ class MaintenanceService {
    * Coordinates via MaintenanceRepository.update with apartment-row mutex locks.
    */
   static async updateMaintenance(id, data, user, req = null) {
+    const role = String(user?.role || '').toUpperCase();
+    if (!MAINTENANCE_EDIT_ROLES.has(role)) {
+      throw new ForbiddenError('You are not authorized to edit maintenance work orders.');
+    }
+
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new ValidationError('A work-order update object is required.');
+    }
+
+    const allowedFields = new Set(['issue_title', 'description', 'category', 'priority', 'estimated_cost', 'blocking_unit']);
+    const unknownFields = Object.keys(data).filter((field) => !allowedFields.has(field));
+    if (unknownFields.length) {
+      throw new ValidationError(`Unsupported maintenance update field(s): ${unknownFields.join(', ')}.`);
+    }
+    if (Object.keys(data).length === 0) {
+      throw new ValidationError('Provide at least one field to update.');
+    }
+
+    const changes = { ...data };
+    if (Object.hasOwn(changes, 'issue_title')) {
+      if (typeof changes.issue_title !== 'string' || !changes.issue_title.trim()) {
+        throw new ValidationError('Issue title is required.');
+      }
+      changes.issue_title = changes.issue_title.trim();
+      if (changes.issue_title.length > 255) {
+        throw new ValidationError('Issue title cannot exceed 255 characters.');
+      }
+    }
+    if (Object.hasOwn(changes, 'description')) {
+      if (changes.description !== null && typeof changes.description !== 'string') {
+        throw new ValidationError('Description must be text.');
+      }
+      changes.description = typeof changes.description === 'string' ? changes.description.trim() || null : null;
+    }
+    if (Object.hasOwn(changes, 'category')) {
+      changes.category = String(changes.category || '').trim().toUpperCase();
+      if (!VALID_CATEGORIES.includes(changes.category)) {
+        throw new ValidationError(`Invalid category '${changes.category}'. Allowed: ${VALID_CATEGORIES.join(', ')}`);
+      }
+    }
+    if (Object.hasOwn(changes, 'priority')) {
+      changes.priority = String(changes.priority || '').trim().toUpperCase();
+      if (!VALID_PRIORITIES.includes(changes.priority)) {
+        throw new ValidationError(`Invalid priority '${changes.priority}'. Allowed: ${VALID_PRIORITIES.join(', ')}`);
+      }
+    }
+    if (Object.hasOwn(changes, 'estimated_cost')) {
+      const cost = Number(changes.estimated_cost);
+      if (!Number.isFinite(cost) || cost < 0) {
+        throw new ValidationError('Estimated cost must be a valid non-negative number.');
+      }
+      changes.estimated_cost = cost;
+    }
+    if (Object.hasOwn(changes, 'blocking_unit')) {
+      if (![true, false, 1, 0, '1', '0'].includes(changes.blocking_unit)) {
+        throw new ValidationError('Blocking-unit flag must be true or false.');
+      }
+      changes.blocking_unit = changes.blocking_unit === true || changes.blocking_unit === 1 || changes.blocking_unit === '1';
+    }
+    const effectivePriority = changes.priority || null;
+    if (effectivePriority === 'CRITICAL') changes.blocking_unit = true;
+
     const record = await this.getMaintenanceById(id, user);
 
-    if (['RESOLVED', 'CANCELLED'].includes(record.status) && (data.status === undefined || data.status === record.status)) {
+    if (['RESOLVED', 'CANCELLED'].includes(record.status)) {
       throw new ValidationError(`Cannot update maintenance request: Current status is already '${record.status}'.`);
     }
 
-    await MaintenanceRepository.update(id, data);
+    await MaintenanceRepository.update(id, changes);
     const updated = await MaintenanceRepository.findById(id);
 
     await AuditService.record({
@@ -595,13 +749,8 @@ class MaintenanceService {
       action: 'MAINTENANCE_UPDATED',
       entityType: 'maintenance',
       entityId: String(id),
-      oldValues: {
-        priority: record.priority,
-        status: record.status,
-        blocking_unit: record.blocking_unit,
-        apartment_id: record.apartment_id,
-      },
-      newValues: data,
+      oldValues: Object.fromEntries(Object.keys(changes).map((field) => [field, record[field]])),
+      newValues: changes,
     });
 
     return updated;
@@ -618,12 +767,12 @@ class MaintenanceService {
     }
 
     const resolutionNotes = data?.resolutionNotes || data?.resolution_notes;
-    if (!resolutionNotes || resolutionNotes.trim().length < 3) {
+    if (typeof resolutionNotes !== 'string' || resolutionNotes.trim().length < 3) {
       throw new ValidationError('Resolution notes are required (minimum 3 characters).');
     }
 
     const costVal = data?.actualCost !== undefined ? data.actualCost : data?.actual_cost;
-    const costNum = costVal !== undefined ? parseFloat(costVal) : parseFloat(record.actual_cost || 0);
+    const costNum = costVal !== undefined ? Number(costVal) : Number(record.actual_cost || 0);
     if (isNaN(costNum) || costNum < 0) {
       throw new ValidationError('Actual cost must be a valid non-negative number.');
     }
@@ -695,7 +844,7 @@ class MaintenanceService {
 
             if (remainingCount === 0) {
               await conn.query(
-                'UPDATE apartments SET maintenance_status = "OPERATIONAL", updated_at = NOW() WHERE id = ?',
+                "UPDATE apartments SET maintenance_status = 'OPERATIONAL', updated_at = NOW() WHERE id = ?",
                 [apt.id]
               );
 
@@ -714,7 +863,7 @@ class MaintenanceService {
                 );
 
                 if (activeRes.length > 0) {
-                  await conn.query('UPDATE apartments SET status = "OCCUPIED", updated_at = NOW() WHERE id = ?', [apt.id]);
+                  await conn.query("UPDATE apartments SET status = 'OCCUPIED', updated_at = NOW() WHERE id = ?", [apt.id]);
                 } else {
                   const [activeBlocked] = await conn.query(
                     `SELECT id FROM blocked_periods 
@@ -725,10 +874,10 @@ class MaintenanceService {
                     [apt.id, todayStr, todayStr]
                   );
                   if (activeBlocked.length > 0) {
-                    await conn.query('UPDATE apartments SET status = "BLOCKED", updated_at = NOW() WHERE id = ?', [apt.id]);
+                    await conn.query("UPDATE apartments SET status = 'BLOCKED', updated_at = NOW() WHERE id = ?", [apt.id]);
                   } else {
                     await conn.query(
-                      'UPDATE apartments SET status = "CLEANING", housekeeping_status = "DIRTY", updated_at = NOW() WHERE id = ?',
+                      "UPDATE apartments SET status = 'CLEANING', housekeeping_status = 'DIRTY', updated_at = NOW() WHERE id = ?",
                       [apt.id]
                     );
                   }
@@ -778,8 +927,16 @@ class MaintenanceService {
   /**
    * Cancel maintenance request
    */
-  static async cancelIssue(id, { reason = 'Cancelled by management' } = {}, user, req = null) {
+  static async cancelIssue(id, data = {}, user, req = null) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new ValidationError('A cancellation payload is required.');
+    }
+    const reason = data.reason === undefined ? 'Cancelled by management' : data.reason;
     const record = await this.getMaintenanceById(id, user);
+
+    if (typeof reason !== 'string' || !reason.trim()) {
+      throw new ValidationError('Cancellation reason is required.');
+    }
 
     if (record.status === 'RESOLVED') {
       throw new ValidationError('Cannot cancel an already resolved maintenance request.');
@@ -823,7 +980,7 @@ class MaintenanceService {
 
             if (remainingCount === 0) {
               await conn.query(
-                'UPDATE apartments SET maintenance_status = "OPERATIONAL", updated_at = NOW() WHERE id = ?',
+                "UPDATE apartments SET maintenance_status = 'OPERATIONAL', updated_at = NOW() WHERE id = ?",
                 [apt.id]
               );
 
@@ -840,7 +997,7 @@ class MaintenanceService {
                 );
 
                 if (activeRes.length > 0) {
-                  await conn.query('UPDATE apartments SET status = "OCCUPIED", updated_at = NOW() WHERE id = ?', [apt.id]);
+                  await conn.query("UPDATE apartments SET status = 'OCCUPIED', updated_at = NOW() WHERE id = ?", [apt.id]);
                 } else {
                   const [activeBlocked] = await conn.query(
                     `SELECT id FROM blocked_periods 
@@ -851,10 +1008,10 @@ class MaintenanceService {
                     [apt.id, todayStr, todayStr]
                   );
                   if (activeBlocked.length > 0) {
-                    await conn.query('UPDATE apartments SET status = "BLOCKED", updated_at = NOW() WHERE id = ?', [apt.id]);
+                    await conn.query("UPDATE apartments SET status = 'BLOCKED', updated_at = NOW() WHERE id = ?", [apt.id]);
                   } else {
                     await conn.query(
-                      'UPDATE apartments SET status = "CLEANING", housekeeping_status = "DIRTY", updated_at = NOW() WHERE id = ?',
+                      "UPDATE apartments SET status = 'CLEANING', housekeeping_status = 'DIRTY', updated_at = NOW() WHERE id = ?",
                       [apt.id]
                     );
                   }
@@ -887,8 +1044,9 @@ class MaintenanceService {
    * Get operational statistics for dashboard
    */
   static async getStats(query, user = null) {
+    const propertyId = this.getAuthorizedPropertyId(user, query?.propertyId);
     return MaintenanceRepository.getStats({
-      propertyId: query.propertyId,
+      propertyId,
       user,
     });
   }
@@ -898,20 +1056,11 @@ class MaintenanceService {
    * Binding Policies: DEC-2.5B-01, DEC-2.5B-02, DEC-2.5B-03
    */
   static async getEligibleTechnicians(propertyId, user = null, query = {}) {
-    let targetPropId = null;
-    if (propertyId && propertyId !== 'all') {
-      targetPropId = parseInt(propertyId, 10);
-    } else if (user && user.propertyId) {
-      targetPropId = parseInt(user.propertyId, 10);
-    }
-
-    if (user && targetPropId) {
-      this.validatePropertyScope(user, targetPropId);
-    }
+    const targetPropId = this.getAuthorizedPropertyId(user, propertyId);
 
     // Get configured workload warning threshold
     const settRows = await pool.query(
-      'SELECT setting_value FROM system_settings WHERE setting_key = "maintenance_workload_warning_threshold" LIMIT 1'
+      "SELECT setting_value FROM system_settings WHERE setting_key = 'maintenance_workload_warning_threshold' LIMIT 1"
     );
     const threshold = settRows && settRows.length > 0 && !isNaN(parseInt(settRows[0].setting_value, 10))
       ? parseInt(settRows[0].setting_value, 10)
@@ -940,7 +1089,7 @@ class MaintenanceService {
 
       // Workload calculation (DEC-2.5B-03 Option B)
       const wRows = await pool.query(
-        'SELECT COUNT(*) as count FROM maintenance_requests WHERE assigned_to_id = ? AND status IN ("OPEN", "IN_PROGRESS")',
+        "SELECT COUNT(*) as count FROM maintenance_requests WHERE assigned_to_id = ? AND status IN ('OPEN', 'IN_PROGRESS')",
         [cand.id]
       );
       const activeWorkload = wRows && wRows.length > 0 ? parseInt(wRows[0].count, 10) : 0;
@@ -1005,7 +1154,7 @@ class MaintenanceService {
          FROM leave_requests
          WHERE employee_id = ?
            AND status = 'APPROVED'
-           AND CURDATE() BETWEEN start_date AND end_date
+           AND CURRENT_DATE BETWEEN start_date AND end_date
          LIMIT 1`,
         [employee.id]
       );
@@ -1049,7 +1198,7 @@ class MaintenanceService {
          FROM shifts s
          JOIN rosters r ON r.id = s.roster_id
          WHERE s.employee_id = ?
-           AND s.shift_date = CURDATE()
+           AND s.shift_date = CURRENT_DATE
            AND r.status = 'PUBLISHED'
            AND s.status != 'CANCELLED'
          LIMIT 1`,
@@ -1063,7 +1212,7 @@ class MaintenanceService {
                 is_verified, requires_review, verification_notes, location_lat, location_lng
          FROM attendance_records
          WHERE employee_id = ?
-           AND work_date = CURDATE()
+           AND work_date = CURRENT_DATE
            AND clock_out_time IS NULL
          ORDER BY id DESC
          LIMIT 1`,
@@ -1307,7 +1456,7 @@ class MaintenanceService {
           );
           const remainingCount = parseInt(remRows[0]?.count || 0, 10);
           if (remainingCount === 0) {
-            await conn.query('UPDATE apartments SET maintenance_status = "OPERATIONAL", updated_at = NOW() WHERE id = ?', [apt.id]);
+            await conn.query("UPDATE apartments SET maintenance_status = 'OPERATIONAL', updated_at = NOW() WHERE id = ?", [apt.id]);
             if (apt.status === 'MAINTENANCE') {
               const todayStr = new Date().toISOString().slice(0, 10);
               const [activeRes] = await conn.query(
@@ -1316,16 +1465,16 @@ class MaintenanceService {
                 [record.apartment_id, todayStr, todayStr]
               );
               if (activeRes.length > 0) {
-                await conn.query('UPDATE apartments SET status = "OCCUPIED", updated_at = NOW() WHERE id = ?', [record.apartment_id]);
+                await conn.query("UPDATE apartments SET status = 'OCCUPIED', updated_at = NOW() WHERE id = ?", [record.apartment_id]);
               } else {
                 const [activeBlocked] = await conn.query(
                   `SELECT id FROM blocked_periods WHERE apartment_id = ? AND start_date <= ? AND end_date >= ? LIMIT 1`,
                   [record.apartment_id, todayStr, todayStr]
                 );
                 if (activeBlocked.length > 0) {
-                  await conn.query('UPDATE apartments SET status = "BLOCKED", updated_at = NOW() WHERE id = ?', [record.apartment_id]);
+                  await conn.query("UPDATE apartments SET status = 'BLOCKED', updated_at = NOW() WHERE id = ?", [record.apartment_id]);
                 } else {
-                  await conn.query('UPDATE apartments SET status = "CLEANING", housekeeping_status = "DIRTY", updated_at = NOW() WHERE id = ?', [record.apartment_id]);
+                  await conn.query("UPDATE apartments SET status = 'CLEANING', housekeeping_status = 'DIRTY', updated_at = NOW() WHERE id = ?", [record.apartment_id]);
                 }
               }
             }

@@ -79,8 +79,8 @@ CREATE TABLE IF NOT EXISTS `employee_availability` (
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT `fk_ea_emp` FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_ea_tmpl` FOREIGN KEY (`preferred_shift_id`) REFERENCES `shift_templates`(`id`) ON DELETE SET NULL,
-  UNIQUE KEY `uq_emp_date` (`employee_id`, `date`),
-  INDEX `idx_ea_emp_date` (`employee_id`, `date`)
+  -- uq_emp_date also serves the employee/date lookup through its leftmost prefix.
+  UNIQUE KEY `uq_emp_date` (`employee_id`, `date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 5. Shift Swap Requests (Peer-to-peer coverage workflow)
@@ -219,8 +219,24 @@ CREATE TABLE IF NOT EXISTS `leave_balances` (
   INDEX `idx_lb_emp_year` (`employee_id`, `year`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 11. Modify Media Assets category to support comprehensive building spaces
-ALTER TABLE `media_assets` MODIFY COLUMN `category` VARCHAR(50) NOT NULL DEFAULT 'BUILDING_EXTERIOR';
+-- 11. Expand media category values while retaining the original ENUM labels and order.
+-- Reapplying this definition is safe after partial migration execution.
+ALTER TABLE `media_assets`
+  MODIFY COLUMN `category` ENUM(
+    'EXTERIOR',
+    'GROUNDS',
+    'FACILITIES',
+    'INTERIOR',
+    'AMENITY',
+    'BUILDING_EXTERIOR',
+    'BUILDING_ENTRANCE',
+    'RECEPTION',
+    'LOBBY',
+    'SWIMMING_POOL',
+    'GARDEN',
+    'PARKING',
+    'OTHER'
+  ) NOT NULL DEFAULT 'BUILDING_EXTERIOR';
 
 -- 12. Seed Configurable Leave Categories
 INSERT INTO `leave_categories` (`code`, `name`, `description`, `default_days_per_year`, `is_paid`, `requires_document`)

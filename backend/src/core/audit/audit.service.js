@@ -98,6 +98,7 @@ function buildActionClause(action) {
     'SETTINGS ACTIONS': "action LIKE 'SETTINGS%'",
     ACCESS_ACTIONS: "(action LIKE 'CAPABILITY%' OR action LIKE 'ACCESS%')",
     'ACCESS ACTIONS': "(action LIKE 'CAPABILITY%' OR action LIKE 'ACCESS%')",
+    GOVERNANCE_ACTIONS: "((action LIKE '%USER%' AND action NOT LIKE '%LOGIN%' AND action NOT LIKE '%LOGOUT%') OR action LIKE '%ROLE%' OR action LIKE '%CAPABILITY%' OR action LIKE '%ACCESS%' OR action LIKE '%OVERRIDE%' OR action LIKE '%APPROVAL%' OR action LIKE '%MODULE%' OR action LIKE '%SETTING%')",
     COMMUNICATION_ACTIONS: "action LIKE 'COMMUNICATION%'",
     'COMMUNICATION ACTIONS': "action LIKE 'COMMUNICATION%'",
     NOTIFICATION_ACTIONS: "action LIKE 'NOTIFICATION%'",

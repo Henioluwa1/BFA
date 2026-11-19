@@ -15,6 +15,10 @@ const bcrypt = require('bcryptjs');
 const pool = require('../db/pool');
 
 async function seedDevData() {
+  if (process.env.NODE_ENV === 'production' || process.env.RENDER === 'true') {
+    throw new Error('Development/demo seed data is disabled in production and on Render.');
+  }
+
   console.log('[DEVELOPMENT SEED]: Initializing BFA Development Dataset...');
 
   try {

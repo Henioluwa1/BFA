@@ -5,7 +5,8 @@ const pool = require('../../db/pool');
 class AccessController {
   static async getCapabilities(req, res, next) {
     try {
-      const data = await AccessControlService.listCapabilities();
+      const includePendingApprovalDetails = String(req.user?.role || '').toUpperCase() === 'SUPER_ADMIN';
+      const data = await AccessControlService.listCapabilities({ includePendingApprovalDetails });
       return ApiResponse.success(res, {
         message: 'System capabilities retrieved.',
         data,
@@ -130,7 +131,7 @@ class AccessController {
       const result = await AccessControlService.canAccess(req.user, capabilityName);
       return ApiResponse.success(res, {
         message: `Capability status for '${capabilityName}'`,
-        data: result,
+        data: { allowed: result.allowed },
       });
     } catch (err) {
       next(err);

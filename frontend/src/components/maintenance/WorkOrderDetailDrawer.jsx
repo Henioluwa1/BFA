@@ -20,6 +20,7 @@ export default function WorkOrderDetailDrawer({
   onOpenAssign,
   onOpenResolve,
   onOpenCancel,
+  onOpenEdit,
   actionLoading = false,
   onWorkOrderDeleted,
 }) {
@@ -282,6 +283,11 @@ export default function WorkOrderDetailDrawer({
         footer={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '0.5rem' }}>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {isManagerOrAdmin && !['RESOLVED', 'CANCELLED'].includes(workOrder.status) && (
+                <Button variant="outline" size="small" onClick={() => onOpenEdit?.(workOrder)} disabled={actionLoading}>
+                  Edit Work Order
+                </Button>
+              )}
               {isManagerOrAdmin && workOrder.status !== 'CANCELLED' && workOrder.status !== 'RESOLVED' && (
                 <Button
                   variant="danger"

@@ -35,11 +35,7 @@ class MaintenanceRepository {
     `;
     const params = [];
 
-    // Property scope enforcement for property-assigned roles
-    if (user?.role === 'MANAGER' && user.propertyId) {
-      sql += ' AND m.property_id = ?';
-      params.push(user.propertyId);
-    } else if (propertyId && propertyId !== 'all') {
+    if (propertyId && propertyId !== 'all') {
       sql += ' AND m.property_id = ?';
       params.push(propertyId);
     }
@@ -85,10 +81,11 @@ class MaintenanceRepository {
         m.issue_title LIKE ? OR
         m.description LIKE ? OR
         p.name LIKE ? OR
-        a.unit_number LIKE ?
+        a.unit_number LIKE ? OR
+        asg.name LIKE ?
       )`;
       const term = `%${search.trim()}%`;
-      params.push(term, term, term, term, term);
+      params.push(term, term, term, term, term, term);
     }
 
     sql += ` ORDER BY 
@@ -98,7 +95,13 @@ class MaintenanceRepository {
         WHEN 'RESOLVED' THEN 3 
         ELSE 4 
       END,
-      FIELD(m.priority, 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'),
+      CASE m.priority
+        WHEN 'CRITICAL' THEN 1
+        WHEN 'HIGH' THEN 2
+        WHEN 'MEDIUM' THEN 3
+        WHEN 'LOW' THEN 4
+        ELSE 5
+      END,
       m.created_at DESC
     `;
 
@@ -282,19 +285,19 @@ class MaintenanceRepository {
           // Unit has active blocking maintenance
           if (apt.status === 'OCCUPIED') {
             await txConn.query(
-              'UPDATE apartments SET maintenance_status = "UNDER_REPAIR", updated_at = NOW() WHERE id = ?',
+              "UPDATE apartments SET maintenance_status = 'UNDER_REPAIR', updated_at = NOW() WHERE id = ?",
               [aId]
             );
           } else {
             await txConn.query(
-              'UPDATE apartments SET status = "MAINTENANCE", maintenance_status = "UNDER_REPAIR", updated_at = NOW() WHERE id = ?',
+              "UPDATE apartments SET status = 'MAINTENANCE', maintenance_status = 'UNDER_REPAIR', updated_at = NOW() WHERE id = ?",
               [aId]
             );
           }
         } else {
           // Zero blocking tickets remain on this apartment: restore OPERATIONAL
           await txConn.query(
-            'UPDATE apartments SET maintenance_status = "OPERATIONAL", updated_at = NOW() WHERE id = ?',
+            "UPDATE apartments SET maintenance_status = 'OPERATIONAL', updated_at = NOW() WHERE id = ?",
             [aId]
           );
 
@@ -311,7 +314,7 @@ class MaintenanceRepository {
               [aId, todayStr, todayStr]
             );
             if (activeStays && activeStays.length > 0) {
-              await txConn.query('UPDATE apartments SET status = "OCCUPIED", updated_at = NOW() WHERE id = ?', [aId]);
+              await txConn.query("UPDATE apartments SET status = 'OCCUPIED', updated_at = NOW() WHERE id = ?", [aId]);
             } else {
               const [blocked] = await txConn.query(
                 `SELECT id FROM blocked_periods 
@@ -322,10 +325,10 @@ class MaintenanceRepository {
                 [aId, todayStr, todayStr]
               );
               if (blocked && blocked.length > 0) {
-                await txConn.query('UPDATE apartments SET status = "BLOCKED", updated_at = NOW() WHERE id = ?', [aId]);
+                await txConn.query("UPDATE apartments SET status = 'BLOCKED', updated_at = NOW() WHERE id = ?", [aId]);
               } else {
                 await txConn.query(
-                  'UPDATE apartments SET status = "CLEANING", housekeeping_status = "DIRTY", updated_at = NOW() WHERE id = ?',
+                  "UPDATE apartments SET status = 'CLEANING', housekeeping_status = 'DIRTY', updated_at = NOW() WHERE id = ?",
                   [aId]
                 );
               }
@@ -351,10 +354,7 @@ class MaintenanceRepository {
     let whereClause = 'WHERE 1=1';
     const params = [];
 
-    if (user?.role === 'MANAGER' && user.propertyId) {
-      whereClause += ' AND property_id = ?';
-      params.push(user.propertyId);
-    } else if (propertyId && propertyId !== 'all') {
+    if (propertyId && propertyId !== 'all') {
       whereClause += ' AND property_id = ?';
       params.push(propertyId);
     }

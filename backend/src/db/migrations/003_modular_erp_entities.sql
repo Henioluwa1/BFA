@@ -2,8 +2,10 @@
 -- Description: Provision properties, units, agents, reservations (with 1-night check constraint), and maintenance for ERP modular monolith
 
 -- 1. Upgrade audit_logs to include request_id
-ALTER TABLE audit_logs 
-  ADD COLUMN IF NOT EXISTS request_id VARCHAR(100) NULL AFTER user_agent,
+ALTER TABLE audit_logs
+  ADD COLUMN IF NOT EXISTS request_id VARCHAR(100) NULL AFTER user_agent;
+
+ALTER TABLE audit_logs
   ADD INDEX IF NOT EXISTS idx_audit_request_id (request_id);
 
 -- 2. Properties Table
@@ -69,7 +71,7 @@ CREATE TABLE IF NOT EXISTS reservations (
   FOREIGN KEY (property_id) REFERENCES properties(id),
   FOREIGN KEY (apartment_id) REFERENCES apartments(id),
   FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE SET NULL,
-  CONSTRAINT chk_one_night CHECK (DATEDIFF(check_out_date, check_in_date) = 1),
+  CONSTRAINT chk_one_night_stay CHECK (DATEDIFF(check_out_date, check_in_date) = 1),
   INDEX idx_res_dates (check_in_date, check_out_date),
   INDEX idx_res_status (status),
   INDEX idx_res_tenant (tenant_name)

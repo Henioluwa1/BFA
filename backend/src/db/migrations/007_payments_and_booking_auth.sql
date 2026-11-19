@@ -2,9 +2,13 @@
 -- Description: Transactional Payments, Booking Authentication Codes, and Reservation Payment Decoupling
 
 -- 1. Extend reservations table with decoupled payment metadata
-ALTER TABLE reservations 
-  ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) NOT NULL DEFAULT 'PAYMENT_PENDING' AFTER status,
-  ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) NOT NULL DEFAULT 'PAY_AT_PROPERTY' AFTER payment_status,
+ALTER TABLE reservations
+  ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) NOT NULL DEFAULT 'PAYMENT_PENDING' AFTER status;
+
+ALTER TABLE reservations
+  ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) NOT NULL DEFAULT 'PAY_AT_PROPERTY' AFTER payment_status;
+
+ALTER TABLE reservations
   ADD INDEX IF NOT EXISTS idx_res_payment_status (payment_status);
 
 -- 2. Payment Transactions Table

@@ -7,7 +7,7 @@ module.exports = {
   category: 'GOVERNANCE',
   classification: 'READ',
   riskLevel: 'LOW',
-  permittedRoles: ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'MANAGER'],
+  permittedRoles: ['SUPER_ADMIN'],
   requiredCapability: null,
   requiresConfirmation: false,
   requiresDualApproval: false,

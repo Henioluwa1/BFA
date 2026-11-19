@@ -11,6 +11,7 @@ export default function TechnicianExecutionCard({
   onOpenEvidence,
   actionLoading = false,
   isAssignedToCurrentUser = false,
+  canExecute = true,
 }) {
   if (!workOrder) return null;
 
@@ -84,7 +85,7 @@ export default function TechnicianExecutionCard({
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
           {getStatusBadge(workOrder.status)}
-          {workOrder.blocking_unit === 1 && (
+          {(workOrder.blocking_unit === 1 || workOrder.blocking_unit === true || workOrder.blocking_unit === '1') && (
             <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444' }}>
               🔒 BLOCKS UNIT
             </span>
@@ -174,7 +175,7 @@ export default function TechnicianExecutionCard({
           📷 Evidence
         </Button>
 
-        {workOrder.status === 'OPEN' && (
+        {canExecute && workOrder.status === 'OPEN' && (
           <Button
             variant="primary"
             size="small"
@@ -185,7 +186,7 @@ export default function TechnicianExecutionCard({
           </Button>
         )}
 
-        {(workOrder.status === 'IN_PROGRESS' || workOrder.status === 'OPEN') && (
+        {canExecute && (workOrder.status === 'IN_PROGRESS' || workOrder.status === 'OPEN') && (
           <Button
             variant="primary"
             size="small"

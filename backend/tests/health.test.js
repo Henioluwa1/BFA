@@ -29,22 +29,20 @@ describe('Health & Diagnostics API Tests', () => {
       expect(res.body.data).toHaveProperty('status', 'healthy');
       expect(res.body.data).toHaveProperty('service', 'BFA Apartments Management System');
       expect(res.body.data.database).toHaveProperty('status', 'connected');
-      expect(res.body.data.database).toHaveProperty('appliedMigrations');
-      expect(res.body.data.database.appliedMigrations).toBeGreaterThanOrEqual(2);
+      expect(res.body.data.database).not.toHaveProperty('appliedMigrations');
       expect(res.body.data.system).toHaveProperty('nodeVersion');
       expect(res.body.data.system.memoryUsageMb).toBeDefined();
     });
   });
 
   describe('GET /api/v1/system/info', () => {
-    it('should return system settings and registered navigation modules', async () => {
+    it('should return general system settings without exposing a module list anonymously', async () => {
       const res = await request(app).get('/api/v1/system/info');
 
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveProperty('name', 'BFA Apartments Management System');
-      expect(res.body.data).toHaveProperty('modules');
-      expect(res.body.data.modules.length).toBe(11);
+      expect(res.body.data).not.toHaveProperty('modules');
       expect(res.body.data.settings).toHaveProperty('company');
       expect(res.body.data.settings.company).toHaveProperty('company_name', 'BFA Apartments');
     });

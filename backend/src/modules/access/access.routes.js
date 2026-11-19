@@ -10,13 +10,13 @@ router.get('/check/:capabilityName', AccessController.checkCapability);
 // Protected capability management
 router.get(
   '/capabilities',
-  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN'),
+  requireRoles('ADMIN', 'MANAGER', 'SUPER_ADMIN'),
   AccessController.getCapabilities
 );
 
 router.post(
   '/capabilities/update',
-  requireRoles('ADMIN', 'MANAGER', 'OWNER', 'SUPER_ADMIN'),
+  requireRoles('ADMIN', 'MANAGER', 'SUPER_ADMIN'),
   AccessController.updateCapability
 );
 
@@ -28,13 +28,13 @@ router.post(
 
 router.get(
   '/approvals',
-  requireRoles('OWNER', 'SUPER_ADMIN'),
+  requireRoles('SUPER_ADMIN'),
   AccessController.getApprovalRequests
 );
 
 router.post(
   '/approvals/:requestId/review',
-  requireRoles('OWNER', 'SUPER_ADMIN'),
+  requireRoles('SUPER_ADMIN'),
   AccessController.reviewApproval
 );
 
@@ -46,7 +46,7 @@ router.post(
 
 router.get(
   '/overrides',
-  requireRoles('SUPER_ADMIN', 'OWNER', 'MANAGER', 'ADMIN'),
+  requireRoles('SUPER_ADMIN', 'MANAGER', 'ADMIN'),
   AccessController.getOverrides
 );
 

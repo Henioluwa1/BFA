@@ -3,6 +3,12 @@ const { ValidationError, NotFoundError } = require('../../core/errors/apiError')
 const auditService = require('../../core/audit/audit.service');
 
 class NotificationsService {
+  static ownerCapabilityApprovalFilter(user) {
+    return String(user?.role || '').toUpperCase() === 'OWNER'
+      ? " AND NOT (source_entity_type = 'capability' AND category = 'APPROVAL')"
+      : '';
+  }
+
   /**
    * Get notifications for an authenticated user
    */
@@ -13,6 +19,7 @@ class NotificationsService {
       WHERE (n.recipient_id = ? OR n.recipient_role = ? OR (n.recipient_id IS NULL AND n.recipient_role IS NULL))
     `;
     const params = [user.id, user.role];
+    sql += this.ownerCapabilityApprovalFilter(user);
 
     if (isRead !== undefined && isRead !== null && isRead !== 'ALL') {
       sql += ' AND n.is_read = ?';
@@ -35,6 +42,7 @@ class NotificationsService {
       `SELECT COUNT(*) as unread_count 
        FROM notifications 
        WHERE (recipient_id = ? OR recipient_role = ? OR (recipient_id IS NULL AND recipient_role IS NULL))
+         ${this.ownerCapabilityApprovalFilter(user)}
          AND is_read = 0`,
       [user.id, user.role]
     );
@@ -78,6 +86,7 @@ class NotificationsService {
       `UPDATE notifications 
        SET is_read = 1, read_at = CURRENT_TIMESTAMP 
        WHERE (recipient_id = ? OR recipient_role = ? OR (recipient_id IS NULL AND recipient_role IS NULL))
+         ${this.ownerCapabilityApprovalFilter(user)}
          AND is_read = 0`,
       [user.id, user.role]
     );

@@ -5,6 +5,8 @@ const pool = require('../../db/pool');
 const config = require('../../config');
 const auditService = require('../../core/audit/audit.service');
 const { ForbiddenError, ValidationError, NotFoundError } = require('../../core/errors/apiError');
+const db = require('../../db/pool');
+const UsersService = require('../users/users.service');
 
 /**
  * Authoritative Module Definitions for BFA Apartments Management System
@@ -229,28 +231,52 @@ const SYSTEM_MODULES = [
 ];
 
 class OperationsControlService {
+  static async getMigrationCatalog(caller) {
+    if ((caller?.role || '').toUpperCase() !== 'SUPER_ADMIN') {
+      throw new ForbiddenError('Only Super Admin can inspect the migration catalog.');
+    }
+    const engine = db.getEngine();
+    const directory = path.join(__dirname, '..', '..', 'db', engine === 'postgres' ? 'pgMigrations' : 'migrations');
+    const files = fs.existsSync(directory) ? fs.readdirSync(directory).filter((name) => name.endsWith('.sql')).sort() : [];
+    const applied = await db.query('SELECT migration_name, executed_at FROM schema_migrations ORDER BY id ASC');
+    const appliedByName = new Map(applied.map((row) => [row.migration_name, row.executed_at || null]));
+    const catalog = files.map((name) => ({
+      name,
+      version: (name.match(/^(\d+)/) || [null, null])[1],
+      status: appliedByName.has(name) ? 'APPLIED' : 'PENDING',
+      executedAt: appliedByName.get(name),
+    }));
+    for (const [name, executedAt] of appliedByName) {
+      if (!files.includes(name)) catalog.push({ name, version: (name.match(/^(\d+)/) || [null, null])[1], status: 'APPLIED_MISSING_FILE', executedAt });
+    }
+    const pendingCount = catalog.filter((item) => item.status === 'PENDING').length;
+    const driftCount = catalog.filter((item) => item.status === 'APPLIED_MISSING_FILE').length;
+    return {
+      engine: engine === 'postgres' ? 'PostgreSQL' : 'MySQL',
+      migrationSystem: engine === 'postgres' ? 'PostgreSQL migration runner' : 'MySQL migration runner',
+      totalMigrations: catalog.length,
+      appliedMigrations: appliedByName.size,
+      pendingMigrations: pendingCount,
+      status: driftCount ? 'DRIFT' : pendingCount ? 'PENDING' : 'IN_SYNC',
+      checkedAt: new Date().toISOString(),
+      migrations: catalog,
+      error: null,
+    };
+  }
+
   /**
    * Retrieve full system diagnostics, module catalog, and governance metrics
    */
   static async getOverview(caller) {
     const callerRole = (caller?.role || '').toUpperCase();
-    if (!['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(callerRole)) {
-      throw new ForbiddenError('Access denied: Operations Control Center requires administrative privileges.');
+    if (callerRole !== 'SUPER_ADMIN') {
+      throw new ForbiddenError('Access denied: Operations Control Center is restricted to Super Admin.');
     }
 
     // 1. Database connection & latency probe
     const dbProbe = await pool.testConnection();
-
-    // 2. Applied migrations inspection
-    const migrationRows = await pool.query('SELECT migration_name, executed_at FROM schema_migrations ORDER BY id ASC');
-    const appliedMigrations = migrationRows.map((r) => r.migration_name);
-    
-    // Check migrations on disk
-    const migrationsDir = path.join(__dirname, '..', '..', 'db', 'migrations');
-    let diskMigrationsCount = appliedMigrations.length;
-    if (fs.existsSync(migrationsDir)) {
-      diskMigrationsCount = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).length;
-    }
+    const isSuperAdmin = callerRole === 'SUPER_ADMIN';
+    const migrationCatalog = isSuperAdmin ? await this.getMigrationCatalog(caller) : null;
 
     // 3. System runtime statistics
     const memory = process.memoryUsage();
@@ -259,12 +285,12 @@ class OperationsControlService {
 
     // 4. Subsystems status checks
     const subsystems = [
-      { name: 'Core HTTP API Gateway', status: 'HEALTHY', latencyMs: 2, detail: 'Express 4.x on Node ' + process.version },
-      { name: 'MariaDB Database Pool', status: dbProbe.healthy ? 'HEALTHY' : 'DEGRADED', latencyMs: dbProbe.latencyMs || 0, detail: `Database: ${dbProbe.database}` },
-      { name: 'JWT Authentication Engine', status: 'HEALTHY', latencyMs: 1, detail: 'RS256/HS256 Token Verification' },
-      { name: 'Double-Entry Accounting Bridge', status: 'HEALTHY', latencyMs: 4, detail: 'Balanced GL & Subledger Posting Bridge' },
-      { name: 'Reports & Export Service', status: 'HEALTHY', latencyMs: 3, detail: 'PDFKit & CSV RFC 4180 Compliant' },
-      { name: 'Socket.IO Real-time Gateway', status: 'HEALTHY', latencyMs: 1, detail: 'Path: /api/v1/socket.io' },
+      { name: 'Core HTTP API Gateway', status: 'HEALTHY', latencyMs: 0, detail: 'Operations API request completed successfully.' },
+      { name: `${db.getEngine() === 'postgres' ? 'PostgreSQL' : 'MySQL'} Database Pool`, status: dbProbe.healthy ? 'HEALTHY' : 'DEGRADED', latencyMs: dbProbe.latencyMs ?? null, detail: dbProbe.healthy ? `Connected to ${dbProbe.database}` : 'Database connectivity probe failed.' },
+      { name: 'JWT Authentication Engine', status: 'UNKNOWN', detail: config.security?.jwtSecret ? 'Signing configuration is present; runtime validation is not exposed.' : 'JWT signing configuration is missing.' },
+      { name: 'Accounting Ledger', status: 'UNKNOWN', detail: 'No read-only accounting integrity probe is registered.' },
+      { name: 'Reports & Export Service', status: 'UNKNOWN', detail: 'No live report compilation probe is registered.' },
+      { name: 'Socket.IO Real-time Gateway', status: 'UNKNOWN', detail: 'Socket.IO runtime health is not exposed by the current service.' },
     ];
 
     // 5. Recent audit warnings & errors in the last 24h
@@ -272,58 +298,62 @@ class OperationsControlService {
       SELECT id, actor_email, action, entity_type, entity_id, created_at
       FROM audit_logs
       WHERE (action LIKE '%FAIL%' OR action LIKE '%REJECT%' OR action LIKE '%ERROR%' OR action LIKE '%ADVERSARIAL%' OR action LIKE '%DENIED%')
-        AND created_at >= NOW() - INTERVAL 24 HOUR
+        AND created_at >= ${db.isPostgres() ? "NOW() - INTERVAL '24 hours'" : 'NOW() - INTERVAL 24 HOUR'}
       ORDER BY id DESC
       LIMIT 10
     `);
 
-    // 6. Backup history
-    const backupsDir = path.join(__dirname, '..', '..', '..', '..', 'backups');
     let backupFiles = [];
-    if (fs.existsSync(backupsDir)) {
-      const files = fs.readdirSync(backupsDir).filter((f) => f.endsWith('.sql'));
-      backupFiles = files.map((f) => {
-        const stats = fs.statSync(path.join(backupsDir, f));
-        return {
-          filename: f,
-          sizeBytes: stats.size,
-          sizeFormatted: `${(stats.size / 1024).toFixed(1)} KB`,
-          createdAt: stats.mtime.toISOString(),
-          status: 'VERIFIED_ON_DISK',
-        };
-      }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    if (isSuperAdmin) {
+      const backupsDir = path.join(__dirname, '..', '..', '..', '..', 'backups');
+      if (fs.existsSync(backupsDir)) {
+        const files = fs.readdirSync(backupsDir).filter((f) => f.endsWith('.sql'));
+        backupFiles = files.map((f) => {
+          const stats = fs.statSync(path.join(backupsDir, f));
+          return {
+            filename: f,
+            sizeBytes: stats.size,
+            sizeFormatted: `${(stats.size / 1024).toFixed(1)} KB`,
+            createdAt: stats.mtime.toISOString(),
+            status: 'VERIFIED_ON_DISK',
+          };
+        }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      }
     }
 
     // 7. Governance & User Statistics
     const [userStats] = await pool.query(`
       SELECT 
-        COUNT(id) as totalUsers,
-        COALESCE(SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END), 0) as activeUsers,
-        COALESCE(SUM(CASE WHEN status != 'ACTIVE' THEN 1 ELSE 0 END), 0) as inactiveUsers,
-        COALESCE(SUM(CASE WHEN role = 'SUPER_ADMIN' THEN 1 ELSE 0 END), 0) as superAdminCount,
-        COALESCE(SUM(CASE WHEN role = 'ADMIN' THEN 1 ELSE 0 END), 0) as adminCount,
-        COALESCE(SUM(CASE WHEN role = 'OWNER' THEN 1 ELSE 0 END), 0) as ownerCount,
-        COALESCE(SUM(CASE WHEN role = 'MANAGER' THEN 1 ELSE 0 END), 0) as managerCount,
-        COALESCE(SUM(CASE WHEN property_id IS NULL AND role NOT IN ('SUPER_ADMIN', 'ADMIN', 'OWNER', 'AGENT') THEN 1 ELSE 0 END), 0) as unassignedStaffCount
+        COUNT(id) as total_users,
+        COALESCE(SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END), 0) as active_users,
+        COALESCE(SUM(CASE WHEN status != 'ACTIVE' THEN 1 ELSE 0 END), 0) as inactive_users,
+        COALESCE(SUM(CASE WHEN role = 'SUPER_ADMIN' THEN 1 ELSE 0 END), 0) as super_admin_count,
+        COALESCE(SUM(CASE WHEN role = 'ADMIN' THEN 1 ELSE 0 END), 0) as admin_count,
+        COALESCE(SUM(CASE WHEN role = 'OWNER' THEN 1 ELSE 0 END), 0) as owner_count,
+        COALESCE(SUM(CASE WHEN role IN ('MANAGER', 'OPERATIONS_MANAGER') THEN 1 ELSE 0 END), 0) as manager_count,
+        COALESCE(SUM(CASE WHEN property_id IS NULL AND role NOT IN ('SUPER_ADMIN', 'ADMIN', 'OWNER', 'AGENT') THEN 1 ELSE 0 END), 0) as unassigned_staff_count
       FROM users
     `);
 
+    const roleRows = await pool.query('SELECT role, COUNT(*) AS total_count FROM users GROUP BY role ORDER BY role ASC');
+    const users = ['ADMIN', 'SUPER_ADMIN'].includes(callerRole) ? await UsersService.listUsers({}, caller) : [];
+
     // 8. Module Inventory with active toggles
-    const toggleRows = await pool.query("SELECT setting_key, setting_value FROM system_settings WHERE category = 'module_toggles'");
+    const toggleRows = isSuperAdmin ? await pool.query("SELECT setting_key, setting_value FROM system_settings WHERE category = 'module_toggles'") : [];
     const toggleMap = {};
     toggleRows.forEach((r) => { toggleMap[r.setting_key] = r.setting_value === 'true'; });
 
-    const modules = SYSTEM_MODULES.map((m) => {
+    const modules = isSuperAdmin ? SYSTEM_MODULES.map((m) => {
       const isEnabled = m.isProtectedCore ? true : (toggleMap[m.id] !== undefined ? toggleMap[m.id] : m.defaultEnabled);
       return {
         ...m,
         isEnabled,
       };
-    });
+    }) : undefined;
 
     return {
       diagnostics: {
-        status: dbProbe.healthy ? 'HEALTHY' : 'DEGRADED',
+      status: !dbProbe.healthy || (migrationCatalog && migrationCatalog.status !== 'IN_SYNC') ? 'DEGRADED' : 'UNKNOWN',
         serviceName: config.app.name,
         environment: config.app.env,
         version: '1.0.0',
@@ -334,9 +364,11 @@ class OperationsControlService {
           healthy: dbProbe.healthy,
           latencyMs: dbProbe.latencyMs || 0,
           serverTime: dbProbe.serverTime,
-          appliedMigrationsCount: appliedMigrations.length,
-          totalMigrationFilesCount: diskMigrationsCount,
-          isMigrationsInSync: appliedMigrations.length === diskMigrationsCount,
+          ...(isSuperAdmin ? {
+            appliedMigrationsCount: migrationCatalog.appliedMigrations,
+            totalMigrationFilesCount: migrationCatalog.totalMigrations,
+            isMigrationsInSync: migrationCatalog.status === 'IN_SYNC',
+          } : {}),
         },
         system: {
           nodeVersion: process.version,
@@ -353,27 +385,28 @@ class OperationsControlService {
         recentWarnings: recentWarningRows,
       },
       governance: {
-        totalUsers: userStats.totalUsers || 0,
-        activeUsers: userStats.activeUsers || 0,
-        inactiveUsers: userStats.inactiveUsers || 0,
-        superAdminCount: userStats.superAdminCount || 0,
-        adminCount: userStats.adminCount || 0,
-        ownerCount: userStats.ownerCount || 0,
-        managerCount: userStats.managerCount || 0,
-        unassignedStaffCount: userStats.unassignedStaffCount || 0,
-        rulesEnforced: {
-          singleOwnerRule: 'ENFORCED (Maximum 1 Sovereign Owner)',
-          lastSuperAdminProtected: 'ENFORCED (Super Admin #1 Immutable)',
-          propertyScoping: 'ENFORCED (Isolated SQL Scope on All Operations)',
-          twoManRuleCapable: 'ENFORCED (Owner Override Requests Required)',
+        users,
+        roleDistribution: roleRows.map((r) => ({ role: r.role, total: Number(r.total_count) })),
+        roles: callerRole === 'OWNER' ? [] : UsersService.getRoles(),
+        totalUsers: Number(userStats.total_users || 0),
+        activeUsers: Number(userStats.active_users || 0),
+        inactiveUsers: Number(userStats.inactive_users || 0),
+        superAdminCount: Number(userStats.super_admin_count || 0),
+        adminCount: Number(userStats.admin_count || 0),
+        ownerCount: Number(userStats.owner_count || 0),
+        managerCount: Number(userStats.manager_count || 0),
+        unassignedStaffCount: Number(userStats.unassigned_staff_count || 0),
+      },
+      ...(isSuperAdmin ? {
+        backups: {
+          engine: db.getEngine() === 'postgres' ? 'PostgreSQL' : 'MySQL',
+          totalBackups: backupFiles.length,
+          lastBackup: backupFiles[0] || null,
+          history: backupFiles.slice(0, 5),
         },
-      },
-      backups: {
-        totalBackups: backupFiles.length,
-        lastBackup: backupFiles[0] || null,
-        history: backupFiles.slice(0, 5),
-      },
-      modules,
+        migrations: migrationCatalog,
+        modules,
+      } : {}),
     };
   }
 
@@ -382,8 +415,11 @@ class OperationsControlService {
    */
   static async toggleModule({ moduleId, isEnabled, reason, caller, req }) {
     const callerRole = (caller?.role || '').toUpperCase();
-    if (!['SUPER_ADMIN', 'ADMIN'].includes(callerRole)) {
-      throw new ForbiddenError('Only Super Admin or System Admin can configure module availability.');
+    if (callerRole !== 'SUPER_ADMIN') {
+      throw new ForbiddenError('Only Super Admin can configure module availability.');
+    }
+    if (typeof reason !== 'string' || reason.trim().length < 3) {
+      throw new ValidationError('A module governance reason of at least 3 characters is required.');
     }
 
     const targetModule = SYSTEM_MODULES.find((m) => m.id === moduleId);
@@ -393,6 +429,16 @@ class OperationsControlService {
 
     if (targetModule.isProtectedCore) {
       throw new ForbiddenError(`Protected Core Module '${targetModule.name}' cannot be disabled. It is essential for platform security and integrity.`);
+    }
+
+    if (!isEnabled) {
+      const toggleRows = await pool.query("SELECT setting_key, setting_value FROM system_settings WHERE category = 'module_toggles'");
+      const toggleMap = Object.fromEntries(toggleRows.map((row) => [row.setting_key, row.setting_value === 'true']));
+      const activeDependents = SYSTEM_MODULES.filter((module) => module.dependencies?.includes(moduleId))
+        .filter((module) => module.isProtectedCore || (toggleMap[module.id] ?? module.defaultEnabled));
+      if (activeDependents.length) {
+        throw new ValidationError(`Cannot disable '${targetModule.name}' while enabled modules depend on it: ${activeDependents.map((module) => module.name).join(', ')}.`);
+      }
     }
 
     const valueStr = isEnabled ? 'true' : 'false';
@@ -439,8 +485,11 @@ class OperationsControlService {
    */
   static async createBackupSnapshot({ caller, req }) {
     const callerRole = (caller?.role || '').toUpperCase();
-    if (!['SUPER_ADMIN', 'ADMIN'].includes(callerRole)) {
-      throw new ForbiddenError('Only Super Admin or System Admin can initiate database backup snapshots.');
+    if (callerRole !== 'SUPER_ADMIN') {
+      throw new ForbiddenError('Only Super Admin can initiate database backup snapshots.');
+    }
+    if (db.getEngine() === 'postgres') {
+      throw new ValidationError('PostgreSQL snapshot generation is unavailable: this deployment has no configured pg_dump backup provider.');
     }
 
     const backupsDir = path.join(__dirname, '..', '..', '..', '..', 'backups');
