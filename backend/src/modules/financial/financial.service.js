@@ -11,7 +11,7 @@ class FinancialService {
     if (['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role)) {
       return true;
     }
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+    if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
       if (!user.propertyId) {
         throw new ForbiddenError('Access denied: User is not assigned to any property.');
       }
@@ -29,7 +29,7 @@ class FinancialService {
     let effectivePropertyId = propertyId;
     if (user) {
       const role = (user.role || '').toUpperCase();
-      if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+      if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
         if (!user.propertyId) {
           throw new ForbiddenError('Access denied: User is not assigned to any property.');
         }
@@ -102,6 +102,60 @@ class FinancialService {
     const rawOutstandingReceivables = Math.round((bookedRevenue - paidOnReservations) * 100) / 100;
     const outstandingReceivables = Math.max(0, rawOutstandingReceivables);
 
+    // Reconcile each reservation against its net successful payment transactions.
+    // This uses the same active reservation/property/check-in cohort as receivables;
+    // transaction totals are lifetime totals for those reservations so refunds are
+    // included even when they occurred outside the selected booking-date window.
+    let reconciliationSql = `
+      SELECT r.id, r.reservation_code,
+        COALESCE(r.paid_amount, 0) AS reservation_paid,
+        COALESCE(SUM(CASE
+          WHEN pt.parent_transaction_id IS NULL
+            AND pt.amount > 0
+            AND pt.status IN ('SUCCESS', 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          THEN pt.amount - COALESCE(pt.refund_amount, 0)
+          ELSE 0
+        END), 0) AS ledger_net_paid
+      FROM reservations r
+      LEFT JOIN payment_transactions pt ON pt.reservation_id = r.id
+      WHERE r.status NOT IN ('CANCELLED')
+    `;
+    const reconciliationParams = [];
+    if (effectivePropertyId && effectivePropertyId !== 'all') {
+      reconciliationSql += ' AND r.property_id = ?';
+      reconciliationParams.push(effectivePropertyId);
+    }
+    if (fromDate) {
+      reconciliationSql += ' AND r.check_in_date >= ?';
+      reconciliationParams.push(fromDate);
+    }
+    if (toDate) {
+      reconciliationSql += ' AND r.check_in_date <= ?';
+      reconciliationParams.push(toDate);
+    }
+    reconciliationSql += `
+      GROUP BY r.id, r.reservation_code, r.paid_amount
+      HAVING ABS(COALESCE(r.paid_amount, 0) - COALESCE(SUM(CASE
+        WHEN pt.parent_transaction_id IS NULL
+          AND pt.amount > 0
+          AND pt.status IN ('SUCCESS', 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED')
+        THEN pt.amount - COALESCE(pt.refund_amount, 0)
+        ELSE 0
+      END), 0)) > 0.01
+      ORDER BY r.id
+    `;
+    const reconciliationRows = await pool.query(reconciliationSql, reconciliationParams);
+    const reconciliationDetails = reconciliationRows.map((row) => ({
+      reservationId: row.id,
+      reservationCode: row.reservation_code,
+      reservationPaid: Math.round(parseFloat(row.reservation_paid || 0) * 100) / 100,
+      ledgerNetPaid: Math.round(parseFloat(row.ledger_net_paid || 0) * 100) / 100,
+      variance: Math.round((parseFloat(row.reservation_paid || 0) - parseFloat(row.ledger_net_paid || 0)) * 100) / 100,
+    })).filter((row) => Math.abs(row.variance) > 0.01);
+    const reconciliationVariance = Math.round(
+      reconciliationDetails.reduce((sum, row) => sum + Math.abs(row.variance), 0) * 100
+    ) / 100;
+
     // Anomaly Detection: inspect unlinked negative refund rows
     let orphanSql = `
       SELECT COUNT(pt.id) as orphan_count, COALESCE(SUM(pt.amount), 0) as orphan_total
@@ -150,14 +204,15 @@ class FinancialService {
       });
     }
 
-    if (paidOnReservations > grossCollected) {
-      const variance = Math.round((paidOnReservations - grossCollected) * 100) / 100;
+    if (reconciliationDetails.length > 0) {
       anomalies.push({
         code: 'RESERVATION_PAYMENT_MISMATCH',
         severity: 'HIGH',
-        message: `Reservation headers claim ₦${paidOnReservations.toLocaleString()} paid, but transaction ledger records only ₦${grossCollected.toLocaleString()} in positive collections. Unbacked variance: ₦${variance.toLocaleString()}.`,
-        affectedMetric: 'grossCollected',
-        variance,
+        message: `${reconciliationDetails.length} reservation(s) have paid amounts that differ from their net successful transaction ledger totals. Combined absolute variance: ₦${reconciliationVariance.toLocaleString()}.`,
+        affectedMetric: 'reservationPayments',
+        count: reconciliationDetails.length,
+        variance: reconciliationVariance,
+        records: reconciliationDetails,
       });
     }
 
@@ -222,7 +277,8 @@ class FinancialService {
     // 6. Monthly Trends (Booked Revenue, Collections, Refunds, Expenses, Profit)
     let mPaySql = `
       SELECT 
-        DATE_FORMAT(COALESCE(pt.paid_at, pt.created_at), '%Y-%m') as period,
+        EXTRACT(YEAR FROM COALESCE(pt.paid_at, pt.created_at)) as period_year,
+        EXTRACT(MONTH FROM COALESCE(pt.paid_at, pt.created_at)) as period_month,
         COALESCE(SUM(CASE WHEN pt.parent_transaction_id IS NULL AND pt.amount > 0 AND pt.status IN ('SUCCESS', 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED') THEN pt.amount ELSE 0 END), 0) as gross_collected,
         COALESCE(SUM(CASE WHEN pt.parent_transaction_id IS NULL THEN COALESCE(pt.refund_amount, 0) ELSE 0 END), 0) as total_refunded
       FROM payment_transactions pt
@@ -242,12 +298,13 @@ class FinancialService {
       mPaySql += ' AND DATE(COALESCE(pt.paid_at, pt.created_at)) <= ?';
       mPayParams.push(toDate);
     }
-    mPaySql += ` GROUP BY DATE_FORMAT(COALESCE(pt.paid_at, pt.created_at), '%Y-%m') ORDER BY period ASC`;
+    mPaySql += ` GROUP BY EXTRACT(YEAR FROM COALESCE(pt.paid_at, pt.created_at)), EXTRACT(MONTH FROM COALESCE(pt.paid_at, pt.created_at)) ORDER BY period_year, period_month`;
     const mPayRows = await pool.query(mPaySql, mPayParams);
 
     let mResSql = `
       SELECT 
-        DATE_FORMAT(r.check_in_date, '%Y-%m') as period,
+        EXTRACT(YEAR FROM r.check_in_date) as period_year,
+        EXTRACT(MONTH FROM r.check_in_date) as period_month,
         COALESCE(SUM(r.total_amount), 0) as booked_revenue
       FROM reservations r
       WHERE r.status NOT IN ('CANCELLED')
@@ -265,12 +322,13 @@ class FinancialService {
       mResSql += ' AND r.check_in_date <= ?';
       mResParams.push(toDate);
     }
-    mResSql += ` GROUP BY DATE_FORMAT(r.check_in_date, '%Y-%m') ORDER BY period ASC`;
+    mResSql += ` GROUP BY EXTRACT(YEAR FROM r.check_in_date), EXTRACT(MONTH FROM r.check_in_date) ORDER BY period_year, period_month`;
     const mResRows = await pool.query(mResSql, mResParams);
 
     let mExpSql = `
       SELECT 
-        DATE_FORMAT(e.expense_date, '%Y-%m') as period,
+        EXTRACT(YEAR FROM e.expense_date) as period_year,
+        EXTRACT(MONTH FROM e.expense_date) as period_month,
         COALESCE(SUM(e.amount), 0) as approved_expenses
       FROM expenses e
       WHERE e.status = 'APPROVED'
@@ -288,19 +346,26 @@ class FinancialService {
       mExpSql += ' AND e.expense_date <= ?';
       mExpParams.push(toDate);
     }
-    mExpSql += ` GROUP BY DATE_FORMAT(e.expense_date, '%Y-%m') ORDER BY period ASC`;
+    mExpSql += ` GROUP BY EXTRACT(YEAR FROM e.expense_date), EXTRACT(MONTH FROM e.expense_date) ORDER BY period_year, period_month`;
     const mExpRows = await pool.query(mExpSql, mExpParams);
 
-    // Merge distinct periods
+    // Merge distinct periods using engine-neutral year/month values.
+    const periodKey = (row) => {
+      const year = Number(row.period_year);
+      const month = Number(row.period_month);
+      return Number.isFinite(year) && Number.isFinite(month)
+        ? `${Math.trunc(year).toString().padStart(4, '0')}-${Math.trunc(month).toString().padStart(2, '0')}`
+        : null;
+    };
     const periodsSet = new Set();
-    mPayRows.forEach((r) => r.period && periodsSet.add(r.period));
-    mResRows.forEach((r) => r.period && periodsSet.add(r.period));
-    mExpRows.forEach((r) => r.period && periodsSet.add(r.period));
+    mPayRows.forEach((r) => periodKey(r) && periodsSet.add(periodKey(r)));
+    mResRows.forEach((r) => periodKey(r) && periodsSet.add(periodKey(r)));
+    mExpRows.forEach((r) => periodKey(r) && periodsSet.add(periodKey(r)));
     const sortedPeriods = Array.from(periodsSet).sort();
 
-    const payMap = new Map(mPayRows.map((r) => [r.period, r]));
-    const resMap = new Map(mResRows.map((r) => [r.period, r]));
-    const expMap = new Map(mExpRows.map((r) => [r.period, r]));
+    const payMap = new Map(mPayRows.map((r) => [periodKey(r), r]));
+    const resMap = new Map(mResRows.map((r) => [periodKey(r), r]));
+    const expMap = new Map(mExpRows.map((r) => [periodKey(r), r]));
 
     const monthlyTrends = sortedPeriods.map((period) => {
       const p = payMap.get(period) || {};
@@ -395,7 +460,7 @@ class FinancialService {
     let effectivePropertyId = propertyId;
     if (user) {
       const role = (user.role || '').toUpperCase();
-      if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+      if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
         if (!user.propertyId) {
           throw new ForbiddenError('Access denied: User is not assigned to any property.');
         }

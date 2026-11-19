@@ -2,6 +2,7 @@ const app = require('./app');
 const config = require('./config');
 const logger = require('./utils/logger');
 const pool = require('./db/pool');
+const { testPgConnection, closePgPool } = require('./db/pgPool');
 const { runMigrations, checkMigrationStatus } = require('./db/migrator');
 const { validateEnvironment } = require('./config/envValidator');
 const HealthController = require('./modules/health/health.controller');
@@ -23,31 +24,38 @@ async function startServer() {
     }
 
     // 2. Database Migration & Schema Compatibility Check
-    const shouldAutoMigrate = config.db.autoMigrate;
-    if (shouldAutoMigrate) {
-      logger.info(`Database auto-migration enabled [Mode: ${config.app.env}]. Executing pending migrations...`);
-      await runMigrations();
+    if (pool.isPostgres()) {
+      logger.info('PostgreSQL (Aiven) active as target database engine.');
+      // 3. Test PostgreSQL (Aiven) database connection
+      const pgTest = await pool.testConnection();
+      logger.info(`PostgreSQL (Aiven) database connected successfully. Database: ${pgTest.database} (Latency: ${pgTest.latencyMs}ms)`);
     } else {
-      logger.info(`Database auto-migration disabled [Mode: ${config.app.env}]. Performing read-only schema validation...`);
-      const status = await checkMigrationStatus();
-      if (status.isUpToDate) {
-        logger.info(`Schema validation passed: Database '${status.targetDatabase}' is up to date (${status.appliedCount}/${status.totalMigrations} migrations applied).`);
+      const shouldAutoMigrate = config.db.autoMigrate;
+      if (shouldAutoMigrate) {
+        logger.info(`Database auto-migration enabled [Mode: ${config.app.env}]. Executing pending migrations...`);
+        await runMigrations();
       } else {
-        logger.warn('================================================================================');
-        logger.warn(`SCHEMA WARNING: Database '${status.targetDatabase}' has ${status.pendingCount} pending migration(s):`);
-        status.pendingMigrations.forEach((m) => logger.warn(`  - ${m}`));
-        logger.warn('Run "npm run db:migrate" to apply pending migrations before using schema-dependent features.');
-        logger.warn('================================================================================');
-        if (config.db.strictSchemaCheck) {
-          logger.error('CRITICAL: Server startup aborted because STRICT_SCHEMA_CHECK is enabled and database is missing migrations.');
-          process.exit(1);
+        logger.info(`Database auto-migration disabled [Mode: ${config.app.env}]. Performing read-only schema validation...`);
+        const status = await checkMigrationStatus();
+        if (status.isUpToDate) {
+          logger.info(`Schema validation passed: Database '${status.targetDatabase}' is up to date (${status.appliedCount}/${status.totalMigrations} migrations applied).`);
+        } else {
+          logger.warn('================================================================================');
+          logger.warn(`SCHEMA WARNING: Database '${status.targetDatabase}' has ${status.pendingCount} pending migration(s):`);
+          status.pendingMigrations.forEach((m) => logger.warn(`  - ${m}`));
+          logger.warn('Run "npm run db:migrate" to apply pending migrations before using schema-dependent features.');
+          logger.warn('================================================================================');
+          if (config.db.strictSchemaCheck) {
+            logger.error('CRITICAL: Server startup aborted because STRICT_SCHEMA_CHECK is enabled and database is missing migrations.');
+            process.exit(1);
+          }
         }
       }
-    }
 
-    // 3. Test database connection
-    const dbTest = await pool.testConnection();
-    logger.info(`MySQL database connected successfully. Database: ${dbTest.database} (Latency: ${dbTest.latencyMs}ms)`);
+      // 3. Test MySQL database connection
+      const dbTest = await pool.testConnection();
+      logger.info(`MySQL database connected successfully. Database: ${dbTest.database} (Latency: ${dbTest.latencyMs}ms)`);
+    }
 
     // 4. Start HTTP & Socket.IO server
     const httpServer = http.createServer(app);
@@ -107,10 +115,11 @@ async function startServer() {
           logger.info('HTTP server closed. No new incoming connections.');
         }
 
-        // Close connection pool
+        // Close connection pool(s)
         try {
+          const wasPostgres = pool.isPostgres();
           await pool.closePool();
-          logger.info('MySQL database connection pool cleanly closed.');
+          logger.info(`${wasPostgres ? 'PostgreSQL (Aiven)' : 'MySQL'} connection pool cleanly closed.`);
         } catch (poolErr) {
           logger.error('Error closing database pool:', { error: poolErr.message });
         }

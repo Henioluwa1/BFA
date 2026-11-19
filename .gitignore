@@ -55,6 +55,7 @@ backend/storage/*
 backups/
 *.sql
 !backend/src/db/migrations/*.sql
+!backend/src/db/pgMigrations/*.sql
 
 # Credentials & Secrets
 credentials.txt

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -74,6 +74,7 @@ export const systemService = {
   getSettings: () => api.get('/system/settings'),
   updateSettings: (data) => api.put('/system/settings', data),
   getOperationsOverview: () => api.get('/system/operations/overview'),
+  getMigrationCatalog: () => api.get('/system/operations/migrations'),
   toggleModule: (moduleId, data) => api.put('/system/operations/modules/' + moduleId + '/toggle', data),
   createBackupSnapshot: () => api.post('/system/operations/backup'),
 };
@@ -235,6 +236,7 @@ export const maintenanceService = {
   getStats: (params) => api.get('/maintenance/stats', { params }),
   getById: (id) => api.get(`/maintenance/${id}`),
   create: (data) => api.post('/maintenance', data),
+  update: (id, data) => api.patch(`/maintenance/${id}`, data),
   assign: (id, data) => api.post(`/maintenance/${id}/assign`, data),
   start: (id) => api.post(`/maintenance/${id}/start`),
   resolve: (id, data) => api.post(`/maintenance/${id}/resolve`, data),

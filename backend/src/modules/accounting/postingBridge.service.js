@@ -16,6 +16,19 @@ async function executeQuery(executor, sql, params = []) {
 }
 
 class PostingBridgeService {
+  /** Preserve calendar dates returned as JavaScript Date objects by PostgreSQL. */
+  static formatExpenseDate(expenseDate, createdAt) {
+    if (expenseDate instanceof Date && !Number.isNaN(expenseDate.getTime())) {
+      const year = expenseDate.getFullYear();
+      const month = String(expenseDate.getMonth() + 1).padStart(2, '0');
+      const day = String(expenseDate.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    if (expenseDate) return String(expenseDate).slice(0, 10);
+    if (createdAt) return new Date(createdAt).toISOString().slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  }
+
   /* =========================================================================
    * 1. ACCOUNT MAPPING RESOLUTION
    * ========================================================================= */
@@ -1146,9 +1159,7 @@ class PostingBridgeService {
       return existingRecord;
     }
 
-    const expenseDateStr = (expense.expense_date ? new Date(expense.expense_date) : new Date(expense.created_at))
-      .toISOString()
-      .slice(0, 10);
+    const expenseDateStr = this.formatExpenseDate(expense.expense_date, expense.created_at);
 
     const postAction = async (conn) => {
       // 1. Resolve open accounting period

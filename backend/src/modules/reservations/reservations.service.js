@@ -608,8 +608,8 @@ class ReservationsService {
 
             // If reservation is currently in-house (CHECKED_IN), migrate unit occupancy states
             if (existing.status === 'CHECKED_IN') {
-              await conn.query('UPDATE apartments SET status = "DIRTY", housekeeping_status = "DIRTY", updated_at = NOW() WHERE id = ?', [sourceAptId]);
-              await conn.query('UPDATE apartments SET status = "OCCUPIED", updated_at = NOW() WHERE id = ?', [targetAptId]);
+              await conn.query("UPDATE apartments SET status = 'DIRTY', housekeeping_status = 'DIRTY', updated_at = NOW() WHERE id = ?", [sourceAptId]);
+              await conn.query("UPDATE apartments SET status = 'OCCUPIED', updated_at = NOW() WHERE id = ?", [targetAptId]);
             }
           } else {
             // isDateChange on same apartment
@@ -1148,7 +1148,7 @@ class ReservationsService {
         // 2. Transition apartment status to DIRTY and housekeeping_status to DIRTY
         if (apt) {
           await conn.query(
-            'UPDATE apartments SET status = "DIRTY", housekeeping_status = "DIRTY", updated_at = NOW() WHERE id = ?',
+            "UPDATE apartments SET status = 'DIRTY', housekeeping_status = 'DIRTY', updated_at = NOW() WHERE id = ?",
             [reservation.apartment_id]
           );
         }

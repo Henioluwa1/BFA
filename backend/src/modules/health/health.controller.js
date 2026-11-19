@@ -21,7 +21,7 @@ class HealthController {
    */
   static async check(req, res, next) {
     try {
-      const health = await HealthService.getHealthStatus();
+      const health = await HealthService.getHealthStatus(req.user);
       const statusCode = health.status === 'healthy' ? 200 : 503;
       return ApiResponse.success(res, {
         statusCode,

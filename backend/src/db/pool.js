@@ -1,97 +1,54 @@
-const mysql = require('mysql2/promise');
-const config = require('../config');
-const logger = require('../utils/logger');
-const { assertTestDatabase } = require('./databaseGuard');
-const { getTlsOptions } = require('./tlsOptions');
+/**
+ * Dual-Engine Database Connection Pool Facade
+ * BFA Apartments Management System — TASK AIVEN-05
+ *
+ * Exposes a unified query, transaction, and health interface supporting both
+ * MySQL (legacy/local/TiDB) and PostgreSQL (Aiven/Render) based on the active
+ * environment configuration (DB_ENGINE=postgres | mysql).
+ *
+ * 100% backward compatible with all existing repository and service imports.
+ */
 
-let pool = null;
+const dbAdapter = require('./dbAdapter');
+const mysqlPool = require('./mysqlPool');
+const { getPgPool } = require('./pgPool');
 
 /**
- * Get or initialize MySQL connection pool
+ * Get or initialize active connection pool
  */
 function getPool() {
-  if (!pool) {
-    // Fail-Closed Guard: In test environment, explicitly prevent connection to shared/production databases
-    if (config.app.isTest) {
-      assertTestDatabase(config.db.database, 'MySQL Connection Pool Initialization');
-    }
-
-    pool = mysql.createPool({
-      ...getTlsOptions(config.db.tls),
-      host: config.db.host,
-      port: config.db.port,
-      user: config.db.user,
-      password: config.db.password,
-      database: config.db.database,
-      waitForConnections: true,
-      connectionLimit: config.db.connectionLimit,
-      queueLimit: config.db.queueLimit,
-      idleTimeout: config.db.idleTimeout,
-      connectTimeout: config.db.connectTimeout,
-      timezone: config.db.timezone,
-      dateStrings: true,
-    });
-
-    logger.info(`MySQL connection pool created for database: ${config.db.database}`);
+  if (dbAdapter.isPostgres()) {
+    return getPgPool();
   }
-  return pool;
+  return mysqlPool.getPool();
 }
 
 /**
- * Test connectivity to MySQL
+ * Test connectivity to active database engine
  */
 async function testConnection() {
-  const connectionPool = getPool();
-  const startTime = Date.now();
-  const [rows] = await connectionPool.query('SELECT 1 + 1 AS result, NOW() as serverTime;');
-  const latencyMs = Date.now() - startTime;
-  return {
-    healthy: rows && rows[0] && rows[0].result === 2,
-    latencyMs,
-    serverTime: rows[0]?.serverTime,
-    database: config.db.database,
-  };
+  return dbAdapter.testConnection();
 }
 
 /**
- * Execute a query with parameters
+ * Execute a query with parameters across active database engine
  */
 async function query(sql, params = []) {
-  const connectionPool = getPool();
-  const [results] = await connectionPool.query(sql, params);
-  return results;
+  return dbAdapter.query(sql, params);
 }
 
 /**
- * Execute a set of queries in a database transaction
+ * Execute a set of queries in a database transaction with automatic commit/rollback
  */
 async function withTransaction(callback) {
-  const connectionPool = getPool();
-  const connection = await connectionPool.getConnection();
-  await connection.beginTransaction();
-
-  try {
-    const result = await callback(connection);
-    await connection.commit();
-    return result;
-  } catch (error) {
-    await connection.rollback();
-    logger.error('Transaction rolled back due to error:', { error: error.message });
-    throw error;
-  } finally {
-    connection.release();
-  }
+  return dbAdapter.withTransaction(callback);
 }
 
 /**
- * Gracefully close the connection pool
+ * Gracefully close the active connection pool(s)
  */
 async function closePool() {
-  if (pool) {
-    await pool.end();
-    pool = null;
-    logger.info('MySQL connection pool closed.');
-  }
+  return dbAdapter.closePool();
 }
 
 module.exports = {
@@ -100,4 +57,14 @@ module.exports = {
   query,
   withTransaction,
   closePool,
+  // Dual-Engine Inspection & Controls
+  getEngine: dbAdapter.getEngine,
+  isPostgres: dbAdapter.isPostgres,
+  isMySql: dbAdapter.isMySql,
+  setEngineOverride: dbAdapter.setEngineOverride,
+  clearEngineOverride: dbAdapter.clearEngineOverride,
+  translateSql: dbAdapter.translateSql,
+  // Direct Engine Access
+  getMysqlPool: mysqlPool.getPool,
+  getPgPool,
 };

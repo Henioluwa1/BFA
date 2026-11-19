@@ -30,7 +30,7 @@ class ExpensesService {
     if (['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role)) {
       return true;
     }
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+    if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
       if (!user.propertyId) {
         throw new ForbiddenError('Access denied: User is not assigned to any property.');
       }

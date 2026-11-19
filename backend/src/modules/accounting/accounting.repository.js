@@ -637,11 +637,20 @@ class AccountingRepository {
     journalId,
     fromDate,
     toDate,
+    search,
     page = 1,
     limit = 50,
   } = {}, conn = pool) {
-    const offset = (Number(page) - 1) * Number(limit);
-    let countSql = 'SELECT COUNT(*) AS total FROM general_ledger_entries gl WHERE 1=1';
+    const safePage = Math.max(1, parseInt(page, 10) || 1);
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    const offset = (safePage - 1) * safeLimit;
+    const fromSql = `
+      FROM general_ledger_entries gl
+      INNER JOIN chart_of_accounts a ON gl.account_id = a.id
+      INNER JOIN accounting_periods p ON gl.accounting_period_id = p.id
+      INNER JOIN journal_entries j ON gl.journal_entry_id = j.id
+      LEFT JOIN properties prop ON gl.property_id = prop.id
+    `;
     let sql = `
       SELECT 
         gl.*,
@@ -653,11 +662,7 @@ class AccountingRepository {
         j.journal_number,
         j.source_type,
         prop.name AS property_name
-      FROM general_ledger_entries gl
-      INNER JOIN chart_of_accounts a ON gl.account_id = a.id
-      INNER JOIN accounting_periods p ON gl.accounting_period_id = p.id
-      INNER JOIN journal_entries j ON gl.journal_entry_id = j.id
-      LEFT JOIN properties prop ON gl.property_id = prop.id
+      ${fromSql}
       WHERE 1=1
     `;
 
@@ -688,26 +693,36 @@ class AccountingRepository {
       where.push('gl.posting_date <= ?');
       params.push(toDate);
     }
-
-    if (where.length > 0) {
-      const clause = ` AND ${where.join(' AND ')}`;
-      countSql += clause;
-      sql += clause;
+    if (search && String(search).trim()) {
+      const term = `%${String(search).trim().toLowerCase()}%`;
+      where.push(`(
+        LOWER(COALESCE(j.journal_number, '')) LIKE ? OR
+        LOWER(COALESCE(gl.description, '')) LIKE ? OR
+        LOWER(COALESCE(j.source_type, '')) LIKE ? OR
+        LOWER(COALESCE(a.account_code, '')) LIKE ? OR
+        LOWER(COALESCE(a.account_name, '')) LIKE ? OR
+        LOWER(COALESCE(prop.name, '')) LIKE ?
+      )`);
+      params.push(term, term, term, term, term, term);
     }
+
+    const clause = where.length > 0 ? ` AND ${where.join(' AND ')}` : '';
+    sql += clause;
 
     sql += ' ORDER BY gl.posting_date DESC, gl.id DESC LIMIT ? OFFSET ?';
 
+    const countSql = `SELECT COUNT(*) AS total ${fromSql} WHERE 1=1${clause}`;
     const countRows = conn === pool ? await pool.query(countSql, params) : (await conn.query(countSql, params))[0];
     const total = Number(countRows[0]?.total || 0);
 
-    const queryParams = [...params, Number(limit), Number(offset)];
+    const queryParams = [...params, safeLimit, offset];
     const rows = conn === pool ? await pool.query(sql, queryParams) : (await conn.query(sql, queryParams))[0];
 
     return {
       data: rows,
       total,
-      page: Number(page),
-      limit: Number(limit),
+      page: safePage,
+      limit: safeLimit,
     };
   }
 
@@ -743,9 +758,9 @@ class AccountingRepository {
         COALESCE(SUM(gl.credit), 0) AS total_credit
       FROM chart_of_accounts a
       LEFT JOIN general_ledger_entries gl ON a.id = gl.account_id ${joinConditions}
-      WHERE a.is_active = 1
+      WHERE a.is_active = TRUE
       GROUP BY a.id
-      HAVING total_debit > 0 OR total_credit > 0
+      HAVING COALESCE(SUM(gl.debit), 0) > 0 OR COALESCE(SUM(gl.credit), 0) > 0
       ORDER BY a.account_code ASC
     `;
     const rows = conn === pool ? await pool.query(sql, params) : (await conn.query(sql, params))[0];
@@ -851,7 +866,7 @@ class AccountingRepository {
         COALESCE(SUM(gl.credit), 0) AS total_credit
       FROM chart_of_accounts a
       LEFT JOIN general_ledger_entries gl ON a.id = gl.account_id ${joinConditions}
-      WHERE a.is_active = 1 AND a.account_type IN ('REVENUE', 'EXPENSE')
+      WHERE a.is_active = TRUE AND a.account_type IN ('REVENUE', 'EXPENSE')
       GROUP BY a.id
       ORDER BY a.account_code ASC
     `;
@@ -949,7 +964,7 @@ class AccountingRepository {
         COALESCE(SUM(gl.credit), 0) AS total_credit
       FROM chart_of_accounts a
       LEFT JOIN general_ledger_entries gl ON a.id = gl.account_id ${joinConditions}
-      WHERE a.is_active = 1
+      WHERE a.is_active = TRUE
       GROUP BY a.id
       ORDER BY a.account_code ASC
     `;
@@ -1050,8 +1065,8 @@ class AccountingRepository {
     const to = toDate || new Date().toISOString().slice(0, 10);
 
     const cashRows = conn === pool
-      ? await pool.query("SELECT id FROM chart_of_accounts WHERE account_code IN ('1010', '1020') AND is_active = 1")
-      : (await conn.query("SELECT id FROM chart_of_accounts WHERE account_code IN ('1010', '1020') AND is_active = 1"))[0];
+      ? await pool.query("SELECT id FROM chart_of_accounts WHERE account_code IN ('1010', '1020') AND is_active = TRUE")
+      : (await conn.query("SELECT id FROM chart_of_accounts WHERE account_code IN ('1010', '1020') AND is_active = TRUE"))[0];
 
     const cashAccountIds = (cashRows || []).map((a) => a.id);
     if (cashAccountIds.length === 0) {
@@ -1066,14 +1081,15 @@ class AccountingRepository {
     }
 
     // 1. Beginning Cash Balance (prior to fromDate)
+    const cashAccountPlaceholders = cashAccountIds.map(() => '?').join(', ');
     const begSql = `
       SELECT COALESCE(SUM(gl.debit) - SUM(gl.credit), 0) AS beg_balance
       FROM general_ledger_entries gl
-      WHERE gl.account_id IN (?) AND gl.posting_date < ? ${propCondition}
+      WHERE gl.account_id IN (${cashAccountPlaceholders}) AND gl.posting_date < ? ${propCondition}
     `;
     const begRows = conn === pool
-      ? await pool.query(begSql, [cashAccountIds, from, ...propParams])
-      : (await conn.query(begSql, [cashAccountIds, from, ...propParams]))[0];
+      ? await pool.query(begSql, [...cashAccountIds, from, ...propParams])
+      : (await conn.query(begSql, [...cashAccountIds, from, ...propParams]))[0];
     const beginningCashCents = toMinorUnits(begRows[0]?.beg_balance || 0, 'BeginningCash');
 
     // 2. Operating Inflows and Outflows within period
@@ -1084,12 +1100,12 @@ class AccountingRepository {
         COALESCE(SUM(gl.credit), 0) AS total_outflow
       FROM general_ledger_entries gl
       JOIN journal_entries je ON gl.journal_entry_id = je.id
-      WHERE gl.account_id IN (?) AND gl.posting_date >= ? AND gl.posting_date <= ? ${propCondition}
+      WHERE gl.account_id IN (${cashAccountPlaceholders}) AND gl.posting_date >= ? AND gl.posting_date <= ? ${propCondition}
       GROUP BY COALESCE(je.source_type, 'MANUAL')
     `;
     const periodRows = conn === pool
-      ? await pool.query(periodSql, [cashAccountIds, from, to, ...propParams])
-      : (await conn.query(periodSql, [cashAccountIds, from, to, ...propParams]))[0];
+      ? await pool.query(periodSql, [...cashAccountIds, from, to, ...propParams])
+      : (await conn.query(periodSql, [...cashAccountIds, from, to, ...propParams]))[0];
 
     const inflows = [];
     const outflows = [];
@@ -1164,7 +1180,7 @@ class AccountingRepository {
         r.total_amount,
         r.paid_amount,
         (r.total_amount - r.paid_amount) AS outstanding_balance,
-        DATEDIFF(CURRENT_DATE, r.check_out_date) AS days_overdue
+        r.check_out_date
       FROM reservations r
       JOIN properties p ON r.property_id = p.id
       JOIN apartments a ON r.apartment_id = a.id
@@ -1213,7 +1229,7 @@ class AccountingRepository {
         totalAmount: toDecimalNumber(billedCents),
         paidAmount: toDecimalNumber(paidCents),
         outstandingBalance: toDecimalNumber(balanceCents),
-        daysOverdue: Math.max(0, parseInt(r.days_overdue || 0, 10)),
+        daysOverdue: Math.max(0, Math.floor((Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`) - Date.parse(`${String(r.check_out_date).slice(0, 10)}T00:00:00Z`)) / 86400000) || 0),
         paymentStatus: r.payment_status,
       };
     });

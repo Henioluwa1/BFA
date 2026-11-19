@@ -262,7 +262,7 @@ class PropertiesService {
 
       // If marked as primary cover, unset any existing primary cover for this property
       if (isPrimary) {
-        await pool.query("UPDATE media_assets SET is_primary = 0 WHERE entity_type = 'PROPERTY' AND entity_id = ?", [propertyId]);
+        await pool.query("UPDATE media_assets SET is_primary = FALSE WHERE entity_type = 'PROPERTY' AND entity_id = ?", [propertyId]);
       }
 
       const sql = `
@@ -309,7 +309,7 @@ class PropertiesService {
     // Public / unauthenticated visitors only see published images
     const isInternal = user && ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF'].includes(user.role);
     if (!isInternal) {
-      sql += ' AND is_published = 1';
+      sql += ' AND is_published = TRUE';
     }
 
     sql += ' ORDER BY is_primary DESC, display_order ASC, id ASC';

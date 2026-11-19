@@ -1,35 +1,51 @@
 const os = require('os');
 const pool = require('../../db/pool');
+const { testPgConnection } = require('../../db/pgPool');
 const config = require('../../config');
 
 /**
  * Health Service to inspect database connectivity, migrations, memory, and uptime
  */
 class HealthService {
-  static async getHealthStatus() {
+  static async getHealthStatus(caller = null) {
+    const includeMigrationDetails = (caller?.role || '').toUpperCase() === 'SUPER_ADMIN';
     let dbStatus = {
       status: 'disconnected',
       latencyMs: null,
       error: null,
     };
 
-    let migrationsCount = 0;
+    let migrationsCount;
 
     try {
-      const dbTest = await pool.testConnection();
-      dbStatus = {
-        status: dbTest.healthy ? 'connected' : 'degraded',
-        latencyMs: dbTest.latencyMs,
-        database: dbTest.database,
-        serverTime: dbTest.serverTime,
-      };
+      if (pool.isPostgres()) {
+        const pgTest = await testPgConnection();
+        dbStatus = {
+          status: pgTest.healthy ? 'connected' : 'degraded',
+          provider: 'Aiven PostgreSQL',
+          latencyMs: pgTest.latencyMs,
+          database: pgTest.database,
+          serverTime: pgTest.serverTime,
+        };
+      } else {
+        const dbTest = await pool.testConnection();
+        dbStatus = {
+          status: dbTest.healthy ? 'connected' : 'degraded',
+          provider: 'MySQL / TiDB',
+          latencyMs: dbTest.latencyMs,
+          database: dbTest.database,
+          serverTime: dbTest.serverTime,
+        };
+      }
 
-      // Check migration count
-      const migrationRows = await pool.query('SELECT COUNT(*) as count FROM schema_migrations;');
-      migrationsCount = migrationRows[0]?.count || 0;
+      if (includeMigrationDetails) {
+        const migrationRows = await pool.query('SELECT COUNT(*) as count FROM schema_migrations;');
+        migrationsCount = parseInt(migrationRows[0]?.count || 0, 10);
+      }
     } catch (err) {
       dbStatus = {
         status: 'error',
+        provider: pool.isPostgres() ? 'Aiven PostgreSQL' : 'MySQL / TiDB',
         latencyMs: null,
         error: err.message,
       };
@@ -47,7 +63,7 @@ class HealthService {
       uptimeSeconds: systemUptimeSeconds,
       database: {
         ...dbStatus,
-        appliedMigrations: migrationsCount,
+        ...(includeMigrationDetails ? { appliedMigrations: migrationsCount } : {}),
       },
       system: {
         nodeVersion: process.version,

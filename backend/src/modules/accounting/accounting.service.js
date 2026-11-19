@@ -14,6 +14,18 @@ const {
 } = require('../../core/errors/apiError');
 
 class AccountingService {
+  static scopeReadQuery(query = {}, user = null) {
+    const params = { ...query };
+    const role = (user?.role || '').toUpperCase();
+    if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+      if (!user.propertyId) {
+        throw new ForbiddenError('Access denied: User is not assigned to any property.');
+      }
+      params.propertyId = user.propertyId;
+    }
+    return params;
+  }
+
   /* =========================================================================
    * PROPERTY SCOPE VALIDATION
    * ========================================================================= */
@@ -37,7 +49,7 @@ class AccountingService {
       return true;
     }
 
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+    if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
       if (!user.propertyId) {
         throw new ForbiddenError('Access denied: User is not assigned to any property.');
       }
@@ -74,7 +86,10 @@ class AccountingService {
       return;
     }
 
-    if (['MANAGER', 'STAFF'].includes(role) && user.propertyId) {
+    if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF'].includes(role)) {
+      if (!user.propertyId) {
+        throw new ForbiddenError('Access denied: User is not assigned to any property.');
+      }
       const foreignOrCompanyLine = journal.lines.find(
         (l) => !l.property_id || parseInt(l.property_id, 10) !== parseInt(user.propertyId, 10)
       );
@@ -447,10 +462,7 @@ class AccountingService {
    * 4. JOURNAL LIFECYCLE
    * ========================================================================= */
   static async listJournals(query, user) {
-    const params = { ...query };
-    if (['MANAGER', 'STAFF'].includes(user?.role?.toUpperCase()) && user.propertyId) {
-      params.propertyId = user.propertyId;
-    }
+    const params = this.scopeReadQuery(query, user);
     return AccountingRepository.findAllJournals(params);
   }
 
@@ -937,58 +949,37 @@ class AccountingService {
    * 5. GENERAL LEDGER & TRIAL BALANCE
    * ========================================================================= */
   static async listLedgerEntries(query, user) {
-    const params = { ...query };
-    if (['MANAGER', 'STAFF'].includes(user?.role?.toUpperCase()) && user.propertyId) {
-      params.propertyId = user.propertyId;
-    }
+    const params = this.scopeReadQuery(query, user);
     return AccountingRepository.findAllGeneralLedgerEntries(params);
   }
 
   static async getTrialBalanceSummary(query = {}, user = null) {
-    const params = { ...query };
-    if (['MANAGER', 'STAFF'].includes(user?.role?.toUpperCase()) && user.propertyId) {
-      params.propertyId = user.propertyId;
-    }
+    const params = this.scopeReadQuery(query, user);
     return AccountingRepository.getTrialBalanceSummary(params);
   }
 
   static async getIncomeStatement(query = {}, user = null) {
-    const params = { ...query };
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
-      params.propertyId = user.propertyId;
-    }
+    const params = this.scopeReadQuery(query, user);
     return AccountingRepository.getIncomeStatement(params);
   }
 
   static async getBalanceSheet(query = {}, user = null) {
-    const params = { ...query };
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
-      params.propertyId = user.propertyId;
-    }
+    const params = this.scopeReadQuery(query, user);
     return AccountingRepository.getBalanceSheet(params);
   }
 
   static async getCashFlowStatement(query = {}, user = null) {
-    const params = { ...query };
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
-      params.propertyId = user.propertyId;
-    }
+    const params = this.scopeReadQuery(query, user);
     return AccountingRepository.getCashFlowStatement(params);
   }
 
   static async getReceivablesReport(query = {}, user = null) {
-    const params = { ...query };
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
-      params.propertyId = user.propertyId;
-    }
+    const params = this.scopeReadQuery(query, user);
     return AccountingRepository.getReceivablesReport(params);
   }
 
   static async getRefundsReconciliationReport(query = {}, user = null) {
-    const params = { ...query };
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase()) && user.propertyId) {
-      params.propertyId = user.propertyId;
-    }
+    const params = this.scopeReadQuery(query, user);
     return AccountingRepository.getRefundsReconciliationReport(params);
   }
 }

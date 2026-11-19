@@ -9,10 +9,10 @@ class PropertiesRepository {
       SELECT p.*,
              COUNT(DISTINCT a.id) as total_units,
              COUNT(DISTINCT a.id) as unit_count,
-             COUNT(DISTINCT CASE WHEN a.status = 'AVAILABLE' AND a.is_active = 1 THEN a.id END) as available_units,
+             COUNT(DISTINCT CASE WHEN a.status = 'AVAILABLE' AND a.is_active = TRUE THEN a.id END) as available_units,
              COUNT(DISTINCT CASE WHEN a.status = 'OCCUPIED' THEN a.id END) as occupied_units,
              COUNT(DISTINCT CASE WHEN a.status IN ('MAINTENANCE', 'DIRTY', 'OUT_OF_SERVICE', 'BLOCKED') THEN a.id END) as maintenance_units,
-             COUNT(DISTINCT CASE WHEN r.status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING') AND r.check_in_date >= CURRENT_DATE() THEN r.id END) as active_reservations
+             COUNT(DISTINCT CASE WHEN r.status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING') AND r.check_in_date >= CURRENT_DATE THEN r.id END) as active_reservations
       FROM properties p
       LEFT JOIN apartments a ON a.property_id = p.id
       LEFT JOIN reservations r ON r.property_id = p.id
@@ -49,10 +49,10 @@ class PropertiesRepository {
       SELECT p.*,
              COUNT(DISTINCT a.id) as total_units,
              COUNT(DISTINCT a.id) as unit_count,
-             COUNT(DISTINCT CASE WHEN a.status = 'AVAILABLE' AND a.is_active = 1 THEN a.id END) as available_units,
+             COUNT(DISTINCT CASE WHEN a.status = 'AVAILABLE' AND a.is_active = TRUE THEN a.id END) as available_units,
              COUNT(DISTINCT CASE WHEN a.status = 'OCCUPIED' THEN a.id END) as occupied_units,
              COUNT(DISTINCT CASE WHEN a.status IN ('MAINTENANCE', 'DIRTY', 'OUT_OF_SERVICE', 'BLOCKED') THEN a.id END) as maintenance_units,
-             COUNT(DISTINCT CASE WHEN r.status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING') AND r.check_in_date >= CURRENT_DATE() THEN r.id END) as active_reservations
+             COUNT(DISTINCT CASE WHEN r.status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING') AND r.check_in_date >= CURRENT_DATE THEN r.id END) as active_reservations
       FROM properties p
       LEFT JOIN apartments a ON a.property_id = p.id
       LEFT JOIN reservations r ON r.property_id = p.id

@@ -18,7 +18,11 @@ class PaymentsService {
         const isConflict =
           err.code === 'ER_LOCK_DEADLOCK' ||
           err.code === 'ER_DUP_ENTRY' ||
-          (err.message && (err.message.includes('Deadlock') || err.message.includes('Duplicate entry')));
+          err.code === '40P01' ||
+          err.code === '23505' ||
+          err.isDeadlock ||
+          err.isDuplicate ||
+          (err.message && (err.message.includes('Deadlock') || err.message.includes('Duplicate entry') || err.message.includes('unique constraint')));
         if (isConflict && attempts < 3) {
           logger.warn(
             `[PAYMENTS CONCURRENCY] Collision detected on attempt #${attempts} (${err.code || err.message}). Retrying transaction safely...`
@@ -197,7 +201,7 @@ class PaymentsService {
       // Idempotency: verify if external provider reference was already processed
       if (provider && providerReference) {
         const [dupRows] = await conn.query(
-          'SELECT * FROM payment_transactions WHERE provider = ? AND provider_reference = ? AND status = "SUCCESS" LIMIT 1',
+          "SELECT * FROM payment_transactions WHERE provider = ? AND provider_reference = ? AND status = 'SUCCESS' LIMIT 1",
           [provider, providerReference]
         );
         if (dupRows && dupRows.length > 0) {
@@ -217,7 +221,7 @@ class PaymentsService {
         );
         insertId = insertRes.insertId;
       } catch (insertErr) {
-        if (insertErr.code === 'ER_DUP_ENTRY' && provider && finalProviderRef) {
+        if ((insertErr.code === 'ER_DUP_ENTRY' || insertErr.code === '23505' || insertErr.isDuplicate) && provider && finalProviderRef) {
           const [dupRows] = await conn.query(
             'SELECT * FROM payment_transactions WHERE provider = ? AND provider_reference = ? LIMIT 1',
             [provider, finalProviderRef]
@@ -289,7 +293,7 @@ class PaymentsService {
     if (['SUPER_ADMIN', 'OWNER', 'ADMIN'].includes(role)) {
       return true;
     }
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+    if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
       if (!user.propertyId) {
         throw new ForbiddenError('Access denied: User is not assigned to any property.');
       }
@@ -533,9 +537,13 @@ class PaymentsService {
     const params = [];
 
     // Property scope check for manager/staff
-    if (user?.role === 'MANAGER' && user.propertyId) {
-      sql += ' AND r.property_id = ?';
-      params.push(user.propertyId);
+    if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase())) {
+      if (!user.propertyId) {
+        sql += ' AND 1 = 0';
+      } else {
+        sql += ' AND r.property_id = ?';
+        params.push(user.propertyId);
+      }
     } else if (propertyId && propertyId !== 'all') {
       sql += ' AND r.property_id = ?';
       params.push(propertyId);

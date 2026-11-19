@@ -37,7 +37,7 @@ class ExpensesRepository {
 
     // Fail-Closed Property Scoping
     const role = (user?.role || '').toUpperCase();
-    if (['MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
+    if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(role)) {
       if (!user.propertyId) {
         sql += ' AND 1 = 0';
       } else {
@@ -197,9 +197,13 @@ class ExpensesRepository {
     let whereClause = 'WHERE 1=1';
     const params = [];
 
-    if (user?.role === 'MANAGER' && user.propertyId) {
-      whereClause += ' AND property_id = ?';
-      params.push(user.propertyId);
+    if (['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes(user?.role?.toUpperCase())) {
+      if (!user.propertyId) {
+        whereClause += ' AND 1 = 0';
+      } else {
+        whereClause += ' AND property_id = ?';
+        params.push(user.propertyId);
+      }
     } else if (propertyId && propertyId !== 'all') {
       whereClause += ' AND property_id = ?';
       params.push(propertyId);

@@ -52,6 +52,16 @@ function assertTestDatabase(dbName, operation = 'Destructive Test Operation') {
   return true;
 }
 
+function assertLocalTestHost(host, operation = 'Test Database Connection') {
+  const normalized = String(host || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (!['localhost', '127.0.0.1', '::1'].includes(normalized)) {
+    throw new Error(
+      `[FAIL-CLOSED DB GUARD]: ${operation} BLOCKED! Test databases may connect only to a local loopback host.`
+    );
+  }
+  return true;
+}
+
 /**
  * Asserts that executing migrations on a production/shared database is explicitly authorized.
  * Throws a fatal Error if target database is a production/shared database and confirmation was not provided.
@@ -84,6 +94,7 @@ function assertProductionMigrationAuthorized(dbName, options = {}) {
 module.exports = {
   isTestDatabase,
   assertTestDatabase,
+  assertLocalTestHost,
   assertProductionMigrationAuthorized,
   BLOCKED_SHARED_DATABASES,
 };
