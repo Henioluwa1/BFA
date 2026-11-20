@@ -495,7 +495,11 @@ export default function PropertyDetailPage() {
 
                 <h1 className="bfa-property-hero-title">{property.name}</h1>
                 <p className="bfa-property-hero-address">
-                  <MapPin size={16} /> {property.address}, {property.city}, {property.state}
+                  <MapPin size={16} /> {property.address}
+                  {property.location ? ` • ${property.location}` : ''}
+                  {property.district ? ` • ${property.district}` : ''}
+                  {property.city ? `, ${property.city}` : ''}
+                  {property.state ? `, ${property.state}` : ''}
                 </p>
 
                 {/* Property Quick Metrics */}
@@ -603,7 +607,27 @@ export default function PropertyDetailPage() {
                 </div>
 
                 <div className="bfa-amenities-grid-columns">
-                  {verifiedPropertyAmenities.length > 0 ? (
+                  {property.building_amenities && property.building_amenities.length > 0 ? (
+                    property.building_amenities.map((amn, idx) => (
+                      <div key={idx} className="bfa-amenity-feature-card" style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                        {amn.photo_url ? (
+                          <img
+                            src={amn.photo_url}
+                            alt={amn.name}
+                            style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '6px', border: '1px solid rgba(212, 175, 55, 0.3)', flexShrink: 0 }}
+                          />
+                        ) : (
+                          <div className="bfa-amenity-feature-icon" style={{ flexShrink: 0 }}>
+                            <ShieldCheck size={20} />
+                          </div>
+                        )}
+                        <div>
+                          <strong style={{ fontSize: '0.95rem', color: '#ffffff', display: 'block', marginBottom: '3px' }}>{amn.name}</strong>
+                          <span style={{ fontSize: '0.82rem', color: '#94a3b8', lineHeight: 1.4 }}>{amn.description || 'Verified building facility with high operational standard.'}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : verifiedPropertyAmenities.length > 0 ? (
                     verifiedPropertyAmenities.map((amn, idx) => (
                       <div key={idx} className="bfa-amenity-feature-card">
                         <div className="bfa-amenity-feature-icon">

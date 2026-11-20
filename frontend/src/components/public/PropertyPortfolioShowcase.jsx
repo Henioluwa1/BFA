@@ -72,6 +72,21 @@ export function isApartmentCategory(unit) {
 
 // Multi-image sequence and descriptive internal spaces for any room or apartment
 export function getUnitShowcasePhotos(unit, propertyId) {
+  const base = getBaseShowcasePhotos(unit, propertyId);
+  if (unit?.main_photo) {
+    const mainPhotoItem = {
+      id: `unit-${unit.id || 'custom'}-main`,
+      label: unit.unit_name || 'Primary Interior',
+      badge: '📸 Primary Apartment Photo',
+      photo: unit.main_photo,
+      desc: unit.description || `${unit.unit_name || 'Apartment'} primary interior layout.`,
+    };
+    return [mainPhotoItem, ...base];
+  }
+  return base;
+}
+
+function getBaseShowcasePhotos(unit, propertyId) {
   const propId = parseInt(propertyId, 10);
   const type = (unit?.unit_type || '').toLowerCase();
   const name = (unit?.unit_name || '').toLowerCase();
@@ -649,6 +664,11 @@ export function ApartmentFullScreenModal({
             </span>
             <div className="bfa-fullscreen-title-row">
               <h2>{unit.unit_name}</h2>
+              {unit.apartment_code && (
+                <span className="bfa-fullscreen-code-pill" style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 10px', borderRadius: '6px', fontSize: '13px', fontWeight: '700', border: '1px solid #bae6fd' }}>
+                  ID: {unit.apartment_code}
+                </span>
+              )}
               <span className="bfa-fullscreen-type-pill">
                 {isApartmentCategory(unit) ? '🏢' : '🔑'} {unit.unit_type}
               </span>
@@ -816,103 +836,157 @@ export function ApartmentFullScreenModal({
           {/* 4. Verified In-Suite Amenities Checklist */}
           <div className="bfa-fullscreen-section-block">
             <h3 className="bfa-fs-section-heading">Verified In-Suite Amenities & Facilities</h3>
-            <div className="bfa-fs-amenities-checklist">
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>24/7 Guaranteed Dual Power</strong>
-                  <span>Dual Cummins 500kVA silent generators + solar hybrid battery bank with sub-50ms ATS.</span>
-                </div>
+            {unit.apartment_amenities && unit.apartment_amenities.length > 0 ? (
+              <div
+                className="bfa-fs-dynamic-amenities-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '16px',
+                  marginTop: '16px',
+                }}
+              >
+                {unit.apartment_amenities.map((am, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      gap: '14px',
+                      background: '#f8fafc',
+                      padding: '14px',
+                      borderRadius: '10px',
+                      border: '1px solid #e2e8f0',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    {am.photo_url ? (
+                      <img
+                        src={am.photo_url}
+                        alt={am.name}
+                        style={{
+                          width: '64px',
+                          height: '64px',
+                          borderRadius: '8px',
+                          objectFit: 'cover',
+                          flexShrink: 0,
+                          border: '1px solid #cbd5e1',
+                        }}
+                      />
+                    ) : (
+                      <div className="bfa-check-bubble" style={{ flexShrink: 0, marginTop: '2px' }}>
+                        <Check size={14} />
+                      </div>
+                    )}
+                    <div>
+                      <strong style={{ display: 'block', fontSize: '15px', color: '#0f172a', marginBottom: '4px' }}>
+                        {am.name}
+                      </strong>
+                      <span style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>
+                        {am.description || 'Verified in-suite apartment amenity.'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <div className="bfa-fs-amenities-checklist">
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>24/7 Guaranteed Dual Power</strong>
+                    <span>Dual Cummins 500kVA silent generators + solar hybrid battery bank with sub-50ms ATS.</span>
+                  </div>
+                </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Ultra-Low Latency Wi-Fi 6</strong>
-                  <span>Dedicated enterprise 500 Mbps fiber line with private in-suite access points.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Ultra-Low Latency Wi-Fi 6</strong>
+                    <span>Dedicated enterprise 500 Mbps fiber line with private in-suite access points.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>4K Ultra HD Smart TV Entertainment</strong>
-                  <span>55" or 65" displays with Netflix, Prime Video, YouTube & full DStv Premium package.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>4K Ultra HD Smart TV Entertainment</strong>
+                    <span>55" or 65" displays with Netflix, Prime Video, YouTube & full DStv Premium package.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Silent Inverter Climate Control</strong>
-                  <span>Multi-zone whisper-quiet inverter air conditioning for personalized temperature comfort.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Silent Inverter Climate Control</strong>
+                    <span>Multi-zone whisper-quiet inverter air conditioning for personalized temperature comfort.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Fully Fitted Kitchen / Kitchenette</strong>
-                  <span>Induction cooktop, microwave, double-door refrigerator, cookware, and porcelain dining sets.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Fully Fitted Kitchen / Kitchenette</strong>
+                    <span>Induction cooktop, microwave, double-door refrigerator, cookware, and porcelain dining sets.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Espresso Bar & Electric Kettle</strong>
-                  <span>Complimentary premium coffee pods, artisan teas, and daily spring bottled water.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Espresso Bar & Electric Kettle</strong>
+                    <span>Complimentary premium coffee pods, artisan teas, and daily spring bottled water.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Luxury Spa Rain Shower & Bath</strong>
-                  <span>Pressurized instant thermostatic hot water, organic botanical shampoo, and plush towels.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Luxury Spa Rain Shower & Bath</strong>
+                    <span>Pressurized instant thermostatic hot water, organic botanical shampoo, and plush towels.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Executive Study Workstation</strong>
-                  <span>Ergonomic desk, leather swivel chair, multi-socket universal power surge strip, and USB-C ports.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Executive Study Workstation</strong>
+                    <span>Ergonomic desk, leather swivel chair, multi-socket universal power surge strip, and USB-C ports.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Electronic Digital Laptop Safe</strong>
-                  <span>Secure passcode-protected safe fitted inside walk-in wardrobe for valuables.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Electronic Digital Laptop Safe</strong>
+                    <span>Secure passcode-protected safe fitted inside walk-in wardrobe for valuables.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Acoustic Soundproofing & Blackout</strong>
-                  <span>Soundproof double-glazed windows and automated motorized blackout drapes for uninterrupted rest.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Acoustic Soundproofing & Blackout</strong>
+                    <span>Soundproof double-glazed windows and automated motorized blackout drapes for uninterrupted rest.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Daily Professional Housekeeping</strong>
-                  <span>Impeccable sanitization, daily bed turnover, fresh towels, and dry-cleaning laundry concierge.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Daily Professional Housekeeping</strong>
+                    <span>Impeccable sanitization, daily bed turnover, fresh towels, and dry-cleaning laundry concierge.</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="bfa-fs-amenity-item">
-                <div className="bfa-check-bubble"><Check size={14} /></div>
-                <div>
-                  <strong>Biometric Security & Guarded Parking</strong>
-                  <span>24/7 CCTV surveillance, biometric access gates, and complimentary subterranean parking.</span>
+                <div className="bfa-fs-amenity-item">
+                  <div className="bfa-check-bubble"><Check size={14} /></div>
+                  <div>
+                    <strong>Biometric Security & Guarded Parking</strong>
+                    <span>24/7 CCTV surveillance, biometric access gates, and complimentary subterranean parking.</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* 5. Stay Guidelines & House Rules */}

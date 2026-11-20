@@ -53,8 +53,8 @@ export default function GlobalBookingAlertModal() {
   const [statusMessage, setStatusMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  const eligibleRoles = ['RECEPTIONIST', 'MANAGER', 'OPERATIONS_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'OWNER'];
-  const isEligible = user && eligibleRoles.includes(user.role);
+  // The booking alert modal is strictly restricted to authenticated RECEPTIONIST role
+  const isEligible = user?.role === 'RECEPTIONIST';
 
   // Initial fetch of pending unclaimed bookings
   const fetchUnclaimed = useCallback(async () => {
@@ -62,7 +62,12 @@ export default function GlobalBookingAlertModal() {
     try {
       const res = await frontOfficeService.getUnclaimedBookings();
       if (res?.success && Array.isArray(res.data)) {
-        setQueue(res.data);
+        setQueue((prev) => {
+          // Merge and deduplicate by booking id
+          const existingIds = new Set(prev.map((b) => b.id));
+          const newItems = res.data.filter((b) => !existingIds.has(b.id));
+          return [...prev, ...newItems];
+        });
       }
     } catch (err) {
       console.warn('[GlobalBookingAlert] Failed to fetch unclaimed queue:', err.message);
@@ -70,8 +75,10 @@ export default function GlobalBookingAlertModal() {
   }, [isEligible]);
 
   useEffect(() => {
-    fetchUnclaimed();
-  }, [fetchUnclaimed]);
+    if (isEligible) {
+      fetchUnclaimed();
+    }
+  }, [fetchUnclaimed, isEligible]);
 
   // Connect socket and listen for live booking events
   useEffect(() => {
@@ -79,6 +86,9 @@ export default function GlobalBookingAlertModal() {
 
     const socket = getSocket();
     if (!socket) return;
+
+    // Explicitly subscribe to receptionist alert channel
+    socket.emit('booking:subscribe_alerts');
 
     const handleNewAlert = (data) => {
       if (!data || !data.id) return;
@@ -108,14 +118,21 @@ export default function GlobalBookingAlertModal() {
       });
     };
 
+    const handleConnect = () => {
+      socket.emit('booking:subscribe_alerts');
+      fetchUnclaimed();
+    };
+
+    socket.on('connect', handleConnect);
     socket.on('booking:new_alert', handleNewAlert);
     socket.on('booking:claimed', handleBookingClaimed);
 
     return () => {
+      socket.off('connect', handleConnect);
       socket.off('booking:new_alert', handleNewAlert);
       socket.off('booking:claimed', handleBookingClaimed);
     };
-  }, [isEligible, user]);
+  }, [isEligible, user, fetchUnclaimed]);
 
   // Keep currentIndex bounded
   useEffect(() => {

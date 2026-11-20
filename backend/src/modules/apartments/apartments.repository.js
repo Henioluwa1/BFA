@@ -79,19 +79,35 @@ class ApartmentsRepository {
   }
 
   /**
+   * Find unit by property ID and apartment code / manual ID
+   */
+  static async findByPropertyAndApartmentCode(propertyId, apartmentCode) {
+    if (!apartmentCode) return null;
+    const sql = `
+      SELECT a.* 
+      FROM apartments a 
+      WHERE a.property_id = ? AND (a.apartment_code = ? OR a.unit_number = ?);
+    `;
+    const code = String(apartmentCode).trim();
+    const rows = await pool.query(sql, [propertyId, code, code]);
+    return rows[0] || null;
+  }
+
+  /**
    * Create new apartment unit
    */
   static async create(data) {
+    const code = data.apartment_code ? String(data.apartment_code).trim() : (data.unit_number ? String(data.unit_number).trim() : null);
     const sql = `
       INSERT INTO apartments (
         property_id, unit_number, unit_name, unit_type, floor,
         capacity, bedroom_count, bathroom_count, rate_per_night,
-        status, amenities, notes, is_active, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        status, amenities, notes, is_active, apartment_code, description, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const params = [
       data.property_id,
-      String(data.unit_number).trim(),
+      String(data.unit_number || code).trim(),
       data.unit_name.trim(),
       data.unit_type || 'Deluxe Studio',
       data.floor || null,
@@ -103,6 +119,8 @@ class ApartmentsRepository {
       data.amenities ? JSON.stringify(data.amenities) : null,
       data.notes || null,
       data.is_active !== undefined ? (data.is_active ? 1 : 0) : 1,
+      code,
+      data.description ? String(data.description).trim() : null,
       data.created_by || null,
     ];
 
@@ -120,7 +138,7 @@ class ApartmentsRepository {
     const allowed = [
       'property_id', 'unit_number', 'unit_name', 'unit_type', 'floor',
       'capacity', 'bedroom_count', 'bathroom_count', 'rate_per_night',
-      'status', 'amenities', 'notes', 'is_active', 'updated_by'
+      'status', 'amenities', 'notes', 'is_active', 'apartment_code', 'description', 'updated_by'
     ];
 
     for (const key of allowed) {
@@ -136,6 +154,58 @@ class ApartmentsRepository {
     const sql = `UPDATE apartments SET ${fields.join(', ')} WHERE id = ?`;
     await pool.query(sql, params);
     return true;
+  }
+
+  /**
+   * Get dynamic amenities for an apartment
+   */
+  static async getApartmentAmenities(apartmentId) {
+    const sql = `
+      SELECT id, apartment_id, name, description, photo_url, media_asset_id, display_order, created_at, updated_at
+      FROM apartment_amenities
+      WHERE apartment_id = ?
+      ORDER BY display_order ASC, id ASC
+    `;
+    return pool.query(sql, [apartmentId]);
+  }
+
+  /**
+   * Save dynamic amenities for an apartment (replaces existing list)
+   */
+  static async saveApartmentAmenities(apartmentId, amenitiesList = []) {
+    await pool.query('DELETE FROM apartment_amenities WHERE apartment_id = ?', [apartmentId]);
+    if (!Array.isArray(amenitiesList) || amenitiesList.length === 0) {
+      return [];
+    }
+
+    const inserted = [];
+    for (let i = 0; i < amenitiesList.length; i++) {
+      const a = amenitiesList[i];
+      if (!a.name || !String(a.name).trim()) continue;
+
+      const sql = `
+        INSERT INTO apartment_amenities 
+          (apartment_id, name, description, photo_url, media_asset_id, display_order)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      const res = await pool.query(sql, [
+        apartmentId,
+        String(a.name).trim(),
+        a.description ? String(a.description).trim() : null,
+        a.photo_url || a.photoUrl || null,
+        a.media_asset_id || a.mediaAssetId || null,
+        a.display_order !== undefined ? parseInt(a.display_order, 10) : i,
+      ]);
+      inserted.push({
+        id: res.insertId,
+        apartment_id: apartmentId,
+        name: String(a.name).trim(),
+        description: a.description || null,
+        photo_url: a.photo_url || a.photoUrl || null,
+        display_order: i,
+      });
+    }
+    return inserted;
   }
 
   /**

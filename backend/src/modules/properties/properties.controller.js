@@ -201,6 +201,36 @@ class PropertiesController {
       next(err);
     }
   }
+
+  static async createAmenities(req, res, next) {
+    try {
+      const amenitiesList = req.body.amenities || req.body;
+      const result = await PropertiesService.savePropertyAmenities(
+        parseInt(req.params.id, 10),
+        amenitiesList,
+        req.user,
+        req
+      );
+      return ApiResponse.success(res, {
+        message: 'Building amenities saved successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getAmenities(req, res, next) {
+    try {
+      const amenities = await PropertiesService.getPropertyAmenities(parseInt(req.params.id, 10));
+      return ApiResponse.success(res, {
+        message: 'Building amenities retrieved successfully',
+        data: amenities,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = PropertiesController;

@@ -91,6 +91,34 @@ function initializeChatSocket(io) {
     // Auto-join system broadcast channel for operational staff
     socket.join('channel:system:staff');
 
+    // Role-specific broadcast isolation:
+    // Only authenticated RECEPTIONIST role joins the urgent booking alert channel
+    if (user.role === 'RECEPTIONIST') {
+      socket.join('channel:receptionist:alerts');
+      if (user.propertyId) {
+        socket.join(`channel:receptionist:alerts:prop:${user.propertyId}`);
+      }
+      logger.info(`[SOCKET_AUTH] Receptionist #${user.id} subscribed exclusively to channel:receptionist:alerts`);
+    }
+
+    // Explicit subscription guard for receptionist alert channel
+    socket.on('booking:subscribe_alerts', (data, ack) => {
+      if (user.role !== 'RECEPTIONIST') {
+        logger.warn(`[SOCKET_AUTH] Unauthorized subscription attempt to receptionist alerts by user #${user.id} (${user.role})`);
+        if (typeof ack === 'function') {
+          ack({ success: false, error: { code: 'FORBIDDEN', message: 'Only RECEPTIONIST role may subscribe to booking alerts.' } });
+        }
+        return;
+      }
+      socket.join('channel:receptionist:alerts');
+      if (user.propertyId) {
+        socket.join(`channel:receptionist:alerts:prop:${user.propertyId}`);
+      }
+      if (typeof ack === 'function') {
+        ack({ success: true, data: { subscribed: true } });
+      }
+    });
+
     // ------------------------------------------------------------------------
     // Event: thread:join
     // Subscribes socket to active messages in a specific thread room

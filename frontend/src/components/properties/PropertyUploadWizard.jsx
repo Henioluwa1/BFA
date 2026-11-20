@@ -23,6 +23,12 @@ import {
   Send,
   Eye,
   Camera,
+  Upload,
+  X,
+  Sparkles,
+  MapPin,
+  Tag,
+  ShieldCheck,
   Maximize2,
 } from 'lucide-react';
 
@@ -33,18 +39,6 @@ const PROPERTY_CATEGORIES = [
   'LUXURY_SUITES',
   'PENTHOUSE_COLLECTION',
   'COMMERCIAL',
-];
-
-const PROPERTY_PHOTO_CATEGORIES = [
-  { value: 'BUILDING_EXTERIOR', label: 'Building Exterior' },
-  { value: 'BUILDING_ENTRANCE', label: 'Entrance & Gate' },
-  { value: 'RECEPTION', label: 'Reception & Front Desk' },
-  { value: 'LOBBY', label: 'Lobby & Lounge' },
-  { value: 'SWIMMING_POOL', label: 'Swimming Pool & Deck' },
-  { value: 'GARDEN', label: 'Garden & Courtyard' },
-  { value: 'PARKING', label: 'Parking & Access' },
-  { value: 'FACILITIES', label: 'Gym / Amenities / Facilities' },
-  { value: 'OTHER', label: 'Other Property Feature' },
 ];
 
 const SPACE_TYPES = [
@@ -64,124 +58,203 @@ const SPACE_TYPES = [
 export default function PropertyUploadWizard({ isOpen, onClose, onSuccess }) {
   const { addToast } = useToast();
 
-  const [currentStep, setCurrentStep] = useState(1); // 1: Level A, 2: Level B, 3: Level C, 4: Preview & Submit
+  const [currentStep, setCurrentStep] = useState(1); // 1: Property & Building Amenities, 2: Apartment Registration & Amenities, 3: Internal Spaces Breakdown, 4: Preview & Submit
   const [submitting, setSubmitting] = useState(false);
 
-  // Level A: Building / Property Details
+  // -------------------------------------------------------------
+  // PART 2: PROPERTY REGISTRATION STATE (Level A)
+  // -------------------------------------------------------------
+  // Section 1: Property Information
   const [propertyData, setPropertyData] = useState({
     name: '',
     code: '',
+    category: 'SERVICED_APARTMENTS',
+    location: '',
+    district: '',
     address: '',
+    environment_description: '',
+    description: '',
     city: 'Lagos',
     state: 'Lagos',
     country: 'Nigeria',
-    category: 'SERVICED_APARTMENTS',
-    description: '',
-    environment_description: '',
-    amenities: ['24/7 Power', 'High-Speed WiFi', 'Dedicated Security', 'Treated Water'],
     check_in_time: '14:00',
     check_out_time: '11:00',
   });
-  const [propertyPhotos, setPropertyPhotos] = useState([]); // [{ fileData, fileType, category, isPrimary, caption, previewUrl }]
-  const [amenityInput, setAmenityInput] = useState('');
 
-  // Level B: Apartments / Units
-  const [units, setUnits] = useState([]); // [{ id (temp), unit_number, unit_name, unit_type, floor, capacity, bedroom_count, bathroom_count, rate_per_night, photos: [], internal_spaces: [] }]
+  // Section 2: Main Building Photograph
+  const [mainBuildingPhoto, setMainBuildingPhoto] = useState(null); // { fileData, fileType, fileName, previewUrl, isPrimary: true }
 
-  // Step 2 & 3 local editor states
-  const [activeUnitIndex, setActiveUnitIndex] = useState(0);
+  // Section 3: Dynamic Property/Building Amenities (Max 7)
+  const [buildingAmenities, setBuildingAmenities] = useState([
+    {
+      tempId: 1,
+      name: '24/7 Central Power Generator',
+      description: 'Continuous uninterrupted dual-redundant backup power for the entire building estate.',
+      photoData: null,
+      fileType: null,
+      previewUrl: '',
+    },
+    {
+      tempId: 2,
+      name: 'Controlled Resident Parking Garage',
+      description: 'Covered, secure underground parking with automated gate access control.',
+      photoData: null,
+      fileType: null,
+      previewUrl: '',
+    },
+    {
+      tempId: 3,
+      name: 'Executive Concierge & Reception',
+      description: 'Round-the-clock staffed arrival reception and guest assistance lobby.',
+      photoData: null,
+      fileType: null,
+      previewUrl: '',
+    },
+  ]);
 
-  // --- Image Upload Helpers ---
-  const handleFileSelect = (e, callback, categoryDefault = 'BUILDING_EXTERIOR') => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    files.forEach((file) => {
-      if (file.size > 8 * 1024 * 1024) {
-        addToast(`File ${file.name} exceeds 8MB size limit.`, 'error');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64Content = event.target.result;
-        callback({
-          fileData: base64Content,
-          fileType: file.type || 'image/jpeg',
-          fileName: file.name,
-          category: categoryDefault,
-          isPrimary: false,
-          caption: file.name.replace(/\.[^/.]+$/, ''),
-          previewUrl: base64Content,
-        });
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = '';
-  };
-
-  const addAmenity = () => {
-    if (amenityInput.trim() && !propertyData.amenities.includes(amenityInput.trim())) {
-      setPropertyData((prev) => ({
-        ...prev,
-        amenities: [...prev.amenities, amenityInput.trim()],
-      }));
-      setAmenityInput('');
-    }
-  };
-
-  const removeAmenity = (item) => {
-    setPropertyData((prev) => ({
-      ...prev,
-      amenities: prev.amenities.filter((a) => a !== item),
-    }));
-  };
-
-  // --- Step 2 Unit Management ---
-  const handleAddUnit = () => {
-    const nextNumber = `${101 + units.length}`;
-    const newUnit = {
-      tempId: Date.now() + Math.random(),
-      unit_number: nextNumber,
-      unit_name: `Apartment Suite ${nextNumber}`,
+  // -------------------------------------------------------------
+  // PART 3: APARTMENT / UNIT REGISTRATION STATE (Level B & C)
+  // -------------------------------------------------------------
+  const [units, setUnits] = useState([
+    {
+      tempId: 101,
+      apartment_code: 'APT-101',
+      unit_number: '101',
+      unit_name: 'Executive Horizon Suite 101',
       unit_type: '2-Bedroom Luxury Suite',
+      description: 'Opulent serviced apartment with open-plan reception salon and skyline vistas.',
       floor: 1,
       capacity: 4,
       bedroom_count: 2,
       bathroom_count: 2,
       rate_per_night: 85000,
-      photos: [],
+      mainApartmentPhoto: null,
+      apartment_amenities: [
+        {
+          tempId: 1,
+          name: '55-inch 4K Smart OLED Television',
+          description: 'Wall-mounted smart entertainment display with Netflix & Disney+ pre-configured.',
+          photoData: null,
+          previewUrl: '',
+        },
+        {
+          tempId: 2,
+          name: 'Dual-Door Frost-Free Refrigerator',
+          description: 'Spacious kitchen refrigeration with freezer compartment and cold water dispenser.',
+          photoData: null,
+          previewUrl: '',
+        },
+        {
+          tempId: 3,
+          name: 'Orthopaedic King-Size Bed',
+          description: 'Master suite king bed with premium high-density mattress and 600-thread linens.',
+          photoData: null,
+          previewUrl: '',
+        },
+      ],
       internal_spaces: [
         {
-          tempId: Date.now() + 1,
+          tempId: 1,
           space_type: 'LIVING_ROOM',
-          name: 'Main Living Room & Lounge',
-          description: 'Spacious lounge with smart entertainment and plush seating',
-          amenities: ['Smart TV', 'Air Conditioning', 'High Ceiling'],
+          name: 'Main Living Salon & Lounge',
+          description: 'Designer sofa lounge with ambient ceiling lighting and floor-to-ceiling balcony glazing.',
           photos: [],
         },
         {
-          tempId: Date.now() + 2,
+          tempId: 2,
           space_type: 'BEDROOM',
-          name: 'Master Bedroom',
-          description: 'King-sized bed with memory foam mattress and walk-in wardrobe',
-          amenities: ['King Bed', 'Ensuite Bathroom', 'Balcony Access'],
-          photos: [],
-        },
-        {
-          tempId: Date.now() + 3,
-          space_type: 'KITCHEN',
-          name: 'Modern Fitted Kitchen',
-          description: 'Full chef kitchen equipped with refrigerator, microwave, and induction cooktop',
-          amenities: ['Refrigerator', 'Microwave', 'Cookware'],
+          name: 'Master Suite Bedroom',
+          description: 'Private enclosed master bedroom with walk-in wardrobe and en-suite bath.',
           photos: [],
         },
       ],
+    },
+  ]);
+
+  const [activeUnitIndex, setActiveUnitIndex] = useState(0);
+
+  // -------------------------------------------------------------
+  // IMAGE UPLOAD HELPER
+  // -------------------------------------------------------------
+  const processImageFile = (file, onSuccess) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      addToast(`Image '${file.name}' exceeds the 10MB size limit.`, 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      onSuccess({
+        fileData: e.target.result,
+        fileType: file.type || 'image/jpeg',
+        fileName: file.name,
+        previewUrl: e.target.result,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // -------------------------------------------------------------
+  // BUILDING AMENITIES ACTIONS (Max 7 Limit)
+  // -------------------------------------------------------------
+  const handleAddBuildingAmenity = () => {
+    if (buildingAmenities.length >= 7) {
+      addToast('Maximum of 7 building amenities allowed per property.', 'warning');
+      return;
+    }
+    const newAmenity = {
+      tempId: Date.now() + Math.random(),
+      name: '',
+      description: '',
+      photoData: null,
+      fileType: null,
+      previewUrl: '',
+    };
+    setBuildingAmenities((prev) => [...prev, newAmenity]);
+  };
+
+  const handleUpdateBuildingAmenity = (idx, field, value) => {
+    setBuildingAmenities((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleRemoveBuildingAmenity = (idx) => {
+    setBuildingAmenities((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // -------------------------------------------------------------
+  // APARTMENT ACTIONS (Manually Entered Apartment ID & Dynamic Amenities)
+  // -------------------------------------------------------------
+  const handleAddUnit = () => {
+    const nextNum = 101 + units.length;
+    const newUnit = {
+      tempId: Date.now() + Math.random(),
+      apartment_code: `APT-${nextNum}`,
+      unit_number: `${nextNum}`,
+      unit_name: `Apartment Suite ${nextNum}`,
+      unit_type: '2-Bedroom Luxury Suite',
+      description: '',
+      floor: 1,
+      capacity: 2,
+      bedroom_count: 1,
+      bathroom_count: 1,
+      rate_per_night: 65000,
+      mainApartmentPhoto: null,
+      apartment_amenities: [],
+      internal_spaces: [],
     };
     setUnits((prev) => [...prev, newUnit]);
     setActiveUnitIndex(units.length);
   };
 
   const handleRemoveUnit = (idx) => {
+    if (units.length <= 1) {
+      addToast('A property must contain at least one apartment unit.', 'warning');
+      return;
+    }
     setUnits((prev) => prev.filter((_, i) => i !== idx));
     if (activeUnitIndex >= units.length - 1 && activeUnitIndex > 0) {
       setActiveUnitIndex(activeUnitIndex - 1);
@@ -192,18 +265,66 @@ export default function PropertyUploadWizard({ isOpen, onClose, onSuccess }) {
     setUnits((prev) => {
       const copy = [...prev];
       copy[activeUnitIndex] = { ...copy[activeUnitIndex], [field]: value };
+      // Keep unit_number aligned with apartment_code if not independently specified
+      if (field === 'apartment_code') {
+        copy[activeUnitIndex].unit_number = value;
+      }
       return copy;
     });
   };
 
-  // --- Step 3 Space Management for Active Unit ---
+  // Apartment Dynamic Amenities (Unlimited)
+  const handleAddApartmentAmenity = () => {
+    const newAmenity = {
+      tempId: Date.now() + Math.random(),
+      name: '',
+      description: '',
+      photoData: null,
+      fileType: null,
+      previewUrl: '',
+    };
+    setUnits((prev) => {
+      const copy = [...prev];
+      const unit = copy[activeUnitIndex];
+      if (unit) {
+        unit.apartment_amenities = [...(unit.apartment_amenities || []), newAmenity];
+      }
+      return copy;
+    });
+  };
+
+  const handleUpdateApartmentAmenity = (amenityIdx, field, value) => {
+    setUnits((prev) => {
+      const copy = [...prev];
+      const unit = copy[activeUnitIndex];
+      if (unit && unit.apartment_amenities && unit.apartment_amenities[amenityIdx]) {
+        unit.apartment_amenities[amenityIdx] = {
+          ...unit.apartment_amenities[amenityIdx],
+          [field]: value,
+        };
+      }
+      return copy;
+    });
+  };
+
+  const handleRemoveApartmentAmenity = (amenityIdx) => {
+    setUnits((prev) => {
+      const copy = [...prev];
+      const unit = copy[activeUnitIndex];
+      if (unit && unit.apartment_amenities) {
+        unit.apartment_amenities = unit.apartment_amenities.filter((_, i) => i !== amenityIdx);
+      }
+      return copy;
+    });
+  };
+
+  // Step 3: Space Management for Active Unit
   const handleAddSpaceToActiveUnit = () => {
     const newSpace = {
       tempId: Date.now() + Math.random(),
       space_type: 'BEDROOM',
       name: 'New Internal Space',
       description: '',
-      amenities: [],
       photos: [],
     };
     setUnits((prev) => {
@@ -216,22 +337,11 @@ export default function PropertyUploadWizard({ isOpen, onClose, onSuccess }) {
     });
   };
 
-  const handleRemoveSpaceFromActiveUnit = (spaceIdx) => {
-    setUnits((prev) => {
-      const copy = [...prev];
-      const unit = copy[activeUnitIndex];
-      if (unit) {
-        unit.internal_spaces = unit.internal_spaces.filter((_, i) => i !== spaceIdx);
-      }
-      return copy;
-    });
-  };
-
   const handleUpdateSpaceInActiveUnit = (spaceIdx, field, value) => {
     setUnits((prev) => {
       const copy = [...prev];
       const unit = copy[activeUnitIndex];
-      if (unit && unit.internal_spaces[spaceIdx]) {
+      if (unit && unit.internal_spaces && unit.internal_spaces[spaceIdx]) {
         unit.internal_spaces[spaceIdx] = {
           ...unit.internal_spaces[spaceIdx],
           [field]: value,
@@ -241,68 +351,181 @@ export default function PropertyUploadWizard({ isOpen, onClose, onSuccess }) {
     });
   };
 
-  // --- Submission Handler ---
-  const handleSaveOrSubmit = async (isSubmittingForApproval) => {
-    if (!propertyData.name.trim() || !propertyData.code.trim() || !propertyData.address.trim()) {
-      addToast('Property Name, Code, and Address are required.', 'error');
-      setCurrentStep(1);
-      return;
-    }
+  const handleRemoveSpaceFromActiveUnit = (spaceIdx) => {
+    setUnits((prev) => {
+      const copy = [...prev];
+      const unit = copy[activeUnitIndex];
+      if (unit && unit.internal_spaces) {
+        unit.internal_spaces = unit.internal_spaces.filter((_, i) => i !== spaceIdx);
+      }
+      return copy;
+    });
+  };
 
+  // -------------------------------------------------------------
+  // VALIDATION & STEP NAVIGATION
+  // -------------------------------------------------------------
+  const validateStep1 = () => {
+    if (!propertyData.name.trim()) {
+      addToast('Property Name is required.', 'error');
+      return false;
+    }
+    if (!propertyData.code.trim()) {
+      addToast('Property Code is required.', 'error');
+      return false;
+    }
+    if (!propertyData.address.trim()) {
+      addToast('Full Property Address is required.', 'error');
+      return false;
+    }
+    if (buildingAmenities.length > 7) {
+      addToast('Maximum of 7 building amenities allowed per property.', 'error');
+      return false;
+    }
+    for (let i = 0; i < buildingAmenities.length; i++) {
+      if (!buildingAmenities[i].name.trim()) {
+        addToast(`Building Amenity #${i + 1} requires an Amenity Name.`, 'error');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const validateStep2 = () => {
     if (units.length === 0) {
-      addToast('At least one apartment unit must be defined.', 'error');
+      addToast('At least one apartment unit must be registered.', 'error');
+      return false;
+    }
+    // Check duplicate apartment IDs within property scope
+    const codeSet = new Set();
+    for (let i = 0; i < units.length; i++) {
+      const code = String(units[i].apartment_code || units[i].unit_number || '').trim().toUpperCase();
+      if (!code) {
+        addToast(`Unit #${i + 1} requires a manually entered Apartment ID (e.g. APT-001).`, 'error');
+        setActiveUnitIndex(i);
+        return false;
+      }
+      if (codeSet.has(code)) {
+        addToast(`Duplicate Apartment ID '${code}' detected. Each apartment must have a unique ID within this property.`, 'error');
+        setActiveUnitIndex(i);
+        return false;
+      }
+      codeSet.add(code);
+
+      if (!units[i].unit_name.trim()) {
+        addToast(`Unit '${code}' requires an Apartment Name.`, 'error');
+        setActiveUnitIndex(i);
+        return false;
+      }
+
+      // Validate apartment amenities
+      const aptAmn = units[i].apartment_amenities || [];
+      for (let j = 0; j < aptAmn.length; j++) {
+        if (!aptAmn[j].name.trim()) {
+          addToast(`Unit '${code}': Amenity #${j + 1} requires an Amenity Name.`, 'error');
+          setActiveUnitIndex(i);
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const handleNext = () => {
+    if (currentStep === 1) {
+      if (!validateStep1()) return;
       setCurrentStep(2);
+    } else if (currentStep === 2) {
+      if (!validateStep2()) return;
+      setCurrentStep(3);
+    } else if (currentStep === 3) {
+      setCurrentStep(4);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep((prev) => prev - 1);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // SUBMISSION HANDLER (Draft or Dual-Review Executive Submission)
+  // -------------------------------------------------------------
+  const handleSaveOrSubmit = async (isSubmittingForApproval) => {
+    if (!validateStep1() || !validateStep2()) {
       return;
     }
 
     setSubmitting(true);
     try {
-      // 1. Create Property Record (Initial status = DRAFT)
+      // 1. Create Property Record
       const propPayload = {
         name: propertyData.name.trim(),
         code: propertyData.code.trim().toUpperCase(),
+        category: propertyData.category,
+        location: propertyData.location.trim() || null,
+        district: propertyData.district.trim() || null,
         address: propertyData.address.trim(),
         city: propertyData.city || 'Lagos',
         state: propertyData.state || 'Lagos',
         country: propertyData.country || 'Nigeria',
-        category: propertyData.category,
-        description: propertyData.description,
-        environment_description: propertyData.environment_description,
-        amenities: propertyData.amenities,
+        environment_description: propertyData.environment_description.trim() || null,
+        description: propertyData.description.trim() || null,
+        check_in_time: propertyData.check_in_time || '14:00',
+        check_out_time: propertyData.check_out_time || '11:00',
         status: 'DRAFT',
       };
 
       const propRes = await propertyService.create(propPayload);
       const newPropertyId = propRes.data?.id;
-
       if (!newPropertyId) {
-        throw new Error('Failed to obtain new property ID.');
+        throw new Error('Failed to create property record.');
       }
 
-      // 2. Upload Property-Level Photos (Level A)
-      if (propertyPhotos.length > 0) {
+      // 2. Upload Main Building Photograph if provided
+      if (mainBuildingPhoto && mainBuildingPhoto.fileData) {
         try {
-          const mediaPayload = propertyPhotos.map((p, idx) => ({
-            fileData: p.fileData,
-            fileType: p.fileType,
-            category: p.category || 'BUILDING_EXTERIOR',
-            caption: p.caption || propertyData.name,
-            isPrimary: idx === 0 || p.isPrimary,
-            display_order: idx,
-          }));
-          await propertyService.uploadMedia(newPropertyId, mediaPayload);
-        } catch (mediaErr) {
-          console.warn('Property media upload warning:', mediaErr.message);
+          await propertyService.uploadMedia(newPropertyId, [
+            {
+              fileData: mainBuildingPhoto.fileData,
+              fileType: mainBuildingPhoto.fileType,
+              category: 'BUILDING_EXTERIOR',
+              caption: `${propertyData.name} - Main Building Photograph`,
+              isPrimary: true,
+              display_order: 0,
+            },
+          ]);
+        } catch (imgErr) {
+          console.warn('Main building photo upload warning:', imgErr.message);
         }
       }
 
-      // 3. Create Level B Apartments and Level C Internal Spaces
+      // 3. Save Dynamic Building Amenities (Max 7)
+      if (buildingAmenities.length > 0) {
+        try {
+          const formattedAmenities = buildingAmenities.map((a, idx) => ({
+            name: a.name.trim(),
+            description: a.description.trim(),
+            photoData: a.photoData || null,
+            fileType: a.fileType || null,
+            display_order: idx,
+          }));
+          await propertyService.saveAmenities(newPropertyId, formattedAmenities);
+        } catch (amnErr) {
+          console.warn('Building amenities save warning:', amnErr.message);
+        }
+      }
+
+      // 4. Create Apartments and their dynamic amenities & main photos
       for (const unit of units) {
         const aptRes = await apartmentService.create({
           property_id: newPropertyId,
-          unit_number: unit.unit_number,
-          unit_name: unit.unit_name,
+          apartment_code: unit.apartment_code.trim(),
+          unit_number: unit.unit_number.trim(),
+          unit_name: unit.unit_name.trim(),
           unit_type: unit.unit_type,
+          description: unit.description.trim() || null,
           floor: parseInt(unit.floor, 10) || 1,
           capacity: parseInt(unit.capacity, 10) || 2,
           bedroom_count: parseInt(unit.bedroom_count, 10) || 1,
@@ -312,56 +535,71 @@ export default function PropertyUploadWizard({ isOpen, onClose, onSuccess }) {
         });
         const newAptId = aptRes.data?.id;
 
-        // Upload Apartment Photos (Level B)
-        if (newAptId && unit.photos && unit.photos.length > 0) {
-          try {
-            const aptMediaPayload = unit.photos.map((p, idx) => ({
-              fileData: p.fileData,
-              fileType: p.fileType,
-              category: 'INTERIOR',
-              caption: p.caption || unit.unit_name,
-              isPrimary: idx === 0,
-              display_order: idx,
-            }));
-            await propertyMediaService.uploadApartmentMedia(newAptId, aptMediaPayload);
-          } catch (aptMediaErr) {
-            console.warn('Apartment media upload warning:', aptMediaErr.message);
-          }
-        }
-
-        // Create Level C Internal Spaces
-        if (newAptId && unit.internal_spaces && unit.internal_spaces.length > 0) {
-          for (let sIdx = 0; sIdx < unit.internal_spaces.length; sIdx++) {
-            const space = unit.internal_spaces[sIdx];
+        if (newAptId) {
+          // Upload Main Apartment Photograph
+          if (unit.mainApartmentPhoto && unit.mainApartmentPhoto.fileData) {
             try {
-              const spaceRes = await internalSpacesService.createSpace(newAptId, {
-                space_type: space.space_type || 'CUSTOM',
-                name: space.name,
-                description: space.description,
-                amenities: space.amenities,
-                display_order: sIdx,
-              });
-              const newSpaceId = spaceRes.data?.id;
+              await apartmentService.uploadMedia(newAptId, [
+                {
+                  fileData: unit.mainApartmentPhoto.fileData,
+                  fileType: unit.mainApartmentPhoto.fileType,
+                  caption: `${unit.unit_name} - Main Interior Photograph`,
+                  isPrimary: true,
+                  display_order: 0,
+                },
+              ]);
+            } catch (aptImgErr) {
+              console.warn(`Unit ${unit.apartment_code} main photo upload warning:`, aptImgErr.message);
+            }
+          }
 
-              // Upload Space-Specific Photos (Level C)
-              if (newSpaceId && space.photos && space.photos.length > 0) {
-                const spaceMediaPayload = space.photos.map((p, pIdx) => ({
-                  fileData: p.fileData,
-                  fileType: p.fileType,
-                  caption: p.caption || space.name,
-                  isPrimary: pIdx === 0,
-                  display_order: pIdx,
-                }));
-                await internalSpacesService.uploadMedia(newSpaceId, spaceMediaPayload);
+          // Save Dynamic Apartment Amenities
+          if (unit.apartment_amenities && unit.apartment_amenities.length > 0) {
+            try {
+              const formattedAptAmn = unit.apartment_amenities.map((a, aIdx) => ({
+                name: a.name.trim(),
+                description: a.description.trim(),
+                photoData: a.photoData || null,
+                fileType: a.fileType || null,
+                display_order: aIdx,
+              }));
+              await apartmentService.saveAmenities(newAptId, formattedAptAmn);
+            } catch (aptAmnErr) {
+              console.warn(`Unit ${unit.apartment_code} amenities save warning:`, aptAmnErr.message);
+            }
+          }
+
+          // Create Level C Internal Spaces
+          if (unit.internal_spaces && unit.internal_spaces.length > 0) {
+            for (let sIdx = 0; sIdx < unit.internal_spaces.length; sIdx++) {
+              const space = unit.internal_spaces[sIdx];
+              try {
+                const spaceRes = await internalSpacesService.createSpace(newAptId, {
+                  space_type: space.space_type || 'CUSTOM',
+                  name: space.name,
+                  description: space.description,
+                  display_order: sIdx,
+                });
+                const newSpaceId = spaceRes.data?.id;
+                if (newSpaceId && space.photos && space.photos.length > 0) {
+                  const spaceMediaPayload = space.photos.map((p, pIdx) => ({
+                    fileData: p.fileData,
+                    fileType: p.fileType,
+                    caption: p.caption || space.name,
+                    isPrimary: pIdx === 0,
+                    display_order: pIdx,
+                  }));
+                  await internalSpacesService.uploadMedia(newSpaceId, spaceMediaPayload);
+                }
+              } catch (spErr) {
+                console.warn('Internal space creation warning:', spErr.message);
               }
-            } catch (spErr) {
-              console.warn('Internal space creation warning:', spErr.message);
             }
           }
         }
       }
 
-      // 4. Submit for Approval if requested
+      // 5. Submit for Approval or Save as Draft
       if (isSubmittingForApproval) {
         await propertyService.submitForApproval(newPropertyId);
         addToast(
@@ -370,311 +608,1025 @@ export default function PropertyUploadWizard({ isOpen, onClose, onSuccess }) {
         );
       } else {
         addToast(
-          `Property '${propertyData.name}' saved as DRAFT successfully. You can submit it for approval whenever ready.`,
+          `Property '${propertyData.name}' saved as DRAFT successfully. You can review and submit it whenever ready.`,
           'success'
         );
       }
 
-      onSuccess();
+      if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
-      addToast(err.message || 'Failed to save property.', 'error');
+      addToast(err.message || 'Failed to complete property registration.', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const activeUnit = units[activeUnitIndex];
+  const activeUnit = units[activeUnitIndex] || units[0];
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Property Structure & Multi-Level Media Upload Wizard"
+      title="Property Structure, Media & Amenities Registration"
       size="xl"
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        {/* Wizard Step Progression Bar */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Step Indicator Ribbon */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--bg-surface)',
-            padding: '12px 20px',
+            padding: '12px 18px',
             borderRadius: '10px',
             border: '1px solid var(--border-default)',
-            fontSize: '0.85rem',
-            overflowX: 'auto',
           }}
         >
-          {[
-            { step: 1, label: 'Level A: Building & Grounds', icon: Building },
-            { step: 2, label: 'Level B: Apartments / Units', icon: Home },
-            { step: 3, label: 'Level C: Internal Spaces', icon: Layers },
-            { step: 4, label: 'Preview & Submit', icon: CheckCircle },
-          ].map((item, idx, arr) => {
-            const Icon = item.icon;
-            const isDone = currentStep > item.step;
-            const isCurrent = currentStep === item.step;
-            return (
-              <React.Fragment key={item.step}>
-                <div
-                  onClick={() => setCurrentStep(item.step)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    color: isCurrent
-                      ? 'var(--brand-accent)'
-                      : isDone
-                      ? 'var(--text-primary)'
-                      : 'var(--text-muted)',
-                    fontWeight: isCurrent ? 700 : 500,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '50%',
-                      background: isCurrent
-                        ? 'var(--brand-accent)'
-                        : isDone
-                        ? '#10b981'
-                        : 'var(--bg-card-hover)',
-                      color: isCurrent || isDone ? '#ffffff' : 'var(--text-muted)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.75rem',
-                    }}
-                  >
-                    {isDone ? '✓' : item.step}
-                  </span>
-                  <span>{item.label}</span>
-                </div>
-                {idx < arr.length - 1 && (
-                  <span style={{ color: 'var(--text-muted)', opacity: 0.4 }}>→</span>
-                )}
-              </React.Fragment>
-            );
-          })}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                background: currentStep >= 1 ? '#d4af37' : 'var(--bg-card)',
+                color: currentStep >= 1 ? '#000' : 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+              }}
+            >
+              1
+            </span>
+            <span style={{ fontSize: '0.85rem', fontWeight: currentStep === 1 ? 700 : 500, color: currentStep === 1 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+              Property & Building Amenities
+            </span>
+          </div>
+
+          <ChevronRight size={16} color="var(--text-muted)" />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                background: currentStep >= 2 ? '#d4af37' : 'var(--bg-card)',
+                color: currentStep >= 2 ? '#000' : 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+              }}
+            >
+              2
+            </span>
+            <span style={{ fontSize: '0.85rem', fontWeight: currentStep === 2 ? 700 : 500, color: currentStep === 2 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+              Apartments & Amenities
+            </span>
+          </div>
+
+          <ChevronRight size={16} color="var(--text-muted)" />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                background: currentStep >= 3 ? '#d4af37' : 'var(--bg-card)',
+                color: currentStep >= 3 ? '#000' : 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+              }}
+            >
+              3
+            </span>
+            <span style={{ fontSize: '0.85rem', fontWeight: currentStep === 3 ? 700 : 500, color: currentStep === 3 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+              Internal Spaces
+            </span>
+          </div>
+
+          <ChevronRight size={16} color="var(--text-muted)" />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                background: currentStep === 4 ? '#d4af37' : 'var(--bg-card)',
+                color: currentStep === 4 ? '#000' : 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+              }}
+            >
+              4
+            </span>
+            <span style={{ fontSize: '0.85rem', fontWeight: currentStep === 4 ? 700 : 500, color: currentStep === 4 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+              Preview & Submit
+            </span>
+          </div>
         </div>
 
-        {/* STEP 1: Level A — Building & Grounds */}
+        {/* ============================================================= */}
+        {/* STEP 1: PROPERTY INFORMATION, MAIN BUILDING PHOTO & AMENITIES */}
+        {/* ============================================================= */}
         {currentStep === 1 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ background: 'rgba(212, 175, 55, 0.08)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(212, 175, 55, 0.25)', fontSize: '0.85rem' }}>
-              <strong>Level A (Building & Grounds):</strong> Define building identity, neighborhood environment, overarching amenities, and high-resolution photographs categorized by exterior, reception, lobby, and shared amenities.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* SECTION 1: PROPERTY INFORMATION */}
+            <div style={{ background: 'var(--bg-card)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border-default)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <Building size={20} color="#d4af37" />
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  1. PROPERTY INFORMATION
+                </h3>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Property Name *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Grand Horizon Tower"
+                    value={propertyData.name}
+                    onChange={(e) => setPropertyData({ ...propertyData, name: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Property Code / Reference *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. GHT-VI"
+                    value={propertyData.code}
+                    onChange={(e) => setPropertyData({ ...propertyData, code: e.target.value.toUpperCase() })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem', textTransform: 'uppercase' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Property Category *
+                  </label>
+                  <select
+                    value={propertyData.category}
+                    onChange={(e) => setPropertyData({ ...propertyData, category: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                  >
+                    {PROPERTY_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Location (Enclave / Area)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Victoria Island Waterfront"
+                    value={propertyData.location}
+                    onChange={(e) => setPropertyData({ ...propertyData, location: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    District
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Eti-Osa District"
+                    value={propertyData.district}
+                    onChange={(e) => setPropertyData({ ...propertyData, district: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                  />
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Full Property Address *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 12 Bishop Aboyade Cole Street, Victoria Island, Lagos"
+                    value={propertyData.address}
+                    onChange={(e) => setPropertyData({ ...propertyData, address: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                  />
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Surrounding Neighbourhood & Highlights
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Describe surrounding enclave, nearby amenities, proximity to business hubs, water views, etc."
+                    value={propertyData.environment_description}
+                    onChange={(e) => setPropertyData({ ...propertyData, environment_description: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                  />
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Property Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Comprehensive description of the building estate, architectural highlights, service tier, security standard..."
+                    value={propertyData.description}
+                    onChange={(e) => setPropertyData({ ...propertyData, description: e.target.value })}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
-                  Property Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Azure Bay Luxury Waterfront Suites"
-                  value={propertyData.name}
-                  onChange={(e) => setPropertyData({ ...propertyData, name: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                />
+            {/* SECTION 2: MAIN PROPERTY / BUILDING PHOTOGRAPH */}
+            <div style={{ background: 'var(--bg-card)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border-default)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Camera size={20} color="#d4af37" />
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    2. MAIN PROPERTY / BUILDING PHOTOGRAPH
+                  </h3>
+                </div>
+                <Badge variant="warning">PRIMARY LISTING COVER</Badge>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
-                  Unique Property Code *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. AZURE-BAY"
-                  value={propertyData.code}
-                  onChange={(e) => setPropertyData({ ...propertyData, code: e.target.value.toUpperCase() })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                />
-              </div>
+              <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                This photograph represents the entire building/estate and will serve as the prominent visual facade across public listings and guest discovery.
+              </p>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
-                  Property Category
-                </label>
-                <select
-                  value={propertyData.category}
-                  onChange={(e) => setPropertyData({ ...propertyData, category: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+              {mainBuildingPhoto ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'var(--bg-surface)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+                  <img
+                    src={mainBuildingPhoto.previewUrl}
+                    alt="Main Building"
+                    style={{ width: '140px', height: '95px', objectFit: 'cover', borderRadius: '6px', border: '2px solid #d4af37' }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                      {mainBuildingPhoto.fileName}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#10b981', marginTop: '2px', fontWeight: 600 }}>
+                      ✓ Verified Main Building Photograph (Primary Cover)
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                      <label style={{ cursor: 'pointer' }}>
+                        <Button variant="outline" size="sm" type="button" onClick={() => {}}>
+                          <Upload size={14} style={{ marginRight: '6px' }} /> Replace Photograph
+                        </Button>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          style={{ display: 'none' }}
+                          onChange={(e) => processImageFile(e.target.files[0], (data) => setMainBuildingPhoto({ ...data, isPrimary: true }))}
+                        />
+                      </label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => setMainBuildingPhoto(null)}
+                        style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                      >
+                        <Trash2 size={14} style={{ marginRight: '6px' }} /> Remove
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <label
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '30px',
+                    border: '2px dashed var(--border-default)',
+                    borderRadius: '8px',
+                    background: 'var(--bg-surface)',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s',
+                  }}
                 >
-                  {PROPERTY_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c.replace('_', ' ')}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
-                  Street Address *
+                  <Upload size={32} color="#d4af37" style={{ marginBottom: '8px' }} />
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Upload Main Building Photograph
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    High-resolution exterior or facade photo (JPEG, PNG, WebP up to 10MB)
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={(e) => processImageFile(e.target.files[0], (data) => setMainBuildingPhoto({ ...data, isPrimary: true }))}
+                  />
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Plot 14 Admiralty Way, Lekki Phase 1"
-                  value={propertyData.address}
-                  onChange={(e) => setPropertyData({ ...propertyData, address: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                />
-              </div>
+              )}
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
-                Surrounding Environment & Neighborhood Description
-              </label>
-              <textarea
-                rows={2}
-                placeholder="Describe neighborhood scenery, proximity to landmarks, security, and ocean views..."
-                value={propertyData.environment_description}
-                onChange={(e) => setPropertyData({ ...propertyData, environment_description: e.target.value })}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-              />
-            </div>
-
-            {/* Overarching Amenities */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px' }}>
-                Overarching Property Amenities
-              </label>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                <input
-                  type="text"
-                  placeholder="Add amenity (e.g. Olympic Swimming Pool)..."
-                  value={amenityInput}
-                  onChange={(e) => setAmenityInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAmenity(); } }}
-                  style={{ flex: 1, padding: '7px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
-                />
-                <Button variant="outline" size="sm" onClick={addAmenity}>Add</Button>
+            {/* SECTION 3: DYNAMIC PROPERTY / BUILDING AMENITIES (MAX 7) */}
+            <div style={{ background: 'var(--bg-card)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border-default)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ShieldCheck size={20} color="#d4af37" />
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    3. PROPERTY / BUILDING AMENITIES
+                  </h3>
+                </div>
+                <Badge variant={buildingAmenities.length >= 7 ? 'danger' : 'info'}>
+                  {buildingAmenities.length} / 7 AMENITIES (MAX 7)
+                </Badge>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {propertyData.amenities.map((item) => (
-                  <span
-                    key={item}
+
+              <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                Describe what this building specifically offers (e.g. Parking Garage, Swimming Pool, Generator, Security Post, Elevator, Gym). Each amenity requires a Name, Photograph, and Description.
+              </p>
+
+              {/* Amenity Cards List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
+                {buildingAmenities.map((amenity, idx) => (
+                  <div
+                    key={amenity.tempId || idx}
                     style={{
                       background: 'var(--bg-surface)',
                       border: '1px solid var(--border-default)',
-                      padding: '3px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.78rem',
+                      borderRadius: '8px',
+                      padding: '16px',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
+                      flexDirection: 'column',
+                      gap: '12px',
                     }}
                   >
-                    {item}
-                    <button
-                      onClick={() => removeAmenity(item)}
-                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444', padding: 0 }}
-                    >
-                      ×
-                    </button>
-                  </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#d4af37', textTransform: 'uppercase' }}>
+                        Building Facility #{idx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBuildingAmenity(idx)}
+                        style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 600 }}
+                      >
+                        <Trash2 size={14} /> Remove Amenity
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+                      {/* Amenity Name */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                          Amenity Name *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Swimming Pool & Sun Deck"
+                          value={amenity.name}
+                          onChange={(e) => handleUpdateBuildingAmenity(idx, 'name', e.target.value)}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                        />
+                      </div>
+
+                      {/* Amenity Description */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                          Amenity Description
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Outdoor heated swimming pool with lounge deck and lifeguard"
+                          value={amenity.description}
+                          onChange={(e) => handleUpdateBuildingAmenity(idx, 'description', e.target.value)}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Amenity Photograph */}
+                    <div style={{ marginTop: '4px' }}>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                        Amenity Photograph
+                      </label>
+                      {amenity.previewUrl ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <img
+                            src={amenity.previewUrl}
+                            alt={amenity.name || 'Amenity'}
+                            style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-default)' }}
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <label style={{ cursor: 'pointer' }}>
+                              <Button variant="outline" size="sm" type="button" onClick={() => {}}>
+                                Replace Photo
+                              </Button>
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                style={{ display: 'none' }}
+                                onChange={(e) => processImageFile(e.target.files[0], (data) => {
+                                  handleUpdateBuildingAmenity(idx, 'photoData', data.fileData);
+                                  handleUpdateBuildingAmenity(idx, 'fileType', data.fileType);
+                                  handleUpdateBuildingAmenity(idx, 'previewUrl', data.previewUrl);
+                                })}
+                              />
+                            </label>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              type="button"
+                              onClick={() => {
+                                handleUpdateBuildingAmenity(idx, 'photoData', null);
+                                handleUpdateBuildingAmenity(idx, 'fileType', null);
+                                handleUpdateBuildingAmenity(idx, 'previewUrl', '');
+                              }}
+                              style={{ color: '#ef4444' }}
+                            >
+                              Remove Photo
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 14px',
+                            border: '1px dashed var(--border-default)',
+                            borderRadius: '6px',
+                            background: 'var(--bg-card)',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            color: 'var(--text-primary)',
+                          }}
+                        >
+                          <Camera size={14} color="#d4af37" />
+                          <span>Upload Facility Photo</span>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            style={{ display: 'none' }}
+                            onChange={(e) => processImageFile(e.target.files[0], (data) => {
+                              handleUpdateBuildingAmenity(idx, 'photoData', data.fileData);
+                              handleUpdateBuildingAmenity(idx, 'fileType', data.fileType);
+                              handleUpdateBuildingAmenity(idx, 'previewUrl', data.previewUrl);
+                            })}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
-            </div>
 
-            {/* Level A Photo Uploader */}
-            <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Building & Grounds Photographs (Level A)</h4>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Upload exterior, lobby, entrance, and shared amenities. Never mix apartment interiors here.</span>
-                </div>
-                <label
+              {/* Add Amenity Button or Limit Message */}
+              {buildingAmenities.length < 7 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={handleAddBuildingAmenity}
+                  style={{ borderColor: '#d4af37', color: '#d4af37', fontWeight: 600 }}
+                >
+                  <Plus size={16} style={{ marginRight: '6px' }} /> + ADD ANOTHER AMENITY
+                </Button>
+              ) : (
+                <div
                   style={{
-                    background: 'var(--brand-accent)',
-                    color: '#ffffff',
-                    padding: '6px 12px',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#f87171',
+                    padding: '10px 14px',
                     borderRadius: '6px',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
+                    fontSize: '0.85rem',
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
+                    gap: '8px',
                   }}
                 >
-                  <Camera size={14} /> Add Property Photos
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/jpeg,image/png,image/webp"
-                    style={{ display: 'none' }}
-                    onChange={(e) => handleFileSelect(e, (photo) => setPropertyPhotos((prev) => [...prev, photo]))}
-                  />
-                </label>
-              </div>
-
-              {propertyPhotos.length === 0 ? (
-                <div style={{ padding: '2rem', textAlign: 'center', border: '1px dashed var(--border-default)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                  No property photos staged yet. Select photos to preview thumbnails and select category tags.
+                  <AlertTriangle size={16} />
+                  <span>Maximum of 7 building amenities reached for this property.</span>
                 </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
-                  {propertyPhotos.map((p, idx) => (
-                    <div
-                      key={idx}
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================= */}
+        {/* STEP 2: APARTMENT / UNIT REGISTRATION & DYNAMIC AMENITIES     */}
+        {/* ============================================================= */}
+        {currentStep === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Apartment Selector Tabs */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflowX: 'auto', paddingBottom: '6px' }}>
+              {units.map((u, uIdx) => (
+                <button
+                  key={u.tempId || uIdx}
+                  type="button"
+                  onClick={() => setActiveUnitIndex(uIdx)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: activeUnitIndex === uIdx ? '2px solid #d4af37' : '1px solid var(--border-default)',
+                    background: activeUnitIndex === uIdx ? 'rgba(212, 175, 55, 0.15)' : 'var(--bg-card)',
+                    color: activeUnitIndex === uIdx ? '#d4af37' : 'var(--text-primary)',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  🚪 {u.apartment_code || `Unit ${uIdx + 1}`}
+                </button>
+              ))}
+
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={handleAddUnit}
+                style={{ whiteSpace: 'nowrap', borderColor: '#d4af37', color: '#d4af37' }}
+              >
+                <Plus size={14} style={{ marginRight: '4px' }} /> + Add Another Apartment
+              </Button>
+            </div>
+
+            {/* Active Apartment Form */}
+            {activeUnit && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* 1. Apartment Information */}
+                <div style={{ background: 'var(--bg-card)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border-default)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Home size={20} color="#d4af37" />
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        1. APARTMENT INFORMATION ({activeUnit.apartment_code})
+                      </h3>
+                    </div>
+                    {units.length > 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => handleRemoveUnit(activeUnitIndex)}
+                        style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                      >
+                        <Trash2 size={14} style={{ marginRight: '4px' }} /> Remove Unit
+                      </Button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                    {/* Manually entered Apartment ID */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        Apartment ID / Reference * (e.g. APT-001, UNIT-A1)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. APT-101"
+                        value={activeUnit.apartment_code}
+                        onChange={(e) => handleUpdateActiveUnit('apartment_code', e.target.value.toUpperCase())}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem', fontWeight: 700 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        Apartment Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Executive Horizon Suite 101"
+                        value={activeUnit.unit_name}
+                        onChange={(e) => handleUpdateActiveUnit('unit_name', e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        Apartment Type
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 2-Bedroom Luxury Suite"
+                        value={activeUnit.unit_type}
+                        onChange={(e) => handleUpdateActiveUnit('unit_type', e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        Nightly Rate (₦) *
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 85000"
+                        value={activeUnit.rate_per_night}
+                        onChange={(e) => handleUpdateActiveUnit('rate_per_night', e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: '#d4af37', fontSize: '0.95rem', fontWeight: 700 }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        Occupancy Capacity (Guests)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={activeUnit.capacity}
+                        onChange={(e) => handleUpdateActiveUnit('capacity', e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        Floor Level
+                      </label>
+                      <input
+                        type="number"
+                        value={activeUnit.floor}
+                        onChange={(e) => handleUpdateActiveUnit('floor', e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                      />
+                    </div>
+
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        Apartment Description
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Describe the layout, ambience, furnishings, balcony views, and specific appeal of this apartment..."
+                        value={activeUnit.description}
+                        onChange={(e) => handleUpdateActiveUnit('description', e.target.value)}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Main Apartment Photograph */}
+                <div style={{ background: 'var(--bg-card)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border-default)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Camera size={20} color="#d4af37" />
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        2. MAIN APARTMENT PHOTOGRAPH
+                      </h3>
+                    </div>
+                    <Badge variant="warning">PRIMARY INTERIOR PHOTO</Badge>
+                  </div>
+
+                  <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    Represents the overall appearance of this apartment's interior. This is the primary image shown when guests select this suite in booking.
+                  </p>
+
+                  {activeUnit.mainApartmentPhoto ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'var(--bg-surface)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+                      <img
+                        src={activeUnit.mainApartmentPhoto.previewUrl}
+                        alt="Main Apartment"
+                        style={{ width: '140px', height: '95px', objectFit: 'cover', borderRadius: '6px', border: '2px solid #d4af37' }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                          {activeUnit.mainApartmentPhoto.fileName}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#10b981', marginTop: '2px', fontWeight: 600 }}>
+                          ✓ Main Interior Photograph Verified
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                          <label style={{ cursor: 'pointer' }}>
+                            <Button variant="outline" size="sm" type="button" onClick={() => {}}>
+                              Replace Photo
+                            </Button>
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              style={{ display: 'none' }}
+                              onChange={(e) => processImageFile(e.target.files[0], (data) => handleUpdateActiveUnit('mainApartmentPhoto', { ...data, isPrimary: true }))}
+                            />
+                          </label>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => handleUpdateActiveUnit('mainApartmentPhoto', null)}
+                            style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <label
                       style={{
-                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '24px',
+                        border: '2px dashed var(--border-default)',
                         borderRadius: '8px',
-                        overflow: 'hidden',
-                        border: p.isPrimary ? '2px solid #d4af37' : '1px solid var(--border-default)',
                         background: 'var(--bg-surface)',
+                        cursor: 'pointer',
                       }}
                     >
-                      <img
-                        src={p.previewUrl}
-                        alt="Property photo"
-                        style={{ width: '100%', height: '110px', objectFit: 'cover' }}
+                      <Upload size={28} color="#d4af37" style={{ marginBottom: '6px' }} />
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Upload Main Apartment Interior Photograph
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Broad interior view of {activeUnit.unit_name || 'this apartment'} (JPEG, PNG, WebP)
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        style={{ display: 'none' }}
+                        onChange={(e) => processImageFile(e.target.files[0], (data) => handleUpdateActiveUnit('mainApartmentPhoto', { ...data, isPrimary: true }))}
                       />
-                      <div style={{ padding: '6px' }}>
-                        <select
-                          value={p.category}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setPropertyPhotos((prev) => prev.map((item, i) => i === idx ? { ...item, category: val } : item));
-                          }}
-                          style={{ width: '100%', fontSize: '0.72rem', padding: '3px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}
+                    </label>
+                  )}
+                </div>
+
+                {/* 3. Dynamic Apartment Amenities (Unlimited) */}
+                <div style={{ background: 'var(--bg-card)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border-default)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Sparkles size={20} color="#d4af37" />
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        3. APARTMENT AMENITIES (Inside {activeUnit.apartment_code})
+                      </h3>
+                    </div>
+                    <Badge variant="success">
+                      {(activeUnit.apartment_amenities || []).length} AMENITIES (UNLIMITED)
+                    </Badge>
+                  </div>
+
+                  <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    Actual facilities, appliances, furniture, and features inside this particular apartment (e.g. Refrigerator, Smart TV, King Bed, PS4, Microwave, Washing Machine).
+                  </p>
+
+                  {/* Apartment Amenities Cards */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
+                    {(activeUnit.apartment_amenities || []).map((amenity, aIdx) => (
+                      <div
+                        key={amenity.tempId || aIdx}
+                        style={{
+                          background: 'var(--bg-surface)',
+                          border: '1px solid var(--border-default)',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#d4af37', textTransform: 'uppercase' }}>
+                            Apartment Item #{aIdx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveApartmentAmenity(aIdx)}
+                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 600 }}
+                          >
+                            <Trash2 size={14} /> Remove Item
+                          </button>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+                          {/* Amenity Name */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                              Amenity Name *
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Smart 55-inch OLED TV"
+                              value={amenity.name}
+                              onChange={(e) => handleUpdateApartmentAmenity(aIdx, 'name', e.target.value)}
+                              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                            />
+                          </div>
+
+                          {/* Amenity Description */}
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                              Amenity Description
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. 4K Ultra HD with streaming subscriptions"
+                              value={amenity.description}
+                              onChange={(e) => handleUpdateApartmentAmenity(aIdx, 'description', e.target.value)}
+                              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Amenity Photograph */}
+                        <div style={{ marginTop: '4px' }}>
+                          <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                            Amenity Photograph
+                          </label>
+                          {amenity.previewUrl ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <img
+                                src={amenity.previewUrl}
+                                alt={amenity.name || 'Amenity'}
+                                style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-default)' }}
+                              />
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <label style={{ cursor: 'pointer' }}>
+                                  <Button variant="outline" size="sm" type="button" onClick={() => {}}>
+                                    Replace Photo
+                                  </Button>
+                                  <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    style={{ display: 'none' }}
+                                    onChange={(e) => processImageFile(e.target.files[0], (data) => {
+                                      handleUpdateApartmentAmenity(aIdx, 'photoData', data.fileData);
+                                      handleUpdateApartmentAmenity(aIdx, 'fileType', data.fileType);
+                                      handleUpdateApartmentAmenity(aIdx, 'previewUrl', data.previewUrl);
+                                    })}
+                                  />
+                                </label>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  type="button"
+                                  onClick={() => {
+                                    handleUpdateApartmentAmenity(aIdx, 'photoData', null);
+                                    handleUpdateApartmentAmenity(aIdx, 'fileType', null);
+                                    handleUpdateApartmentAmenity(aIdx, 'previewUrl', '');
+                                  }}
+                                  style={{ color: '#ef4444' }}
+                                >
+                                  Remove Photo
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <label
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '8px 14px',
+                                border: '1px dashed var(--border-default)',
+                                borderRadius: '6px',
+                                background: 'var(--bg-card)',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                color: 'var(--text-primary)',
+                              }}
+                            >
+                              <Camera size={14} color="#d4af37" />
+                              <span>Upload Amenity Photo</span>
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                style={{ display: 'none' }}
+                                onChange={(e) => processImageFile(e.target.files[0], (data) => {
+                                  handleUpdateApartmentAmenity(aIdx, 'photoData', data.fileData);
+                                  handleUpdateApartmentAmenity(aIdx, 'fileType', data.fileType);
+                                  handleUpdateApartmentAmenity(aIdx, 'previewUrl', data.previewUrl);
+                                })}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    onClick={handleAddApartmentAmenity}
+                    style={{ borderColor: '#d4af37', color: '#d4af37', fontWeight: 600 }}
+                  >
+                    <Plus size={16} style={{ marginRight: '6px' }} /> + ADD ANOTHER APARTMENT AMENITY
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================= */}
+        {/* STEP 3: LEVEL C INTERNAL SPACES BREAKDOWN                     */}
+        {/* ============================================================= */}
+        {currentStep === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ background: 'var(--bg-card)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border-default)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Layers size={20} color="#d4af37" />
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Level C: Internal Spaces for {activeUnit?.apartment_code} ({activeUnit?.unit_name})
+                  </h3>
+                </div>
+                <Button variant="outline" size="sm" type="button" onClick={handleAddSpaceToActiveUnit}>
+                  <Plus size={14} style={{ marginRight: '4px' }} /> Add Space (Bedroom / Kitchen / Bath)
+                </Button>
+              </div>
+
+              <p style={{ margin: '0 0 16px 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                Optional Level C structural spaces. Photos uploaded here will be strictly associated with that room only.
+              </p>
+
+              {(activeUnit?.internal_spaces || []).length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', border: '1px dashed var(--border-default)', borderRadius: '6px' }}>
+                  No internal spaces added yet. Click "+ Add Space" to define specific rooms (e.g. Master Bedroom, Chef Kitchen).
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {activeUnit.internal_spaces.map((sp, sIdx) => (
+                    <div
+                      key={sp.tempId || sIdx}
+                      style={{
+                        background: 'var(--bg-surface)',
+                        padding: '14px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-default)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#d4af37' }}>
+                          Space #{sIdx + 1}: {sp.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSpaceFromActiveUnit(sIdx)}
+                          style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}
                         >
-                          {PROPERTY_PHOTO_CATEGORIES.map((c) => (
-                            <option key={c.value} value={c.value}>{c.label}</option>
-                          ))}
-                        </select>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                          <button
-                            onClick={() => {
-                              setPropertyPhotos((prev) => prev.map((item, i) => ({ ...item, isPrimary: i === idx })));
-                            }}
-                            style={{
-                              border: 'none',
-                              background: p.isPrimary ? '#d4af37' : 'rgba(255,255,255,0.1)',
-                              color: p.isPrimary ? '#0f172a' : 'var(--text-secondary)',
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                            }}
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                            Space Type
+                          </label>
+                          <select
+                            value={sp.space_type}
+                            onChange={(e) => handleUpdateSpaceInActiveUnit(sIdx, 'space_type', e.target.value)}
+                            style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
                           >
-                            {p.isPrimary ? 'Cover ★' : 'Set Cover'}
-                          </button>
-                          <button
-                            onClick={() => setPropertyPhotos((prev) => prev.filter((_, i) => i !== idx))}
-                            style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                            {SPACE_TYPES.map((t) => (
+                              <option key={t.value} value={t.value}>{t.label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '2px' }}>
+                            Custom Space Name
+                          </label>
+                          <input
+                            type="text"
+                            value={sp.name}
+                            onChange={(e) => handleUpdateSpaceInActiveUnit(sIdx, 'name', e.target.value)}
+                            style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -685,459 +1637,186 @@ export default function PropertyUploadWizard({ isOpen, onClose, onSuccess }) {
           </div>
         )}
 
-        {/* STEP 2: Level B — Apartments / Units */}
-        {currentStep === 2 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ background: 'rgba(56, 189, 248, 0.08)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.25)', fontSize: '0.85rem' }}>
-              <strong>Level B (Apartments & Suites):</strong> Define individual bookable units, rates, capacities, and unit-level photographs. Each unit will have dedicated internal spaces configured in Step 3.
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Defined Units ({units.length})</span>
-              <Button variant="primary" size="sm" onClick={handleAddUnit}>
-                <Plus size={14} style={{ marginRight: '4px' }} /> Add Unit
-              </Button>
-            </div>
-
-            {units.length === 0 ? (
-              <div style={{ padding: '3rem', textAlign: 'center', border: '1px dashed var(--border-default)', borderRadius: '8px', color: 'var(--text-muted)' }}>
-                No apartments added yet. Click <strong>+ Add Unit</strong> to define the first suite in this property.
+        {/* ============================================================= */}
+        {/* STEP 4: PREVIEW & EXECUTIVE SUBMISSION                        */}
+        {/* ============================================================= */}
+        {currentStep === 4 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ background: 'var(--bg-card)', padding: '20px', borderRadius: '10px', border: '1px solid var(--border-default)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <CheckCircle size={20} color="#10b981" />
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Comprehensive Property Hierarchy Preview
+                </h3>
               </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '1.25rem', alignItems: 'flex-start' }}>
-                {/* Unit Navigation Sidebar */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {units.map((u, idx) => (
-                    <div
-                      key={u.tempId || idx}
-                      onClick={() => setActiveUnitIndex(idx)}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        background: activeUnitIndex === idx ? 'var(--brand-accent)' : 'var(--bg-surface)',
-                        color: activeUnitIndex === idx ? '#ffffff' : 'var(--text-primary)',
-                        border: '1px solid var(--border-default)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontSize: '0.85rem',
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 700 }}>Unit {u.unit_number}</div>
-                        <div style={{ fontSize: '0.72rem', opacity: 0.8 }}>₦{Number(u.rate_per_night).toLocaleString()}/night</div>
-                      </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleRemoveUnit(idx); }}
-                        style={{ border: 'none', background: 'none', color: activeUnitIndex === idx ? '#ffffff' : '#ef4444', cursor: 'pointer', padding: '2px' }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+
+              {/* Level A Preview */}
+              <div style={{ background: 'var(--bg-surface)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-default)', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '1.05rem', fontWeight: 700, color: '#d4af37' }}>
+                      🏢 {propertyData.name} ({propertyData.code})
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      {propertyData.address} • {propertyData.district ? `${propertyData.district}, ` : ''}{propertyData.city}
+                    </p>
+                    {propertyData.environment_description && (
+                      <p style={{ margin: '6px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Neighbourhood: {propertyData.environment_description}
+                      </p>
+                    )}
+                  </div>
+                  {mainBuildingPhoto && (
+                    <img
+                      src={mainBuildingPhoto.previewUrl}
+                      alt="Facade"
+                      style={{ width: '100px', height: '70px', objectFit: 'cover', borderRadius: '6px', border: '2px solid #d4af37' }}
+                    />
+                  )}
                 </div>
 
-                {/* Active Unit Configuration Form */}
-                {activeUnit && (
-                  <div style={{ background: 'var(--bg-surface)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>Unit Number *</label>
-                        <input
-                          type="text"
-                          value={activeUnit.unit_number}
-                          onChange={(e) => handleUpdateActiveUnit('unit_number', e.target.value)}
-                          style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>Unit Name / Title *</label>
-                        <input
-                          type="text"
-                          value={activeUnit.unit_name}
-                          onChange={(e) => handleUpdateActiveUnit('unit_name', e.target.value)}
-                          style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Floor</label>
-                        <input
-                          type="number"
-                          value={activeUnit.floor}
-                          onChange={(e) => handleUpdateActiveUnit('floor', e.target.value)}
-                          style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Capacity</label>
-                        <input
-                          type="number"
-                          value={activeUnit.capacity}
-                          onChange={(e) => handleUpdateActiveUnit('capacity', e.target.value)}
-                          style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Bedrooms</label>
-                        <input
-                          type="number"
-                          value={activeUnit.bedroom_count}
-                          onChange={(e) => handleUpdateActiveUnit('bedroom_count', e.target.value)}
-                          style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Bathrooms</label>
-                        <input
-                          type="number"
-                          value={activeUnit.bathroom_count}
-                          onChange={(e) => handleUpdateActiveUnit('bathroom_count', e.target.value)}
-                          style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, marginBottom: '4px' }}>Nightly Rate (₦) *</label>
-                      <input
-                        type="number"
-                        value={activeUnit.rate_per_night}
-                        onChange={(e) => handleUpdateActiveUnit('rate_per_night', e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', color: '#d4af37', fontWeight: 700 }}
-                      />
-                    </div>
-
-                    {/* Unit Photos (Level B) */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Unit Photos (Level B)</span>
-                        <label
-                          style={{
-                            background: 'var(--bg-card-hover)',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '0.75rem',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          <Camera size={13} /> Add Unit Photo
-                          <input
-                            type="file"
-                            multiple
-                            accept="image/jpeg,image/png,image/webp"
-                            style={{ display: 'none' }}
-                            onChange={(e) => handleFileSelect(e, (p) => {
-                              handleUpdateActiveUnit('photos', [...(activeUnit.photos || []), p]);
-                            })}
-                          />
-                        </label>
-                      </div>
-
-                      {(!activeUnit.photos || activeUnit.photos.length === 0) ? (
-                        <div style={{ padding: '1rem', textAlign: 'center', border: '1px dashed var(--border-default)', borderRadius: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          No unit photos attached.
+                {/* Building Amenities Preview */}
+                <div style={{ marginTop: '14px' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Building Amenities ({buildingAmenities.length} / 7):
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginTop: '8px' }}>
+                    {buildingAmenities.map((a, idx) => (
+                      <div key={idx} style={{ background: 'var(--bg-card)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {a.previewUrl ? (
+                          <img src={a.previewUrl} alt={a.name} style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '4px' }} />
+                        ) : (
+                          <ShieldCheck size={24} color="#d4af37" />
+                        )}
+                        <div style={{ overflow: 'hidden' }}>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                            {a.name}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                            {a.description || 'Building facility'}
+                          </div>
                         </div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-                          {activeUnit.photos.map((p, pIdx) => (
-                            <div key={pIdx} style={{ position: 'relative', width: '90px', height: '65px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
-                              <img src={p.previewUrl} alt="Unit" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              <button
-                                onClick={() => {
-                                  handleUpdateActiveUnit('photos', activeUnit.photos.filter((_, i) => i !== pIdx));
-                                }}
-                                style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                              >
-                                ×
-                              </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Level B & C Units Preview */}
+              <div>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                  Apartment Units Registered ({units.length}):
+                </span>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+                  {units.map((u, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: 'var(--bg-surface)',
+                        padding: '14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-default)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {u.mainApartmentPhoto && (
+                            <img src={u.mainApartmentPhoto.previewUrl} alt={u.unit_name} style={{ width: '50px', height: '38px', objectFit: 'cover', borderRadius: '4px' }} />
+                          )}
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                              🚪 {u.apartment_code}: {u.unit_name}
                             </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {u.unit_type} • Capacity: {u.capacity} Guests • Floor: {u.floor}
+                            </div>
+                          </div>
+                        </div>
+                        <span style={{ fontWeight: 700, color: '#d4af37', fontSize: '0.9rem' }}>
+                          ₦{Number(u.rate_per_night).toLocaleString()}/night
+                        </span>
+                      </div>
+
+                      {/* Apartment Amenities Preview */}
+                      {(u.apartment_amenities || []).length > 0 && (
+                        <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {u.apartment_amenities.map((a, aIdx) => (
+                            <span
+                              key={aIdx}
+                              style={{
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-default)',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.72rem',
+                                color: 'var(--text-secondary)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              ✨ {a.name}
+                            </span>
                           ))}
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* STEP 3: Level C — Internal Spaces per Unit */}
-        {currentStep === 3 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ background: 'rgba(168, 85, 247, 0.08)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(168, 85, 247, 0.25)', fontSize: '0.85rem' }}>
-              <strong>Level C (Internal Spaces):</strong> Define the internal rooms and zones for each apartment (e.g. Master Bedroom, Chef Kitchen, Luxury Bathroom) with space-specific photographs. Strictly never mix categories.
-            </div>
-
-            {units.length === 0 ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                Please define at least one apartment unit in Step 2 before configuring internal spaces.
-              </div>
-            ) : (
-              <div>
-                {/* Unit Selector Tabs */}
-                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', borderBottom: '1px solid var(--border-default)', paddingBottom: '8px', marginBottom: '16px' }}>
-                  {units.map((u, idx) => (
-                    <button
-                      key={u.tempId || idx}
-                      onClick={() => setActiveUnitIndex(idx)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: activeUnitIndex === idx ? 'var(--brand-accent)' : 'var(--bg-surface)',
-                        color: activeUnitIndex === idx ? '#ffffff' : 'var(--text-secondary)',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Unit {u.unit_number} ({u.internal_spaces?.length || 0} spaces)
-                    </button>
                   ))}
                 </div>
-
-                {activeUnit && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                        Internal Spaces for Unit {activeUnit.unit_number} ({activeUnit.unit_name})
-                      </span>
-                      <Button variant="outline" size="sm" onClick={handleAddSpaceToActiveUnit}>
-                        <Plus size={14} style={{ marginRight: '4px' }} /> Add Internal Space
-                      </Button>
-                    </div>
-
-                    {(!activeUnit.internal_spaces || activeUnit.internal_spaces.length === 0) ? (
-                      <div style={{ padding: '2rem', textAlign: 'center', border: '1px dashed var(--border-default)', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        No internal spaces defined for this unit. Click <strong>+ Add Internal Space</strong> to add bedrooms, kitchens, bathrooms, etc.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {activeUnit.internal_spaces.map((sp, sIdx) => (
-                          <div
-                            key={sp.tempId || sIdx}
-                            style={{
-                              background: 'var(--bg-surface)',
-                              border: '1px solid var(--border-default)',
-                              borderRadius: '8px',
-                              padding: '12px 16px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '10px',
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-                                <select
-                                  value={sp.space_type}
-                                  onChange={(e) => handleUpdateSpaceInActiveUnit(sIdx, 'space_type', e.target.value)}
-                                  style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', fontSize: '0.8rem', fontWeight: 600 }}
-                                >
-                                  {SPACE_TYPES.map((st) => (
-                                    <option key={st.value} value={st.value}>{st.label}</option>
-                                  ))}
-                                </select>
-                                <input
-                                  type="text"
-                                  placeholder="Space title (e.g. Master Bedroom with Ensuite)"
-                                  value={sp.name}
-                                  onChange={(e) => handleUpdateSpaceInActiveUnit(sIdx, 'name', e.target.value)}
-                                  style={{ flex: 1, padding: '5px 10px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-card)', fontSize: '0.85rem' }}
-                                />
-                              </div>
-                              <button
-                                onClick={() => handleRemoveSpaceFromActiveUnit(sIdx)}
-                                style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', marginLeft: '10px' }}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-
-                            {/* Space Photos (Level C) */}
-                            <div style={{ borderTop: '1px dashed var(--border-default)', paddingTop: '8px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                  Photos of this specific space ({sp.photos?.length || 0})
-                                </span>
-                                <label
-                                  style={{
-                                    background: 'var(--bg-card-hover)',
-                                    padding: '3px 8px',
-                                    borderRadius: '4px',
-                                    fontSize: '0.72rem',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                  }}
-                                >
-                                  <Camera size={12} /> Add Space Photo
-                                  <input
-                                    type="file"
-                                    multiple
-                                    accept="image/jpeg,image/png,image/webp"
-                                    style={{ display: 'none' }}
-                                    onChange={(e) => handleFileSelect(e, (p) => {
-                                      handleUpdateSpaceInActiveUnit(sIdx, 'photos', [...(sp.photos || []), p]);
-                                    })}
-                                  />
-                                </label>
-                              </div>
-
-                              {sp.photos && sp.photos.length > 0 && (
-                                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
-                                  {sp.photos.map((p, pIdx) => (
-                                    <div key={pIdx} style={{ position: 'relative', width: '80px', height: '60px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0 }}>
-                                      <img src={p.previewUrl} alt="Space" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                      <button
-                                        onClick={() => {
-                                          handleUpdateSpaceInActiveUnit(sIdx, 'photos', sp.photos.filter((_, i) => i !== pIdx));
-                                        }}
-                                        style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '14px', height: '14px', fontSize: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* STEP 4: Full Hierarchy Preview & Executive Submission */}
-        {currentStep === 4 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '0.85rem' }}>
-              <strong>Hierarchy Inspection & Approval Gate:</strong> Verify the complete 3-level tree below. You can save as Draft to continue later, or Submit for Dual-Review Executive Approval.
-            </div>
-
-            {/* Tree Preview View */}
-            <div style={{ background: 'var(--bg-surface)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border-default)', maxHeight: '50vh', overflowY: 'auto' }}>
-              {/* Level A Node */}
-              <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-default)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Building size={18} style={{ color: '#d4af37' }} />
-                  <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {propertyData.name || 'Untitled Property'} ({propertyData.code})
-                  </span>
-                  <Badge variant="warning">DRAFT</Badge>
-                </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  {propertyData.address}, {propertyData.city} • Category: {propertyData.category}
-                </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  {propertyPhotos.length} property photos • {propertyData.amenities.length} amenities
-                </div>
-              </div>
-
-              {/* Level B & C Hierarchy */}
-              <div style={{ paddingLeft: '1.5rem', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {units.map((u, uIdx) => (
-                  <div key={uIdx} style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Home size={15} style={{ color: '#38bdf8' }} />
-                        <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>
-                          Unit {u.unit_number}: {u.unit_name}
-                        </span>
-                      </div>
-                      <span style={{ fontWeight: 700, color: '#d4af37', fontSize: '0.9rem' }}>
-                        ₦{Number(u.rate_per_night).toLocaleString()}/night
-                      </span>
-                    </div>
-
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      {u.photos?.length || 0} unit photos • {u.capacity} Guests • {u.bedroom_count} Bed • {u.bathroom_count} Bath
-                    </div>
-
-                    {/* Level C Spaces Tree */}
-                    <div style={{ marginTop: '8px', paddingLeft: '1.25rem', borderLeft: '2px solid rgba(212, 175, 55, 0.3)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {u.internal_spaces && u.internal_spaces.map((sp, sIdx) => (
-                        <div key={sIdx} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>
-                            • <strong>{sp.space_type}</strong>: {sp.name}
-                          </span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                            {sp.photos?.length || 0} photo(s)
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Dual Review Policy Banner */}
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '10px 14px', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.08)', fontSize: '0.78rem', color: '#94a3b8' }}>
-              🛡️ <strong>Dual-Review Gate:</strong> Once submitted, the property will require independent reviews from both the <strong>System Admin</strong> and the <strong>Business Owner</strong>. Both approvals are mandatory before publication to the public directory.
             </div>
           </div>
         )}
 
-        {/* Wizard Controls Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-default)', paddingTop: '1rem' }}>
+        {/* ============================================================= */}
+        {/* FOOTER CONTROLS & NAVIGATION                                  */}
+        {/* ============================================================= */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingTop: '16px',
+            borderTop: '1px solid var(--border-default)',
+          }}
+        >
           <div>
             {currentStep > 1 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentStep((prev) => prev - 1)}
-                disabled={submitting}
-              >
-                <ChevronLeft size={14} style={{ marginRight: '4px' }} /> Back
+              <Button variant="outline" type="button" onClick={handleBack} disabled={submitting}>
+                <ChevronLeft size={16} style={{ marginRight: '6px' }} /> Back
               </Button>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <Button variant="outline" size="sm" onClick={onClose} disabled={submitting}>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <Button variant="outline" type="button" onClick={onClose} disabled={submitting}>
               Cancel
             </Button>
 
             {currentStep < 4 ? (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setCurrentStep((prev) => prev + 1)}
-              >
-                Next <ChevronRight size={14} style={{ marginLeft: '4px' }} />
+              <Button variant="primary" type="button" onClick={handleNext}>
+                Next <ChevronRight size={16} style={{ marginLeft: '6px' }} />
               </Button>
             ) : (
               <>
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={() => handleSaveOrSubmit(false)}
+                  type="button"
                   loading={submitting}
+                  onClick={() => handleSaveOrSubmit(false)}
                 >
-                  Save as Draft
+                  Save as DRAFT
                 </Button>
+
                 <Button
                   variant="primary"
-                  size="sm"
-                  onClick={() => handleSaveOrSubmit(true)}
+                  type="button"
                   loading={submitting}
-                  style={{ background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)', color: '#0f172a', fontWeight: 700 }}
+                  onClick={() => handleSaveOrSubmit(true)}
+                  style={{ background: '#d4af37', borderColor: '#d4af37', color: '#000', fontWeight: 700 }}
                 >
-                  <Send size={14} style={{ marginRight: '4px' }} /> Submit for Executive Approval
+                  <Send size={16} style={{ marginRight: '6px' }} /> Submit for Executive Dual Approval
                 </Button>
               </>
             )}

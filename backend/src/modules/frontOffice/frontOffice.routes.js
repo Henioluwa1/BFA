@@ -17,7 +17,8 @@ router.get('/arrivals', requireRoles(...frontOfficeViewRoles), FrontOfficeContro
 router.get('/departures', requireRoles(...frontOfficeViewRoles), FrontOfficeController.getDepartures);
 router.get('/current-guests', requireRoles(...frontOfficeViewRoles), FrontOfficeController.getCurrentGuests);
 router.get('/pending-bookings', requireRoles(...frontOfficeViewRoles), FrontOfficeController.getPendingBookings);
-router.get('/unclaimed-bookings', requireRoles(...frontOfficeRoles), FrontOfficeController.getUnclaimedBookings);
+// Unclaimed bookings alert queue: strictly restricted to authenticated RECEPTIONIST role only
+router.get('/unclaimed-bookings', requireRoles('RECEPTIONIST'), FrontOfficeController.getUnclaimedBookings);
 router.get('/stats', requireRoles(...frontOfficeViewRoles), FrontOfficeController.getStats);
 
 // Live operational feed (for Managers & Admins to observe operations in real time)

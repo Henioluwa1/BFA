@@ -399,41 +399,114 @@ export default function PropertyApprovalReviewModal({ isOpen, onClose, property,
             {hierarchy ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {/* Level A */}
-                <div style={{ paddingBottom: '10px', borderBottom: '1px solid var(--border-default)' }}>
-                  <div style={{ fontWeight: 700, fontSize: '1rem', color: '#d4af37' }}>
-                    🏢 Level A: {hierarchy.name} ({hierarchy.code})
+                <div style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-default)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '1rem', color: '#d4af37' }}>
+                        🏢 Level A: {hierarchy.name} ({hierarchy.code})
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        {[hierarchy.location, hierarchy.district, hierarchy.address, hierarchy.city].filter(Boolean).join(' • ')}
+                      </div>
+                    </div>
+                    {hierarchy.main_photo && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <img
+                          src={hierarchy.main_photo}
+                          alt="Main Building"
+                          style={{ width: '80px', height: '54px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-default)' }}
+                        />
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Main Building Cover</span>
+                      </div>
+                    )}
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                    {hierarchy.address}, {hierarchy.city} • {hierarchy.photos?.length || 0} property photographs
-                  </div>
-                  {hierarchy.photos && hierarchy.photos.length > 0 && (
-                    <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginTop: '8px' }}>
-                      {hierarchy.photos.slice(0, 6).map((p, idx) => (
-                        <img key={idx} src={p.file_url} alt="Prop" style={{ width: '60px', height: '45px', objectFit: 'cover', borderRadius: '4px' }} />
-                      ))}
+
+                  {/* Building Amenities (Max 7) */}
+                  {hierarchy.building_amenities && hierarchy.building_amenities.length > 0 && (
+                    <div style={{ marginTop: '10px' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                        Verified Building Amenities ({hierarchy.building_amenities.length}/7):
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                        {hierarchy.building_amenities.map((am, amIdx) => (
+                          <div key={amIdx} style={{ display: 'flex', gap: '8px', background: 'var(--bg-card)', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', alignItems: 'center' }}>
+                            {am.photo_url ? (
+                              <img src={am.photo_url} alt={am.name} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />
+                            ) : (
+                              <div style={{ width: '36px', height: '36px', background: 'rgba(212, 175, 55, 0.1)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>✨</div>
+                            )}
+                            <div style={{ overflow: 'hidden' }}>
+                              <strong style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{am.name}</strong>
+                              <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{am.description || 'Verified facility'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Level B & C */}
-                <div style={{ paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ paddingLeft: '0.5rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {hierarchy.apartments && hierarchy.apartments.map((apt, aIdx) => (
-                    <div key={aIdx} style={{ background: 'var(--bg-card)', padding: '10px 14px', borderRadius: '6px', border: '1px solid var(--border-default)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                          🚪 Unit {apt.unit_number}: {apt.unit_name}
-                        </span>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#d4af37' }}>
-                          ₦{Number(apt.rate_per_night).toLocaleString()}/night
-                        </span>
+                    <div key={aIdx} style={{ background: 'var(--bg-card)', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                              🚪 {apt.unit_name}
+                            </span>
+                            <Badge variant="secondary" style={{ fontSize: '0.72rem', background: '#e0f2fe', color: '#0369a1' }}>
+                              ID: {apt.apartment_code || apt.unit_number}
+                            </Badge>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              ({apt.unit_type})
+                            </span>
+                          </div>
+                          {apt.description && (
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                              {apt.description}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#d4af37' }}>
+                            ₦{Number(apt.rate_per_night).toLocaleString()}/night
+                          </span>
+                          {apt.main_photo && (
+                            <img
+                              src={apt.main_photo}
+                              alt={apt.unit_name}
+                              style={{ width: '60px', height: '42px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-default)' }}
+                            />
+                          )}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        {apt.photos?.length || 0} unit photos • {apt.internal_spaces?.length || 0} internal spaces defined
-                      </div>
+
+                      {/* Apartment In-Suite Dynamic Amenities */}
+                      {apt.apartment_amenities && apt.apartment_amenities.length > 0 && (
+                        <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--border-default)' }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                            In-Suite Amenities ({apt.apartment_amenities.length}):
+                          </span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                            {apt.apartment_amenities.map((am, amIdx) => (
+                              <div key={amIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-surface)', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-default)', fontSize: '0.75rem' }}>
+                                {am.photo_url && (
+                                  <img src={am.photo_url} alt={am.name} style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '3px' }} />
+                                )}
+                                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{am.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Level C Internal Spaces */}
                       {apt.internal_spaces && apt.internal_spaces.length > 0 && (
-                        <div style={{ marginTop: '8px', paddingLeft: '1rem', borderLeft: '2px solid rgba(212, 175, 55, 0.3)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ marginTop: '8px', paddingLeft: '0.75rem', borderLeft: '2px solid rgba(212, 175, 55, 0.3)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Internal Spaces:</span>
                           {apt.internal_spaces.map((sp, sIdx) => (
                             <div key={sIdx} style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
                               <span>• <strong>{sp.space_type}</strong>: {sp.name}</span>

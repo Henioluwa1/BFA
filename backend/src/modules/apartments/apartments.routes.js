@@ -20,6 +20,12 @@ router.get('/', ApartmentsController.getAll);
 router.get('/:id', ApartmentsController.getById);
 router.get('/:id/availability', ApartmentsController.checkAvailability);
 
+// Apartment Media & Dynamic Amenities
+router.post('/:id/media', requireRoles(...MANAGER_ROLES), ApartmentsController.uploadMedia);
+router.get('/:id/media', ApartmentsController.getMedia);
+router.post('/:id/amenities', requireRoles(...MANAGER_ROLES), ApartmentsController.createAmenities);
+router.get('/:id/amenities', ApartmentsController.getAmenities);
+
 // Unit modifications
 router.post('/', requireRoles(...MANAGER_ROLES), ApartmentsController.create);
 router.put('/:id', requireRoles(...MANAGER_ROLES), ApartmentsController.update);

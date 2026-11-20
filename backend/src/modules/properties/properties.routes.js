@@ -25,6 +25,10 @@ router.get('/:id', PropertiesController.getById);
 router.get('/:id/hierarchy', PropertiesController.getHierarchy);
 router.get('/:id/apartments', PropertiesController.getApartments);
 
+// Dynamic Building Amenities Routes (Max 7)
+router.post('/:id/amenities', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.createAmenities);
+router.get('/:id/amenities', PropertiesController.getAmenities);
+
 // Operational creation and modification routes
 router.post('/', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.create);
 router.put('/:id', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.update);

@@ -30,7 +30,8 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell">
-      <GlobalBookingAlertModal />
+      {/* Global Booking Alert Modal: Strictly mounted ONLY within the Receptionist Portal */}
+      {user?.role === 'RECEPTIONIST' && <GlobalBookingAlertModal />}
       <Sidebar
         collapsed={collapsed}
         setCollapsed={setCollapsed}

@@ -1,9 +1,15 @@
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const ApartmentsRepository = require('./apartments.repository');
 const PropertiesRepository = require('../properties/properties.repository');
 const PropertiesService = require('../properties/properties.service');
 const AuditService = require('../../core/audit/audit.service');
 const pool = require('../../db/pool');
 const { ValidationError, ConflictError, NotFoundError, ForbiddenError } = require('../../core/errors/apiError');
+
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 const VALID_OPERATIONAL_STATUSES = [
   'AVAILABLE',
@@ -68,8 +74,9 @@ class ApartmentsService {
    * Create new apartment unit
    */
   static async createApartment(data, user, req = null) {
-    if (!data.property_id || !data.unit_number || !data.unit_name) {
-      throw new ValidationError('Property ID, unit number, and unit name are required.');
+    const rawNumber = data.unit_number || data.apartment_code;
+    if (!data.property_id || !rawNumber || !data.unit_name) {
+      throw new ValidationError('Property ID, unit number / Apartment ID, and unit name are required.');
     }
 
     this.validatePropertyScope(user, data.property_id);
@@ -80,21 +87,32 @@ class ApartmentsService {
       throw new NotFoundError(`Property #${data.property_id} does not exist.`);
     }
 
-    // Verify unit number unique within this property
-    const existing = await ApartmentsRepository.findByPropertyAndUnitNumber(
+    // Verify unit number or manual Apartment ID unique within this property
+    const aptCode = String(data.apartment_code || rawNumber).trim();
+    const existing = await ApartmentsRepository.findByPropertyAndApartmentCode(
       data.property_id,
-      data.unit_number
+      aptCode
     );
     if (existing) {
       throw new ConflictError(
-        `Unit number '${data.unit_number}' already exists in ${property.name}.`
+        `Apartment ID / Unit '${aptCode}' already exists in ${property.name}.`
       );
     }
 
     const newId = await ApartmentsRepository.create({
       ...data,
+      unit_number: String(data.unit_number || aptCode).trim(),
+      apartment_code: aptCode,
+      description: data.description ? String(data.description).trim() : null,
       created_by: user?.id || null,
     });
+
+    // Save dynamic apartment amenities if provided
+    if (data.apartment_amenities && Array.isArray(data.apartment_amenities)) {
+      await this.saveApartmentAmenities(newId, data.apartment_amenities, user, req);
+    } else if (data.amenities && Array.isArray(data.amenities) && data.amenities.length > 0 && typeof data.amenities[0] === 'object') {
+      await this.saveApartmentAmenities(newId, data.amenities, user, req);
+    }
 
     const created = await ApartmentsRepository.findById(newId);
 
@@ -109,6 +127,7 @@ class ApartmentsService {
       newValues: {
         id: newId,
         unitNumber: created.unit_number,
+        apartmentCode: created.apartment_code,
         unitName: created.unit_name,
         propertyId: created.property_id,
         unitType: created.unit_type,
@@ -119,6 +138,208 @@ class ApartmentsService {
     await PropertiesService.invalidatePropertyApproval(created.property_id, 'New unit added');
 
     return created;
+  }
+
+  /**
+   * Upload apartment-level photographs (including Main Apartment Photograph)
+   */
+  static async uploadApartmentMedia(apartmentId, mediaItems, user, req = null) {
+    const unit = await ApartmentsRepository.findById(apartmentId);
+    if (!unit) {
+      throw new NotFoundError(`Apartment unit #${apartmentId} not found.`);
+    }
+    this.validatePropertyScope(user, unit.property_id);
+
+    const items = Array.isArray(mediaItems) ? mediaItems : [mediaItems];
+    if (items.length === 0) {
+      throw new ValidationError('At least one media item must be provided.');
+    }
+
+    const uploadDir = path.resolve(__dirname, '../../../uploads/apartments');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const createdAssets = [];
+    const isPublisher = ['ADMIN', 'OWNER', 'SUPER_ADMIN'].includes(user?.role);
+    const defaultPublished = isPublisher ? 1 : 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.fileData) {
+        throw new ValidationError(`Item #${i + 1}: fileData (base64) is required.`);
+      }
+
+      let mimeType = item.fileType || 'image/jpeg';
+      let base64Content = item.fileData;
+
+      if (item.fileData.startsWith('data:')) {
+        const match = item.fileData.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/);
+        if (match) {
+          mimeType = match[1].toLowerCase();
+          base64Content = match[2];
+        }
+      }
+
+      if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+        throw new ValidationError(`Item #${i + 1}: Invalid file type '${mimeType}'. Supported: JPEG, PNG, WebP.`);
+      }
+
+      const buffer = Buffer.from(base64Content, 'base64');
+      if (buffer.length > MAX_IMAGE_SIZE_BYTES) {
+        throw new ValidationError(`Item #${i + 1} exceeds 10MB size limit.`);
+      }
+
+      // Magic byte validation
+      const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
+      const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+      const isWebp = buffer.slice(0, 4).toString() === 'RIFF' && buffer.slice(8, 12).toString() === 'WEBP';
+
+      if (!isJpeg && !isPng && !isWebp) {
+        throw new ValidationError(`Item #${i + 1} file signature does not match valid JPEG, PNG, or WebP image content.`);
+      }
+
+      const ext = isPng ? 'png' : isWebp ? 'webp' : 'jpg';
+      const cleanFileName = `apt_${apartmentId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
+      const filePath = path.join(uploadDir, cleanFileName);
+      fs.writeFileSync(filePath, buffer);
+
+      const isPrimary = item.isPrimary || item.is_cover || (items.length === 1 && !createdAssets.length) ? 1 : 0;
+      if (isPrimary) {
+        await pool.query(
+          "UPDATE media_assets SET is_primary = FALSE WHERE entity_type = 'APARTMENT' AND entity_id = ?",
+          [apartmentId]
+        );
+      }
+
+      const sql = `
+        INSERT INTO media_assets 
+          (entity_type, entity_id, category, file_path, file_name, file_url, mime_type, file_size_bytes, 
+           caption, display_order, is_primary, is_published, uploaded_by)
+        VALUES 
+          ('APARTMENT', ?, 'INTERIOR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      const fileUrl = `/uploads/apartments/${cleanFileName}`;
+      const caption = (item.caption || `${unit.unit_name} Main Photo`).trim();
+      const displayOrder = item.display_order !== undefined ? parseInt(item.display_order, 10) : i;
+
+      const result = await pool.query(sql, [
+        apartmentId,
+        filePath,
+        cleanFileName,
+        fileUrl,
+        mimeType,
+        buffer.length,
+        caption,
+        displayOrder,
+        isPrimary,
+        defaultPublished,
+        user?.id || null,
+      ]);
+
+      const inserted = await pool.query('SELECT * FROM media_assets WHERE id = ?', [result.insertId]);
+      createdAssets.push(inserted[0]);
+    }
+
+    await PropertiesService.invalidatePropertyApproval(unit.property_id, 'Apartment media updated');
+    return createdAssets;
+  }
+
+  /**
+   * Save dynamic apartment amenities (Unlimited amenities allowed)
+   */
+  static async saveApartmentAmenities(apartmentId, amenitiesList, user, req = null) {
+    const unit = await ApartmentsRepository.findById(apartmentId);
+    if (!unit) {
+      throw new NotFoundError(`Apartment unit #${apartmentId} not found.`);
+    }
+    this.validatePropertyScope(user, unit.property_id);
+
+    if (!Array.isArray(amenitiesList)) {
+      throw new ValidationError('Apartment amenities must be an array.');
+    }
+
+    const uploadDir = path.resolve(__dirname, '../../../uploads/amenities');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const processedList = [];
+    for (let i = 0; i < amenitiesList.length; i++) {
+      const item = { ...amenitiesList[i] };
+      if (!item.name || !String(item.name).trim()) continue;
+
+      let photoUrl = item.photo_url || item.photoUrl || null;
+      let mediaAssetId = item.media_asset_id || item.mediaAssetId || null;
+
+      // Handle base64 image upload if provided
+      if (item.photoData) {
+        let mimeType = item.fileType || 'image/jpeg';
+        let base64Content = item.photoData;
+
+        if (item.photoData.startsWith('data:')) {
+          const match = item.photoData.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/);
+          if (match) {
+            mimeType = match[1].toLowerCase();
+            base64Content = match[2];
+          }
+        }
+
+        if (ALLOWED_MIME_TYPES.includes(mimeType)) {
+          const buffer = Buffer.from(base64Content, 'base64');
+          if (buffer.length <= MAX_IMAGE_SIZE_BYTES) {
+            const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
+            const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+            const isWebp = buffer.slice(0, 4).toString() === 'RIFF' && buffer.slice(8, 12).toString() === 'WEBP';
+
+            if (isJpeg || isPng || isWebp) {
+              const ext = isPng ? 'png' : isWebp ? 'webp' : 'jpg';
+              const cleanFileName = `amenity_apt_${apartmentId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
+              const filePath = path.join(uploadDir, cleanFileName);
+              fs.writeFileSync(filePath, buffer);
+              photoUrl = `/uploads/amenities/${cleanFileName}`;
+
+              const res = await pool.query(
+                `INSERT INTO media_assets 
+                  (entity_type, entity_id, category, file_path, file_name, file_url, mime_type, file_size_bytes, caption, display_order, is_published, uploaded_by)
+                 VALUES ('APARTMENT_AMENITY', ?, 'AMENITY', ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+                [apartmentId, filePath, cleanFileName, photoUrl, mimeType, buffer.length, item.name, i, user?.id || null]
+              );
+              mediaAssetId = res.insertId;
+            }
+          }
+        }
+      }
+
+      processedList.push({
+        name: String(item.name).trim(),
+        description: item.description ? String(item.description).trim() : null,
+        photo_url: photoUrl,
+        media_asset_id: mediaAssetId,
+        display_order: item.display_order !== undefined ? parseInt(item.display_order, 10) : i,
+      });
+    }
+
+    const saved = await ApartmentsRepository.saveApartmentAmenities(apartmentId, processedList);
+    // Also synchronize legacy JSONB amenities
+    await pool.query('UPDATE apartments SET amenities = ? WHERE id = ?', [
+      JSON.stringify(processedList.map((a) => a.name)),
+      apartmentId,
+    ]);
+
+    await PropertiesService.invalidatePropertyApproval(unit.property_id, 'Apartment amenities modified');
+    return saved;
+  }
+
+  static async getApartmentAmenities(apartmentId) {
+    return ApartmentsRepository.getApartmentAmenities(apartmentId);
+  }
+
+  static async getApartmentMedia(apartmentId) {
+    return pool.query(
+      "SELECT * FROM media_assets WHERE entity_type = 'APARTMENT' AND entity_id = ? ORDER BY is_primary DESC, display_order ASC, id ASC",
+      [apartmentId]
+    );
   }
 
   /**

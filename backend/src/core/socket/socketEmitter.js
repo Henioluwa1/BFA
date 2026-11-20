@@ -20,7 +20,7 @@ function getIO() {
 }
 
 /**
- * Broadcast operational event to all connected clients or specific rooms
+ * Broadcast operational event to all connected clients or specific role-gated channels
  * @param {string} event
  * @param {object} payload
  * @param {object} [options]
@@ -39,12 +39,35 @@ function broadcastOperationalEvent(event, payload, options = {}) {
       _broadcastTimestamp: new Date().toISOString(),
     };
 
-    if (options.propertyId) {
-      ioInstance.to(`property_${options.propertyId}`).emit(event, enrichedPayload);
+    // Strict Receptionist Booking Alert Isolation:
+    // Urgent customer booking alerts and claim notifications must ONLY be delivered
+    // to authorized receptionists on their dedicated subscription channel.
+    if (event === 'booking:new_alert' || event === 'booking:claimed') {
+      if (options.propertyId) {
+        ioInstance.to(`channel:receptionist:alerts:prop:${options.propertyId}`).emit(event, enrichedPayload);
+      }
+      // Broadcast to receptionists subscribed to the receptionist alert channel
+      ioInstance.to('channel:receptionist:alerts').emit(event, enrichedPayload);
+      logger.info(`[SOCKET_EMITTER] Routed '${event}' strictly to receptionist alert channel [Prop: ${options.propertyId || 'ALL'}]`);
+      return true;
     }
 
-    // Always emit on main channel for real-time dashboards & front desk operations
-    ioInstance.emit(event, enrichedPayload);
+    if (options.propertyId) {
+      ioInstance.to(`property_${options.propertyId}`).emit(event, enrichedPayload);
+      ioInstance.to(`channel:prop:${options.propertyId}`).emit(event, enrichedPayload);
+    }
+
+    // Role-gated broadcasts
+    if (options.roles) {
+      const targetRoles = Array.isArray(options.roles) ? options.roles : [options.roles];
+      targetRoles.forEach((role) => {
+        ioInstance.to(`role:${role.toLowerCase()}`).emit(event, enrichedPayload);
+      });
+      return true;
+    }
+
+    // Staff operational feed
+    ioInstance.to('channel:system:staff').emit(event, enrichedPayload);
     return true;
   } catch (err) {
     logger.warn(`[SOCKET_EMITTER] Failed to broadcast event ${event}: ${err.message}`);

@@ -27,6 +27,8 @@ async function getPublicProperties(req, res, next) {
         p.description,
         p.environment_description,
         p.category,
+        p.location,
+        p.district,
         p.amenities,
         p.check_in_time,
         p.check_out_time,
@@ -75,8 +77,10 @@ async function getPublicApartments(req, res, next) {
         p.name AS property_name, 
         p.city,
         a.unit_number, 
+        a.apartment_code,
         a.unit_name, 
         a.unit_type, 
+        a.description,
         a.rate_per_night,
         a.floor,
         a.capacity,
@@ -107,6 +111,7 @@ async function getPublicApartments(req, res, next) {
 
     const scrubbedRows = rows.map((row) => ({
       ...row,
+      apartment_code: row.apartment_code || row.unit_number,
       amenities: typeof row.amenities === 'string' ? (() => {
         try { return JSON.parse(row.amenities); } catch { return []; }
       })() : (row.amenities || []),
@@ -143,6 +148,8 @@ async function getPublicPropertyDetail(req, res, next) {
         p.description,
         p.environment_description,
         p.category,
+        p.location,
+        p.district,
         p.contact_phone,
         p.contact_email,
         p.amenities,
@@ -167,8 +174,21 @@ async function getPublicPropertyDetail(req, res, next) {
       [propertyId]
     );
 
+    // Dynamic building amenities
+    const propAmenitiesRows = await db.query(
+      `SELECT id, name, description, photo_url, display_order
+       FROM property_amenities
+       WHERE property_id = ?
+       ORDER BY display_order ASC, id ASC`,
+      [propertyId]
+    );
+
+    const primaryPropPhoto = (propMedia || []).find((p) => p.is_primary) || (propMedia || [])[0] || null;
+
     const property = {
       ...propRows[0],
+      main_photo: primaryPropPhoto ? primaryPropPhoto.file_url : null,
+      building_amenities: propAmenitiesRows || [],
       amenities: typeof propRows[0].amenities === 'string' ? (() => {
         try { return JSON.parse(propRows[0].amenities); } catch { return []; }
       })() : (propRows[0].amenities || []),
@@ -180,8 +200,10 @@ async function getPublicPropertyDetail(req, res, next) {
         a.id, 
         a.property_id, 
         a.unit_number, 
+        a.apartment_code,
         a.unit_name, 
         a.unit_type, 
+        a.description,
         a.rate_per_night,
         a.floor,
         a.capacity,
@@ -198,6 +220,7 @@ async function getPublicPropertyDetail(req, res, next) {
     const unitIds = unitRows.map((u) => u.id);
     let unitMediaMap = {};
     let unitSpacesMap = {};
+    let unitAmenitiesMap = {};
 
     if (unitIds.length > 0) {
       const placeholders = unitIds.map(() => '?').join(', ');
@@ -211,6 +234,19 @@ async function getPublicPropertyDetail(req, res, next) {
       for (const m of unitMediaRows) {
         if (!unitMediaMap[m.entity_id]) unitMediaMap[m.entity_id] = [];
         unitMediaMap[m.entity_id].push(m);
+      }
+
+      // Dynamic apartment amenities
+      const aptAmenityRows = await db.query(
+        `SELECT id, apartment_id, name, description, photo_url, display_order
+         FROM apartment_amenities
+         WHERE apartment_id IN (${placeholders})
+         ORDER BY display_order ASC, id ASC`,
+        unitIds
+      );
+      for (const a of aptAmenityRows) {
+        if (!unitAmenitiesMap[a.apartment_id]) unitAmenitiesMap[a.apartment_id] = [];
+        unitAmenitiesMap[a.apartment_id].push(a);
       }
 
       // Internal Spaces for units
@@ -252,14 +288,20 @@ async function getPublicPropertyDetail(req, res, next) {
       }
     }
 
-    const units = unitRows.map((u) => ({
-      ...u,
-      amenities: typeof u.amenities === 'string' ? (() => {
-        try { return JSON.parse(u.amenities); } catch { return []; }
-      })() : (u.amenities || []),
-      photos: unitMediaMap[u.id] || [],
-      internal_spaces: unitSpacesMap[u.id] || [],
-    }));
+    const units = unitRows.map((u) => {
+      const primaryPhoto = (unitMediaMap[u.id] || []).find((p) => p.is_primary) || (unitMediaMap[u.id] || [])[0] || null;
+      return {
+        ...u,
+        apartment_code: u.apartment_code || u.unit_number,
+        main_photo: primaryPhoto ? primaryPhoto.file_url : null,
+        apartment_amenities: unitAmenitiesMap[u.id] || [],
+        amenities: typeof u.amenities === 'string' ? (() => {
+          try { return JSON.parse(u.amenities); } catch { return []; }
+        })() : (u.amenities || []),
+        photos: unitMediaMap[u.id] || [],
+        internal_spaces: unitSpacesMap[u.id] || [],
+      };
+    });
 
     // Group units into Room Types
     const roomTypeMap = new Map();

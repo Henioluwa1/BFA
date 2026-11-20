@@ -79,8 +79,9 @@ class PropertiesRepository {
       INSERT INTO properties (
         name, code, address, city, state, country, description,
         contact_phone, contact_email, status, operational_status,
-        check_in_time, check_out_time, amenities, notes, environment_description, category, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        check_in_time, check_out_time, amenities, notes, environment_description, category,
+        location, district, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const params = [
       data.name.trim(),
@@ -100,6 +101,8 @@ class PropertiesRepository {
       data.notes || null,
       data.environment_description || null,
       data.category || 'RESIDENTIAL',
+      data.location || null,
+      data.district || null,
       data.created_by || null,
     ];
 
@@ -118,7 +121,8 @@ class PropertiesRepository {
       'name', 'address', 'city', 'state', 'country', 'description',
       'contact_phone', 'contact_email', 'status', 'operational_status',
       'check_in_time', 'check_out_time', 'amenities', 'notes', 'is_archived',
-      'environment_description', 'category', 'published_at', 'published_by_id',
+      'environment_description', 'category', 'location', 'district',
+      'published_at', 'published_by_id',
       'admin_approved_at', 'admin_approved_by_id', 'owner_approved_at', 'owner_approved_by_id',
       'rejection_reason', 'updated_by'
     ];
@@ -136,6 +140,58 @@ class PropertiesRepository {
     const sql = `UPDATE properties SET ${fields.join(', ')} WHERE id = ?`;
     await pool.query(sql, params);
     return true;
+  }
+
+  /**
+   * Get dynamic building amenities for a property
+   */
+  static async getPropertyAmenities(propertyId) {
+    const sql = `
+      SELECT id, property_id, name, description, photo_url, media_asset_id, display_order, created_at, updated_at
+      FROM property_amenities
+      WHERE property_id = ?
+      ORDER BY display_order ASC, id ASC
+    `;
+    return pool.query(sql, [propertyId]);
+  }
+
+  /**
+   * Save dynamic building amenities for a property (replaces existing list)
+   */
+  static async savePropertyAmenities(propertyId, amenitiesList = []) {
+    await pool.query('DELETE FROM property_amenities WHERE property_id = ?', [propertyId]);
+    if (!Array.isArray(amenitiesList) || amenitiesList.length === 0) {
+      return [];
+    }
+
+    const inserted = [];
+    for (let i = 0; i < amenitiesList.length; i++) {
+      const a = amenitiesList[i];
+      if (!a.name || !String(a.name).trim()) continue;
+
+      const sql = `
+        INSERT INTO property_amenities 
+          (property_id, name, description, photo_url, media_asset_id, display_order)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      const res = await pool.query(sql, [
+        propertyId,
+        String(a.name).trim(),
+        a.description ? String(a.description).trim() : null,
+        a.photo_url || a.photoUrl || null,
+        a.media_asset_id || a.mediaAssetId || null,
+        a.display_order !== undefined ? parseInt(a.display_order, 10) : i,
+      ]);
+      inserted.push({
+        id: res.insertId,
+        property_id: propertyId,
+        name: String(a.name).trim(),
+        description: a.description || null,
+        photo_url: a.photo_url || a.photoUrl || null,
+        display_order: i,
+      });
+    }
+    return inserted;
   }
 
   /**

@@ -82,6 +82,13 @@ class PropertiesService {
       created_by: user?.id || null,
     });
 
+    // Process dynamic building amenities (Max 7) if provided
+    if (data.building_amenities && Array.isArray(data.building_amenities)) {
+      await this.savePropertyAmenities(newId, data.building_amenities, user, req);
+    } else if (data.amenities && Array.isArray(data.amenities) && data.amenities.length > 0 && typeof data.amenities[0] === 'object') {
+      await this.savePropertyAmenities(newId, data.amenities, user, req);
+    }
+
     const created = await PropertiesRepository.findById(newId);
 
     await AuditService.record({
@@ -451,6 +458,96 @@ class PropertiesService {
    * Level B: Apartments/Units + Unit Photos
    * Level C: Internal Spaces per Unit + Space Photos
    */
+  /**
+   * Save dynamic building amenities for a property (Maximum 7 amenities)
+   */
+  static async savePropertyAmenities(propertyId, amenitiesList, user, req = null) {
+    if (user) {
+      this.validatePropertyScope(user, propertyId);
+    }
+    if (!Array.isArray(amenitiesList)) {
+      throw new ValidationError('Building amenities must be an array.');
+    }
+    if (amenitiesList.length > 7) {
+      throw new ValidationError('Maximum of 7 building amenities allowed per property.');
+    }
+
+    const uploadDir = path.resolve(__dirname, '../../../uploads/amenities');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const processedList = [];
+    for (let i = 0; i < amenitiesList.length; i++) {
+      const item = { ...amenitiesList[i] };
+      if (!item.name || !String(item.name).trim()) continue;
+
+      let photoUrl = item.photo_url || item.photoUrl || null;
+      let mediaAssetId = item.media_asset_id || item.mediaAssetId || null;
+
+      // Handle base64 image upload if provided
+      if (item.photoData) {
+        let mimeType = item.fileType || 'image/jpeg';
+        let base64Content = item.photoData;
+
+        if (item.photoData.startsWith('data:')) {
+          const match = item.photoData.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/);
+          if (match) {
+            mimeType = match[1].toLowerCase();
+            base64Content = match[2];
+          }
+        }
+
+        if (ALLOWED_MIME_TYPES.includes(mimeType)) {
+          const buffer = Buffer.from(base64Content, 'base64');
+          if (buffer.length <= MAX_IMAGE_SIZE_BYTES) {
+            const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
+            const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+            const isWebp = buffer.slice(0, 4).toString() === 'RIFF' && buffer.slice(8, 12).toString() === 'WEBP';
+
+            if (isJpeg || isPng || isWebp) {
+              const ext = isPng ? 'png' : isWebp ? 'webp' : 'jpg';
+              const cleanFileName = `amenity_prop_${propertyId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
+              const filePath = path.join(uploadDir, cleanFileName);
+              fs.writeFileSync(filePath, buffer);
+              photoUrl = `/uploads/amenities/${cleanFileName}`;
+
+              const res = await pool.query(
+                `INSERT INTO media_assets 
+                  (entity_type, entity_id, category, file_path, file_name, file_url, mime_type, file_size_bytes, caption, display_order, is_published, uploaded_by)
+                 VALUES ('PROPERTY_AMENITY', ?, 'AMENITY', ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+                [propertyId, filePath, cleanFileName, photoUrl, mimeType, buffer.length, item.name, i, user?.id || null]
+              );
+              mediaAssetId = res.insertId;
+            }
+          }
+        }
+      }
+
+      processedList.push({
+        name: String(item.name).trim(),
+        description: item.description ? String(item.description).trim() : null,
+        photo_url: photoUrl,
+        media_asset_id: mediaAssetId,
+        display_order: item.display_order !== undefined ? parseInt(item.display_order, 10) : i,
+      });
+    }
+
+    const saved = await PropertiesRepository.savePropertyAmenities(propertyId, processedList);
+    // Also synchronize legacy JSONB amenities with amenity names
+    await pool.query('UPDATE properties SET amenities = ? WHERE id = ?', [
+      JSON.stringify(processedList.map((a) => a.name)),
+      propertyId,
+    ]);
+
+    await this.invalidatePropertyApproval(propertyId, 'Building amenities modified');
+    return saved;
+  }
+
+  static async getPropertyAmenities(propertyId) {
+    return PropertiesRepository.getPropertyAmenities(propertyId);
+  }
+
   static async getPropertyHierarchy(propertyId, user = null) {
     if (user) {
       this.validatePropertyScope(user, propertyId);
@@ -458,6 +555,9 @@ class PropertiesService {
     const prop = await this.getPropertyById(propertyId, user);
 
     const isInternal = user && ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF'].includes(user.role);
+
+    // Fetch dynamic building amenities
+    const buildingAmenities = await PropertiesRepository.getPropertyAmenities(propertyId);
 
     // Level A Media: Property photos
     let propMediaSql = "SELECT * FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = ?";
@@ -474,6 +574,7 @@ class PropertiesService {
     let apartmentMediaMap = {};
     let internalSpacesMap = {};
     let spaceMediaMap = {};
+    let aptAmenitiesMap = {};
 
     if (apartmentIds.length > 0) {
       const aptPlaceholders = apartmentIds.map(() => '?').join(', ');
@@ -488,6 +589,16 @@ class PropertiesService {
       for (const m of aptMediaRows) {
         if (!apartmentMediaMap[m.entity_id]) apartmentMediaMap[m.entity_id] = [];
         apartmentMediaMap[m.entity_id].push(m);
+      }
+
+      // Apartment dynamic amenities
+      const aptAmenityRows = await pool.query(
+        `SELECT * FROM apartment_amenities WHERE apartment_id IN (${aptPlaceholders}) ORDER BY display_order ASC, id ASC`,
+        apartmentIds
+      );
+      for (const a of aptAmenityRows) {
+        if (!aptAmenitiesMap[a.apartment_id]) aptAmenitiesMap[a.apartment_id] = [];
+        aptAmenitiesMap[a.apartment_id].push(a);
       }
 
       // Level C: Internal Spaces
@@ -526,15 +637,25 @@ class PropertiesService {
       }
     }
 
-    const assembledApartments = apartments.map((a) => ({
-      ...a,
-      amenities: typeof a.amenities === 'string' ? JSON.parse(a.amenities || '[]') : (a.amenities || []),
-      photos: apartmentMediaMap[a.id] || [],
-      internal_spaces: internalSpacesMap[a.id] || [],
-    }));
+    const assembledApartments = apartments.map((a) => {
+      const primaryPhoto = (apartmentMediaMap[a.id] || []).find((p) => p.is_primary) || (apartmentMediaMap[a.id] || [])[0] || null;
+      return {
+        ...a,
+        apartment_code: a.apartment_code || a.unit_number,
+        main_photo: primaryPhoto ? primaryPhoto.file_url : null,
+        amenities: typeof a.amenities === 'string' ? JSON.parse(a.amenities || '[]') : (a.amenities || []),
+        apartment_amenities: aptAmenitiesMap[a.id] || [],
+        photos: apartmentMediaMap[a.id] || [],
+        internal_spaces: internalSpacesMap[a.id] || [],
+      };
+    });
+
+    const primaryPropPhoto = (propertyMedia || []).find((p) => p.is_primary) || (propertyMedia || [])[0] || null;
 
     return {
       ...prop,
+      main_photo: primaryPropPhoto ? primaryPropPhoto.file_url : null,
+      building_amenities: buildingAmenities,
       amenities: typeof prop.amenities === 'string' ? JSON.parse(prop.amenities || '[]') : (prop.amenities || []),
       photos: propertyMedia,
       apartments: assembledApartments,

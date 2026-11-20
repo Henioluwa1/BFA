@@ -93,6 +93,10 @@ export const propertyService = {
   updateStatus: (id, data) => api.patch(`/properties/${id}/status`, data),
   submitForApproval: (id) => api.post(`/properties/${id}/submit-approval`),
   getApartments: (id) => api.get(`/properties/${id}/apartments`),
+  uploadMedia: (id, media) => api.post(`/properties/${id}/media`, { media }),
+  getMedia: (id) => api.get(`/properties/${id}/media`),
+  saveAmenities: (id, amenities) => api.post(`/properties/${id}/amenities`, { amenities }),
+  getAmenities: (id) => api.get(`/properties/${id}/amenities`),
 };
 
 export const propertySubmissionService = {
@@ -123,6 +127,10 @@ export const apartmentService = {
   getBlockedPeriods: (id) => api.get(`/apartments/${id}/blocked-periods`),
   addBlockedPeriod: (id, data) => api.post(`/apartments/${id}/blocked-periods`, data),
   deleteBlockedPeriod: (id, blockId) => api.delete(`/apartments/${id}/blocked-periods/${blockId}`),
+  uploadMedia: (id, media) => api.post(`/apartments/${id}/media`, { media }),
+  getMedia: (id) => api.get(`/apartments/${id}/media`),
+  saveAmenities: (id, amenities) => api.post(`/apartments/${id}/amenities`, { amenities }),
+  getAmenities: (id) => api.get(`/apartments/${id}/amenities`),
 };
 
 export const reservationService = {

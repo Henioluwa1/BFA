@@ -148,6 +148,66 @@ class ApartmentsController {
       next(err);
     }
   }
+
+  static async uploadMedia(req, res, next) {
+    try {
+      const mediaItems = req.body.media || req.body.items || req.body;
+      const result = await ApartmentsService.uploadApartmentMedia(
+        parseInt(req.params.id, 10),
+        mediaItems,
+        req.user,
+        req
+      );
+      return ApiResponse.created(res, {
+        message: 'Apartment photographs uploaded successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getMedia(req, res, next) {
+    try {
+      const media = await ApartmentsService.getApartmentMedia(parseInt(req.params.id, 10));
+      return ApiResponse.success(res, {
+        message: 'Apartment media retrieved successfully',
+        data: media,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async createAmenities(req, res, next) {
+    try {
+      const amenitiesList = req.body.amenities || req.body;
+      const result = await ApartmentsService.saveApartmentAmenities(
+        parseInt(req.params.id, 10),
+        amenitiesList,
+        req.user,
+        req
+      );
+      return ApiResponse.success(res, {
+        message: 'Apartment amenities saved successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getAmenities(req, res, next) {
+    try {
+      const amenities = await ApartmentsService.getApartmentAmenities(parseInt(req.params.id, 10));
+      return ApiResponse.success(res, {
+        message: 'Apartment amenities retrieved successfully',
+        data: amenities,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = ApartmentsController;
