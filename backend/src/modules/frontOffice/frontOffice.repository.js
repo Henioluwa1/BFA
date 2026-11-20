@@ -283,7 +283,7 @@ class FrontOfficeRepository {
       JOIN properties p ON p.id = r.property_id
       JOIN apartments a ON a.id = r.apartment_id
       WHERE (r.assigned_staff_id IS NULL OR r.assigned_staff_id = 0)
-        AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')
+        AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW', 'DECLINED')
     `;
     const params = [];
     const scope = this.resolvePropertyScopeConstraint(user, propertyId, 'r.property_id');

@@ -249,6 +249,64 @@ function translateSql(sql, targetEngine = null) {
     }
   );
 
+  // 3b. Boolean literal values in INSERT statements:
+  // e.g., INSERT INTO ... (..., is_active, ...) VALUES (..., 1, ...) -> VALUES (..., TRUE, ...)
+  if (/^INSERT\s+INTO\s+/i.test(out)) {
+    const colListMatch = out.match(/\(([^)]+)\)\s*VALUES\s*\(([\s\S]*)\)\s*;?\s*$/i);
+    if (colListMatch) {
+      const splitSqlValues = (str) => {
+        const parts = [];
+        let current = '';
+        let inQuote = false;
+        let quoteChar = '';
+        let parenDepth = 0;
+        for (let i = 0; i < str.length; i++) {
+          const ch = str[i];
+          if ((ch === "'" || ch === '"') && (i === 0 || str[i - 1] !== '\\')) {
+            if (!inQuote) {
+              inQuote = true;
+              quoteChar = ch;
+            } else if (quoteChar === ch) {
+              inQuote = false;
+            }
+          }
+          if (!inQuote) {
+            if (ch === '(') parenDepth++;
+            else if (ch === ')') parenDepth--;
+          }
+          if (ch === ',' && !inQuote && parenDepth === 0) {
+            parts.push(current.trim());
+            current = '';
+          } else {
+            current += ch;
+          }
+        }
+        if (current.trim().length > 0) parts.push(current.trim());
+        return parts;
+      };
+
+      const cols = splitSqlValues(colListMatch[1]).map((c) => c.trim().replace(/[`"]/g, '').toLowerCase());
+      const vals = splitSqlValues(colListMatch[2]);
+      if (cols.length === vals.length) {
+        let changed = false;
+        for (let i = 0; i < cols.length; i++) {
+          if (BOOLEAN_COLUMNS.has(cols[i])) {
+            if (vals[i] === '1') {
+              vals[i] = 'TRUE';
+              changed = true;
+            } else if (vals[i] === '0') {
+              vals[i] = 'FALSE';
+              changed = true;
+            }
+          }
+        }
+        if (changed) {
+          out = out.replace(colListMatch[0], `(${colListMatch[1]}) VALUES (${vals.join(', ')})`);
+        }
+      }
+    }
+  }
+
   // 4. Automatic RETURNING id for INSERT queries in PostgreSQL
   // Applies only to INSERT statements that do not already have RETURNING
   const trimmed = out.trim();

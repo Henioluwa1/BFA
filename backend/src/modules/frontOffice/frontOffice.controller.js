@@ -88,10 +88,16 @@ class FrontOfficeController {
   static async acceptReservation(req, res, next) {
     try {
       const reservationId = req.params.id || req.body?.reservationId || req.body?.reservation_id;
+      if (!reservationId) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'Reservation ID is required.' },
+        });
+      }
       const updated = await FrontOfficeService.acceptReservation(reservationId, req);
       res.status(200).json({
         success: true,
-        message: `Client ${updated.tenant_name} accepted and assigned to you. Booking is approved.`,
+        message: `Client ${updated?.tenant_name || 'guest'} accepted and assigned to you. Booking is approved.`,
         data: updated,
       });
     } catch (err) {
@@ -102,10 +108,16 @@ class FrontOfficeController {
   static async claimReservation(req, res, next) {
     try {
       const reservationId = req.params.id || req.body?.reservationId || req.body?.reservation_id;
+      if (!reservationId) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'Reservation ID is required to claim a booking.' },
+        });
+      }
       const updated = await FrontOfficeService.claimReservation(reservationId, req);
       res.status(200).json({
         success: true,
-        message: `Reservation #${updated.reservation_code} claimed successfully.`,
+        message: `Reservation #${updated?.reservation_code || reservationId} claimed successfully.`,
         data: updated,
       });
     } catch (err) {
@@ -116,10 +128,16 @@ class FrontOfficeController {
   static async approveReservation(req, res, next) {
     try {
       const reservationId = req.params.id || req.body?.reservationId || req.body?.reservation_id;
+      if (!reservationId) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'Reservation ID is required.' },
+        });
+      }
       const updated = await FrontOfficeService.approveReservation(reservationId, req);
       res.status(200).json({
         success: true,
-        message: `Payment verified and reservation #${updated.reservation_code} approved!`,
+        message: `Payment verified and reservation #${updated?.reservation_code || reservationId} approved!`,
         data: updated,
       });
     } catch (err) {

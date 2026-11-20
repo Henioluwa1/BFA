@@ -264,7 +264,18 @@ class ReceptionistMonitorService {
   /**
    * Record a successful booking claim
    */
-  static async recordBookingClaim({ receptionistId, propertyId, reservation, responseTimeSeconds }) {
+  static async recordBookingClaim(arg1, propId, respTime, resObj) {
+    let receptionistId, propertyId, reservation, responseTimeSeconds;
+    if (typeof arg1 === 'object' && arg1 !== null) {
+      ({ receptionistId, propertyId, reservation, responseTimeSeconds } = arg1);
+    } else {
+      receptionistId = arg1;
+      propertyId = propId;
+      responseTimeSeconds = respTime;
+      reservation = resObj || {};
+    }
+    if (!receptionistId || !propertyId) return;
+    reservation = reservation || {};
     const date = this.getLagosDate();
     await this.getOrCreateDailyMetric(receptionistId, propertyId, date);
 

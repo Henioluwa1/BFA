@@ -1373,13 +1373,13 @@ class ReservationsService {
 
       // 5b. Log immutable staff assignment audit record in reservation_staff_assignments
       await conn.query(
-        'UPDATE reservation_staff_assignments SET is_active = 0, ended_at = NOW() WHERE reservation_id = ? AND is_active = 1',
+        'UPDATE reservation_staff_assignments SET is_active = FALSE, ended_at = NOW() WHERE reservation_id = ? AND is_active = TRUE',
         [id]
       );
       await conn.query(
         `INSERT INTO reservation_staff_assignments (
            reservation_id, property_id, assigned_receptionist_id, assigned_by_id, assignment_type, service_status, is_active, claimed_at
-         ) VALUES (?, ?, ?, ?, 'INITIAL_CLAIM', 'CLAIMED', 1, NOW())`,
+         ) VALUES (?, ?, ?, ?, 'INITIAL_CLAIM', 'CLAIMED', TRUE, NOW())`,
         [id, reservation.property_id, userId, userId]
       );
 
@@ -1456,6 +1456,9 @@ class ReservationsService {
    */
   static async claimReservation(reservationId, req = null) {
     const id = parseInt(reservationId, 10);
+    if (!id || isNaN(id)) {
+      throw new BadRequestError('Valid reservation ID is required to claim a reservation.');
+    }
     const userId = req?.user?.id;
     if (!userId) {
       throw new ForbiddenError('Authentication required to claim reservations.');
@@ -1479,25 +1482,31 @@ class ReservationsService {
         );
       }
 
-      const newStatus = reservation.status === 'PENDING_REVIEW' ? 'CLAIMED' : reservation.status;
+      const newStatus = ['PENDING_REVIEW', 'PENDING'].includes(reservation.status) ? 'CLAIMED' : reservation.status;
 
-      await conn.query(
+      const [updateResult] = await conn.query(
         `UPDATE reservations 
          SET assigned_staff_id = ?, 
              status = ?,
              updated_by = ?
-         WHERE id = ? AND (assigned_staff_id IS NULL OR assigned_staff_id = ?)`,
+         WHERE id = ? AND (assigned_staff_id IS NULL OR assigned_staff_id = 0 OR assigned_staff_id = ?)`,
         [userId, newStatus, userId, id, userId]
       );
 
+      if (updateResult && updateResult.affectedRows === 0) {
+        const [currentStaff] = await conn.query('SELECT u.name FROM reservations r JOIN users u ON u.id = r.assigned_staff_id WHERE r.id = ?', [id]);
+        const otherName = currentStaff[0]?.name || 'another front desk staff';
+        throw new ConflictError(`One client cannot be assigned to two front desk staffs. This reservation has already been accepted and assigned to ${otherName}.`);
+      }
+
       await conn.query(
-        'UPDATE reservation_staff_assignments SET is_active = 0, ended_at = NOW() WHERE reservation_id = ? AND is_active = 1',
+        'UPDATE reservation_staff_assignments SET is_active = FALSE, ended_at = NOW() WHERE reservation_id = ? AND is_active = TRUE',
         [id]
       );
       await conn.query(
         `INSERT INTO reservation_staff_assignments (
            reservation_id, property_id, assigned_receptionist_id, assigned_by_id, assignment_type, service_status, is_active, claimed_at
-         ) VALUES (?, ?, ?, ?, 'INITIAL_CLAIM', 'CLAIMED', 1, NOW())`,
+         ) VALUES (?, ?, ?, ?, 'INITIAL_CLAIM', 'CLAIMED', TRUE, NOW())`,
         [id, reservation.property_id, userId, userId]
       );
 
@@ -1540,7 +1549,12 @@ class ReservationsService {
 
       // Post-commit side-effects: metrics & socket broadcast
       const responseTimeSeconds = Math.max(1, Math.round((Date.now() - new Date(reservation.created_at).getTime()) / 1000));
-      ReceptionistMonitorService.recordBookingClaim(userId, reservation.property_id, responseTimeSeconds).catch((err) => {
+      ReceptionistMonitorService.recordBookingClaim({
+        receptionistId: userId,
+        propertyId: reservation.property_id,
+        reservation,
+        responseTimeSeconds,
+      }).catch((err) => {
         logger.warn('Failed to record monitor booking claim:', { error: err.message });
       });
 
@@ -1642,7 +1656,7 @@ class ReservationsService {
       await conn.query(
         `UPDATE reservation_staff_assignments 
          SET service_status = 'SERVICE_IN_PROGRESS' 
-         WHERE reservation_id = ? AND is_active = 1`,
+         WHERE reservation_id = ? AND is_active = TRUE`,
         [id]
       );
 
@@ -1732,9 +1746,9 @@ class ReservationsService {
         `UPDATE reservation_staff_assignments 
          SET service_status = 'CANCELLED',
              ended_at = NOW(),
-             is_active = 0,
+             is_active = FALSE,
              reassignment_reason = ?
-         WHERE reservation_id = ? AND is_active = 1`,
+         WHERE reservation_id = ? AND is_active = TRUE`,
         [fullDeclineReason, id]
       );
 
