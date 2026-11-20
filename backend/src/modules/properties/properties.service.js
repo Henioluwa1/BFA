@@ -119,6 +119,18 @@ class PropertiesService {
       }
     }
 
+    // Material changes to an approved/published property reset its status to DRAFT
+    if (['APPROVED', 'PUBLISHED'].includes(property.status) && !data.status) {
+      data.status = 'DRAFT';
+      data.admin_approved_at = null;
+      data.admin_approved_by_id = null;
+      data.owner_approved_at = null;
+      data.owner_approved_by_id = null;
+      data.published_at = null;
+      data.published_by_id = null;
+      data.rejection_reason = 'Approval invalidated: Content edited after approval.';
+    }
+
     await PropertiesRepository.update(id, {
       ...data,
       updated_by: user?.id || null,
@@ -148,7 +160,11 @@ class PropertiesService {
     this.validatePropertyScope(user, id);
 
     const property = await this.getPropertyById(id);
-    const validStatuses = ['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'ARCHIVED'];
+    const validStatuses = [
+      'ACTIVE', 'INACTIVE', 'MAINTENANCE', 'ARCHIVED',
+      'DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED',
+      'CHANGES_REQUESTED', 'PUBLISHED', 'UNPUBLISHED'
+    ];
     if (!validStatuses.includes(status)) {
       throw new ValidationError(`Invalid property status. Must be one of: ${validStatuses.join(', ')}`);
     }
@@ -402,6 +418,178 @@ class PropertiesService {
     });
 
     return { message: 'Media asset deleted successfully.' };
+  }
+
+  /**
+   * Helper to invalidate approvals on material structural/unit/space edits
+   */
+  static async invalidatePropertyApproval(propertyId, reason = 'Material change to property or units') {
+    const prop = await PropertiesRepository.findById(propertyId);
+    if (prop && ['APPROVED', 'PUBLISHED'].includes(prop.status)) {
+      await PropertiesRepository.update(propertyId, {
+        status: 'DRAFT',
+        admin_approved_at: null,
+        admin_approved_by_id: null,
+        owner_approved_at: null,
+        owner_approved_by_id: null,
+        published_at: null,
+        published_by_id: null,
+        rejection_reason: `Approval invalidated: ${reason}`,
+      });
+      await AuditService.record({
+        action: 'PROPERTY_APPROVAL_INVALIDATED',
+        entityType: 'property',
+        entityId: String(propertyId),
+        newValues: { status: 'DRAFT', reason },
+      });
+    }
+  }
+
+  /**
+   * Complete 3-Level Property Hierarchy:
+   * Level A: Property + Photos + Amenities + Environment
+   * Level B: Apartments/Units + Unit Photos
+   * Level C: Internal Spaces per Unit + Space Photos
+   */
+  static async getPropertyHierarchy(propertyId, user = null) {
+    if (user) {
+      this.validatePropertyScope(user, propertyId);
+    }
+    const prop = await this.getPropertyById(propertyId, user);
+
+    const isInternal = user && ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF'].includes(user.role);
+
+    // Level A Media: Property photos
+    let propMediaSql = "SELECT * FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = ?";
+    if (!isInternal) {
+      propMediaSql += ' AND is_published = TRUE';
+    }
+    propMediaSql += ' ORDER BY is_primary DESC, display_order ASC, id ASC';
+    const propertyMedia = await pool.query(propMediaSql, [propertyId]);
+
+    // Level B: Apartments/Units
+    const apartments = await PropertiesRepository.getApartmentsByPropertyId(propertyId);
+    const apartmentIds = apartments.map((a) => a.id);
+
+    let apartmentMediaMap = {};
+    let internalSpacesMap = {};
+    let spaceMediaMap = {};
+
+    if (apartmentIds.length > 0) {
+      const aptPlaceholders = apartmentIds.map(() => '?').join(', ');
+
+      // Level B Media: Apartment photos
+      let aptMediaSql = `SELECT * FROM media_assets WHERE entity_type = 'APARTMENT' AND entity_id IN (${aptPlaceholders})`;
+      if (!isInternal) {
+        aptMediaSql += ' AND is_published = TRUE';
+      }
+      aptMediaSql += ' ORDER BY is_primary DESC, display_order ASC, id ASC';
+      const aptMediaRows = await pool.query(aptMediaSql, apartmentIds);
+      for (const m of aptMediaRows) {
+        if (!apartmentMediaMap[m.entity_id]) apartmentMediaMap[m.entity_id] = [];
+        apartmentMediaMap[m.entity_id].push(m);
+      }
+
+      // Level C: Internal Spaces
+      const spaceRows = await pool.query(
+        `SELECT s.*, 
+                (SELECT COUNT(*) FROM media_assets m WHERE m.internal_space_id = s.id) AS photo_count
+         FROM apartment_internal_spaces s
+         WHERE s.apartment_id IN (${aptPlaceholders})
+         ORDER BY s.display_order ASC, s.id ASC`,
+        apartmentIds
+      );
+
+      const spaceIds = spaceRows.map((s) => s.id);
+      if (spaceIds.length > 0) {
+        const spacePlaceholders = spaceIds.map(() => '?').join(', ');
+        let spaceMediaSql = `SELECT * FROM media_assets WHERE internal_space_id IN (${spacePlaceholders})`;
+        if (!isInternal) {
+          spaceMediaSql += ' AND is_published = TRUE';
+        }
+        spaceMediaSql += ' ORDER BY is_primary DESC, display_order ASC, id ASC';
+        const spaceMediaRows = await pool.query(spaceMediaSql, spaceIds);
+        for (const m of spaceMediaRows) {
+          if (!spaceMediaMap[m.internal_space_id]) spaceMediaMap[m.internal_space_id] = [];
+          spaceMediaMap[m.internal_space_id].push(m);
+        }
+      }
+
+      for (const s of spaceRows) {
+        const parsedSpace = {
+          ...s,
+          amenities: typeof s.amenities === 'string' ? JSON.parse(s.amenities || '[]') : (s.amenities || []),
+          photos: spaceMediaMap[s.id] || [],
+        };
+        if (!internalSpacesMap[s.apartment_id]) internalSpacesMap[s.apartment_id] = [];
+        internalSpacesMap[s.apartment_id].push(parsedSpace);
+      }
+    }
+
+    const assembledApartments = apartments.map((a) => ({
+      ...a,
+      amenities: typeof a.amenities === 'string' ? JSON.parse(a.amenities || '[]') : (a.amenities || []),
+      photos: apartmentMediaMap[a.id] || [],
+      internal_spaces: internalSpacesMap[a.id] || [],
+    }));
+
+    return {
+      ...prop,
+      amenities: typeof prop.amenities === 'string' ? JSON.parse(prop.amenities || '[]') : (prop.amenities || []),
+      photos: propertyMedia,
+      apartments: assembledApartments,
+    };
+  }
+
+  /**
+   * Submit property for dual-review executive approval
+   */
+  static async submitForApproval(propertyId, user, req = null) {
+    this.validatePropertyScope(user, propertyId);
+    const prop = await this.getPropertyById(propertyId, user);
+
+    const apartments = await PropertiesRepository.getApartmentsByPropertyId(propertyId);
+    if (!apartments || apartments.length === 0) {
+      throw new ValidationError('A property must have at least one apartment unit defined before submission.');
+    }
+
+    // Set property status to PENDING_APPROVAL
+    await PropertiesRepository.update(propertyId, {
+      status: 'PENDING_APPROVAL',
+      rejection_reason: null,
+      updated_by: user?.id || null,
+    });
+
+    const hierarchySnapshot = await this.getPropertyHierarchy(propertyId, user);
+
+    const PropertySubmissionsService = require('./propertySubmissions.service');
+    const submission = await PropertySubmissionsService.createSubmission({
+      propertyId,
+      submissionType: prop.published_at ? 'CONTENT_UPDATE' : 'NEW_PROPERTY',
+      contentSnapshot: hierarchySnapshot,
+      user,
+      req,
+    });
+
+    await AuditService.record({
+      req,
+      actorId: user?.id,
+      actorEmail: user?.email,
+      actorRole: user?.role,
+      action: 'PROPERTY_SUBMITTED_FOR_APPROVAL',
+      entityType: 'property',
+      entityId: String(propertyId),
+      newValues: {
+        status: 'PENDING_APPROVAL',
+        submissionId: submission.id,
+        submissionCode: submission.submission_code,
+      },
+    });
+
+    return {
+      property: await this.getPropertyById(propertyId, user),
+      submission,
+    };
   }
 }
 

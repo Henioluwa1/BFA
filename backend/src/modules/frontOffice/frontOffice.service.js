@@ -48,6 +48,16 @@ class FrontOfficeService {
   }
 
   /**
+   * Get unclaimed incoming bookings for global booking alert modal
+   */
+  static async getUnclaimedBookings(query = {}, req = null) {
+    return FrontOfficeRepository.getUnclaimedBookings({
+      propertyId: query.propertyId,
+      user: req?.user,
+    });
+  }
+
+  /**
    * Get live operational activity feed for Managers and Admins
    */
   static async getLiveOperationalFeed(query, req = null) {

@@ -269,6 +269,29 @@ class FrontOfficeRepository {
       maintenanceUnits: units?.maintenance_units || 0,
     };
   }
+
+  /**
+   * Get unclaimed incoming bookings for receptionist global alert modal
+   */
+  static async getUnclaimedBookings({ propertyId, user } = {}) {
+    let sql = `
+      SELECT r.*,
+             p.name as property_name, p.code as property_code,
+             a.unit_number, a.unit_name, a.unit_type, a.status as unit_status, a.rate_per_night,
+             GREATEST(0, r.total_amount - r.paid_amount) as outstanding_balance
+      FROM reservations r
+      JOIN properties p ON p.id = r.property_id
+      JOIN apartments a ON a.id = r.apartment_id
+      WHERE (r.assigned_staff_id IS NULL OR r.assigned_staff_id = 0)
+        AND r.status NOT IN ('CANCELLED', 'CHECKED_OUT', 'NO_SHOW')
+    `;
+    const params = [];
+    const scope = this.resolvePropertyScopeConstraint(user, propertyId, 'r.property_id');
+    sql += ` ${scope.clause}`;
+    params.push(...scope.params);
+    sql += ' ORDER BY r.created_at DESC LIMIT 20;';
+    return pool.query(sql, params);
+  }
 }
 
 module.exports = FrontOfficeRepository;

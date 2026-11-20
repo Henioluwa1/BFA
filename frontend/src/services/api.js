@@ -87,9 +87,11 @@ export const searchService = {
 export const propertyService = {
   getAll: (params) => api.get('/properties', { params }),
   getById: (id) => api.get(`/properties/${id}`),
+  getHierarchy: (id) => api.get(`/properties/${id}/hierarchy`),
   create: (data) => api.post('/properties', data),
   update: (id, data) => api.put(`/properties/${id}`, data),
   updateStatus: (id, data) => api.patch(`/properties/${id}/status`, data),
+  submitForApproval: (id) => api.post(`/properties/${id}/submit-approval`),
   getApartments: (id) => api.get(`/properties/${id}/apartments`),
 };
 
@@ -99,6 +101,15 @@ export const propertySubmissionService = {
   createSubmission: (data) => api.post('/properties/submissions', data),
   reviewSubmission: (id, data) => api.post(`/properties/submissions/${id}/review`, data),
   publishSubmission: (id) => api.post(`/properties/submissions/${id}/publish`),
+};
+
+export const internalSpacesService = {
+  getSpaces: (apartmentId) => api.get(`/apartments/${apartmentId}/spaces`),
+  createSpace: (apartmentId, data) => api.post(`/apartments/${apartmentId}/spaces`, data),
+  updateSpace: (spaceId, data) => api.put(`/apartments/spaces/${spaceId}`, data),
+  deleteSpace: (spaceId) => api.delete(`/apartments/spaces/${spaceId}`),
+  uploadMedia: (spaceId, mediaItems) => api.post(`/apartments/spaces/${spaceId}/media`, { images: mediaItems }),
+  deleteMedia: (spaceId, mediaId) => api.delete(`/apartments/spaces/${spaceId}/media/${mediaId}`),
 };
 
 export const apartmentService = {
@@ -137,6 +148,7 @@ export const frontOfficeService = {
   getDepartures: (params) => api.get('/front-office/departures', { params }),
   getCurrentGuests: (params) => api.get('/front-office/current-guests', { params }),
   getPendingBookings: (params) => api.get('/front-office/pending-bookings', { params }),
+  getUnclaimedBookings: (params) => api.get('/front-office/unclaimed-bookings', { params }),
   getLiveOperationalFeed: (params) => api.get('/front-office/live-feed', { params }),
   getStats: (params) => api.get('/front-office/stats', { params }),
   acceptReservation: (id) => api.post(`/front-office/reservations/${id}/accept`),
@@ -147,6 +159,18 @@ export const frontOfficeService = {
   checkIn: (id) => api.post(`/front-office/reservations/${id}/check-in`),
   checkOut: (id) => api.post(`/front-office/reservations/${id}/check-out`),
   noShow: (id, data) => api.post(`/front-office/reservations/${id}/no-show`, data),
+  clockIn: (propertyId) => api.post('/front-office/shift/clock-in', { propertyId }),
+  clockOut: () => api.post('/front-office/shift/clock-out'),
+  updateAvailability: (availabilityStatus) => api.patch('/front-office/availability', { availabilityStatus }),
+};
+
+export const receptionistMonitorService = {
+  getLiveDashboard: (params) => api.get('/front-office/receptionist-monitor/live', { params }),
+  getHistoricalDashboard: (params) => api.get('/front-office/receptionist-monitor/history', { params }),
+  getReceptionistLogs: (receptionistId, params) => api.get(`/front-office/receptionist-monitor/receptionist/${receptionistId}`, { params }),
+  clockIn: (propertyId) => api.post('/front-office/shift/clock-in', { propertyId }),
+  clockOut: () => api.post('/front-office/shift/clock-out'),
+  updateAvailability: (availabilityStatus) => api.patch('/front-office/availability', { availabilityStatus }),
 };
 
 export const guestService = {

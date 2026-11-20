@@ -4,7 +4,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { frontOfficeService, reservationService, apartmentService } from '../../services/api';
+import { frontOfficeService, reservationService, apartmentService, receptionistMonitorService } from '../../services/api';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -23,9 +23,15 @@ export default function FrontOfficePage() {
   const canCheckIn = hasPermission('reservations.checkin') || hasPermission('check_in_out:write') || ['RECEPTIONIST', 'MANAGER', 'OPERATIONS_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user?.role);
   const canCheckOut = hasPermission('reservations.checkout') || hasPermission('check_in_out:write') || ['RECEPTIONIST', 'MANAGER', 'OPERATIONS_MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user?.role);
 
-  const [activeTab, setActiveTab] = useState('PENDING_APPROVAL'); // 'PENDING_APPROVAL' | 'ARRIVALS' | 'IN_HOUSE' | 'DEPARTURES' | 'HOUSEKEEPING'
+  const [activeTab, setActiveTab] = useState('ARRIVALS'); // 'ARRIVALS' | 'IN_HOUSE' | 'DEPARTURES' | 'HOUSEKEEPING' | 'SUMMARY'
   const [propertyFilter, setPropertyFilter] = useState(activePropertyId || 'all');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Receptionist shift & availability state
+  const [shiftStatus, setShiftStatus] = useState('OFF_DUTY'); // 'OFF_DUTY' | 'ON_DUTY'
+  const [shiftStartedAt, setShiftStartedAt] = useState(null);
+  const [availabilityStatus, setAvailabilityStatus] = useState('AVAILABLE'); // 'AVAILABLE' | 'BUSY' | 'AWAY'
+  const [shiftLoading, setShiftLoading] = useState(false);
 
   const [stats, setStats] = useState({
     todaysArrivals: 0,
@@ -110,9 +116,7 @@ export default function FrontOfficePage() {
       }
 
       // 4. Fetch active tab specific data
-      if (activeTab === 'PENDING_APPROVAL') {
-        setDataList(pendingRes.data || []);
-      } else if (activeTab === 'ARRIVALS') {
+      if (activeTab === 'ARRIVALS') {
         const res = await frontOfficeService.getArrivals({
           propertyId: propIdParam,
           date: selectedDate,
@@ -151,6 +155,76 @@ export default function FrontOfficePage() {
   useEffect(() => {
     loadFrontOfficeData(false);
   }, [loadFrontOfficeData]);
+
+  // Load staff shift status
+  const loadShiftStatus = useCallback(async () => {
+    try {
+      const monRes = await receptionistMonitorService.getLiveDashboard();
+      if (monRes?.success && Array.isArray(monRes.data?.receptionists)) {
+        const myRecord = monRes.data.receptionists.find((r) => r.id === user?.id);
+        if (myRecord) {
+          setShiftStatus(myRecord.shift_status || 'OFF_DUTY');
+          setShiftStartedAt(myRecord.shift_started_at);
+          setAvailabilityStatus(myRecord.availability_status || 'AVAILABLE');
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadShiftStatus();
+  }, [loadShiftStatus]);
+
+  const handleClockIn = async () => {
+    setShiftLoading(true);
+    try {
+      const pId = propertyFilter !== 'all' ? propertyFilter : activePropertyId;
+      const res = await frontOfficeService.clockIn(pId);
+      if (res?.success) {
+        setShiftStatus('ON_DUTY');
+        setShiftStartedAt(new Date().toISOString());
+        setAvailabilityStatus('AVAILABLE');
+        addToast("Clocked in successfully for today's shift!", 'success');
+        loadFrontOfficeData(true);
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to clock in.', 'error');
+    } finally {
+      setShiftLoading(false);
+    }
+  };
+
+  const handleClockOut = async () => {
+    setShiftLoading(true);
+    try {
+      const res = await frontOfficeService.clockOut();
+      if (res?.success) {
+        setShiftStatus('OFF_DUTY');
+        setShiftStartedAt(null);
+        setAvailabilityStatus('OFFLINE');
+        addToast('Clocked out successfully.', 'success');
+        loadFrontOfficeData(true);
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to clock out.', 'error');
+    } finally {
+      setShiftLoading(false);
+    }
+  };
+
+  const handleAvailabilityChange = async (newStatus) => {
+    try {
+      const res = await frontOfficeService.updateAvailability(newStatus);
+      if (res?.success) {
+        setAvailabilityStatus(newStatus);
+        addToast(`Availability updated to ${newStatus}.`, 'success');
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to update availability.', 'error');
+    }
+  };
 
   // Live polling interval (every 4 seconds) for real-time reflection
   useEffect(() => {
@@ -516,47 +590,144 @@ export default function FrontOfficePage() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
-        {/* Pending & Incoming Bookings */}
-        <div
-          onClick={() => setActiveTab('PENDING_APPROVAL')}
-          style={{
-            background: activeTab === 'PENDING_APPROVAL' ? 'rgba(234, 88, 12, 0.12)' : 'var(--bg-card)',
-            border: activeTab === 'PENDING_APPROVAL' ? '2px solid #ea580c' : '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-md)',
-            padding: '1rem',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
-              Incoming Bookings
+      {/* Receptionist Shift & Availability Status Bar */}
+      <div
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-md)',
+          padding: '0.85rem 1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              My Shift:
             </span>
-            {pendingBookings.filter(b => !b.assigned_staff_id).length > 0 && (
+            {shiftStatus === 'ON_DUTY' ? (
               <span
                 style={{
-                  background: '#ea580c',
-                  color: '#ffffff',
-                  fontSize: '0.7rem',
-                  fontWeight: 800,
-                  padding: '1px 6px',
-                  borderRadius: '10px',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid #10b981',
+                  color: '#10b981',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
                 }}
               >
-                NEW
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+                ON DUTY
+                {shiftStartedAt && (
+                  <span style={{ opacity: 0.85, fontWeight: 500 }}>
+                    ({new Date(shiftStartedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span
+                style={{
+                  background: 'rgba(148, 163, 184, 0.15)',
+                  border: '1px solid #64748b',
+                  color: '#94a3b8',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                }}
+              >
+                OFF DUTY
               </span>
             )}
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '0.25rem', color: '#ea580c' }}>
-            {pendingBookings.length}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-            {pendingBookings.filter(b => !b.assigned_staff_id).length} unassigned
-          </div>
+
+          {shiftStatus === 'ON_DUTY' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Availability:
+              </span>
+              <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-default)' }}>
+                {[
+                  { key: 'AVAILABLE', label: 'Available', bg: '#10b981' },
+                  { key: 'BUSY', label: 'Busy', bg: '#f59e0b' },
+                  { key: 'AWAY', label: 'Away', bg: '#ef4444' },
+                ].map((st) => (
+                  <button
+                    key={st.key}
+                    onClick={() => handleAvailabilityChange(st.key)}
+                    style={{
+                      border: 'none',
+                      padding: '4px 10px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      background: availabilityStatus === st.key ? st.bg : 'var(--bg-surface)',
+                      color: availabilityStatus === st.key ? '#ffffff' : 'var(--text-secondary)',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {shiftStatus === 'OFF_DUTY' ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleClockIn}
+              loading={shiftLoading}
+              style={{ background: '#10b981', borderColor: '#10b981', fontWeight: 700 }}
+            >
+              ▶ Clock In for Shift
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClockOut}
+              loading={shiftLoading}
+            >
+              ⏹ Clock Out
+            </Button>
+          )}
+
+          {pendingBookings.length > 0 && (
+            <div
+              style={{
+                background: 'rgba(234, 88, 12, 0.12)',
+                border: '1px solid #ea580c',
+                color: '#ea580c',
+                padding: '4px 12px',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>🔔 {pendingBookings.length} Alert(s) in Modal Queue</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1rem' }}>
         {/* Arrivals */}
         <div
           onClick={() => setActiveTab('ARRIVALS')}
@@ -649,7 +820,6 @@ export default function FrontOfficePage() {
       {/* Main Tabs Navigation */}
       <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-default)', paddingBottom: '0.5rem', overflowX: 'auto' }}>
         {[
-          { key: 'PENDING_APPROVAL', label: 'Incoming Bookings & Approvals', count: pendingBookings.length, highlight: pendingBookings.filter(b => !b.assigned_staff_id).length > 0 },
           { key: 'ARRIVALS', label: "Today's Arrivals", count: stats.todaysArrivals },
           { key: 'IN_HOUSE', label: 'Current In-House Guests', count: stats.inHouseGuests },
           { key: 'DEPARTURES', label: "Today's Departures", count: stats.todaysDepartures },
@@ -697,348 +867,6 @@ export default function FrontOfficePage() {
           {loading ? (
             <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               Loading authoritative front-office records...
-            </div>
-          ) : activeTab === 'PENDING_APPROVAL' ? (
-            /* Incoming & Pending Bookings List (PB1 — Receptionist Claim Desk) */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {/* Shift Handover & Supervisor Reassignment Policy Notice */}
-              <div
-                style={{
-                  padding: '0.65rem 0.85rem',
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '6px',
-                  fontSize: '0.78rem',
-                  color: '#475569',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                }}
-              >
-                <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
-                <div>
-                  <strong>Staff Assignment & Shift Claim Policy:</strong> Each incoming booking is claimed exclusively by one front desk officer to prevent duplicate communication.
-                  <em> Note: Automated shift handover and supervisor reassignment endpoints are deferred to backend Stage 2.6B; manual reassignment currently requires manager/admin action.</em>
-                </div>
-              </div>
-
-              {/* Search & Filter Controls */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '0.75rem',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '0.75rem',
-                  backgroundColor: 'var(--bg-card-hover)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                }}
-              >
-                <div style={{ display: 'flex', gap: '0.5rem', flex: 1, minWidth: '240px' }}>
-                  <input
-                    type="text"
-                    placeholder="Search by guest, booking code, unit, property..."
-                    value={claimSearch}
-                    onChange={(e) => setClaimSearch(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.45rem 0.75rem',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-default)',
-                      fontSize: '0.82rem',
-                      backgroundColor: 'var(--bg-card)',
-                      color: 'var(--text-primary)',
-                    }}
-                  />
-                  {claimSearch && (
-                    <Button variant="ghost" size="sm" onClick={() => setClaimSearch('')}>
-                      Clear
-                    </Button>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Filter:</span>
-                  {[
-                    { id: 'ALL', label: `All (${pendingBookings.length})` },
-                    { id: 'UNASSIGNED', label: `Unassigned (${pendingBookings.filter((p) => !p.assigned_staff_id).length})` },
-                    { id: 'CLAIMED_BY_ME', label: `Claimed by Me (${pendingBookings.filter((p) => p.assigned_staff_id === user?.id).length})` },
-                    { id: 'LOCKED_TO_OTHERS', label: `Locked to Others (${pendingBookings.filter((p) => p.assigned_staff_id && p.assigned_staff_id !== user?.id).length})` },
-                  ].map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setClaimFilter(f.id)}
-                      style={{
-                        padding: '0.3rem 0.65rem',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        fontWeight: claimFilter === f.id ? 700 : 500,
-                        border: '1px solid',
-                        borderColor: claimFilter === f.id ? 'var(--brand-accent)' : 'var(--border-default)',
-                        backgroundColor: claimFilter === f.id ? 'var(--brand-accent)' : 'transparent',
-                        color: claimFilter === f.id ? '#ffffff' : 'var(--text-secondary)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {filteredPendingBookings.length === 0 ? (
-                <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✨</div>
-                  <strong>
-                    {pendingBookings.length === 0
-                      ? 'No pending bookings in queue!'
-                      : 'No bookings match current search / filter criteria.'}
-                  </strong>
-                  <p style={{ fontSize: '0.85rem', margin: '0.25rem 0 0 0', color: 'var(--text-secondary)' }}>
-                    {pendingBookings.length === 0
-                      ? 'When someone books an apartment online or walk-in, it reflects here immediately for front desk acceptance.'
-                      : 'Try clearing the search query or selecting a different assignment filter.'}
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <div style={{ padding: '0.25rem 0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                      Showing {filteredPendingBookings.length} of {pendingBookings.length} booking(s) in Claim Desk
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Auto-refreshed: {lastRefreshedAt.toLocaleTimeString()}
-                    </span>
-                  </div>
-
-                  {filteredPendingBookings.map((row) => {
-                  const isUnitAvailable = ['AVAILABLE', 'READY'].includes(row.unit_status);
-                  const isAssigned = !!row.assigned_staff_id;
-                  const isAssignedToMe = row.assigned_staff_id === user?.id;
-                  const isUnitMaintenance = ['MAINTENANCE', 'BLOCKED', 'OUT_OF_SERVICE'].includes(row.unit_status);
-
-                  return (
-                    <div
-                      key={row.id}
-                      style={{
-                        padding: '1rem',
-                        background: isAssignedToMe ? 'rgba(34, 197, 94, 0.04)' : isAssigned ? 'var(--bg-card)' : 'rgba(234, 88, 12, 0.03)',
-                        border: isAssignedToMe ? '1px solid rgba(34, 197, 94, 0.3)' : isAssigned ? '1px solid var(--border-default)' : '1px solid rgba(234, 88, 12, 0.4)',
-                        borderRadius: 'var(--radius-md)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '0.75rem',
-                      }}
-                    >
-                      {/* Guest and Booking Info */}
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <span
-                            style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--brand-accent)', cursor: 'pointer' }}
-                            onClick={() => navigate(`/app/guests?search=${encodeURIComponent(row.tenant_name)}`)}
-                            title="View Guest Profile"
-                          >
-                            👤 {row.tenant_name}
-                          </span>
-                          <Badge status={row.status}>{row.status}</Badge>
-
-                          {/* Unit status indicator */}
-                          <span
-                            style={{
-                              fontSize: '0.75rem',
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              fontWeight: 600,
-                              backgroundColor: isUnitAvailable ? 'rgba(34, 197, 94, 0.15)' : isUnitMaintenance ? 'rgba(239, 68, 68, 0.15)' : 'rgba(234, 88, 12, 0.15)',
-                              color: isUnitAvailable ? '#15803d' : isUnitMaintenance ? '#b91c1c' : '#c2410c',
-                            }}
-                          >
-                            Unit {row.unit_number}: {row.unit_status || 'UNKNOWN'}
-                          </span>
-
-                          <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            Code: {row.confirmation_code || row.reservation_code || row.id}
-                          </span>
-                        </div>
-
-                        <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>
-                          <strong>{row.property_name}</strong> • Unit {row.unit_number} ({row.unit_type})
-                          {' • '}Stay: <strong>{row.check_in_date}</strong> → <strong>{row.check_out_date}</strong>
-                        </div>
-
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span>📞 {row.tenant_phone}</span>
-                          <span>Total: <strong>{formatNaira(row.total_amount)}</strong></span>
-                          <span>Paid: {formatNaira(row.paid_amount)}</span>
-
-                          {/* Payment method pill */}
-                          <span
-                            style={{
-                              fontSize: '0.72rem',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              background: row.payment_method === 'BANK_TRANSFER' ? '#eff6ff' : '#fefce8',
-                              color: row.payment_method === 'BANK_TRANSFER' ? '#1e40af' : '#854d0e',
-                              fontWeight: 700,
-                            }}
-                          >
-                            {row.payment_method === 'BANK_TRANSFER' ? '🏦 Bank Transfer' : '🛎️ Pay at Property'}
-                          </span>
-
-                          {/* Proof Status & Quick Preview */}
-                          {row.payment_proof_path ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setProofPreviewReservation(row);
-                                setIsProofModalOpen(true);
-                              }}
-                              style={{
-                                fontSize: '0.72rem',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                background: '#dcfce7',
-                                color: '#166534',
-                                border: '1px solid #86efac',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              📄 View Bank Slip ↗
-                            </button>
-                          ) : (
-                            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                              (No Slip Uploaded)
-                            </span>
-                          )}
-
-                          {/* Staff Assignment Attribution */}
-                          {isAssigned ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ color: isAssignedToMe ? '#16a34a' : '#2563eb', fontWeight: 600 }}>
-                                {isAssignedToMe ? '✓ Claimed by You' : `🔒 Claimed by: ${row.assigned_staff_name || 'Staff #' + row.assigned_staff_id}`}
-                                {row.assigned_staff_email ? ` (${row.assigned_staff_email})` : ''}
-                              </span>
-                              {row.claimed_at && (
-                                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                                  Claimed at: {new Date(row.claimed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#ea580c', fontWeight: 600 }}>
-                              ⚠️ Unassigned (Awaiting Front Desk Claim)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <Button variant="outline" size="sm" onClick={() => handleViewDetails(row)}>
-                          View Details
-                        </Button>
-
-                        {/* Front Desk Claim / Approval Workflow */}
-                        {!isAssigned ? (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            disabled={isUnitMaintenance || actionLoadingId === row.id}
-                            loading={actionLoadingId === row.id}
-                            onClick={() => handleClaimBooking(row.id)}
-                            style={{
-                              backgroundColor: isUnitMaintenance ? 'var(--text-muted)' : '#ea580c',
-                              borderColor: isUnitMaintenance ? 'var(--border-default)' : '#ea580c',
-                            }}
-                            title="Claim this incoming reservation and take ownership of verification."
-                          >
-                            {isUnitMaintenance ? `Unit ${row.unit_status}` : '✋ Claim Booking'}
-                          </Button>
-                        ) : isAssignedToMe ? (
-                          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                            {row.status !== 'CONFIRMED' ? (
-                              <>
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  disabled={actionLoadingId === row.id}
-                                  loading={actionLoadingId === row.id}
-                                  onClick={() => handleApproveBooking(row.id)}
-                                  style={{ backgroundColor: '#16a34a', borderColor: '#16a34a' }}
-                                  title="Confirm payment on bank statement and release official check-in passcode."
-                                >
-                                  ✓ Verify & Approve
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={actionLoadingId === row.id}
-                                  onClick={() => {
-                                    setDeclineModalReservation(row);
-                                    setDeclineReason('TRANSFER_NOT_FOUND');
-                                    setDeclineNotes('');
-                                  }}
-                                  style={{ color: '#dc2626', borderColor: '#fca5a5' }}
-                                  title="Decline transfer verification with a structured reason."
-                                >
-                                  ✕ Decline
-                                </Button>
-                              </>
-                            ) : (
-                              <span
-                                style={{
-                                  fontSize: '0.8rem',
-                                  fontWeight: 600,
-                                  color: '#16a34a',
-                                  background: 'rgba(22, 163, 74, 0.1)',
-                                  padding: '0.4rem 0.75rem',
-                                  borderRadius: 'var(--radius-md)',
-                                }}
-                              >
-                                ✓ Approved & Verified
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: '0.8rem',
-                              fontWeight: 600,
-                              color: 'var(--text-muted)',
-                              background: 'var(--bg-surface)',
-                              border: '1px solid var(--border-default)',
-                              padding: '0.4rem 0.75rem',
-                              borderRadius: 'var(--radius-md)',
-                            }}
-                            title="One client cannot be assigned to two front desk staffs"
-                          >
-                            🔒 Locked to {row.assigned_staff_name || 'Another Staff'}
-                          </span>
-                        )}
-
-                        {/* Check-In if approved and today is check-in (PB3 Safe Check-in) */}
-                        {row.status === 'CONFIRMED' && canCheckIn && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleCheckIn(row)}
-                            loading={actionLoadingId === row.id}
-                          >
-                            🛎 Check-In
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                </div>
-              )}
             </div>
           ) : activeTab === 'HOUSEKEEPING' ? (
             /* Housekeeping Queue Table */

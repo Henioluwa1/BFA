@@ -170,6 +170,37 @@ class PropertiesController {
       next(err);
     }
   }
+
+  static async getHierarchy(req, res, next) {
+    try {
+      const hierarchy = await PropertiesService.getPropertyHierarchy(
+        parseInt(req.params.id, 10),
+        req.user
+      );
+      return ApiResponse.success(res, {
+        message: 'Property hierarchy retrieved successfully',
+        data: hierarchy,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async submitForApproval(req, res, next) {
+    try {
+      const result = await PropertiesService.submitForApproval(
+        parseInt(req.params.id, 10),
+        req.user,
+        req
+      );
+      return ApiResponse.success(res, {
+        message: 'Property submitted for executive approval successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = PropertiesController;

@@ -10,6 +10,7 @@ const { ValidationError, ConflictError, NotFoundError, ForbiddenError, BadReques
 const logger = require('../../utils/logger');
 const { broadcastOperationalEvent } = require('../../core/socket/socketEmitter');
 const EmployeesRepository = require('../employees/employees.repository');
+const ReceptionistMonitorService = require('../frontOffice/receptionistMonitor.service');
 
 /**
  * Deadlock retry helper with jitter for high-concurrency reservation operations
@@ -496,6 +497,35 @@ class ReservationsService {
       }, {
         propertyId: createdReservation?.property_id,
       });
+
+      // Global Booking Alert Event for Receptionist Modal
+      broadcastOperationalEvent('booking:new_alert', {
+        id: reservationId,
+        reservationCode: createdReservation?.reservation_code,
+        tenantName: createdReservation?.tenant_name,
+        tenantEmail: createdReservation?.tenant_email,
+        tenantPhone: createdReservation?.tenant_phone,
+        propertyId: createdReservation?.property_id,
+        propertyName: createdReservation?.property_name,
+        apartmentId: createdReservation?.apartment_id,
+        unitNumber: createdReservation?.unit_number,
+        unitName: createdReservation?.unit_name,
+        checkInDate: createdReservation?.check_in_date,
+        checkOutDate: createdReservation?.check_out_date,
+        totalAmount: createdReservation?.total_amount,
+        status: createdReservation?.status,
+        paymentStatus: createdReservation?.payment_status,
+        createdAt: createdReservation?.created_at,
+      }, {
+        propertyId: createdReservation?.property_id,
+      });
+
+      // Record daily monitor metric for alerts received
+      if (createdReservation?.property_id) {
+        ReceptionistMonitorService.recordBookingAlert(createdReservation.property_id, reservationId).catch((err) => {
+          logger.warn('Failed to record monitor booking alert metric:', { error: err.message });
+        });
+      }
     } catch (bcErr) {
       logger.warn('Failed to broadcast new booking event:', { error: bcErr.message });
     }
@@ -1074,6 +1104,8 @@ class ReservationsService {
           description: `Checked in guest ${postCommitData.tenantName} (${postCommitData.reservationCode}) to Unit ${postCommitData.unitName}`,
           metadata: { reservation_code: postCommitData.reservationCode, apartment_id: postCommitData.apartmentId }
         }).catch((err) => logger.warn('Check-in employee activity record failed:', { error: err.message }));
+
+        ReceptionistMonitorService.recordCheckIn(postCommitData.userId, postCommitData.propertyId).catch(() => {});
       }
     }
 
@@ -1206,6 +1238,8 @@ class ReservationsService {
           description: `Checked out guest ${postCommitData.tenantName} (${postCommitData.reservationCode})`,
           metadata: { reservation_code: postCommitData.reservationCode, apartment_id: postCommitData.apartmentId }
         }).catch((err) => logger.warn('Check-out employee activity record failed:', { error: err.message }));
+
+        ReceptionistMonitorService.recordCheckOut(postCommitData.userId, postCommitData.propertyId).catch(() => {});
       }
     }
 
@@ -1502,7 +1536,29 @@ class ReservationsService {
         newValues: { assigned_staff_id: userId, status: newStatus },
       });
 
-      return ReservationsRepository.findById(id, conn);
+      const claimedReservation = await ReservationsRepository.findById(id, conn);
+
+      // Post-commit side-effects: metrics & socket broadcast
+      const responseTimeSeconds = Math.max(1, Math.round((Date.now() - new Date(reservation.created_at).getTime()) / 1000));
+      ReceptionistMonitorService.recordBookingClaim(userId, reservation.property_id, responseTimeSeconds).catch((err) => {
+        logger.warn('Failed to record monitor booking claim:', { error: err.message });
+      });
+
+      try {
+        broadcastOperationalEvent('booking:claimed', {
+          reservationId: id,
+          claimedByUserId: userId,
+          claimedByName: req?.user?.name || 'Receptionist',
+          propertyId: reservation.property_id,
+          reservationCode: reservation.reservation_code,
+        }, {
+          propertyId: reservation.property_id,
+        });
+      } catch (claimBcErr) {
+        logger.warn('Failed to broadcast booking:claimed event:', { error: claimBcErr.message });
+      }
+
+      return claimedReservation;
     });
   }
 

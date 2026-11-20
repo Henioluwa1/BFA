@@ -10,6 +10,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { formatNaira } from '../../utils/currency';
 import PropertyMediaManager from '../../components/properties/PropertyMediaManager';
+import PropertyUploadWizard from '../../components/properties/PropertyUploadWizard';
+import PropertyApprovalReviewModal from '../../components/properties/PropertyApprovalReviewModal';
 import { Building, Layers, Image as ImageIcon } from '../../components/ui/Icons';
 
 export default function PropertiesPage() {
@@ -19,7 +21,7 @@ export default function PropertiesPage() {
   const { user, isSuperAdmin } = useAuth();
   const { addToast } = useToast();
 
-  const canManageProperties = ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(user?.role);
+  const canManageProperties = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(user?.role);
 
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
@@ -41,6 +43,11 @@ export default function PropertiesPage() {
   const [editModalTab, setEditModalTab] = useState('INFO');
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
+
+  // Property Upload Wizard & Approval Governance Modals
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [reviewProperty, setReviewProperty] = useState(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   // Property units quick view modal
   const [unitsModalProperty, setUnitsModalProperty] = useState(null);
@@ -316,9 +323,23 @@ export default function PropertiesPage() {
             View All Units
           </Button>
           {canManageProperties && (
-            <Button variant="primary" onClick={handleOpenAdd}>
-              + Add Property
-            </Button>
+            <>
+              <Button
+                variant="primary"
+                onClick={() => setIsWizardOpen(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(212, 175, 55, 0.3)',
+                }}
+              >
+                ⚡ Structure & Upload Property
+              </Button>
+              <Button variant="outline" onClick={handleOpenAdd}>
+                + Quick Property
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -609,6 +630,18 @@ export default function PropertiesPage() {
                       style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
                     >
                       📷 Gallery
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setReviewProperty(prop);
+                        setIsReviewModalOpen(true);
+                      }}
+                      title="Dual-Review Executive Governance & Publication Gate"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', borderColor: '#d4af37', color: '#d4af37' }}
+                    >
+                      🛡️ Review / Publish
                     </Button>
                     {canManageProperties && (
                       <>
@@ -1273,6 +1306,28 @@ export default function PropertiesPage() {
           />
         )}
       </Modal>
+
+      {/* Property Upload Wizard (3-Level Hierarchy) */}
+      {isWizardOpen && (
+        <PropertyUploadWizard
+          isOpen={isWizardOpen}
+          onClose={() => setIsWizardOpen(false)}
+          onSuccess={() => refreshProperties()}
+        />
+      )}
+
+      {/* Property Approval & Review Modal */}
+      {isReviewModalOpen && reviewProperty && (
+        <PropertyApprovalReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => {
+            setIsReviewModalOpen(false);
+            setReviewProperty(null);
+          }}
+          property={reviewProperty}
+          onSuccess={() => refreshProperties()}
+        />
+      )}
     </div>
   );
 }

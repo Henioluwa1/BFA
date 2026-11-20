@@ -79,8 +79,8 @@ class PropertiesRepository {
       INSERT INTO properties (
         name, code, address, city, state, country, description,
         contact_phone, contact_email, status, operational_status,
-        check_in_time, check_out_time, amenities, notes, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        check_in_time, check_out_time, amenities, notes, environment_description, category, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const params = [
       data.name.trim(),
@@ -92,12 +92,14 @@ class PropertiesRepository {
       data.description || null,
       data.contact_phone || null,
       data.contact_email || null,
-      data.status || 'ACTIVE',
+      data.status || 'DRAFT',
       data.operational_status || 'OPERATIONAL',
       data.check_in_time || '14:00',
       data.check_out_time || '11:00',
-      data.amenities ? JSON.stringify(data.amenities) : null,
+      data.amenities ? (typeof data.amenities === 'string' ? data.amenities : JSON.stringify(data.amenities)) : null,
       data.notes || null,
+      data.environment_description || null,
+      data.category || 'RESIDENTIAL',
       data.created_by || null,
     ];
 
@@ -115,13 +117,16 @@ class PropertiesRepository {
     const allowed = [
       'name', 'address', 'city', 'state', 'country', 'description',
       'contact_phone', 'contact_email', 'status', 'operational_status',
-      'check_in_time', 'check_out_time', 'amenities', 'notes', 'is_archived', 'updated_by'
+      'check_in_time', 'check_out_time', 'amenities', 'notes', 'is_archived',
+      'environment_description', 'category', 'published_at', 'published_by_id',
+      'admin_approved_at', 'admin_approved_by_id', 'owner_approved_at', 'owner_approved_by_id',
+      'rejection_reason', 'updated_by'
     ];
 
     for (const key of allowed) {
       if (data[key] !== undefined) {
         fields.push(`${key} = ?`);
-        params.push(key === 'amenities' && data[key] ? JSON.stringify(data[key]) : data[key]);
+        params.push(key === 'amenities' && data[key] ? (typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key])) : data[key]);
       }
     }
 

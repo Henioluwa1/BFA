@@ -22,11 +22,13 @@ router.delete('/:id/media/:mediaId', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_
 
 router.get('/', PropertiesController.getAll);
 router.get('/:id', PropertiesController.getById);
+router.get('/:id/hierarchy', PropertiesController.getHierarchy);
 router.get('/:id/apartments', PropertiesController.getApartments);
 
-// Administrative modification routes
-router.post('/', requireRoles('ADMIN', 'OWNER', 'SUPER_ADMIN'), PropertiesController.create);
-router.put('/:id', requireRoles('ADMIN', 'OWNER', 'SUPER_ADMIN'), PropertiesController.update);
-router.patch('/:id/status', requireRoles('ADMIN', 'OWNER', 'SUPER_ADMIN'), PropertiesController.updateStatus);
+// Operational creation and modification routes
+router.post('/', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.create);
+router.put('/:id', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.update);
+router.patch('/:id/status', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.updateStatus);
+router.post('/:id/submit-approval', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.submitForApproval);
 
 module.exports = router;

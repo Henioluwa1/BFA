@@ -63,6 +63,7 @@ const DesignSystemPage = lazy(() => import('./pages/landing/DesignSystemPage'));
 // Lazy-Loaded Authenticated Pages
 const DashboardPage = lazy(() => import('./pages/portal/DashboardPage'));
 const FrontOfficePage = lazy(() => import('./pages/portal/FrontOfficePage'));
+const ReceptionistLiveMonitorPage = lazy(() => import('./pages/portal/ReceptionistLiveMonitorPage'));
 const CalendarPage = lazy(() => import('./pages/portal/CalendarPage'));
 const ReservationsPage = lazy(() => import('./pages/portal/ReservationsPage'));
 const GuestsPage = lazy(() => import('./pages/portal/GuestsPage'));
@@ -123,6 +124,7 @@ function App() {
                       <Route path="dashboard" element={<DashboardPage />} />
                       <Route path="properties" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><PropertiesPage /></ProtectedRoute>} />
                       <Route path="front-office" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST']}><FrontOfficePage /></ProtectedRoute>} />
+                      <Route path="receptionist-monitor" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><ReceptionistLiveMonitorPage /></ProtectedRoute>} />
                       <Route path="calendar" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'AGENT']}><CalendarPage /></ProtectedRoute>} />
                       <Route path="reservations" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'AGENT']}><ReservationsPage /></ProtectedRoute>} />
                       <Route path="guests" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST']}><GuestsPage /></ProtectedRoute>} />
@@ -163,6 +165,7 @@ function App() {
                   {/* Legacy / Direct Route Compatibility Redirects */}
                   <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
                   <Route path="/front-office" element={<Navigate to="/app/front-office" replace />} />
+                  <Route path="/receptionist-monitor" element={<Navigate to="/app/receptionist-monitor" replace />} />
                   <Route path="/calendar" element={<Navigate to="/app/calendar" replace />} />
                   <Route path="/reservations" element={<Navigate to="/app/reservations" replace />} />
                   <Route path="/guests" element={<Navigate to="/app/guests" replace />} />

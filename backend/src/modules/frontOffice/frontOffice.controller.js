@@ -49,6 +49,18 @@ class FrontOfficeController {
     }
   }
 
+  static async getUnclaimedBookings(req, res, next) {
+    try {
+      const unclaimed = await FrontOfficeService.getUnclaimedBookings(req.query, req);
+      res.status(200).json({
+        success: true,
+        data: unclaimed,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async getLiveOperationalFeed(req, res, next) {
     try {
       const feed = await FrontOfficeService.getLiveOperationalFeed(req.query, req);

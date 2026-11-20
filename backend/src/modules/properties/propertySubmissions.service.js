@@ -261,6 +261,34 @@ class PropertySubmissionsService {
     params.push(id);
     await pool.query(`UPDATE property_submissions SET ${updates.join(', ')} WHERE id = ?`, params);
 
+    // Sync review status to properties table
+    const propUpdates = [];
+    const propParams = [];
+
+    if (isReviewingAsOwner && action === 'APPROVED') {
+      propUpdates.push('owner_approved_at = NOW()', 'owner_approved_by_id = ?');
+      propParams.push(user.id);
+    } else if (!isReviewingAsOwner && action === 'APPROVED') {
+      propUpdates.push('admin_approved_at = NOW()', 'admin_approved_by_id = ?');
+      propParams.push(user.id);
+    }
+
+    if (overallStatus === 'FULLY_APPROVED') {
+      propUpdates.push('status = ?');
+      propParams.push('APPROVED');
+    } else if (overallStatus === 'REJECTED') {
+      propUpdates.push('status = ?', 'rejection_reason = ?');
+      propParams.push('REJECTED', decisionNotes || 'Submission rejected during review');
+    } else if (overallStatus === 'CHANGES_REQUESTED') {
+      propUpdates.push('status = ?', 'rejection_reason = ?');
+      propParams.push('CHANGES_REQUESTED', decisionNotes || 'Changes requested during review');
+    }
+
+    if (propUpdates.length > 0) {
+      propParams.push(submission.property_id);
+      await pool.query(`UPDATE properties SET ${propUpdates.join(', ')} WHERE id = ?`, propParams);
+    }
+
     // If targeted comment provided, record it
     if (commentTargetType && commentContent.trim()) {
       await pool.query(
@@ -353,8 +381,12 @@ class PropertySubmissionsService {
 
     // Mark associated media assets as published
     await pool.query(
-      'UPDATE media_assets SET is_published = 1 WHERE submission_id = ?',
-      [id]
+      `UPDATE media_assets SET is_published = 1 
+       WHERE (entity_type = 'PROPERTY' AND entity_id = ?)
+          OR (entity_type = 'APARTMENT' AND entity_id IN (SELECT id FROM apartments WHERE property_id = ?))
+          OR (entity_type = 'INTERNAL_SPACE' AND internal_space_id IN (SELECT id FROM apartment_internal_spaces WHERE property_id = ?))
+          OR submission_id = ?`,
+      [submission.property_id, submission.property_id, submission.property_id, id]
     );
 
     // Mark submission published
@@ -363,6 +395,14 @@ class PropertySubmissionsService {
        SET status = 'PUBLISHED', published_at = NOW(), published_by_id = ?
        WHERE id = ?`,
       [user.id, id]
+    );
+
+    // Update property table to PUBLISHED
+    await pool.query(
+      `UPDATE properties 
+       SET status = 'PUBLISHED', published_at = NOW(), published_by_id = ?
+       WHERE id = ?`,
+      [user.id, submission.property_id]
     );
 
     const published = await this.getSubmissionById(id, user);

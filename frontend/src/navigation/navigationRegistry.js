@@ -58,6 +58,14 @@ export const ROUTES = [
     aliases: ['front desk', 'front office', 'daily front desk', 'reception', 'reception desk', 'check in desk', 'open front desk', 'front office desk'],
   },
   {
+    routeId: 'receptionist_monitor',
+    path: '/app/receptionist-monitor',
+    displayName: 'Receptionist Live Monitor',
+    moduleGroup: 'FRONT_OFFICE_BOOKINGS',
+    permittedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OWNER'],
+    aliases: ['receptionist monitor', 'live monitor', 'receptionist performance', 'front desk monitor', 'reception speed', 'claim monitor'],
+  },
+  {
     routeId: 'reservations',
     path: '/app/reservations',
     displayName: 'All Reservations',

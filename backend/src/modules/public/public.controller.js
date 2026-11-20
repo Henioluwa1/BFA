@@ -25,16 +25,20 @@ async function getPublicProperties(req, res, next) {
         p.state,
         p.country,
         p.description,
+        p.environment_description,
+        p.category,
         p.amenities,
         p.check_in_time,
         p.check_out_time,
         p.status,
+        (SELECT file_url FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = p.id AND is_published = 1 ORDER BY is_primary DESC, id ASC LIMIT 1) AS primary_photo_url,
+        (SELECT COUNT(*) FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = p.id AND is_published = 1) AS photo_count,
         COUNT(a.id) AS total_units,
         COUNT(CASE WHEN a.status = 'AVAILABLE' AND a.is_active = 1 THEN a.id END) AS available_units,
         MIN(a.rate_per_night) AS starting_rate
       FROM properties p
       LEFT JOIN apartments a ON p.id = a.property_id
-      WHERE p.status = 'ACTIVE'
+      WHERE p.status IN ('ACTIVE', 'PUBLISHED')
       GROUP BY p.id
       ORDER BY p.id ASC
     `);
@@ -82,7 +86,7 @@ async function getPublicApartments(req, res, next) {
         a.status
       FROM apartments a
       JOIN properties p ON a.property_id = p.id
-      WHERE p.status = 'ACTIVE'
+      WHERE p.status IN ('ACTIVE', 'PUBLISHED')
     `;
     const params = [];
 
@@ -137,6 +141,8 @@ async function getPublicPropertyDetail(req, res, next) {
         p.state,
         p.country,
         p.description,
+        p.environment_description,
+        p.category,
         p.contact_phone,
         p.contact_email,
         p.amenities,
@@ -144,7 +150,7 @@ async function getPublicPropertyDetail(req, res, next) {
         p.check_out_time,
         p.status
       FROM properties p 
-      WHERE p.id = ? AND p.status = 'ACTIVE'`,
+      WHERE p.id = ? AND p.status IN ('ACTIVE', 'PUBLISHED')`,
       [propertyId]
     );
 
@@ -152,11 +158,21 @@ async function getPublicPropertyDetail(req, res, next) {
       throw new NotFoundError('Property not found or is currently not active for public booking.');
     }
 
+    // Property-level published media
+    const propMedia = await db.query(
+      `SELECT id, category, file_name, file_url, mime_type, caption, display_order, is_primary
+       FROM media_assets 
+       WHERE entity_type = 'PROPERTY' AND entity_id = ? AND is_published = 1
+       ORDER BY is_primary DESC, display_order ASC, id ASC`,
+      [propertyId]
+    );
+
     const property = {
       ...propRows[0],
       amenities: typeof propRows[0].amenities === 'string' ? (() => {
         try { return JSON.parse(propRows[0].amenities); } catch { return []; }
       })() : (propRows[0].amenities || []),
+      photos: propMedia || [],
     };
 
     const unitRows = await db.query(
@@ -179,11 +195,70 @@ async function getPublicPropertyDetail(req, res, next) {
       [propertyId]
     );
 
+    const unitIds = unitRows.map((u) => u.id);
+    let unitMediaMap = {};
+    let unitSpacesMap = {};
+
+    if (unitIds.length > 0) {
+      const placeholders = unitIds.map(() => '?').join(', ');
+      const unitMediaRows = await db.query(
+        `SELECT id, entity_id, category, file_name, file_url, caption, display_order, is_primary
+         FROM media_assets
+         WHERE entity_type = 'APARTMENT' AND entity_id IN (${placeholders}) AND is_published = 1
+         ORDER BY is_primary DESC, display_order ASC, id ASC`,
+        unitIds
+      );
+      for (const m of unitMediaRows) {
+        if (!unitMediaMap[m.entity_id]) unitMediaMap[m.entity_id] = [];
+        unitMediaMap[m.entity_id].push(m);
+      }
+
+      // Internal Spaces for units
+      const spacesRows = await db.query(
+        `SELECT s.id, s.apartment_id, s.property_id, s.space_type, s.name, s.description, s.amenities, s.display_order
+         FROM apartment_internal_spaces s
+         WHERE s.apartment_id IN (${placeholders})
+         ORDER BY s.display_order ASC, s.id ASC`,
+        unitIds
+      );
+
+      const spaceIds = spacesRows.map((s) => s.id);
+      let spaceMediaMap = {};
+      if (spaceIds.length > 0) {
+        const spacePlaceholders = spaceIds.map(() => '?').join(', ');
+        const spaceMediaRows = await db.query(
+          `SELECT id, internal_space_id, category, file_name, file_url, caption, display_order, is_primary
+           FROM media_assets
+           WHERE entity_type = 'INTERNAL_SPACE' AND internal_space_id IN (${spacePlaceholders}) AND is_published = 1
+           ORDER BY is_primary DESC, display_order ASC, id ASC`,
+          spaceIds
+        );
+        for (const sm of spaceMediaRows) {
+          if (!spaceMediaMap[sm.internal_space_id]) spaceMediaMap[sm.internal_space_id] = [];
+          spaceMediaMap[sm.internal_space_id].push(sm);
+        }
+      }
+
+      for (const s of spacesRows) {
+        const parsedSpace = {
+          ...s,
+          amenities: typeof s.amenities === 'string' ? (() => {
+            try { return JSON.parse(s.amenities); } catch { return []; }
+          })() : (s.amenities || []),
+          photos: spaceMediaMap[s.id] || [],
+        };
+        if (!unitSpacesMap[s.apartment_id]) unitSpacesMap[s.apartment_id] = [];
+        unitSpacesMap[s.apartment_id].push(parsedSpace);
+      }
+    }
+
     const units = unitRows.map((u) => ({
       ...u,
       amenities: typeof u.amenities === 'string' ? (() => {
         try { return JSON.parse(u.amenities); } catch { return []; }
       })() : (u.amenities || []),
+      photos: unitMediaMap[u.id] || [],
+      internal_spaces: unitSpacesMap[u.id] || [],
     }));
 
     // Group units into Room Types

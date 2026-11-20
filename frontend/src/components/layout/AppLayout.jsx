@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import ErrorBoundary from '../ui/ErrorBoundary';
+import GlobalBookingAlertModal from '../frontOffice/GlobalBookingAlertModal';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AppLayout() {
@@ -29,6 +30,7 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell">
+      <GlobalBookingAlertModal />
       <Sidebar
         collapsed={collapsed}
         setCollapsed={setCollapsed}

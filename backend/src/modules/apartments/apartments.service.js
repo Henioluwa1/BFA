@@ -1,5 +1,6 @@
 const ApartmentsRepository = require('./apartments.repository');
 const PropertiesRepository = require('../properties/properties.repository');
+const PropertiesService = require('../properties/properties.service');
 const AuditService = require('../../core/audit/audit.service');
 const pool = require('../../db/pool');
 const { ValidationError, ConflictError, NotFoundError, ForbiddenError } = require('../../core/errors/apiError');
@@ -115,6 +116,8 @@ class ApartmentsService {
       },
     });
 
+    await PropertiesService.invalidatePropertyApproval(created.property_id, 'New unit added');
+
     return created;
   }
 
@@ -169,6 +172,8 @@ class ApartmentsService {
       oldValues: { unitName: unit.unit_name, unitNumber: unit.unit_number, rate: unit.rate_per_night },
       newValues: { unitName: updated.unit_name, unitNumber: updated.unit_number, rate: updated.rate_per_night },
     });
+
+    await PropertiesService.invalidatePropertyApproval(unit.property_id, 'Unit configuration updated');
 
     return updated;
   }
