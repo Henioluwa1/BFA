@@ -158,20 +158,31 @@ export default function FrontOfficePage() {
 
   // Load staff shift status
   const loadShiftStatus = useCallback(async () => {
+    if (!user?.id) return;
     try {
-      const monRes = await receptionistMonitorService.getLiveDashboard();
-      if (monRes?.success && Array.isArray(monRes.data?.receptionists)) {
-        const myRecord = monRes.data.receptionists.find((r) => r.id === user?.id);
-        if (myRecord) {
-          setShiftStatus(myRecord.shift_status || 'OFF_DUTY');
-          setShiftStartedAt(myRecord.shift_started_at);
-          setAvailabilityStatus(myRecord.availability_status || 'AVAILABLE');
+      if (['ADMIN', 'SUPER_ADMIN', 'OPERATIONS_MANAGER', 'MANAGER'].includes(user?.role)) {
+        const monRes = await receptionistMonitorService.getLiveDashboard();
+        if (monRes?.success && Array.isArray(monRes.data?.receptionists)) {
+          const myRecord = monRes.data.receptionists.find((r) => r.id === user?.id);
+          if (myRecord) {
+            setShiftStatus(myRecord.shift_status || 'OFF_DUTY');
+            setShiftStartedAt(myRecord.shift_started_at);
+            setAvailabilityStatus(myRecord.availability_status || 'AVAILABLE');
+          }
+        }
+      } else if (user?.role === 'RECEPTIONIST') {
+        const logRes = await receptionistMonitorService.getReceptionistLogs(user.id);
+        if (logRes?.success && logRes.data?.metrics) {
+          const m = logRes.data.metrics;
+          setShiftStatus(m.shift_status || 'OFF_DUTY');
+          setShiftStartedAt(m.shift_start_time);
+          setAvailabilityStatus(m.availability_status || 'AVAILABLE');
         }
       }
     } catch {
       // Non-blocking
     }
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     loadShiftStatus();
