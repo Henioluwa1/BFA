@@ -178,7 +178,7 @@ export default function GlobalBookingAlertModal() {
         onClick={() => setIsMinimized(false)}
         style={{
           position: 'fixed',
-          top: '20px',
+          bottom: '24px',
           right: '24px',
           zIndex: 9999,
           background: 'linear-gradient(135deg, #0f172a, #1e293b)',

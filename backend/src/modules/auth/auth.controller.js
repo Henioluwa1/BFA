@@ -56,6 +56,7 @@ async function handleGetMe(req, res, next) {
           email: req.user.email,
           role: req.user.role,
           propertyId: req.user.propertyId,
+          property_id: req.user.propertyId,
           agentId: req.user.agentId,
           permissions: authService.getRolePermissions(req.user.role),
         },

@@ -559,8 +559,8 @@ export default function ManagerDashboard() {
   const { addToast }       = useToast();
 
   // Derive the property ID that scopes all API calls.
-  // Managers are assigned to a single property via user.property_id.
-  const propertyId = user?.property_id || activeProperty?.id;
+  // Managers are assigned to a single property via user.property_id / user.propertyId.
+  const propertyId = user?.property_id || user?.propertyId || activeProperty?.id;
 
   // ── Guard: no property assigned ──────────────────────────────────────────
   if (!propertyId) {

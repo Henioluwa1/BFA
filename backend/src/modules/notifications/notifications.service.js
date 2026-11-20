@@ -189,14 +189,14 @@ class NotificationsService {
       SELECT a.*, p.name as property_name 
       FROM public_announcements a
       LEFT JOIN properties p ON a.property_id = p.id
-      WHERE a.is_active = 1 
-        AND a.start_date <= CURRENT_DATE() 
-        AND a.end_date >= CURRENT_DATE()
+      WHERE (a.is_active = 1 OR a.is_active = TRUE)
+        AND (a.start_date IS NULL OR a.start_date <= CURRENT_DATE) 
+        AND (a.end_date IS NULL OR a.end_date >= CURRENT_DATE)
     `;
     const params = [];
 
     if (displayLocation && displayLocation !== 'ALL') {
-      sql += ' AND (a.display_location = ? OR a.display_location = "ALL")';
+      sql += " AND (a.display_location = ? OR a.display_location = 'ALL')";
       params.push(displayLocation);
     }
     if (propertyId && propertyId !== 'all') {

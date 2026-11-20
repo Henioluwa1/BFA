@@ -188,6 +188,7 @@ async function login({ email, password, ipAddress, userAgent, requestId }) {
       email: user.email,
       role: user.role,
       propertyId: user.property_id,
+      property_id: user.property_id,
       agentId: user.agent_id,
       permissions: getRolePermissions(user.role),
     },
