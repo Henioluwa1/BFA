@@ -51,6 +51,7 @@ export default function CreateTicketModal({
 
   // Keep property_id updated when initialPropertyId changes
   useEffect(() => {
+    if (!isOpen) return;
     if (initialPropertyId) {
       setForm((prev) => ({
         ...prev,
@@ -60,11 +61,11 @@ export default function CreateTicketModal({
     } else if (!form.property_id && properties.length > 0) {
       setForm((prev) => ({ ...prev, property_id: String(properties[0].id) }));
     }
-  }, [initialPropertyId, initialApartmentId, properties]);
+  }, [isOpen, initialPropertyId, initialApartmentId, properties]);
 
   // Load apartments and eligible property technicians when selected property changes
   useEffect(() => {
-    if (!form.property_id) {
+    if (!isOpen || !form.property_id) {
       setApartments([]);
       setTechnicians([]);
       return;
@@ -96,7 +97,7 @@ export default function CreateTicketModal({
     return () => {
       isMounted = false;
     };
-  }, [form.property_id]);
+  }, [isOpen, form.property_id]);
 
   // Priority CRITICAL forces blocking_unit to true
   useEffect(() => {

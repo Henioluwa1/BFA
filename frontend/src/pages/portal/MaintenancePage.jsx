@@ -911,16 +911,18 @@ export default function MaintenancePage() {
       </Card>
 
       {/* Modals & Drawers */}
-      <CreateTicketModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        properties={accessibleProperties}
-        initialPropertyId={propertyFilter !== 'all' ? propertyFilter : ''}
-        onSuccess={() => {
-          fetchWorkOrders();
-          fetchStatsAndUnits();
-        }}
-      />
+      {isCreateModalOpen && (
+        <CreateTicketModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          properties={accessibleProperties}
+          initialPropertyId={propertyFilter !== 'all' ? propertyFilter : ''}
+          onSuccess={() => {
+            fetchWorkOrders();
+            fetchStatsAndUnits();
+          }}
+        />
+      )}
 
       <AssignTechnicianModal
         isOpen={isAssignModalOpen}
