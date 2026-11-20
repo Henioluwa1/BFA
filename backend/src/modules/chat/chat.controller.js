@@ -15,6 +15,18 @@ class ChatController {
     }
   }
 
+  static async getUnreadCount(req, res, next) {
+    try {
+      const totalUnread = await ChatService.getUnreadCount(req.user);
+      return ApiResponse.success(res, {
+        message: 'Total unread message count retrieved successfully',
+        data: { totalUnread },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async getThreads(req, res, next) {
     try {
       const threads = await ChatService.getThreads(req.user);
@@ -46,6 +58,54 @@ class ChatController {
       return ApiResponse.created(res, {
         message: 'Direct conversation thread initialized successfully',
         data: thread,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async createGroupThread(req, res, next) {
+    try {
+      const group = await ChatService.createGroupThread(req.user, req.body);
+      return ApiResponse.created(res, {
+        message: 'Group conversation thread created successfully',
+        data: group,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getThreadParticipants(req, res, next) {
+    try {
+      const participants = await ChatService.getThreadParticipants(req.params.id, req.user);
+      return ApiResponse.success(res, {
+        message: 'Thread participants retrieved successfully',
+        data: participants,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async addParticipants(req, res, next) {
+    try {
+      const result = await ChatService.addParticipants(req.params.id, req.user, req.body.userIds);
+      return ApiResponse.success(res, {
+        message: 'Participants added successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async removeParticipant(req, res, next) {
+    try {
+      const result = await ChatService.removeParticipant(req.params.id, req.user, req.params.userId);
+      return ApiResponse.success(res, {
+        message: 'Participant removed successfully',
+        data: result,
       });
     } catch (err) {
       next(err);
@@ -102,6 +162,35 @@ class ChatController {
         message: 'Message sent successfully',
         data: message,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getAttachment(req, res, next) {
+    try {
+      const att = await ChatService.getAttachment(req.params.id, req.params.attachmentId, req.user);
+      res.setHeader('Content-Type', att.file_type || 'application/octet-stream');
+      if (att.file_size) {
+        res.setHeader('Content-Length', att.file_size);
+      }
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(att.original_name)}"`);
+      res.setHeader('Cache-Control', 'private, max-age=86400');
+      return res.end(att.file_data);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async downloadAttachment(req, res, next) {
+    try {
+      const att = await ChatService.getAttachment(req.params.id, req.params.attachmentId, req.user);
+      res.setHeader('Content-Type', att.file_type || 'application/octet-stream');
+      if (att.file_size) {
+        res.setHeader('Content-Length', att.file_size);
+      }
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(att.original_name)}"`);
+      return res.end(att.file_data);
     } catch (err) {
       next(err);
     }

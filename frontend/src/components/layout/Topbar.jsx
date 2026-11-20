@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { systemService } from '../../services/api';
+import chatService from '../../services/chatService';
+import { getSocket } from '../../services/socket';
 import Breadcrumbs from './Breadcrumbs';
 import GlobalSearchModal from '../search/GlobalSearchModal';
 import OperationsAssistantModal from '../assistant/OperationsAssistantModal';
@@ -16,7 +18,45 @@ export default function Topbar({ onToggleMobileNav }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [notifsDropdownOpen, setNotifsDropdownOpen] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const notifsRef = useRef(null);
+
+  const fetchChatUnread = useCallback(async () => {
+    try {
+      const res = await chatService.getUnreadCount();
+      const count = Number(res.data?.data?.totalUnread || 0);
+      setChatUnreadCount(count);
+    } catch {
+      // Ignore background unread check errors
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchChatUnread();
+    const interval = setInterval(fetchChatUnread, 45000);
+
+    const socket = getSocket();
+    if (socket) {
+      const handleIncoming = () => {
+        setChatUnreadCount((prev) => prev + 1);
+      };
+      const handleSummary = (data) => {
+        if (data?.totalUnread !== undefined) {
+          setChatUnreadCount(Number(data.totalUnread));
+        }
+      };
+      socket.on('message:new_incoming', handleIncoming);
+      socket.on('unread:summary', handleSummary);
+
+      return () => {
+        clearInterval(interval);
+        socket.off('message:new_incoming', handleIncoming);
+        socket.off('unread:summary', handleSummary);
+      };
+    }
+
+    return () => clearInterval(interval);
+  }, [fetchChatUnread]);
 
   const recentNotifs = notifications.slice(0, 5);
 
@@ -166,6 +206,51 @@ export default function Topbar({ onToggleMobileNav }) {
               ))}
             </select>
           </div>
+
+          {/* Staff Chat Icon with Real-Time Unread Badge */}
+          <Link
+            to="/app/chat"
+            className="topbar-icon-btn chat-topbar-btn"
+            title="Staff Chat & File Sharing"
+            aria-label="Open staff chat"
+            style={{
+              position: 'relative',
+              background: 'transparent',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              padding: '0.45rem',
+              cursor: 'pointer',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textDecoration: 'none',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+            </svg>
+            {chatUnreadCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  background: 'var(--accent-gold, #f59e0b)',
+                  color: '#0f172a',
+                  fontSize: '0.6875rem',
+                  fontWeight: 800,
+                  borderRadius: '10px',
+                  padding: '1px 5px',
+                  minWidth: '16px',
+                  textAlign: 'center',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                }}
+              >
+                {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+              </span>
+            )}
+          </Link>
 
           {/* Central Notification Bell */}
           <div className="notif-wrapper" ref={notifsRef} style={{ position: 'relative' }}>

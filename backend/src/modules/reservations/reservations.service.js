@@ -102,10 +102,11 @@ class ReservationsService {
       return true; // Portfolio-wide authorized roles
     }
     if (['OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF'].includes(role)) {
-      if (!user.propertyId) {
+      const propId = user.propertyId !== undefined ? user.propertyId : user.property_id;
+      if (!propId) {
         throw new ForbiddenError('Access denied: User is not assigned to any property.');
       }
-      const userPropId = parseInt(user.propertyId, 10);
+      const userPropId = parseInt(propId, 10);
       if (isNaN(userPropId)) {
         throw new ForbiddenError('Access denied: Invalid property assignment.');
       }
@@ -724,7 +725,7 @@ class ReservationsService {
         }
         const reservation = resRows[0];
 
-        this.validatePropertyScope(req?.user, reservation.property_id);
+        this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
 
         if (reservation.status !== 'PENDING') {
           throw new ValidationError(
@@ -926,7 +927,7 @@ class ReservationsService {
         const reservation = resRows[0];
 
         // Validate Property Scope
-        this.validatePropertyScope(req?.user, reservation.property_id);
+        this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
 
         // Validate Reservation Status
         if (reservation.status === 'CHECKED_IN') {
@@ -1152,7 +1153,7 @@ class ReservationsService {
         }
         const reservation = resRows[0];
 
-        this.validatePropertyScope(req?.user, reservation.property_id);
+        this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
 
         if (reservation.status !== 'CHECKED_IN') {
           throw new ValidationError(
@@ -1312,7 +1313,7 @@ class ReservationsService {
       const reservation = resRows[0];
 
       // 2. Validate Property Scope
-      this.validatePropertyScope(req?.user, reservation.property_id);
+      this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
 
       // 3. Strict Concurrency Lock: One client cannot be assigned to two front desk staffs
       if (reservation.assigned_staff_id && reservation.assigned_staff_id !== userId) {
@@ -1454,15 +1455,18 @@ class ReservationsService {
   /**
    * Concurrency-safe Claim: Front desk receptionist claims pending reservation
    */
-  static async claimReservation(reservationId, req = null) {
+  static async claimReservation(reservationId, staffOrReq = null, maybeReq = null) {
     const id = parseInt(reservationId, 10);
     if (!id || isNaN(id)) {
       throw new BadRequestError('Valid reservation ID is required to claim a reservation.');
     }
-    const userId = req?.user?.id;
+    const req = maybeReq || (staffOrReq && typeof staffOrReq === 'object' && staffOrReq.user ? staffOrReq : null);
+    const userId = req?.user?.id || (typeof staffOrReq === 'number' ? staffOrReq : (typeof staffOrReq === 'object' && staffOrReq?.id ? staffOrReq.id : null));
     if (!userId) {
       throw new ForbiddenError('Authentication required to claim reservations.');
     }
+
+    const callerUser = req?.user || (typeof staffOrReq === 'object' && staffOrReq?.role ? staffOrReq : null);
 
     return pool.withTransaction(async (conn) => {
       const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
@@ -1471,7 +1475,7 @@ class ReservationsService {
       }
       const reservation = resRows[0];
 
-      this.validatePropertyScope(req?.user, reservation.property_id);
+      this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
 
       // Strict Concurrency Lock: Check if already claimed by someone else
       if (reservation.assigned_staff_id && reservation.assigned_staff_id !== userId) {
@@ -1593,7 +1597,7 @@ class ReservationsService {
       }
       const reservation = resRows[0];
 
-      this.validatePropertyScope(req?.user, reservation.property_id);
+      this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
 
       const [aptRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [reservation.apartment_id]);
       if (!aptRows || aptRows.length === 0) {
@@ -1716,7 +1720,7 @@ class ReservationsService {
       }
       const reservation = resRows[0];
 
-      this.validatePropertyScope(req?.user, reservation.property_id);
+      this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
 
       const fullDeclineReason = notes ? `${reason}: ${notes}` : reason;
 

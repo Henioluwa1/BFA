@@ -13,8 +13,9 @@ class FrontOfficeRepository {
 
     // 1. Front-Office Staff Roles: OPERATIONS_MANAGER, MANAGER, RECEPTIONIST, STAFF
     if (['OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF'].includes(role)) {
-      const userPropId = parseInt(user?.propertyId, 10);
-      if (!user?.propertyId || isNaN(userPropId)) {
+      const propId = user?.propertyId !== undefined ? user.propertyId : user?.property_id;
+      const userPropId = parseInt(propId, 10);
+      if (!propId || isNaN(userPropId)) {
         return { clause: 'AND 1 = 0', params: [] }; // Fail closed: unassigned staff cannot access
       }
       if (requestedPropertyId && requestedPropertyId !== 'all' && parseInt(requestedPropertyId, 10) !== userPropId) {

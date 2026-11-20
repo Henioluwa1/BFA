@@ -8,7 +8,15 @@ const {
 } = require('../../core/errors/apiError');
 const logger = require('../../utils/logger');
 
-const ELIGIBLE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'RECEPTIONIST', 'STAFF'];
+const ELIGIBLE_ROLES = [
+  'SUPER_ADMIN',
+  'ADMIN',
+  'MANAGER',
+  'OPERATIONS_MANAGER',
+  'OWNER',
+  'RECEPTIONIST',
+  'STAFF',
+];
 
 class ChatService {
   /**
@@ -35,6 +43,14 @@ class ChatService {
   }
 
   /**
+   * Get total unread count for user across all threads
+   */
+  static async getUnreadCount(user) {
+    this.assertEligibleRole(user.role);
+    return ChatRepository.getTotalUnreadCount(user.id, user.role, user.propertyId);
+  }
+
+  /**
    * Get all active threads for the user
    */
   static async getThreads(user) {
@@ -57,6 +73,53 @@ class ChatService {
     this.assertEligibleRole(creatorUser.role);
     const thread = await ChatRepository.findOrCreateDirectThread(creatorUser.id, targetUserId);
     return thread;
+  }
+
+  /**
+   * Create group thread with multiple staff participants
+   */
+  static async createGroupThread(creatorUser, { title, participantIds }) {
+    this.assertEligibleRole(creatorUser.role);
+    const group = await ChatRepository.createGroupThread(creatorUser, title, participantIds);
+
+    await AuditService.record({
+      actorId: creatorUser.id,
+      actorEmail: creatorUser.email,
+      actorRole: creatorUser.role,
+      action: 'CHAT_GROUP_CREATED',
+      entityType: 'chat_thread',
+      entityId: String(group.id),
+      newValues: { title: group.title, threadType: 'GROUP' },
+    });
+
+    return group;
+  }
+
+  /**
+   * Get thread participants list
+   */
+  static async getThreadParticipants(threadId, user) {
+    this.assertEligibleRole(user.role);
+    await this.getThreadById(threadId, user);
+    return ChatRepository.getThreadParticipants(threadId);
+  }
+
+  /**
+   * Add participants to group thread
+   */
+  static async addParticipants(threadId, user, userIds) {
+    this.assertEligibleRole(user.role);
+    await this.getThreadById(threadId, user);
+    return ChatRepository.addParticipants(threadId, userIds, user);
+  }
+
+  /**
+   * Remove participant from group thread
+   */
+  static async removeParticipant(threadId, user, targetUserId) {
+    this.assertEligibleRole(user.role);
+    await this.getThreadById(threadId, user);
+    return ChatRepository.removeParticipant(threadId, targetUserId, user);
   }
 
   /**
@@ -102,7 +165,7 @@ class ChatService {
   /**
    * Get paginated message history
    */
-  static async getThreadHistory(threadId, user, { before = null, limit = 30 } = {}) {
+  static async getThreadHistory(threadId, user, { before = null, limit = 50 } = {}) {
     this.assertEligibleRole(user.role);
     return ChatRepository.getThreadHistory(threadId, user.id, before, limit);
   }
@@ -117,12 +180,24 @@ class ChatService {
     content,
     contextEntityType = null,
     contextEntityId = null,
+    attachment = null,
   }) {
     this.assertEligibleRole(user.role);
 
     // Validate context entity scope if context link provided
     if (contextEntityType && contextEntityId) {
       await this.verifyContextScope(user, contextEntityType, contextEntityId);
+    }
+
+    // Validate attachment payload if provided
+    if (attachment) {
+      if (!attachment.originalName || !attachment.fileData) {
+        throw new BadRequestError('Invalid attachment: originalName and fileData are required.');
+      }
+      const MAX_SIZE = 15 * 1024 * 1024; // 15MB limit
+      if (attachment.fileSize && attachment.fileSize > MAX_SIZE) {
+        throw new BadRequestError('Attachment exceeds maximum allowed size of 15MB.');
+      }
     }
 
     const message = await ChatRepository.persistMessage({
@@ -134,9 +209,19 @@ class ChatService {
       content,
       contextEntityType,
       contextEntityId,
+      attachment,
     });
 
     return message;
+  }
+
+  /**
+   * Retrieve attachment with access check
+   */
+  static async getAttachment(threadId, attachmentId, user) {
+    this.assertEligibleRole(user.role);
+    await this.getThreadById(threadId, user);
+    return ChatRepository.getAttachment(threadId, attachmentId);
   }
 
   /**
@@ -200,7 +285,9 @@ class ChatService {
   static async resolveContextPreview(user, entityType, entityId) {
     const userRole = (user.role || '').toUpperCase();
     const userPropId = user.propertyId ? Number(user.propertyId) : null;
-    const isGlobal = ['SUPER_ADMIN', 'ADMIN'].includes(userRole) || (userRole === 'MANAGER' && !userPropId);
+    const isGlobal =
+      ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(userRole) ||
+      (['MANAGER', 'OPERATIONS_MANAGER'].includes(userRole) && !userPropId);
 
     switch (entityType) {
       case 'PROPERTY': {

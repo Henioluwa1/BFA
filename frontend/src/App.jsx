@@ -81,6 +81,7 @@ const SettingsPage = lazy(() => import('./pages/portal/SettingsPage'));
 const OperationsPage = lazy(() => import('./pages/portal/OperationsPage'));
 const AccessControlPage = lazy(() => import('./pages/portal/AccessControlPage'));
 const CommunicationsPage = lazy(() => import('./pages/portal/CommunicationsPage'));
+const StaffChatPage = lazy(() => import('./pages/portal/StaffChatPage'));
 const NotificationsPage = lazy(() => import('./pages/portal/NotificationsPage'));
 const AnnouncementsPage = lazy(() => import('./pages/portal/AnnouncementsPage'));
 const NotFoundPage = lazy(() => import('./pages/portal/NotFoundPage'));
@@ -153,6 +154,7 @@ function App() {
                       <Route path="audit" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN']}><AuditPage /></ProtectedRoute>} />
                       <Route path="access-control" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}><AccessControlPage /></ProtectedRoute>} />
                       <Route path="communications" element={<CommunicationsPage />} />
+                      <Route path="chat" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><StaffChatPage /></ProtectedRoute>} />
                       <Route path="notifications" element={<NotificationsPage />} />
                       <Route path="announcements" element={<AnnouncementsPage />} />
                       <Route path="team" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><TeamPage /></ProtectedRoute>} />
@@ -188,6 +190,7 @@ function App() {
                   <Route path="/team" element={<Navigate to="/app/team" replace />} />
                   <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
                   <Route path="/operations" element={<Navigate to="/app/operations" replace />} />
+                  <Route path="/chat" element={<Navigate to="/app/chat" replace />} />
                   <Route path="/404" element={<NotFoundPage />} />
                   <Route path="*" element={<Navigate to="/404" replace />} />
                 </Routes>

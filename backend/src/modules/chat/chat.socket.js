@@ -6,7 +6,18 @@ const ChatRepository = require('./chat.repository');
 const logger = require('../../utils/logger');
 const AuditService = require('../../core/audit/audit.service');
 
-const ELIGIBLE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'RECEPTIONIST', 'STAFF'];
+const ELIGIBLE_ROLES = [
+  'SUPER_ADMIN',
+  'ADMIN',
+  'MANAGER',
+  'OPERATIONS_MANAGER',
+  'OWNER',
+  'RECEPTIONIST',
+  'STAFF',
+];
+
+// In-memory active presence tracking: userId -> Set of active socket IDs
+const onlineUsers = new Map();
 
 /**
  * Socket.IO Handshake Authentication Middleware
@@ -79,6 +90,18 @@ function initializeChatSocket(io) {
     const user = socket.data.user;
     logger.info(`[CHAT_SOCKET] User connected: ${user.name} (#${user.id}, ${user.role}) [Socket: ${socket.id}]`);
 
+    // Track active presence
+    const uId = Number(user.id);
+    if (!onlineUsers.has(uId)) {
+      onlineUsers.set(uId, new Set());
+    }
+    onlineUsers.get(uId).add(socket.id);
+
+    // If this is user's first active connection, broadcast online status
+    if (onlineUsers.get(uId).size === 1) {
+      io.emit('presence:change', { userId: uId, status: 'ONLINE' });
+    }
+
     // Auto-join user's personal room for direct notifications and sync
     const userRoom = `user:${user.id}`;
     socket.join(userRoom);
@@ -116,6 +139,47 @@ function initializeChatSocket(io) {
       }
       if (typeof ack === 'function') {
         ack({ success: true, data: { subscribed: true } });
+      }
+    });
+
+    // ------------------------------------------------------------------------
+    // Event: presence:get
+    // Return list of all currently online user IDs
+    // ------------------------------------------------------------------------
+    socket.on('presence:get', (data, ack) => {
+      const activeIds = Array.from(onlineUsers.keys());
+      if (typeof ack === 'function') {
+        ack({ success: true, data: activeIds });
+      } else {
+        socket.emit('presence:state', { onlineUserIds: activeIds });
+      }
+    });
+
+    // ------------------------------------------------------------------------
+    // Event: typing:start & typing:stop
+    // Broadcast typing indicators to thread room
+    // ------------------------------------------------------------------------
+    socket.on('typing:start', (data) => {
+      const threadId = parseInt(data?.threadId, 10);
+      if (threadId) {
+        socket.to(`thread:${threadId}`).emit('typing:status', {
+          threadId,
+          userId: user.id,
+          userName: user.name,
+          isTyping: true,
+        });
+      }
+    });
+
+    socket.on('typing:stop', (data) => {
+      const threadId = parseInt(data?.threadId, 10);
+      if (threadId) {
+        socket.to(`thread:${threadId}`).emit('typing:status', {
+          threadId,
+          userId: user.id,
+          userName: user.name,
+          isTyping: false,
+        });
       }
     });
 
@@ -182,7 +246,6 @@ function initializeChatSocket(io) {
           return;
         }
 
-        // Server-authoritative: Sender ID & role come strictly from socket.data.user
         const savedMessage = await ChatService.sendMessage(user, {
           threadId,
           clientTempId: data.clientTempId,
@@ -190,9 +253,10 @@ function initializeChatSocket(io) {
           content: data.content,
           contextEntityType: data.contextEntityType || null,
           contextEntityId: data.contextEntityId || null,
+          attachment: data.attachment || null,
         });
 
-        // 1. Send immediate acknowledgement to sender
+        // 1. Send acknowledgement to sender
         if (typeof ack === 'function') {
           ack({ success: true, data: savedMessage });
         }
@@ -203,15 +267,11 @@ function initializeChatSocket(io) {
           message: savedMessage,
         });
 
-        // 3. For DIRECT threads, also push to recipient's personal room for drawer unread badges
-        const [threadRow] = await pool.query('SELECT thread_type FROM chat_threads WHERE id = ?', [threadId]);
-        if (threadRow && threadRow.thread_type === 'DIRECT') {
-          const [recipient] = await pool.query(
-            'SELECT user_id FROM chat_thread_participants WHERE thread_id = ? AND user_id != ? AND left_at IS NULL LIMIT 1',
-            [threadId, user.id]
-          );
-          if (recipient) {
-            io.to(`user:${recipient.user_id}`).emit('message:new_direct', {
+        // 3. Push real-time notification to all participants' individual rooms for unread badges
+        const participants = await ChatRepository.getThreadParticipants(threadId);
+        for (const p of participants) {
+          if (Number(p.userId) !== Number(user.id)) {
+            io.to(`user:${p.userId}`).emit('message:new_incoming', {
               threadId,
               message: savedMessage,
             });
@@ -286,7 +346,6 @@ function initializeChatSocket(io) {
           return;
         }
 
-        // Verify active membership
         const partRows = await pool.query(
           'SELECT id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL',
           [threadId, user.id]
@@ -298,7 +357,6 @@ function initializeChatSocket(io) {
           return;
         }
 
-        // Query missed messages
         const missed = await pool.query(
           `SELECT m.id, m.thread_id AS threadId, m.sender_id AS senderId,
                   m.client_temp_id AS clientTempId, m.message_type AS messageType,
@@ -307,7 +365,7 @@ function initializeChatSocket(io) {
                   u.name AS senderName, u.role AS senderRole
            FROM chat_messages m
            LEFT JOIN users u ON m.sender_id = u.id
-           WHERE m.thread_id = ? AND m.id > ? AND m.is_deleted = 0
+           WHERE m.thread_id = ? AND m.id > ? AND m.is_deleted = FALSE
            ORDER BY m.id ASC LIMIT 100`,
           [threadId, lastReceivedId]
         );
@@ -356,6 +414,15 @@ function initializeChatSocket(io) {
     // Disconnect event
     socket.on('disconnect', (reason) => {
       logger.info(`[CHAT_SOCKET] User disconnected: #${user.id} (${user.name}) [Reason: ${reason}]`);
+
+      // Update active presence map
+      if (onlineUsers.has(uId)) {
+        onlineUsers.get(uId).delete(socket.id);
+        if (onlineUsers.get(uId).size === 0) {
+          onlineUsers.delete(uId);
+          io.emit('presence:change', { userId: uId, status: 'OFFLINE' });
+        }
+      }
     });
   });
 
