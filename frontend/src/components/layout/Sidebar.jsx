@@ -403,70 +403,44 @@ const navGroups = [
   },
 ];
 
+function getActiveNavGroupId(pathname) {
+  if (!pathname) return null;
+  for (const group of navGroups) {
+    const hasActive = group.items.some((item) =>
+      pathname === item.path || pathname.startsWith(`${item.path}/`)
+    );
+    if (hasActive) return group.id;
+  }
+  return null;
+}
+
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, onCloseMobile }) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const { unreadCount = 0 } = useNotifications() || {};
   const userRole = (user?.role || 'STAFF').toUpperCase();
 
-  // State to track expanded / collapsed groups
+  // State to track expanded / collapsed groups.
+  // By default, ALL sections are closed on page load EXCEPT for the section currently being worked on.
   const [openGroups, setOpenGroups] = useState(() => {
     try {
-      const saved = localStorage.getItem('bfa_sidebar_open_groups');
-      return saved ? JSON.parse(saved) : {
-        developer_console: true,
-        properties_units: true,
-        front_office_reservations: true,
-        staff_partners: true,
-        finance_accounts: true,
-        maintenance_operations: true,
-        reports_intelligence: true,
-        system_admin: true,
-      };
-    } catch {
-      return {
-        developer_console: true,
-        properties_units: true,
-        front_office_reservations: true,
-        staff_partners: true,
-        finance_accounts: true,
-        maintenance_operations: true,
-        reports_intelligence: true,
-        system_admin: true,
-      };
-    }
+      localStorage.removeItem('bfa_sidebar_open_groups'); // Purge legacy open-all state
+    } catch (_) {}
+    const activeGroupId = getActiveNavGroupId(location.pathname);
+    return activeGroupId ? { [activeGroupId]: true } : {};
   });
 
-  // Automatically keep current group expanded when user navigates
+  // Focus interaction: whenever user navigates, only the section currently being worked on remains open
   useEffect(() => {
-    const currentPath = location.pathname;
-    navGroups.forEach((group) => {
-      const hasActive = group.items.some((item) =>
-        currentPath === item.path || currentPath.startsWith(`${item.path}/`)
-      );
-      if (hasActive && !openGroups[group.id]) {
-        setOpenGroups((prev) => {
-          const next = { ...prev, [group.id]: true };
-          try {
-            localStorage.setItem('bfa_sidebar_open_groups', JSON.stringify(next));
-          } catch {
-            // ignore localStorage quota errors
-          }
-          return next;
-        });
-      }
-    });
+    const activeGroupId = getActiveNavGroupId(location.pathname);
+    setOpenGroups(activeGroupId ? { [activeGroupId]: true } : {});
   }, [location.pathname]);
 
   const toggleGroup = (groupId) => {
     setOpenGroups((prev) => {
-      const next = { ...prev, [groupId]: !prev[groupId] };
-      try {
-        localStorage.setItem('bfa_sidebar_open_groups', JSON.stringify(next));
-      } catch {
-        // ignore localStorage quota errors
-      }
-      return next;
+      const isCurrentlyOpen = Boolean(prev[groupId]);
+      // Focus interaction: opening a section focuses it and closes all other sections
+      return isCurrentlyOpen ? {} : { [groupId]: true };
     });
   };
 
