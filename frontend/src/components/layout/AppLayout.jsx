@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import ErrorBoundary from '../ui/ErrorBoundary';
 import GlobalBookingAlertModal from '../frontOffice/GlobalBookingAlertModal';
+import FloatingStaffChatModal from '../chat/FloatingStaffChatModal';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AppLayout() {
@@ -46,6 +47,8 @@ export default function AppLayout() {
           </ErrorBoundary>
         </main>
       </div>
+      {/* Floating Staff Team Chat: Available across all authorized staff roles */}
+      <FloatingStaffChatModal />
     </div>
   );
 }

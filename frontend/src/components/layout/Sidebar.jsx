@@ -603,7 +603,13 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, onCloseMo
                       to={item.path}
                       className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                       title={collapsed ? item.label : undefined}
-                      onClick={onCloseMobile}
+                      onClick={(e) => {
+                        onCloseMobile?.();
+                        if (item.path === '/app/chat') {
+                          e.preventDefault();
+                          window.dispatchEvent(new CustomEvent('bfa:open-chat'));
+                        }
+                      }}
                     >
                       {item.icon}
                       <span className="nav-text">{item.label}</span>

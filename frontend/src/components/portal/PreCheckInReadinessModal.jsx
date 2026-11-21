@@ -307,26 +307,26 @@ export default function PreCheckInReadinessModal({
             }}
           >
             <div>
-              <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>Guest Name</span>
-              <p style={{ fontWeight: 600, color: '#0f172a', margin: '0.2rem 0 0 0' }}>
+              <span style={{ fontSize: '0.75rem', color: '#cbd5e1', textTransform: 'uppercase' }}>Guest Name</span>
+              <p style={{ fontWeight: 600, color: '#ffffff', margin: '0.2rem 0 0 0' }}>
                 {reservation.guest_name || reservation.guest?.name || 'Walk-In Guest'}
               </p>
             </div>
             <div>
-              <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>Assigned Unit</span>
-              <p style={{ fontWeight: 600, color: '#0f172a', margin: '0.2rem 0 0 0' }}>
+              <span style={{ fontSize: '0.75rem', color: '#cbd5e1', textTransform: 'uppercase' }}>Assigned Unit</span>
+              <p style={{ fontWeight: 600, color: '#ffffff', margin: '0.2rem 0 0 0' }}>
                 {reservation.unit_name || apartmentData?.unit_name || `Apt #${reservation.apartment_id}`}
                 {apartmentData?.unit_number ? ` (${apartmentData.unit_number})` : ''}
               </p>
             </div>
             <div>
-              <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>Stay Dates</span>
-              <p style={{ fontWeight: 600, color: '#0f172a', margin: '0.2rem 0 0 0' }}>
+              <span style={{ fontSize: '0.75rem', color: '#cbd5e1', textTransform: 'uppercase' }}>Stay Dates</span>
+              <p style={{ fontWeight: 600, color: '#ffffff', margin: '0.2rem 0 0 0' }}>
                 {reservation.check_in_date} → {reservation.check_out_date}
               </p>
             </div>
             <div>
-              <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>Booking Status</span>
+              <span style={{ fontSize: '0.75rem', color: '#cbd5e1', textTransform: 'uppercase' }}>Booking Status</span>
               <div style={{ marginTop: '0.2rem' }}>
                 <Badge variant={reservation.status?.toLowerCase() === 'confirmed' ? 'confirmed' : 'pending'}>
                   {reservation.status}
@@ -527,16 +527,16 @@ export default function PreCheckInReadinessModal({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '0.75rem 1rem',
-                backgroundColor: '#f1f5f9',
-                borderRadius: '6px',
-                border: '1px solid #cbd5e1',
+                backgroundColor: 'rgba(30, 41, 59, 0.65)',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
               }}
             >
               <div>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1e293b' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#ffffff' }}>
                   Room turnover or inspection required?
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                <div style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
                   Update housekeeping inspection or clear maintenance holds via the Room Readiness desk.
                 </div>
               </div>

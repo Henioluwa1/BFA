@@ -739,3 +739,30 @@
   gap: 0.75rem;
   background: rgba(15, 23, 42, 0.5);
 }
+
+/* Entrance Animations for Floating Messenger Chat */
+@keyframes chatButtonEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chatModalSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

@@ -457,14 +457,6 @@ export default function ApartmentsPage() {
             Enterprise property hierarchy management, individual unit configuration, operational housekeeping lifecycle, and authoritative rates.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <Button variant="secondary" onClick={handleOpenAddProperty}>
-            + Add Property
-          </Button>
-          <Button variant="primary" onClick={handleOpenAddUnit}>
-            + Add Apartment Unit
-          </Button>
-        </div>
       </div>
 
       {/* Property Showcase & Dynamic Statistics */}

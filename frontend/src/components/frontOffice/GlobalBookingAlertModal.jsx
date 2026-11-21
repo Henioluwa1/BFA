@@ -333,7 +333,9 @@ export default function GlobalBookingAlertModal() {
           width: '420px',
           maxWidth: 'calc(100vw - 32px)',
           maxHeight: 'calc(100vh - 100px)',
-          background: '#0f172a',
+          background: 'rgba(15, 23, 42, 0.88)',
+          backdropFilter: 'blur(24px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(180%)',
           color: '#f8fafc',
           borderRadius: '16px',
           border: '1.5px solid rgba(212, 175, 55, 0.5)',
@@ -631,7 +633,9 @@ export default function GlobalBookingAlertModal() {
     >
       <div
         style={{
-          background: '#0f172a',
+          background: 'rgba(15, 23, 42, 0.90)',
+          backdropFilter: 'blur(28px) saturate(190%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(190%)',
           color: '#f8fafc',
           borderRadius: '20px',
           maxWidth: '560px',

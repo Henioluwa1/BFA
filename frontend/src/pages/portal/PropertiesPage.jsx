@@ -12,6 +12,8 @@ import { formatNaira } from '../../utils/currency';
 import PropertyMediaManager from '../../components/properties/PropertyMediaManager';
 import PropertyUploadWizard from '../../components/properties/PropertyUploadWizard';
 import PropertyApprovalReviewModal from '../../components/properties/PropertyApprovalReviewModal';
+import AddUnitsToPropertyModal from '../../components/properties/AddUnitsToPropertyModal';
+import EditPropertyModal from '../../components/properties/EditPropertyModal';
 import { Building, Layers, Image as ImageIcon } from '../../components/ui/Icons';
 
 export default function PropertiesPage() {
@@ -40,9 +42,10 @@ export default function PropertiesPage() {
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editModalTab, setEditModalTab] = useState('INFO');
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState(null);
+  const [isAddUnitsModalOpen, setIsAddUnitsModalOpen] = useState(false);
+  const [propertyForAddUnits, setPropertyForAddUnits] = useState(null);
 
   // Property Upload Wizard & Approval Governance Modals
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -214,23 +217,6 @@ export default function PropertiesPage() {
   // Handlers for Edit Property
   const handleOpenEdit = (prop) => {
     setSelectedProperty(prop);
-    setEditModalTab('INFO');
-    setPropertyForm({
-      code: prop.code,
-      name: prop.name,
-      description: prop.description || '',
-      address: prop.address || '',
-      city: prop.city || '',
-      state: prop.state || '',
-      country: prop.country || '',
-      contact_phone: prop.contact_phone || '',
-      contact_email: prop.contact_email || '',
-      amenities: Array.isArray(prop.amenities)
-        ? prop.amenities.join(', ')
-        : typeof prop.amenities === 'string'
-        ? prop.amenities
-        : '',
-    });
     setIsEditModalOpen(true);
   };
 
@@ -336,9 +322,6 @@ export default function PropertiesPage() {
               >
                 ⚡ Structure & Upload Property
               </Button>
-              <Button variant="outline" onClick={handleOpenAdd}>
-                + Quick Property
-              </Button>
             </>
           )}
         </div>
@@ -422,8 +405,16 @@ export default function PropertiesPage() {
                 ? 'Try adjusting your search query or status filter.'
                 : 'Get started by creating your first residential property or building.'}
             </p>
-            <Button variant="primary" onClick={handleOpenAdd}>
-              + Add Property
+            <Button
+              variant="primary"
+              onClick={() => setIsWizardOpen(true)}
+              style={{
+                background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
+                color: '#0f172a',
+                fontWeight: 700,
+              }}
+            >
+              ⚡ Structure & Upload Property
             </Button>
           </div>
         </Card>
@@ -645,6 +636,18 @@ export default function PropertiesPage() {
                     </Button>
                     {canManageProperties && (
                       <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setPropertyForAddUnits(prop);
+                            setIsAddUnitsModalOpen(true);
+                          }}
+                          style={{ borderColor: '#38bdf8', color: '#38bdf8' }}
+                          title="Register additional apartment units under this property"
+                        >
+                          + Add Units
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => handleOpenStatusModal(prop)}>
                           Status
                         </Button>
@@ -661,502 +664,25 @@ export default function PropertiesPage() {
         </div>
       )}
 
-      {/* Modal: Add Property */}
-      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Register New Property / Building">
-        <form onSubmit={handleCreateProperty} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
-            <div>
-              <label className="form-label">Property Code *</label>
-              <input
-                type="text"
-                className="input-field"
-                required
-                maxLength={20}
-                placeholder="e.g. GHT"
-                value={propertyForm.code}
-                onChange={(e) => setPropertyForm({ ...propertyForm, code: e.target.value.toUpperCase() })}
-              />
-            </div>
-            <div>
-              <label className="form-label">Building Name *</label>
-              <input
-                type="text"
-                className="input-field"
-                required
-                placeholder="e.g. Grand Horizon Tower"
-                value={propertyForm.name}
-                onChange={(e) => setPropertyForm({ ...propertyForm, name: e.target.value })}
-              />
-            </div>
-          </div>
+            {/* Redesigned Edit Property Modal with 4 Sections (Info, Amenities, Media, Units) */}
+      {isEditModalOpen && selectedProperty && (
+        <EditPropertyModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          property={selectedProperty}
+          onPropertyUpdated={refreshProperties}
+        />
+      )}
 
-          <div>
-            <label className="form-label">Physical Street Address *</label>
-            <input
-              type="text"
-              className="input-field"
-              required
-              placeholder="e.g. 12 Bishop Aboyade Cole, Victoria Island"
-              value={propertyForm.address}
-              onChange={(e) => setPropertyForm({ ...propertyForm, address: e.target.value })}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label className="form-label">City *</label>
-              <input
-                type="text"
-                className="input-field"
-                required
-                value={propertyForm.city}
-                onChange={(e) => setPropertyForm({ ...propertyForm, city: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="form-label">State</label>
-              <input
-                type="text"
-                className="input-field"
-                value={propertyForm.state}
-                onChange={(e) => setPropertyForm({ ...propertyForm, state: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="form-label">Country</label>
-              <input
-                type="text"
-                className="input-field"
-                value={propertyForm.country}
-                onChange={(e) => setPropertyForm({ ...propertyForm, country: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label className="form-label">Contact Phone</label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="+234 800 ..."
-                value={propertyForm.contact_phone}
-                onChange={(e) => setPropertyForm({ ...propertyForm, contact_phone: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="form-label">Contact Email</label>
-              <input
-                type="email"
-                className="input-field"
-                placeholder="property@bfa.com"
-                value={propertyForm.contact_email}
-                onChange={(e) => setPropertyForm({ ...propertyForm, contact_email: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="form-label">Global Amenities (Comma-separated)</label>
-            <input
-              type="text"
-              className="input-field"
-              placeholder="Fiber Internet, Swimming Pool, Gym, 24/7 Power, Concierge"
-              value={propertyForm.amenities}
-              onChange={(e) => setPropertyForm({ ...propertyForm, amenities: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <label className="form-label">Description / Operational Notes</label>
-            <textarea
-              className="input-field"
-              rows={2}
-              placeholder="Summary of property amenities, location advantages, or concierge services..."
-              value={propertyForm.description}
-              onChange={(e) => setPropertyForm({ ...propertyForm, description: e.target.value })}
-            />
-          </div>
-
-          {/* Property Media / Photo Upload Dropzone */}
-          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <div>
-                <label className="form-label" style={{ margin: 0, fontWeight: 600 }}>Building & Property Photographs</label>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Upload high-resolution building photos (JPG, PNG, WebP up to 5MB each). Select primary cover photo and category.
-                </div>
-              </div>
-              <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                📷 Add Photos
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/webp"
-                  style={{ display: 'none' }}
-                  onChange={(e) => handlePhotoFilesSelected(e, setNewPropertyPhotos)}
-                />
-              </label>
-            </div>
-
-            {user?.role === 'MANAGER' && (
-              <div style={{ padding: '0.5rem 0.75rem', background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', color: '#eab308', marginBottom: '0.75rem' }}>
-                🛡️ <strong>Dual-Review Note:</strong> Photos submitted by Operations Managers enter publication review and appear on the public portal once approved by an Administrator.
-              </div>
-            )}
-
-            {newPropertyPhotos.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '0.5rem', maxHeight: '280px', overflowY: 'auto', padding: '0.25rem' }}>
-                {newPropertyPhotos.map((photo, index) => (
-                  <div key={photo.id} style={{ border: photo.isCover ? '2px solid #3b82f6' : '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.5rem', background: 'var(--bg-card)', position: 'relative' }}>
-                    <div style={{ position: 'relative', height: '110px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: '0.5rem', background: '#000' }}>
-                      <img src={photo.fileData} alt={`Preview ${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      {photo.isCover && (
-                        <span style={{ position: 'absolute', top: '4px', left: '4px', background: '#3b82f6', color: '#fff', fontSize: '0.65rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px' }}>
-                          ★ COVER
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setNewPropertyPhotos(prev => prev.filter(p => p.id !== photo.id))}
-                        style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', width: '22px', height: '22px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                      <select
-                        className="input-field"
-                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: 'auto' }}
-                        value={photo.category}
-                        onChange={(e) => {
-                          const cat = e.target.value;
-                          setNewPropertyPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, category: cat } : p));
-                        }}
-                      >
-                        {MEDIA_CATEGORIES.map(c => (
-                          <option key={c.value} value={c.value}>{c.label}</option>
-                        ))}
-                      </select>
-
-                      <input
-                        type="text"
-                        placeholder="Caption (e.g. Front facade)"
-                        className="input-field"
-                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: 'auto' }}
-                        value={photo.caption}
-                        onChange={(e) => {
-                          const cap = e.target.value;
-                          setNewPropertyPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, caption: cap } : p));
-                        }}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => setNewPropertyPhotos(prev => prev.map(p => ({ ...p, isCover: p.id === photo.id })))}
-                        style={{
-                          fontSize: '0.7rem',
-                          padding: '0.25rem',
-                          background: photo.isCover ? '#3b82f6' : 'transparent',
-                          color: photo.isCover ? '#fff' : 'var(--text-secondary)',
-                          border: '1px solid ' + (photo.isCover ? '#3b82f6' : 'var(--border-color)'),
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {photo.isCover ? '✓ Primary Cover' : 'Set as Cover'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-            <Button type="button" variant="ghost" onClick={() => setIsAddModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary">
-              Register Property
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal: Edit Property with Tabbed Interface */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title={`Edit Property — ${propertyForm.name || selectedProperty?.name || ''}`}
-        size="xl"
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Tab Navigation Bar */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.5rem',
-              borderBottom: '1px solid var(--border-color)',
-              paddingBottom: '0.5rem',
-              flexWrap: 'wrap',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setEditModalTab('INFO')}
-              className={`tab-btn ${editModalTab === 'INFO' ? 'active' : ''}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.55rem 1rem',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                minHeight: '40px',
-                border: editModalTab === 'INFO' ? '1px solid var(--brand-accent)' : '1px solid transparent',
-                background: editModalTab === 'INFO' ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
-                color: editModalTab === 'INFO' ? 'var(--brand-accent)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              <Building size={16} />
-              <span>Property Information</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setEditModalTab('AMENITIES')}
-              className={`tab-btn ${editModalTab === 'AMENITIES' ? 'active' : ''}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.55rem 1rem',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                minHeight: '40px',
-                border: editModalTab === 'AMENITIES' ? '1px solid var(--brand-accent)' : '1px solid transparent',
-                background: editModalTab === 'AMENITIES' ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
-                color: editModalTab === 'AMENITIES' ? 'var(--brand-accent)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              <Layers size={16} />
-              <span>Amenities & Features</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setEditModalTab('MEDIA')}
-              className={`tab-btn ${editModalTab === 'MEDIA' ? 'active' : ''}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.55rem 1rem',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                minHeight: '40px',
-                border: editModalTab === 'MEDIA' ? '1px solid var(--brand-accent)' : '1px solid transparent',
-                background: editModalTab === 'MEDIA' ? 'rgba(37, 99, 235, 0.1)' : 'transparent',
-                color: editModalTab === 'MEDIA' ? 'var(--brand-accent)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              <ImageIcon size={16} />
-              <span>Media Gallery</span>
-            </button>
-          </div>
-
-          {/* Tab 1: Property Information */}
-          {editModalTab === 'INFO' && (
-            <form onSubmit={handleUpdateProperty} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">Property Code</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    disabled
-                    value={propertyForm.code}
-                    style={{ opacity: 0.7 }}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Building Name *</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    required
-                    value={propertyForm.name}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, name: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label">Physical Street Address *</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  required
-                  value={propertyForm.address}
-                  onChange={(e) => setPropertyForm({ ...propertyForm, address: e.target.value })}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">City *</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    required
-                    value={propertyForm.city}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, city: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">State</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={propertyForm.state}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, state: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Country</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={propertyForm.country}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, country: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">Contact Phone</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={propertyForm.contact_phone}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, contact_phone: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Contact Email</label>
-                  <input
-                    type="email"
-                    className="input-field"
-                    value={propertyForm.contact_email}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, contact_email: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label">Description / Operational Notes</label>
-                <textarea
-                  className="input-field"
-                  rows={3}
-                  value={propertyForm.description}
-                  onChange={(e) => setPropertyForm({ ...propertyForm, description: e.target.value })}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary">
-                  Save Changes
-                </Button>
-              </div>
-            </form>
-          )}
-
-          {/* Tab 2: Amenities */}
-          {editModalTab === 'AMENITIES' && (
-            <form onSubmit={handleUpdateProperty} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <label className="form-label" style={{ fontWeight: 700, marginBottom: '0.35rem' }}>
-                  Global Building Amenities (Comma-separated)
-                </label>
-                <p style={{ margin: '0 0 0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Specify shared features available across this property (e.g. 24/7 Security, High-Speed Wi-Fi, Gym, Swimming Pool, Rooftop Lounge, Dedicated Parking, Backup Power).
-                </p>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={propertyForm.amenities}
-                  onChange={(e) => setPropertyForm({ ...propertyForm, amenities: e.target.value })}
-                  placeholder="e.g. 24/7 Power, Swimming Pool, High-Speed Wi-Fi, CCTV, Private Parking"
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              {/* Tag preview */}
-              {propertyForm.amenities && (
-                <div>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
-                    Active Amenity Tags Preview:
-                  </span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {propertyForm.amenities.split(',').map((item, idx) => {
-                      const trimmed = item.trim();
-                      if (!trimmed) return null;
-                      return (
-                        <span
-                          key={idx}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            padding: '0.35rem 0.75rem',
-                            borderRadius: '9999px',
-                            background: 'rgba(37, 99, 235, 0.1)',
-                            color: 'var(--brand-accent)',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            border: '1px solid rgba(37, 99, 235, 0.25)',
-                          }}
-                        >
-                          ✓ {trimmed}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary">
-                  Save Changes
-                </Button>
-              </div>
-            </form>
-          )}
-
-          {/* Tab 3: Media Gallery */}
-          {editModalTab === 'MEDIA' && selectedProperty && (
-            <PropertyMediaManager
-              property={selectedProperty}
-              onCoverUpdated={refreshProperties}
-            />
-          )}
-        </div>
-      </Modal>
+      {/* Add Units to Property Modal */}
+      {isAddUnitsModalOpen && propertyForAddUnits && (
+        <AddUnitsToPropertyModal
+          isOpen={isAddUnitsModalOpen}
+          onClose={() => setIsAddUnitsModalOpen(false)}
+          property={propertyForAddUnits}
+          onSuccess={refreshProperties}
+        />
+      )}
 
       {/* Modal: Update Status */}
       <Modal

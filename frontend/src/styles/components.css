@@ -587,6 +587,69 @@ body.light-theme .modal-footer,
   margin: 0;
 }
 
+/* Universal High-Contrast Glass Readability & Navy Surface Neutralization for All Modals */
+.modal-content {
+  color: #f8fafc;
+}
+.modal-content h1, .modal-content h2, .modal-content h3, 
+.modal-content h4, .modal-content h5, .modal-content h6 {
+  color: #ffffff !important;
+}
+.modal-content .form-label, 
+.modal-content label {
+  color: #f1f5f9 !important;
+  font-weight: 600;
+  font-size: 0.825rem;
+  letter-spacing: 0.01em;
+}
+.modal-content .input-field,
+.modal-content input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+.modal-content select,
+.modal-content textarea {
+  background: rgba(30, 41, 59, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+  border-radius: 8px;
+}
+.modal-content .input-field::placeholder,
+.modal-content input::placeholder,
+.modal-content textarea::placeholder {
+  color: #94a3b8 !important;
+}
+.modal-content .input-field:focus,
+.modal-content input:focus,
+.modal-content select:focus,
+.modal-content textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+  outline: none;
+}
+.modal-content p,
+.modal-content .text-secondary {
+  color: #cbd5e1;
+}
+.modal-content .text-muted {
+  color: #94a3b8;
+}
+.modal-content table th {
+  background: rgba(30, 41, 59, 0.8) !important;
+  color: #f8fafc !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+.modal-content table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #f1f5f9 !important;
+}
+/* Neutralize legacy solid navy backgrounds inside modals to translucent glass */
+.modal-content .bg-navy,
+.modal-content [style*="background: #0f172a"],
+.modal-content [style*="background:#0f172a"],
+.modal-content [style*="background: #0a192f"],
+.modal-content [style*="background: rgb(15, 23, 42)"] {
+  background: rgba(15, 23, 42, 0.75) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
 /* Mobile Responsiveness (Bottom-Sheet / Adaptive Experience) */
 @media (max-width: 640px) {
   .modal-overlay {
