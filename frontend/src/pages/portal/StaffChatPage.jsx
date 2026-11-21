@@ -5,6 +5,12 @@ import { getSocket } from '../../services/socket';
 import chatService from '../../services/chatService';
 import '../../styles/staffChat.css';
 
+function unpack(res, fallback = null) {
+  if (!res) return fallback;
+  if (res.data !== undefined) return res.data;
+  return res;
+}
+
 export default function StaffChatPage() {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -59,7 +65,8 @@ export default function StaffChatPage() {
     try {
       setLoadingThreads(true);
       const res = await chatService.getThreads();
-      const list = res.data?.data || [];
+      const raw = unpack(res);
+      const list = Array.isArray(raw) ? raw : [];
       setThreads(list);
       if (list.length > 0 && !activeThreadId) {
         setActiveThreadId(list[0].id);
@@ -84,7 +91,8 @@ export default function StaffChatPage() {
     try {
       setLoadingMessages(true);
       const res = await chatService.getThreadHistory(threadId, { limit: 50 });
-      const msgs = res.data?.data || [];
+      const raw = unpack(res);
+      const msgs = Array.isArray(raw) ? raw : [];
       setMessages(msgs);
 
       // Auto mark latest message as read
@@ -371,7 +379,7 @@ export default function StaffChatPage() {
         attachment: attToSend,
       });
 
-      const confirmedMsg = res.data?.data;
+      const confirmedMsg = unpack(res);
       if (confirmedMsg) {
         setMessages((prev) =>
           prev.map((m) => (m.clientTempId === clientTempId ? confirmedMsg : m))
@@ -402,7 +410,8 @@ export default function StaffChatPage() {
     try {
       setLoadingContacts(true);
       const res = await chatService.getContacts();
-      setContacts(res.data?.data || []);
+      const raw = unpack(res);
+      setContacts(Array.isArray(raw) ? raw : []);
     } catch (err) {
       console.error('[CHAT] Contacts load error:', err);
       addToast('Failed to load contacts directory', 'error');
@@ -414,7 +423,7 @@ export default function StaffChatPage() {
   const handleStartDirectChat = async (targetUserId) => {
     try {
       const res = await chatService.createDirectThread(targetUserId);
-      const thread = res.data?.data;
+      const thread = unpack(res);
       setNewDirectModalOpen(false);
       await loadThreads();
       if (thread?.id) {
@@ -438,7 +447,8 @@ export default function StaffChatPage() {
     try {
       setLoadingContacts(true);
       const res = await chatService.getContacts();
-      setContacts(res.data?.data || []);
+      const raw = unpack(res);
+      setContacts(Array.isArray(raw) ? raw : []);
     } catch (err) {
       console.error('[CHAT] Contacts load error:', err);
     } finally {
@@ -469,7 +479,7 @@ export default function StaffChatPage() {
         title: groupTitle.trim(),
         participantIds: selectedGroupMemberIds,
       });
-      const group = res.data?.data;
+      const group = unpack(res);
       setNewGroupModalOpen(false);
       await loadThreads();
       if (group?.id) {
@@ -494,10 +504,12 @@ export default function StaffChatPage() {
     try {
       setLoadingParticipants(true);
       const res = await chatService.getThreadParticipants(activeThreadId);
-      setParticipants(res.data?.data || []);
+      const pRaw = unpack(res);
+      setParticipants(Array.isArray(pRaw) ? pRaw : []);
       // Load contacts for add member dropdown
       const cRes = await chatService.getContacts();
-      setContacts(cRes.data?.data || []);
+      const cRaw = unpack(cRes);
+      setContacts(Array.isArray(cRaw) ? cRaw : []);
     } catch (err) {
       console.error('[CHAT] Load participants error:', err);
     } finally {
@@ -512,7 +524,8 @@ export default function StaffChatPage() {
       await chatService.addParticipants(activeThreadId, [Number(addMemberUserId)]);
       setAddMemberUserId('');
       const res = await chatService.getThreadParticipants(activeThreadId);
-      setParticipants(res.data?.data || []);
+      const pRaw = unpack(res);
+      setParticipants(Array.isArray(pRaw) ? pRaw : []);
       addToast('Team member added to group', 'success');
     } catch (err) {
       console.error('[CHAT] Add member error:', err);

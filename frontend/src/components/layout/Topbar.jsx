@@ -24,7 +24,8 @@ export default function Topbar({ onToggleMobileNav }) {
   const fetchChatUnread = useCallback(async () => {
     try {
       const res = await chatService.getUnreadCount();
-      const count = Number(res.data?.data?.totalUnread || 0);
+      const payload = res?.data !== undefined ? res.data : res;
+      const count = Number(payload?.totalUnread || 0);
       setChatUnreadCount(count);
     } catch {
       // Ignore background unread check errors
