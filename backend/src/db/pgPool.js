@@ -113,8 +113,8 @@ function getPoolConfig() {
     return {
       connectionString,
       ssl,
-      max: parseInt(process.env.PG_MAX_POOL, 10) || pgConfig.max || 10,
-      idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT_MS, 10) || pgConfig.idleTimeoutMillis || 30000,
+      max: parseInt(process.env.PG_MAX_POOL, 10) || pgConfig.max || 4,
+      idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT_MS, 10) || pgConfig.idleTimeoutMillis || 5000,
       connectionTimeoutMillis: parseInt(process.env.PG_CONNECT_TIMEOUT_MS, 10) || pgConfig.connectionTimeoutMillis || 10000,
     };
   }
@@ -126,8 +126,8 @@ function getPoolConfig() {
     user: process.env.PGUSER || process.env.AIVEN_PG_USER || pgConfig.user || 'avnadmin',
     password: process.env.PGPASSWORD || process.env.AIVEN_PG_PASSWORD || pgConfig.password || '',
     ssl,
-    max: parseInt(process.env.PG_MAX_POOL, 10) || pgConfig.max || 10,
-    idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT_MS, 10) || pgConfig.idleTimeoutMillis || 30000,
+    max: parseInt(process.env.PG_MAX_POOL, 10) || pgConfig.max || 4,
+    idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT_MS, 10) || pgConfig.idleTimeoutMillis || 5000,
     connectionTimeoutMillis: parseInt(process.env.PG_CONNECT_TIMEOUT_MS, 10) || pgConfig.connectionTimeoutMillis || 10000,
   };
 }
@@ -186,48 +186,75 @@ function getPgPool(customConfig = null) {
 /**
  * Tests PostgreSQL connectivity by executing SELECT 1.
  * Returns latency and database metadata. Throws sanitized error on failure.
+ * Automatically retries with exponential backoff on transient connection slot exhaustion (e.g. during rolling deploys).
  * @param {Pool} poolInstance Optional pool override for testing
+ * @param {number} maxRetries Maximum retry attempts (default: 8)
+ * @param {number} initialDelayMs Initial retry delay in milliseconds (default: 2000)
  * @returns {Promise<object>}
  */
-async function testPgConnection(poolInstance = null) {
+async function testPgConnection(poolInstance = null, maxRetries = 8, initialDelayMs = 2000) {
   const pool = poolInstance || getPgPool();
-  const startTime = Date.now();
   let client = null;
+  let delay = initialDelayMs;
 
-  try {
-    client = await pool.connect();
-    const result = await client.query(
-      'SELECT 1 AS result, NOW() AS server_time, current_database() AS database, version() AS version;'
-    );
-    const latencyMs = Date.now() - startTime;
-    const row = result.rows[0];
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const startTime = Date.now();
+    try {
+      client = await pool.connect();
+      const result = await client.query(
+        'SELECT 1 AS result, NOW() AS server_time, current_database() AS database, version() AS version;'
+      );
+      const latencyMs = Date.now() - startTime;
+      const row = result.rows[0];
 
-    return {
-      healthy: row && (row.result === 1 || row.result === '1'),
-      latencyMs,
-      database: row?.database,
-      serverTime: row?.server_time,
-      version: row?.version,
-      provider: 'Aiven PostgreSQL',
-    };
-  } catch (err) {
-    const sanitizedMsg = sanitizeErrorMessage(err.message);
-    logger.error('PostgreSQL (Aiven) connection check failed:', {
-      error: sanitizedMsg,
-      code: err.code,
-      host: config.pg?.host,
-      port: config.pg?.port,
-      database: config.pg?.database,
-      user: config.pg?.user,
-    });
+      return {
+        healthy: row && (row.result === 1 || row.result === '1'),
+        latencyMs,
+        database: row?.database,
+        serverTime: row?.server_time,
+        version: row?.version,
+        provider: 'Aiven PostgreSQL',
+      };
+    } catch (err) {
+      const sanitizedMsg = sanitizeErrorMessage(err.message);
+      const isConnectionExhaustion =
+        err.code === '53300' ||
+        sanitizedMsg.includes('remaining connection slots') ||
+        sanitizedMsg.includes('too many clients') ||
+        err.code === 'ECONNRESET' ||
+        err.code === 'ETIMEDOUT';
 
-    const error = new Error(`PostgreSQL (Aiven) connection test failed: ${sanitizedMsg}`);
-    error.code = err.code;
-    error.sanitized = true;
-    throw error;
-  } finally {
-    if (client) {
-      client.release();
+      if (attempt < maxRetries && isConnectionExhaustion) {
+        logger.warn(
+          `PostgreSQL connection check attempt ${attempt}/${maxRetries} failed (${err.code || 'transient'}). Retrying in ${delay / 1000}s...`,
+          { error: sanitizedMsg, code: err.code }
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay = Math.min(delay * 1.5, 8000);
+        continue;
+      }
+
+      logger.error('PostgreSQL (Aiven) connection check failed:', {
+        error: sanitizedMsg,
+        code: err.code,
+        host: config.pg?.host,
+        port: config.pg?.port,
+        database: config.pg?.database,
+        user: config.pg?.user,
+        attempt,
+      });
+
+      const error = new Error(`PostgreSQL (Aiven) connection test failed: ${sanitizedMsg}`);
+      error.code = err.code;
+      error.sanitized = true;
+      throw error;
+    } finally {
+      if (client) {
+        try {
+          client.release();
+        } catch (_) {}
+        client = null;
+      }
     }
   }
 }
