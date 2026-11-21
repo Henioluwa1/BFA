@@ -167,16 +167,6 @@ const navGroups = [
     label: 'Staff & Partners',
     items: [
       {
-        path: '/app/operations',
-        label: 'Central Operations & Memos',
-        roles: ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'MANAGER', 'OWNER', 'RECEPTIONIST', 'STAFF'],
-        icon: (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="nav-icon">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
-        ),
-      },
-      {
         path: '/app/workforce',
         label: 'Workforce & Attendance',
         roles: ['ADMIN', 'OPERATIONS_MANAGER', 'OWNER'],

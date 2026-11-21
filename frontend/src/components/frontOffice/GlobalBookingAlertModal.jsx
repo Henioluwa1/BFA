@@ -256,11 +256,11 @@ export default function GlobalBookingAlertModal() {
           top: '76px',
           right: '24px',
           zIndex: 1000,
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+          background: 'linear-gradient(135deg, rgba(10, 10, 14, 0.95) 0%, rgba(20, 20, 26, 0.95) 100%)',
           color: '#ffffff',
           padding: '10px 18px',
           borderRadius: '50px',
-          boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.45), 0 0 15px rgba(212, 175, 55, 0.35)',
+          boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.35)',
           border: '1.5px solid #d4af37',
           display: 'flex',
           alignItems: 'center',
@@ -333,13 +333,13 @@ export default function GlobalBookingAlertModal() {
           width: '420px',
           maxWidth: 'calc(100vw - 32px)',
           maxHeight: 'calc(100vh - 100px)',
-          background: 'rgba(15, 23, 42, 0.88)',
-          backdropFilter: 'blur(24px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-          color: '#f8fafc',
+          background: 'rgba(10, 10, 14, 0.94)',
+          backdropFilter: 'blur(32px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+          color: '#ffffff',
           borderRadius: '16px',
-          border: '1.5px solid rgba(212, 175, 55, 0.5)',
-          boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.65), 0 0 25px rgba(212, 175, 55, 0.25)',
+          border: '1.5px solid rgba(255, 255, 255, 0.18)',
+          boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.85), 0 0 25px rgba(212, 175, 55, 0.25)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -349,9 +349,9 @@ export default function GlobalBookingAlertModal() {
         {/* Panel Header */}
         <div
           style={{
-            background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.18), rgba(30, 41, 59, 0.95))',
+            background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 24, 0.95))',
             padding: '14px 18px',
-            borderBottom: '1px solid rgba(212, 175, 55, 0.25)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -484,9 +484,9 @@ export default function GlobalBookingAlertModal() {
               <div
                 key={item.id}
                 style={{
-                  background: 'rgba(30, 41, 59, 0.7)',
+                  background: 'rgba(255, 255, 255, 0.05)',
                   borderRadius: '10px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
                   padding: '12px 14px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -530,7 +530,7 @@ export default function GlobalBookingAlertModal() {
 
                 {/* Guest & Property Info */}
                 <div>
-                  <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.92rem' }}>
+                  <div style={{ fontWeight: 700, color: '#ffffff', fontSize: '0.92rem' }}>
                     {guestName}
                   </div>
                   <div style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: '2px' }}>
@@ -539,7 +539,7 @@ export default function GlobalBookingAlertModal() {
                 </div>
 
                 {/* Amount & Action Button */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#d4af37' }}>
                     ₦{total.toLocaleString()}
                   </div>
@@ -552,7 +552,7 @@ export default function GlobalBookingAlertModal() {
                       }}
                       style={{
                         background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-                        color: '#0f172a',
+                        color: '#000000',
                         border: 'none',
                         padding: '6px 12px',
                         borderRadius: '6px',
@@ -577,8 +577,8 @@ export default function GlobalBookingAlertModal() {
         <div
           style={{
             padding: '10px 16px',
-            background: 'rgba(15, 23, 42, 0.85)',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            background: 'rgba(10, 10, 14, 0.95)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -622,8 +622,8 @@ export default function GlobalBookingAlertModal() {
         position: 'fixed',
         inset: 0,
         zIndex: 1050,
-        background: 'rgba(15, 23, 42, 0.8)',
-        backdropFilter: 'blur(8px)',
+        background: 'rgba(0, 0, 0, 0.82)',
+        backdropFilter: 'blur(18px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -633,25 +633,25 @@ export default function GlobalBookingAlertModal() {
     >
       <div
         style={{
-          background: 'rgba(15, 23, 42, 0.90)',
-          backdropFilter: 'blur(28px) saturate(190%)',
-          WebkitBackdropFilter: 'blur(28px) saturate(190%)',
-          color: '#f8fafc',
+          background: 'rgba(10, 10, 14, 0.95)',
+          backdropFilter: 'blur(32px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+          color: '#ffffff',
           borderRadius: '20px',
           maxWidth: '560px',
           width: '100%',
           overflow: 'hidden',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 35px rgba(212, 175, 55, 0.3)',
-          border: '1.5px solid rgba(212, 175, 55, 0.45)',
+          boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.9), 0 0 35px rgba(212, 175, 55, 0.2)',
+          border: '1.5px solid rgba(255, 255, 255, 0.18)',
           position: 'relative',
         }}
       >
         {/* Header Ribbon */}
         <div
           style={{
-            background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(30, 41, 59, 0.9))',
+            background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 24, 0.95))',
             padding: '16px 22px',
-            borderBottom: '1px solid rgba(212, 175, 55, 0.25)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -766,16 +766,16 @@ export default function GlobalBookingAlertModal() {
           {/* Guest Identity Card */}
           <div
             style={{
-              background: 'rgba(30, 41, 59, 0.65)',
+              background: 'rgba(255, 255, 255, 0.05)',
               borderRadius: '12px',
               padding: '16px',
               marginBottom: '18px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.7)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Guest / Tenant
                 </div>
                 <h3 style={{ margin: '4px 0 6px 0', fontSize: '1.25rem', color: '#ffffff', fontWeight: 700 }}>
@@ -798,11 +798,11 @@ export default function GlobalBookingAlertModal() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px', fontSize: '0.85rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#cbd5e1' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ffffff' }}>
                 <Phone size={14} style={{ color: '#d4af37' }} />
                 <span>{phone}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#cbd5e1' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ffffff' }}>
                 <Mail size={14} style={{ color: '#d4af37' }} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {email}
@@ -822,17 +822,17 @@ export default function GlobalBookingAlertModal() {
           >
             <div
               style={{
-                background: 'rgba(30, 41, 59, 0.45)',
+                background: 'rgba(255, 255, 255, 0.04)',
                 padding: '12px 14px',
                 borderRadius: '8px',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.7)' }}>
                 <Home size={13} style={{ color: '#38bdf8' }} />
                 <span>PROPERTY & UNIT</span>
               </div>
-              <div style={{ marginTop: '4px', fontWeight: 700, color: '#f1f5f9', fontSize: '0.92rem' }}>
+              <div style={{ marginTop: '4px', fontWeight: 700, color: '#ffffff', fontSize: '0.92rem' }}>
                 {propName}
               </div>
               <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
@@ -842,17 +842,17 @@ export default function GlobalBookingAlertModal() {
 
             <div
               style={{
-                background: 'rgba(30, 41, 59, 0.45)',
+                background: 'rgba(255, 255, 255, 0.04)',
                 padding: '12px 14px',
                 borderRadius: '8px',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#94a3b8' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.7)' }}>
                 <Calendar size={13} style={{ color: '#a855f7' }} />
                 <span>STAY DATES</span>
               </div>
-              <div style={{ marginTop: '4px', fontWeight: 700, color: '#f1f5f9', fontSize: '0.92rem' }}>
+              <div style={{ marginTop: '4px', fontWeight: 700, color: '#ffffff', fontSize: '0.92rem' }}>
                 {checkIn}
               </div>
               <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
@@ -865,16 +865,16 @@ export default function GlobalBookingAlertModal() {
           {notes && (
             <div
               style={{
-                background: 'rgba(30, 41, 59, 0.35)',
+                background: 'rgba(255, 255, 255, 0.04)',
                 padding: '10px 14px',
                 borderRadius: '8px',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
                 marginBottom: '18px',
                 fontSize: '0.8rem',
-                color: '#cbd5e1',
+                color: '#ffffff',
               }}
             >
-              <strong style={{ color: '#94a3b8' }}>Booking Notes / Requests:</strong> {notes}
+              <strong style={{ color: '#fbbf24' }}>Booking Notes / Requests:</strong> {notes}
             </div>
           )}
 
@@ -885,14 +885,14 @@ export default function GlobalBookingAlertModal() {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '12px 16px',
-              background: 'rgba(15, 23, 42, 0.6)',
+              background: 'rgba(0, 0, 0, 0.45)',
               borderRadius: '8px',
               border: '1px dashed rgba(212, 175, 55, 0.35)',
               marginBottom: '20px',
             }}
           >
             <div>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>TOTAL RATE</span>
+              <span style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.7)' }}>TOTAL RATE</span>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fbbf24' }}>
                 ₦{total.toLocaleString()}
               </div>
@@ -910,7 +910,7 @@ export default function GlobalBookingAlertModal() {
               >
                 {paymentStatus}
               </span>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
+              <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px' }}>
                 Atomic Concurrency Guard Active
               </div>
             </div>
@@ -924,9 +924,9 @@ export default function GlobalBookingAlertModal() {
               style={{
                 flex: 1,
                 background: isClaiming
-                  ? '#64748b'
+                  ? '#475569'
                   : 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-                color: '#0f172a',
+                color: '#000000',
                 border: 'none',
                 padding: '14px 20px',
                 borderRadius: '10px',

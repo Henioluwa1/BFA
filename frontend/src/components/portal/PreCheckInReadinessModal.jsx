@@ -527,7 +527,7 @@ export default function PreCheckInReadinessModal({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '0.75rem 1rem',
-                backgroundColor: 'rgba(30, 41, 59, 0.65)',
+                backgroundColor: 'rgba(0, 0, 0, 0.45)',
                 borderRadius: '8px',
                 border: '1px solid rgba(255, 255, 255, 0.12)',
               }}

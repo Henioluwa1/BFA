@@ -208,7 +208,11 @@ class CentralOperationsController {
    */
   static async downloadMemoPdf(req, res, next) {
     try {
-      const { buffer, fileName, mimeType } = await CentralOperationsService.getMemoPdfBuffer(req.user, req.params.memoId);
+      const { buffer, fileName, mimeType } = await CentralOperationsService.getMemoPdfBuffer(
+        req.user,
+        req.params.memoId,
+        req.params.id
+      );
 
       res.setHeader('Content-Type', mimeType || 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${fileName || 'operations_memo.pdf'}"`);

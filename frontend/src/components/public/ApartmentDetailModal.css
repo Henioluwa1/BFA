@@ -66,7 +66,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.75rem;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(30, 41, 59, 0.88) 100%);
+  background: linear-gradient(135deg, rgba(10, 10, 14, 0.96) 0%, rgba(20, 20, 26, 0.94) 100%);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   color: #ffffff;
@@ -205,7 +205,7 @@
 }
 
 .bfa-apt-tab-btn:hover {
-  color: #0f172a;
+  color: #ffffff;
 }
 
 .bfa-apt-tab-btn.active {
@@ -255,7 +255,7 @@
 
 .bfa-gallery-filter-pill:hover {
   background: #e2e8f0;
-  color: #0f172a;
+  color: #ffffff;
 }
 
 .bfa-gallery-filter-pill.active {
@@ -275,7 +275,7 @@
   position: relative;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   margin-bottom: 1rem;
-  background: #0f172a;
+  background: #000000;
 }
 
 .bfa-apt-viewer-image {
@@ -311,7 +311,7 @@
   align-self: flex-start;
   padding: 0.35rem 0.8rem;
   border-radius: 9999px;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -345,7 +345,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: #ffffff;
@@ -402,7 +402,7 @@
   margin-top: 0.65rem;
   padding: 0.28rem 0.65rem;
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -482,7 +482,7 @@
 .bfa-overview-header h4 {
   font-size: 0.98rem;
   font-weight: 800;
-  color: #0f172a;
+  color: #ffffff;
   margin: 0;
 }
 
@@ -534,7 +534,7 @@
 }
 
 .bfa-pane-hero-banner.units {
-  background: linear-gradient(135deg, #475569 0%, #1e293b 100%);
+  background: linear-gradient(135deg, #27272a 0%, #09090b 100%);
 }
 
 .bfa-pane-hero-badge {
@@ -686,7 +686,7 @@
 .bfa-feature-info h4 {
   font-size: 0.92rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #ffffff;
   margin: 0 0 0.25rem;
 }
 
@@ -732,7 +732,7 @@
 }
 
 .bfa-unit-number-tag {
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px);
   color: #ffffff;
   padding: 0.25rem 0.65rem;
@@ -768,7 +768,7 @@
 .bfa-unit-title {
   font-size: 1.05rem;
   font-weight: 800;
-  color: #0f172a;
+  color: #ffffff;
   margin: 0 0 0.25rem;
 }
 
@@ -882,7 +882,7 @@
 
 .bfa-modal-action-secondary:hover {
   background: #f1f5f9;
-  color: #0f172a;
+  color: #ffffff;
 }
 
 .bfa-modal-action-primary {
@@ -1055,7 +1055,7 @@
 .bfa-space-card-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.1) 0%, rgba(15, 23, 42, 0.82) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.85) 100%);
 }
 
 .bfa-space-card-badge {
@@ -1064,7 +1064,7 @@
   font-size: 0.68rem;
   font-weight: 800;
   color: #fef08a;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(254, 240, 138, 0.35);
@@ -1085,7 +1085,7 @@
   font-family: var(--font-heading, 'Outfit', sans-serif);
   font-size: 1.05rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #ffffff;
   margin: 0 0 0.4rem 0;
   line-height: 1.25;
 }

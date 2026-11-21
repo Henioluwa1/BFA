@@ -332,7 +332,7 @@ export default function BookingTrackingModal({
                   <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.06em', color: '#475569' }}>
                     Current Operational Status
                   </span>
-                  <h3 style={{ margin: '0.2rem 0', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                  <h3 style={{ margin: '0.2rem 0', fontSize: '1.25rem', fontWeight: 800, color: '#ffffff' }}>
                     {booking.status === 'CONFIRMED'
                       ? '✓ Reservation Confirmed'
                       : booking.status === 'DECLINED'
@@ -376,13 +376,13 @@ export default function BookingTrackingModal({
             {booking.status === 'CONFIRMED' && booking.authCode && (
               <div
                 style={{
-                  background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                  background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.75), rgba(15, 15, 20, 0.95))',
                   color: '#ffffff',
                   borderRadius: '10px',
                   padding: '1.25rem',
                   textAlign: 'center',
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-                  border: '1px solid #334155',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
                 }}
               >
                 <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8' }}>
@@ -459,7 +459,7 @@ export default function BookingTrackingModal({
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <strong style={{ fontSize: '0.88rem', color: '#0f172a' }}>{step.title}</strong>
+                          <strong style={{ fontSize: '0.88rem', color: '#ffffff' }}>{step.title}</strong>
                           <span
                             style={{
                               fontSize: '0.7rem',

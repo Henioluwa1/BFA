@@ -25,6 +25,9 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import '../../styles/staffChat.css';
+import InChatOperationModal from './InChatOperationModal';
+import InChatOperationDetailsModal from './InChatOperationDetailsModal';
+import OperationChatCard from './OperationChatCard';
 
 const ALLOWED_CHAT_ROLES = [
   'SUPER_ADMIN',
@@ -81,6 +84,13 @@ export default function FloatingStaffChatModal() {
   const [circularModalOpen, setCircularModalOpen] = useState(false);
   const [circularForm, setCircularForm] = useState({ title: '', content: '', priority: 'IMPORTANT' });
   const [broadcastingCircular, setBroadcastingCircular] = useState(false);
+
+  // In-Chat Central Operations States
+  const [operationModalOpen, setOperationModalOpen] = useState(false);
+  const [viewingOperationId, setViewingOperationId] = useState(null);
+  const canInitiateOperation = Boolean(
+    user && ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(user.role)
+  );
 
   // Attachments State
   const [pendingAttachment, setPendingAttachment] = useState(null);
@@ -608,10 +618,10 @@ export default function FloatingStaffChatModal() {
           width: '56px',
           height: '56px',
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+          background: 'linear-gradient(135deg, rgba(12, 12, 16, 0.95) 0%, rgba(22, 22, 28, 0.95) 100%)',
           border: '1.5px solid #d4af37',
           color: '#ffffff',
-          boxShadow: '0 10px 25px -4px rgba(0, 0, 0, 0.5), 0 0 15px rgba(212, 175, 55, 0.4)',
+          boxShadow: '0 10px 25px -4px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.4)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -621,11 +631,11 @@ export default function FloatingStaffChatModal() {
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'translateY(-3px) scale(1.05)';
-          e.currentTarget.style.boxShadow = '0 16px 32px -4px rgba(0, 0, 0, 0.6), 0 0 22px rgba(212, 175, 55, 0.6)';
+          e.currentTarget.style.boxShadow = '0 16px 32px -4px rgba(0, 0, 0, 0.8), 0 0 22px rgba(212, 175, 55, 0.6)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = 'translateY(0) scale(1)';
-          e.currentTarget.style.boxShadow = '0 10px 25px -4px rgba(0, 0, 0, 0.5), 0 0 15px rgba(212, 175, 55, 0.4)';
+          e.currentTarget.style.boxShadow = '0 10px 25px -4px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.4)';
         }}
       >
         <MessageSquare size={24} style={{ color: '#d4af37' }} />
@@ -646,7 +656,7 @@ export default function FloatingStaffChatModal() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '2px solid #0f172a',
+              border: '2px solid #0a0a0e',
               boxShadow: '0 2px 8px rgba(239, 68, 68, 0.6)',
             }}
           >
@@ -671,12 +681,12 @@ export default function FloatingStaffChatModal() {
             maxWidth: 'calc(100vw - 32px)',
             height: '580px',
             maxHeight: 'calc(100vh - 110px)',
-            background: 'rgba(15, 23, 42, 0.88)',
-            backdropFilter: 'blur(28px) saturate(190%)',
-            WebkitBackdropFilter: 'blur(28px) saturate(190%)',
+            background: 'rgba(10, 10, 14, 0.94)',
+            backdropFilter: 'blur(32px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(32px) saturate(180%)',
             borderRadius: '16px',
-            border: '1.5px solid rgba(212, 175, 55, 0.45)',
-            boxShadow: '0 25px 60px -10px rgba(0, 0, 0, 0.75), 0 0 30px rgba(212, 175, 55, 0.25)',
+            border: '1.5px solid rgba(255, 255, 255, 0.18)',
+            boxShadow: '0 25px 60px -10px rgba(0, 0, 0, 0.9), 0 0 30px rgba(212, 175, 55, 0.15)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -687,8 +697,8 @@ export default function FloatingStaffChatModal() {
           <div
             style={{
               padding: '12px 18px',
-              background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.18), rgba(30, 41, 59, 0.95))',
-              borderBottom: '1px solid rgba(212, 175, 55, 0.25)',
+              background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 24, 0.95))',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -698,7 +708,7 @@ export default function FloatingStaffChatModal() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <MessageSquare size={18} style={{ color: '#d4af37' }} />
               <span style={{ fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.01em' }}>
-                Staff Collaboration & Files
+                Staff Collaboration & Operations
               </span>
               <span
                 style={{
@@ -719,6 +729,28 @@ export default function FloatingStaffChatModal() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {canInitiateOperation && (
+                <button
+                  type="button"
+                  onClick={() => setOperationModalOpen(true)}
+                  style={{
+                    background: 'rgba(59, 130, 246, 0.22)',
+                    border: '1px solid #3b82f6',
+                    color: '#60a5fa',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    cursor: 'pointer',
+                  }}
+                  title="Initiate Formal Central Operation Directive"
+                >
+                  ⚡ Initiate Operation
+                </button>
+              )}
               {user?.role === 'OWNER' && (
                 <button
                   type="button"
@@ -811,7 +843,7 @@ export default function FloatingStaffChatModal() {
                   padding: '3px 8px',
                   borderRadius: '4px',
                   background: '#fbbf24',
-                  color: '#0f172a',
+                  color: '#000000',
                   fontWeight: 700,
                   fontSize: '0.72rem',
                   border: 'none',
@@ -832,7 +864,7 @@ export default function FloatingStaffChatModal() {
                 borderRight: '1px solid rgba(255, 255, 255, 0.1)',
                 display: 'flex',
                 flexDirection: 'column',
-                background: 'rgba(15, 23, 42, 0.55)',
+                background: 'rgba(12, 12, 16, 0.90)',
               }}
             >
               {/* Header Actions */}
@@ -867,7 +899,7 @@ export default function FloatingStaffChatModal() {
                     style={{
                       width: '100%',
                       padding: '5px 8px 5px 26px',
-                      background: 'rgba(30, 41, 59, 0.75)',
+                      background: 'rgba(255, 255, 255, 0.06)',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       borderRadius: '6px',
                       color: '#ffffff',
@@ -947,7 +979,7 @@ export default function FloatingStaffChatModal() {
                             height: '32px',
                             borderRadius: '50%',
                             background: t.thread_type === 'GROUP' ? '#4f46e5' : '#d4af37',
-                            color: '#0f172a',
+                            color: '#000000',
                             fontWeight: 800,
                             fontSize: '0.78rem',
                             display: 'flex',
@@ -967,7 +999,7 @@ export default function FloatingStaffChatModal() {
                               height: '9px',
                               borderRadius: '50%',
                               background: isOnline ? '#10b981' : '#64748b',
-                              border: '1.5px solid #0f172a',
+                              border: '1.5px solid #0a0a0e',
                             }}
                           />
                         )}
@@ -1024,7 +1056,7 @@ export default function FloatingStaffChatModal() {
             </div>
 
             {/* ──── Column 2: Active Chat Pane (Flex 1) ──── */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'rgba(15, 23, 42, 0.4)' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'rgba(10, 10, 14, 0.75)' }}>
               {activeThread ? (
                 <>
                   {/* Active Header */}
@@ -1035,7 +1067,7 @@ export default function FloatingStaffChatModal() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      background: 'rgba(30, 41, 59, 0.5)',
+                      background: 'rgba(15, 15, 20, 0.85)',
                     }}
                   >
                     <div>
@@ -1126,14 +1158,14 @@ export default function FloatingStaffChatModal() {
                             style={{
                               background: isMe
                                 ? 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)'
-                                : 'rgba(30, 41, 59, 0.85)',
-                              color: isMe ? '#0f172a' : '#ffffff',
-                              border: isMe ? 'none' : '1px solid rgba(255, 255, 255, 0.1)',
+                                : 'rgba(255, 255, 255, 0.08)',
+                              color: isMe ? '#000000' : '#ffffff',
+                              border: isMe ? 'none' : '1px solid rgba(255, 255, 255, 0.14)',
                               borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
                               padding: '8px 12px',
                               fontSize: '0.82rem',
                               lineHeight: 1.4,
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                               wordBreak: 'break-word',
                             }}
                           >
@@ -1183,7 +1215,7 @@ export default function FloatingStaffChatModal() {
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         style={{
-                                          color: isMe ? '#0f172a' : '#38bdf8',
+                                          color: isMe ? '#000000' : '#38bdf8',
                                           display: 'flex',
                                           alignItems: 'center',
                                         }}
@@ -1260,45 +1292,21 @@ export default function FloatingStaffChatModal() {
                             {/* Message text content */}
                             {m.content && <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
 
-                            {/* Operations Memo Preview Card */}
-                            {(m.context_entity_type === 'OPERATION' || m.context_entity_type === 'MEMO') && (
-                              <div
-                                style={{
-                                  marginTop: '8px',
-                                  padding: '8px 10px',
-                                  borderRadius: '8px',
-                                  background: 'rgba(15, 23, 42, 0.7)',
-                                  border: '1px solid rgba(59, 130, 246, 0.4)',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '4px',
+                            {/* Official Operations Memo Interactive Card */}
+                            {(m.context_entity_type === 'OPERATION' || m.context_entity_type === 'MEMO' || (m.content && m.content.includes('[OFFICIAL OPERATIONS MEMO'))) && (
+                              <OperationChatCard
+                                operationId={m.context_entity_id || (m.content && m.content.match(/Ref:\s*(OPS-[^\s\n]+)/)?.[1])}
+                                memoRef={m.context_type || (m.content && m.content.match(/MEMO-[^\s\n\]]+/)?.[0])}
+                                priority={m.priority || 'NORMAL'}
+                                title={m.content && m.content.match(/Title:\s*([^\n]+)/)?.[1]}
+                                currentUser={user}
+                                onViewOperation={(opId) => {
+                                  setViewingOperationId(opId || m.context_entity_id);
                                 }}
-                              >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.5px' }}>
-                                    📋 OFFICIAL OPERATIONS MEMO
-                                  </span>
-                                  <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
-                                    #{m.context_entity_id}
-                                  </span>
-                                </div>
-                                <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-                                  <a
-                                    href={`/app/operations?id=${m.context_entity_id}`}
-                                    style={{
-                                      fontSize: '0.72rem',
-                                      padding: '3px 8px',
-                                      borderRadius: '4px',
-                                      background: '#2563eb',
-                                      color: '#ffffff',
-                                      textDecoration: 'none',
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    View Full Operation ➔
-                                  </a>
-                                </div>
-                              </div>
+                                onOperationUpdated={() => {
+                                  loadMessages(activeThread.id);
+                                }}
+                              />
                             )}
 
                             {/* Acknowledge Receipt Button for critical/important notice or operations */}
@@ -1340,7 +1348,7 @@ export default function FloatingStaffChatModal() {
                                 justifyContent: 'flex-end',
                                 gap: '3px',
                                 fontSize: '0.62rem',
-                                color: isMe ? 'rgba(15, 23, 42, 0.7)' : '#94a3b8',
+                                color: isMe ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.65)',
                                 marginTop: '3px',
                               }}
                             >
@@ -1397,7 +1405,7 @@ export default function FloatingStaffChatModal() {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      background: 'rgba(15, 23, 42, 0.85)',
+                      background: 'rgba(10, 10, 14, 0.95)',
                     }}
                   >
                     <input
@@ -1442,9 +1450,9 @@ export default function FloatingStaffChatModal() {
                       }}
                       title="Set Message Priority Level"
                     >
-                      <option value="NORMAL" style={{ background: '#0f172a', color: '#fff' }}>Normal</option>
-                      <option value="IMPORTANT" style={{ background: '#0f172a', color: '#fbbf24' }}>⚠️ Important</option>
-                      <option value="URGENT" style={{ background: '#0f172a', color: '#f87171' }}>🚨 Urgent</option>
+                      <option value="NORMAL" style={{ background: '#0a0a0e', color: '#fff' }}>Normal</option>
+                      <option value="IMPORTANT" style={{ background: '#0a0a0e', color: '#fbbf24' }}>⚠️ Important</option>
+                      <option value="URGENT" style={{ background: '#0a0a0e', color: '#f87171' }}>🚨 Urgent</option>
                     </select>
 
                     <input
@@ -1458,7 +1466,7 @@ export default function FloatingStaffChatModal() {
                       style={{
                         flex: 1,
                         padding: '8px 12px',
-                        background: 'rgba(30, 41, 59, 0.75)',
+                        background: 'rgba(255, 255, 255, 0.06)',
                         border: '1px solid rgba(255, 255, 255, 0.12)',
                         borderRadius: '8px',
                         color: '#ffffff',
@@ -1474,7 +1482,7 @@ export default function FloatingStaffChatModal() {
                         background: sending || (!textInput.trim() && !pendingAttachment)
                           ? '#475569'
                           : 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-                        color: '#0f172a',
+                        color: '#000000',
                         border: 'none',
                         borderRadius: '8px',
                         padding: '8px 14px',
@@ -1511,8 +1519,8 @@ export default function FloatingStaffChatModal() {
             position: 'fixed',
             inset: 0,
             zIndex: 1100,
-            background: 'rgba(10, 16, 26, 0.7)',
-            backdropFilter: 'blur(16px)',
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(18px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1523,20 +1531,20 @@ export default function FloatingStaffChatModal() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: 'rgba(15, 23, 42, 0.92)',
+              background: 'rgba(10, 10, 14, 0.95)',
               backdropFilter: 'blur(28px)',
               borderRadius: '14px',
-              border: '1.5px solid rgba(212, 175, 55, 0.4)',
+              border: '1.5px solid rgba(255, 255, 255, 0.18)',
               width: '420px',
               maxWidth: '100%',
               overflow: 'hidden',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
             }}
           >
             <div
               style={{
                 padding: '12px 18px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1571,13 +1579,13 @@ export default function FloatingStaffChatModal() {
                     style={{
                       padding: '10px 12px',
                       borderRadius: '8px',
-                      background: 'rgba(30, 41, 59, 0.6)',
+                      background: 'rgba(255, 255, 255, 0.05)',
                       marginBottom: '6px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       cursor: 'pointer',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
                     }}
                   >
                     <div>
@@ -1606,8 +1614,8 @@ export default function FloatingStaffChatModal() {
             position: 'fixed',
             inset: 0,
             zIndex: 1100,
-            background: 'rgba(10, 16, 26, 0.7)',
-            backdropFilter: 'blur(16px)',
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(18px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1618,20 +1626,20 @@ export default function FloatingStaffChatModal() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: 'rgba(15, 23, 42, 0.92)',
+              background: 'rgba(10, 10, 14, 0.95)',
               backdropFilter: 'blur(28px)',
               borderRadius: '14px',
-              border: '1.5px solid rgba(212, 175, 55, 0.4)',
+              border: '1.5px solid rgba(255, 255, 255, 0.18)',
               width: '460px',
               maxWidth: '100%',
               overflow: 'hidden',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
             }}
           >
             <div
               style={{
                 padding: '12px 18px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1651,7 +1659,7 @@ export default function FloatingStaffChatModal() {
 
             <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '4px' }}>
+                <label style={{ fontSize: '0.8rem', color: '#ffffff', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
                   Channel Name *
                 </label>
                 <input
@@ -1662,8 +1670,8 @@ export default function FloatingStaffChatModal() {
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    background: 'rgba(30, 41, 59, 0.75)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '0.85rem',
@@ -1673,7 +1681,7 @@ export default function FloatingStaffChatModal() {
               </div>
 
               <div>
-                <label style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '4px' }}>
+                <label style={{ fontSize: '0.8rem', color: '#ffffff', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
                   Select Participants ({selectedGroupMemberIds.length} selected)
                 </label>
                 <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1690,8 +1698,8 @@ export default function FloatingStaffChatModal() {
                         style={{
                           padding: '8px 10px',
                           borderRadius: '6px',
-                          background: isSelected ? 'rgba(212, 175, 55, 0.2)' : 'rgba(30, 41, 59, 0.5)',
-                          border: isSelected ? '1px solid #d4af37' : '1px solid rgba(255, 255, 255, 0.06)',
+                          background: isSelected ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                          border: isSelected ? '1px solid #d4af37' : '1px solid rgba(255, 255, 255, 0.08)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -1729,7 +1737,7 @@ export default function FloatingStaffChatModal() {
                   onClick={handleCreateGroup}
                   style={{
                     background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-                    color: '#0f172a',
+                    color: '#000000',
                     border: 'none',
                     padding: '8px 16px',
                     borderRadius: '6px',
@@ -1766,20 +1774,20 @@ export default function FloatingStaffChatModal() {
         >
           <div
             style={{
-              background: 'rgba(15, 23, 42, 0.95)',
+              background: 'rgba(10, 10, 14, 0.95)',
               backdropFilter: 'blur(28px)',
               borderRadius: '14px',
-              border: '1.5px solid rgba(245, 158, 11, 0.5)',
+              border: '1.5px solid rgba(255, 255, 255, 0.18)',
               width: '520px',
               maxWidth: '100%',
               overflow: 'hidden',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
             }}
           >
             <div
               style={{
                 padding: '14px 18px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1812,7 +1820,7 @@ export default function FloatingStaffChatModal() {
                     style={{
                       padding: '12px',
                       borderRadius: '8px',
-                      background: 'rgba(30, 41, 59, 0.7)',
+                      background: 'rgba(255, 255, 255, 0.05)',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       display: 'flex',
                       flexDirection: 'column',
@@ -1909,20 +1917,20 @@ export default function FloatingStaffChatModal() {
         >
           <div
             style={{
-              background: 'rgba(15, 23, 42, 0.95)',
+              background: 'rgba(10, 10, 14, 0.95)',
               backdropFilter: 'blur(28px)',
               borderRadius: '14px',
-              border: '1.5px solid rgba(212, 175, 55, 0.5)',
+              border: '1.5px solid rgba(255, 255, 255, 0.18)',
               width: '500px',
               maxWidth: '100%',
               overflow: 'hidden',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
             }}
           >
             <div
               style={{
                 padding: '14px 18px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -1942,7 +1950,7 @@ export default function FloatingStaffChatModal() {
 
             <form onSubmit={handleBroadcastCircular} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                <label style={{ fontSize: '0.8rem', color: '#ffffff', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
                   Circular Subject / Title *
                 </label>
                 <input
@@ -1954,8 +1962,8 @@ export default function FloatingStaffChatModal() {
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    background: 'rgba(30, 41, 59, 0.75)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.18)',
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '0.85rem',
@@ -1965,7 +1973,7 @@ export default function FloatingStaffChatModal() {
               </div>
 
               <div>
-                <label style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                <label style={{ fontSize: '0.8rem', color: '#ffffff', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
                   Priority Level
                 </label>
                 <select
@@ -1974,22 +1982,22 @@ export default function FloatingStaffChatModal() {
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    background: 'rgba(30, 41, 59, 0.75)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.18)',
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '0.85rem',
                     boxSizing: 'border-box',
                   }}
                 >
-                  <option value="IMPORTANT">⚠️ Important (Requires Staff Acknowledgement)</option>
-                  <option value="URGENT">🚨 Urgent (Immediate Mandatory Mobilization)</option>
-                  <option value="NORMAL">Normal Information</option>
+                  <option value="IMPORTANT" style={{ background: '#0a0a0e', color: '#fbbf24' }}>⚠️ Important (Requires Staff Acknowledgement)</option>
+                  <option value="URGENT" style={{ background: '#0a0a0e', color: '#f87171' }}>🚨 Urgent (Immediate Mandatory Mobilization)</option>
+                  <option value="NORMAL" style={{ background: '#0a0a0e', color: '#fff' }}>Normal Information</option>
                 </select>
               </div>
 
               <div>
-                <label style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                <label style={{ fontSize: '0.8rem', color: '#ffffff', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
                   Executive Circular Message *
                 </label>
                 <textarea
@@ -2001,8 +2009,8 @@ export default function FloatingStaffChatModal() {
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    background: 'rgba(30, 41, 59, 0.75)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.18)',
                     borderRadius: '8px',
                     color: '#ffffff',
                     fontSize: '0.85rem',
@@ -2033,7 +2041,7 @@ export default function FloatingStaffChatModal() {
                   disabled={broadcastingCircular}
                   style={{
                     background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-                    color: '#0f172a',
+                    color: '#000000',
                     border: 'none',
                     padding: '8px 16px',
                     borderRadius: '6px',
@@ -2049,6 +2057,37 @@ export default function FloatingStaffChatModal() {
           </div>
         </div>
       )}
+
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      {/* 4.7 IN-CHAT CENTRAL OPERATION INITIATION & DETAILS MODALS */}
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      <InChatOperationModal
+        isOpen={operationModalOpen}
+        onClose={() => setOperationModalOpen(false)}
+        currentUser={user}
+        activeThread={activeThread}
+        onOperationCreated={(newOp) => {
+          loadThreads();
+          if (newOp?.chat_thread_id) {
+            setActiveThreadId(newOp.chat_thread_id);
+          }
+        }}
+      />
+
+      <InChatOperationDetailsModal
+        isOpen={Boolean(viewingOperationId)}
+        onClose={() => setViewingOperationId(null)}
+        operationId={viewingOperationId}
+        currentUser={user}
+        onOperationUpdated={() => {
+          if (activeThreadId) {
+            chatService.getThreadHistory(activeThreadId).then((res) => {
+              const raw = unpack(res);
+              setMessages(Array.isArray(raw) ? raw : []);
+            });
+          }
+        }}
+      />
 
       {/* ───────────────────────────────────────────────────────────────────── */}
       {/* 5. LIGHTBOX MODAL */}

@@ -56,7 +56,28 @@ class CentralOperationsService {
       }
     }
 
-    // 2. Manager property scope restrictions
+    // 2. Admin restrictions (Admin -> Managers)
+    if (role === 'ADMIN') {
+      if (['PROPERTY_STAFF', 'PROPERTY_RECEPTIONISTS'].includes(targetAudienceType)) {
+        throw new ForbiddenError(
+          'Routing Matrix Violation: Direct execution routes from Admin must go through Operations Managers.'
+        );
+      }
+      if (specificUserIds && specificUserIds.length > 0) {
+        const usersRes = await pool.query(
+          `SELECT id, role FROM users WHERE id = ANY($1::int[]);`,
+          [specificUserIds]
+        );
+        const nonMgmt = usersRes.filter(u => !['MANAGER', 'OPERATIONS_MANAGER', 'SUPER_ADMIN', 'OWNER'].includes((u.role || '').toUpperCase()));
+        if (nonMgmt.length > 0) {
+          throw new ForbiddenError(
+            'Routing Matrix Violation: Admin directives must be directed to Operations Managers.'
+          );
+        }
+      }
+    }
+
+    // 3. Manager property scope restrictions
     if (['MANAGER', 'OPERATIONS_MANAGER'].includes(role)) {
       if (!propertyId && targetAudienceType !== 'SPECIFIC_USER') {
         throw new BadRequestError('Managers must specify a property for operational directives.');
@@ -70,11 +91,11 @@ class CentralOperationsService {
       }
     }
 
-    // 3. Staff restrictions
+    // 4. Staff and Receptionist restrictions: Cannot initiate operations
     if (['STAFF', 'RECEPTIONIST'].includes(role)) {
-      if (['MANAGERS_ONLY', 'PROPERTY_ALL'].includes(targetAudienceType)) {
-        throw new ForbiddenError('General staff and receptionists cannot broadcast department-wide directives.');
-      }
+      throw new ForbiddenError(
+        'Access Denied: Staff and Receptionists are task performers only and cannot initiate operations.'
+      );
     }
 
     return true;
@@ -386,10 +407,24 @@ class CentralOperationsService {
     let chatThreadId = null;
     let chatMessageId = null;
     try {
-      if (recipients.length === 1) {
-        // Single recipient 1-to-1 thread
+      if (recipients.length === 1 && target_audience_type === 'SPECIFIC_USER') {
+        // Personal operation: routed straight to recipient's private 1-on-1 DM thread
         const directThread = await ChatService.findOrCreateDirectThread(initiatorUser, recipients[0].id);
         chatThreadId = directThread.id;
+      } else if (property_id) {
+        // Shared Team Channel for the property
+        const propChannelRes = await pool.query(
+          `SELECT id FROM chat_threads WHERE thread_type = 'PROPERTY_CHANNEL' AND property_id = $1 AND status = 'ACTIVE' LIMIT 1;`,
+          [property_id]
+        );
+        const propChannels = propChannelRes.rows || (Array.isArray(propChannelRes) ? propChannelRes : []);
+        if (propChannels.length > 0) {
+          chatThreadId = propChannels[0].id;
+        } else {
+          const pName = propertyDetails?.name || `Property #${property_id}`;
+          const createdChannel = await ChatRepository.createPropertyChannel(initiatorUser, property_id, `${pName} Team Channel`);
+          chatThreadId = createdChannel.id;
+        }
       } else {
         // Multi-recipient operational group thread
         const participantIds = Array.from(new Set([initiatorUser.id, ...recipients.map(r => r.id)]));
@@ -1421,18 +1456,31 @@ class CentralOperationsService {
   /**
    * RETRIEVE MEMO PDF BINARY BUFFER
    */
-  static async getMemoPdfBuffer(user, memoId) {
-    const memoIdNum = parseInt(memoId, 10);
-    const memoRes = await pool.query(
-      `SELECT om.*, co.initiated_by_user_id 
-       FROM operations_memos om 
-       JOIN central_operations co ON om.operation_id = co.id 
-       WHERE om.id = $1 LIMIT 1;`,
-      [memoIdNum]
-    );
+  static async getMemoPdfBuffer(user, memoId, operationId) {
+    let memoRes;
+    if (memoId) {
+      const memoIdNum = parseInt(memoId, 10);
+      memoRes = await pool.query(
+        `SELECT om.*, co.initiated_by_user_id 
+         FROM operations_memos om 
+         JOIN central_operations co ON om.operation_id = co.id 
+         WHERE om.id = $1 LIMIT 1;`,
+        [memoIdNum]
+      );
+    } else if (operationId) {
+      const opIdNum = parseInt(operationId, 10);
+      memoRes = await pool.query(
+        `SELECT om.*, co.initiated_by_user_id 
+         FROM operations_memos om 
+         JOIN central_operations co ON om.operation_id = co.id 
+         WHERE om.operation_id = $1 
+         ORDER BY om.version_number DESC LIMIT 1;`,
+        [opIdNum]
+      );
+    }
 
     if (!memoRes || memoRes.length === 0) {
-      throw new NotFoundError(`Operations Memo #${memoId} not found.`);
+      throw new NotFoundError(`Operations Memo not found.`);
     }
 
     const memo = memoRes[0];
@@ -1487,95 +1535,106 @@ class CentralOperationsService {
    */
   static async generateOperationsMemoPdfBuffer({ operation, memo, initiator, recipients = [], property }) {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 45, size: 'A4' });
+      // Use bufferPages: true for professional multi-page numbering
+      const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
       const buffers = [];
 
       doc.on('data', buffers.push.bind(buffers));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
 
-      // Corporate Colors
+      // Corporate Typography & Colors
       const primaryDark = '#0f172a';
       const secondaryMuted = '#475569';
       const borderLine = '#cbd5e1';
-      const brandAccent = '#2563eb';
+      const brandAccent = '#1d4ed8';
+      const contentWidth = doc.page.width - 100; // 495.28 pt
+
+      const ensureSpace = (requiredPoints) => {
+        if (doc.y + requiredPoints > doc.page.height - 60) {
+          doc.addPage();
+        }
+      };
 
       // ─── Header Branding ───────────────────────────────────────────
-      doc.fillColor(primaryDark).fontSize(20).font('Helvetica-Bold').text('BFA APARTMENTS MANAGEMENT SYSTEM', { align: 'center' });
-      doc.fontSize(10).font('Helvetica').fillColor(secondaryMuted).text('Central Operations & Executive Directives Directorate', { align: 'center' });
-      doc.moveDown(0.4);
-      doc.strokeColor(borderLine).lineWidth(1.5).moveTo(45, doc.y).lineTo(550, doc.y).stroke();
-      doc.moveDown(0.8);
+      doc.fillColor(primaryDark).fontSize(18).font('Helvetica-Bold').text('BFA APARTMENTS MANAGEMENT SYSTEM', { align: 'center' });
+      doc.fontSize(9.5).font('Helvetica').fillColor(secondaryMuted).text('Central Operations & Executive Directives Directorate', { align: 'center' });
+      doc.moveDown(0.3);
+      doc.strokeColor(borderLine).lineWidth(1.2).moveTo(50, doc.y).lineTo(50 + contentWidth, doc.y).stroke();
+      doc.moveDown(0.6);
 
       // ─── Document Title ────────────────────────────────────────────
-      doc.fillColor(brandAccent).fontSize(14).font('Helvetica-Bold').text('OFFICIAL OPERATIONS MEMORANDUM', { align: 'center' });
-      doc.moveDown(0.8);
+      doc.fillColor(brandAccent).fontSize(13).font('Helvetica-Bold').text('OFFICIAL OPERATIONS MEMORANDUM', { align: 'center' });
+      doc.moveDown(0.6);
 
       // ─── Metadata Header Table ─────────────────────────────────────
       const startY = doc.y;
-      doc.rect(45, startY, 505, 115).strokeColor(borderLine).fillAndStroke('#f8fafc', borderLine);
+      const tableHeight = 115;
+      doc.rect(50, startY, contentWidth, tableHeight).strokeColor(borderLine).fillAndStroke('#f8fafc', borderLine);
 
-      const col1Label = 55;
-      const col1Val = 135;
+      const col1Label = 60;
+      const col1Val = 145;
       const col2Label = 320;
       const col2Val = 395;
       let lineY = startY + 10;
 
       // Row 1: Memo Ref & Date
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('MEMO REF:', col1Label, lineY);
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(primaryDark).text(memo.memo_reference, col1Val, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('MEMO REF:', col1Label, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(primaryDark).text(memo.memo_reference || 'REF-MEMO', col1Val, lineY);
 
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('DATE:', col2Label, lineY);
-      doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text(memo.effective_date_text || new Date().toLocaleDateString(), col2Val, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('DATE:', col2Label, lineY);
+      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(memo.effective_date_text || new Date().toLocaleDateString(), col2Val, lineY);
 
       // Row 2: Operation Code & Version
       lineY += 18;
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('OPS REF:', col1Label, lineY);
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(brandAccent).text(operation.operation_code, col1Val, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('OPS REF:', col1Label, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(brandAccent).text(operation.operation_code || 'OPS-PENDING', col1Val, lineY);
 
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('VERSION:', col2Label, lineY);
-      doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text(`v${memo.version_number || 1}.0 ${memo.version_number > 1 ? '(Revised)' : ''}`, col2Val, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('VERSION:', col2Label, lineY);
+      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(`v${memo.version_number || 1}.0 ${memo.version_number > 1 ? '(Revised)' : ''}`, col2Val, lineY);
 
       // Row 3: Issued By & Priority
       lineY += 18;
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('ISSUED BY:', col1Label, lineY);
-      doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text(`${initiator.name || 'Authorised Officer'} — ${memo.issuer_designation || initiator.role}`, col1Val, lineY, { width: 175 });
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('ISSUED BY:', col1Label, lineY);
+      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(`${initiator.name || 'Authorised Officer'} — ${memo.issuer_designation || initiator.role}`, col1Val, lineY, { width: 165 });
 
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('PRIORITY:', col2Label, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('PRIORITY:', col2Label, lineY);
       const prioColor = operation.priority === 'CRITICAL' ? '#dc2626' : operation.priority === 'URGENT' ? '#d97706' : '#2563eb';
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(prioColor).text(operation.priority || 'NORMAL', col2Val, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(prioColor).text(operation.priority || 'NORMAL', col2Val, lineY);
 
       // Row 4: Target Audience & Property Scope
-      lineY += 22;
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('TO (RECIPIENT):', col1Label, lineY);
-      doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text(memo.recipient_summary || 'Authorised Operational Personnel', col1Val, lineY, { width: 175 });
+      lineY += 20;
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('TO (RECIPIENT):', col1Label, lineY);
+      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(memo.recipient_summary || 'Authorised Operational Personnel', col1Val, lineY, { width: 165 });
 
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('PROPERTY:', col2Label, lineY);
-      doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text(memo.property_scope_summary || property?.name || 'Corporate', col2Val, lineY, { width: 145 });
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('PROPERTY:', col2Label, lineY);
+      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(memo.property_scope_summary || property?.name || 'Corporate', col2Val, lineY, { width: 145 });
 
       // Row 5: Deadline & Category
       lineY += 20;
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('DEADLINE:', col1Label, lineY);
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(primaryDark).text(memo.deadline_text || 'Standard Timeline', col1Val, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('DEADLINE:', col1Label, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(primaryDark).text(memo.deadline_text || 'Standard Timeline', col1Val, lineY);
 
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(secondaryMuted).text('CATEGORY:', col2Label, lineY);
-      doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text((operation.category || 'DIRECTIVE').replace(/_/g, ' '), col2Val, lineY);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('CATEGORY:', col2Label, lineY);
+      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text((operation.category || 'DIRECTIVE').replace(/_/g, ' '), col2Val, lineY);
 
-      doc.y = startY + 125;
-      doc.moveDown(0.5);
+      doc.y = startY + tableHeight + 12;
 
       // ─── Subject Banner ────────────────────────────────────────────
-      doc.rect(45, doc.y, 505, 24).fill('#e2e8f0');
-      doc.font('Helvetica-Bold').fontSize(10).fillColor(primaryDark).text(`SUBJECT: ${memo.subject || operation.subject}`, 55, doc.y - 17, { width: 485 });
-      doc.moveDown(1.2);
+      ensureSpace(40);
+      const subjY = doc.y;
+      doc.rect(50, subjY, contentWidth, 24).fill('#e2e8f0');
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(primaryDark).text(`SUBJECT: ${memo.subject || operation.subject}`, 60, subjY + 6, { width: contentWidth - 20 });
+      doc.y = subjY + 34;
 
-      // Helper function for sections
+      // Helper function for rendering sections with dynamic page safety
       const renderSection = (num, secTitle, secBody) => {
         if (!secBody || !secBody.trim()) return;
+        ensureSpace(45);
         doc.font('Helvetica-Bold').fontSize(10).fillColor(brandAccent).text(`${num}. ${secTitle.toUpperCase()}`);
         doc.moveDown(0.2);
-        doc.font('Helvetica').fontSize(9.5).fillColor(primaryDark).text(secBody, { align: 'justify', lineGap: 2.5 });
-        doc.moveDown(0.8);
+        doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text(secBody, { align: 'justify', lineGap: 2.5, width: contentWidth });
+        doc.moveDown(0.7);
       };
 
       // ─── Core Structured Sections ──────────────────────────────────
@@ -1595,35 +1654,43 @@ class CentralOperationsService {
       }
 
       if (memo.amendment_reason) {
-        doc.rect(45, doc.y, 505, 30).fillAndStroke('#fef3c7', '#f59e0b');
-        doc.font('Helvetica-Bold').fontSize(9).fillColor('#b45309').text(`REVISION AUDIT NOTE (v${memo.version_number}):`, 55, doc.y - 24);
-        doc.font('Helvetica').fontSize(9).fillColor('#78350f').text(memo.amendment_reason, 55, doc.y - 12, { width: 485 });
-        doc.moveDown(1.5);
+        ensureSpace(50);
+        const amendY = doc.y;
+        doc.rect(50, amendY, contentWidth, 32).fillAndStroke('#fef3c7', '#f59e0b');
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#b45309').text(`REVISION AUDIT NOTE (v${memo.version_number}):`, 60, amendY + 4);
+        doc.font('Helvetica').fontSize(8.5).fillColor('#78350f').text(memo.amendment_reason, 60, amendY + 16, { width: contentWidth - 20 });
+        doc.y = amendY + 40;
       }
 
       // ─── Compliance & Acknowledgement Block ─────────────────────────
-      doc.font('Helvetica-Bold').fontSize(10).fillColor(brandAccent).text('FORMAL COMPLIANCE & ACKNOWLEDGEMENT MANDATE');
+      ensureSpace(60);
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(brandAccent).text('FORMAL COMPLIANCE & ACKNOWLEDGEMENT MANDATE');
       doc.moveDown(0.2);
-      doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(secondaryMuted).text(
+      doc.font('Helvetica-Oblique').fontSize(8).fillColor(secondaryMuted).text(
         'All designated recipients are required by company standard operating procedures to formally acknowledge receipt of this memorandum via the BFA Staff Portal / Operations Centre within the stipulated timeframe. Failure to acknowledge or carry out directed operational mandates constitutes a procedural breach.',
-        { align: 'justify' }
+        { align: 'justify', width: contentWidth }
       );
-      doc.moveDown(1);
+      doc.moveDown(0.8);
 
       // Sign-off signature footer
-      const signY = doc.y > 680 ? 680 : doc.y;
-      doc.strokeColor(borderLine).lineWidth(1).moveTo(45, signY).lineTo(250, signY).stroke();
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(primaryDark).text(initiator.name || 'Authorised Signatory', 45, signY + 5);
-      doc.font('Helvetica').fontSize(8).fillColor(secondaryMuted).text(memo.issuer_designation || initiator.role, 45, signY + 17);
-      doc.text(`Digital Verification Timestamp: ${new Date().toISOString()}`, 45, signY + 28);
+      ensureSpace(70);
+      const signY = doc.y;
+      doc.strokeColor(borderLine).lineWidth(1).moveTo(50, signY).lineTo(250, signY).stroke();
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(primaryDark).text(initiator.name || 'Authorised Signatory', 50, signY + 4);
+      doc.font('Helvetica').fontSize(8).fillColor(secondaryMuted).text(memo.issuer_designation || initiator.role, 50, signY + 16);
+      doc.text(`Digital Verification Timestamp: ${new Date().toISOString()}`, 50, signY + 26);
 
-      // Document bottom compliance label
-      doc.fontSize(7.5).fillColor('#94a3b8').text(
-        'BFA APARTMENTS — CONFIDENTIAL INTERNAL OPERATIONAL DOCUMENT — ENFORCEABLE UNDER COMPANY GOVERNANCE POLICIES',
-        45,
-        775,
-        { align: 'center', width: 505 }
-      );
+      // Multi-page footer across all pages
+      const pages = doc.bufferedPageRange();
+      for (let i = 0; i < pages.count; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(7.5).fillColor('#94a3b8').text(
+          `BFA APARTMENTS — CONFIDENTIAL INTERNAL OPERATIONAL DOCUMENT — Page ${i + 1} of ${pages.count}`,
+          50,
+          doc.page.height - 35,
+          { align: 'center', width: contentWidth }
+        );
+      }
 
       doc.end();
     });

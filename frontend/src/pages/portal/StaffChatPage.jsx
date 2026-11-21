@@ -4,6 +4,9 @@ import { useToast } from '../../context/ToastContext';
 import { getSocket } from '../../services/socket';
 import chatService from '../../services/chatService';
 import '../../styles/staffChat.css';
+import InChatOperationModal from '../../components/chat/InChatOperationModal';
+import InChatOperationDetailsModal from '../../components/chat/InChatOperationDetailsModal';
+import OperationChatCard from '../../components/chat/OperationChatCard';
 
 function unpack(res, fallback = null) {
   if (!res) return fallback;
@@ -41,6 +44,11 @@ export default function StaffChatPage() {
   const [newGroupModalOpen, setNewGroupModalOpen] = useState(false);
   const [groupDetailsModalOpen, setGroupDetailsModalOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [operationModalOpen, setOperationModalOpen] = useState(false);
+  const [viewingOperationId, setViewingOperationId] = useState(null);
+  const canInitiateOperation = Boolean(
+    user && ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(user.role)
+  );
 
   // Contacts for Modals
   const [contacts, setContacts] = useState([]);
@@ -594,6 +602,21 @@ export default function StaffChatPage() {
           <div className="chat-sidebar-title-row">
             <h2>Team Messages</h2>
             <div className="chat-action-buttons">
+              {canInitiateOperation && (
+                <button
+                  type="button"
+                  className="chat-btn-action"
+                  onClick={() => setOperationModalOpen(true)}
+                  style={{
+                    background: 'rgba(59, 130, 246, 0.22)',
+                    borderColor: '#3b82f6',
+                    color: '#60a5fa',
+                  }}
+                  title="Initiate Formal Central Operation Directive"
+                >
+                  ⚡ Operation
+                </button>
+              )}
               <button
                 type="button"
                 className="chat-btn-action"
@@ -820,6 +843,23 @@ export default function StaffChatPage() {
                       <div className="chat-msg-bubble">
                         {/* Text message content */}
                         <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+
+                        {/* Official Operations Memo Interactive Card */}
+                        {(msg.context_entity_type === 'OPERATION' || msg.context_entity_type === 'MEMO' || (msg.content && msg.content.includes('[OFFICIAL OPERATIONS MEMO'))) && (
+                          <OperationChatCard
+                            operationId={msg.context_entity_id || (msg.content && msg.content.match(/Ref:\s*(OPS-[^\s\n]+)/)?.[1])}
+                            memoRef={msg.context_type || (msg.content && msg.content.match(/MEMO-[^\s\n\]]+/)?.[0])}
+                            priority={msg.priority || 'NORMAL'}
+                            title={msg.content && msg.content.match(/Title:\s*([^\n]+)/)?.[1]}
+                            currentUser={user}
+                            onViewOperation={(opId) => {
+                              setViewingOperationId(opId || msg.context_entity_id);
+                            }}
+                            onOperationUpdated={() => {
+                              if (activeThreadId) loadMessages(activeThreadId);
+                            }}
+                          />
+                        )}
 
                         {/* Image attachment */}
                         {msg.attachment && msg.attachment.fileType?.startsWith('image/') && (
@@ -1328,6 +1368,33 @@ export default function StaffChatPage() {
           </div>
         </div>
       )}
+
+      {/* In-Chat Operation Initiation Modal */}
+      <InChatOperationModal
+        isOpen={operationModalOpen}
+        onClose={() => setOperationModalOpen(false)}
+        currentUser={user}
+        activeThread={activeThread}
+        onOperationCreated={(newOp) => {
+          loadThreads();
+          if (newOp?.chat_thread_id) {
+            setActiveThreadId(newOp.chat_thread_id);
+          }
+        }}
+      />
+
+      {/* In-Chat Operation Details & Memo Modal */}
+      <InChatOperationDetailsModal
+        isOpen={Boolean(viewingOperationId)}
+        onClose={() => setViewingOperationId(null)}
+        operationId={viewingOperationId}
+        currentUser={user}
+        onOperationUpdated={() => {
+          if (activeThreadId) {
+            loadMessages(activeThreadId);
+          }
+        }}
+      />
     </div>
   );
 }

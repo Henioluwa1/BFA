@@ -324,7 +324,7 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
                   fontWeight: 700,
                   minHeight: '40px',
                   border: activeTab === tab.id ? '1px solid #d4af37' : '1px solid rgba(255, 255, 255, 0.08)',
-                  background: activeTab === tab.id ? 'rgba(212, 175, 55, 0.18)' : 'rgba(30, 41, 59, 0.5)',
+                  background: activeTab === tab.id ? 'rgba(212, 175, 55, 0.18)' : 'rgba(255, 255, 255, 0.05)',
                   color: activeTab === tab.id ? '#fbbf24' : '#cbd5e1',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
@@ -528,7 +528,7 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
                   disabled={saving}
                   style={{
                     background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-                    color: '#0f172a',
+                    color: '#000000',
                     fontWeight: 800,
                   }}
                 >
@@ -546,10 +546,10 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
             <form onSubmit={handleSaveAmenities} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div
                 style={{
-                  background: 'rgba(30, 41, 59, 0.45)',
+                  background: 'rgba(0, 0, 0, 0.45)',
                   padding: '12px 16px',
                   borderRadius: '10px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -580,9 +580,9 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
                   <div
                     key={amn.tempId || idx}
                     style={{
-                      background: 'rgba(30, 41, 59, 0.65)',
+                      background: 'rgba(0, 0, 0, 0.4)',
                       borderRadius: '8px',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
                       padding: '12px 14px',
                       display: 'flex',
                       flexDirection: 'column',
@@ -703,7 +703,7 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
                   disabled={saving}
                   style={{
                     background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-                    color: '#0f172a',
+                    color: '#000000',
                     fontWeight: 800,
                   }}
                 >
@@ -733,10 +733,10 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div
                 style={{
-                  background: 'rgba(30, 41, 59, 0.45)',
+                  background: 'rgba(0, 0, 0, 0.45)',
                   padding: '12px 16px',
                   borderRadius: '10px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -757,7 +757,7 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
                   onClick={() => setIsAddUnitModalOpen(true)}
                   style={{
                     background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-                    color: '#0f172a',
+                    color: '#000000',
                     fontWeight: 800,
                   }}
                 >
@@ -802,9 +802,9 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
                       <div
                         key={u.id}
                         style={{
-                          background: 'rgba(30, 41, 59, 0.65)',
+                          background: 'rgba(0, 0, 0, 0.45)',
                           borderRadius: '10px',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
                           overflow: 'hidden',
                           display: 'flex',
                           flexDirection: 'column',

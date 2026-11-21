@@ -47,9 +47,10 @@ router.post('/directives/:id/plan', requireAuth, requireRoles(...MANAGEMENT_ROLE
 router.patch('/directives/:id/status', requireAuth, requireRoles('SUPER_ADMIN', 'ADMIN'), OperationsWorkforceController.updateDirectiveStatus);
 
 // ─── Central Operations, Directives, Operations Memos & Workflows ─────
-router.post('/operations', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN', 'STAFF', 'RECEPTIONIST'), CentralOperationsController.createOperation);
+router.post('/operations', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.createOperation);
 router.get('/operations', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.listOperations);
 router.get('/operations/memos/:memoId/pdf', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.downloadMemoPdf);
+router.get('/operations/:id/memo/pdf', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.downloadMemoPdf);
 router.get('/operations/:id', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.getOperationById);
 router.post('/operations/:id/acknowledge', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.acknowledgeOperation);
 router.post('/operations/:id/clarification', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.requestClarification);

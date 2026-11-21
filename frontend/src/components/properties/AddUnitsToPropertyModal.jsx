@@ -285,7 +285,7 @@ export default function AddUnitsToPropertyModal({ isOpen, onClose, property, onS
         {/* Selected Property Identification Banner */}
         <div
           style={{
-            background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(30, 41, 59, 0.8) 100%)',
+            background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(10, 10, 14, 0.85) 100%)',
             border: '1px solid rgba(212, 175, 55, 0.35)',
             borderRadius: '10px',
             padding: '12px 18px',
@@ -335,7 +335,7 @@ export default function AddUnitsToPropertyModal({ isOpen, onClose, property, onS
                   fontSize: '0.8rem',
                   fontWeight: 700,
                   border: idx === activeUnitIndex ? '1px solid #d4af37' : '1px solid rgba(255, 255, 255, 0.1)',
-                  background: idx === activeUnitIndex ? 'rgba(212, 175, 55, 0.2)' : 'rgba(30, 41, 59, 0.5)',
+                  background: idx === activeUnitIndex ? 'rgba(212, 175, 55, 0.25)' : 'rgba(0, 0, 0, 0.45)',
                   color: idx === activeUnitIndex ? '#fbbf24' : '#cbd5e1',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
@@ -497,7 +497,7 @@ export default function AddUnitsToPropertyModal({ isOpen, onClose, property, onS
             </div>
 
             {/* Main Apartment Interior Photograph */}
-            <div style={{ background: 'rgba(30, 41, 59, 0.45)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <div style={{ background: 'rgba(0, 0, 0, 0.45)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
               <label className="form-label" style={{ fontWeight: 700, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <ImageIcon size={15} /> Main Apartment Interior Photograph
               </label>
@@ -559,7 +559,7 @@ export default function AddUnitsToPropertyModal({ isOpen, onClose, property, onS
             </div>
 
             {/* In-Suite Apartment Amenities */}
-            <div style={{ background: 'rgba(30, 41, 59, 0.45)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <div style={{ background: 'rgba(0, 0, 0, 0.45)', padding: '12px 14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <label className="form-label" style={{ fontWeight: 700, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
                   <Sparkles size={15} /> In-Suite Amenities & Features ({currentUnit.apartment_amenities?.length || 0})
@@ -587,10 +587,10 @@ export default function AddUnitsToPropertyModal({ isOpen, onClose, property, onS
                   <div
                     key={amn.tempId}
                     style={{
-                      background: 'rgba(15, 23, 42, 0.7)',
+                      background: 'rgba(0, 0, 0, 0.5)',
                       padding: '8px 12px',
                       borderRadius: '6px',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
@@ -638,7 +638,7 @@ export default function AddUnitsToPropertyModal({ isOpen, onClose, property, onS
             disabled={submitting}
             style={{
               background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-              color: '#0f172a',
+              color: '#000000',
               fontWeight: 800,
               minWidth: '180px',
             }}

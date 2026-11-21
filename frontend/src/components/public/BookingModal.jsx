@@ -350,7 +350,7 @@ export default function BookingModal({
                 /* Celebration State */
                 <div>
                   <div className="bfa-celebration-checkmark">✓</div>
-                  <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.4rem' }}>
+                  <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.4rem' }}>
                     Reservation Verified & Confirmed!
                   </h3>
                   <p style={{ color: '#64748b', fontSize: '0.88rem', margin: '0 0 1.25rem' }}>
@@ -392,7 +392,7 @@ export default function BookingModal({
                       <strong>{liveTracking.checkInDate} ➔ {liveTracking.checkOutDate}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.45rem', marginTop: '0.45rem' }}>
-                      <span style={{ color: '#0f172a', fontWeight: 700 }}>Total Stay Valuation:</span>
+                      <span style={{ color: '#ffffff', fontWeight: 700 }}>Total Stay Valuation:</span>
                       <strong style={{ color: '#059669', fontSize: '1.05rem' }}>{formatNaira(liveTracking.totalAmount)}</strong>
                     </div>
                   </div>
@@ -436,7 +436,7 @@ export default function BookingModal({
                     {liveTracking?.assignedStaffName ? `Claimed by ${liveTracking.assignedStaffName}` : 'Pending Front Desk Verification'}
                   </div>
 
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.35rem' }}>
                     {paymentOption === 'PAY_AT_PROPERTY'
                       ? 'Booking Request Registered — Pay on Arrival'
                       : 'Payment Proof Dispatched to Front Desk'}
@@ -476,7 +476,7 @@ export default function BookingModal({
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.82rem' }}>
                       <span style={{ color: '#64748b' }}>Assigned Officer:</span>
-                      <strong style={{ color: liveTracking?.assignedStaffName ? '#0f172a' : '#d97706' }}>
+                      <strong style={{ color: liveTracking?.assignedStaffName ? '#ffffff' : '#fbbf24' }}>
                         {liveTracking?.assignedStaffName ? `👤 ${liveTracking.assignedStaffName}` : '⏳ Awaiting receptionist pickup...'}
                       </strong>
                     </div>
@@ -497,7 +497,7 @@ export default function BookingModal({
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.45rem', marginTop: '0.45rem', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#0f172a', fontWeight: 700 }}>Total Quoted Stay Amount:</span>
+                      <span style={{ color: '#ffffff', fontWeight: 700 }}>Total Quoted Stay Amount:</span>
                       <strong style={{ color: '#059669', fontSize: '0.95rem' }}>{formatNaira(totalAmount)}</strong>
                     </div>
 

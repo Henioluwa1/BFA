@@ -159,7 +159,7 @@ function App() {
                       <Route path="announcements" element={<AnnouncementsPage />} />
                       <Route path="team" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><TeamPage /></ProtectedRoute>} />
                       <Route path="settings" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><SettingsPage /></ProtectedRoute>} />
-                      <Route path="operations" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><OperationsPage /></ProtectedRoute>} />
+                      <Route path="operations" element={<Navigate to="/app/chat" replace />} />
                       <Route path="404" element={<NotFoundPage />} />
                     </Route>
                   </Route>
@@ -189,7 +189,7 @@ function App() {
                   <Route path="/audit" element={<Navigate to="/app/audit" replace />} />
                   <Route path="/team" element={<Navigate to="/app/team" replace />} />
                   <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
-                  <Route path="/operations" element={<Navigate to="/app/operations" replace />} />
+                  <Route path="/operations" element={<Navigate to="/app/chat" replace />} />
                   <Route path="/chat" element={<Navigate to="/app/chat" replace />} />
                   <Route path="/404" element={<NotFoundPage />} />
                   <Route path="*" element={<Navigate to="/404" replace />} />
