@@ -223,6 +223,33 @@ Executed forward migration Batch #4 on Aiven PostgreSQL:
 
 ---
 
-## 6. Release Verification & Conclusion
+## 6. Live Render Deployment & In-Browser Verification
 
-Both required modules have been fully implemented, integrated, verified against live Aiven PostgreSQL, and confirmed with production bundle builds. The system is ready for immediate production deployment to Render.
+### 6.1 Git Commits and Production Releases
+- **Commit `a3dc23a`**: `feat: complete real-time booking alert queue, approval fix & staff chat system`
+  - Integrated Part A (atomic claim, queue drawer, focus modal) and Part B (staff chat, groups, `BYTEA` storage, unread badge).
+- **Commit `5958a1f`**: `fix(chat): unwrap api response envelope in staff chat page and topbar unread badge`
+  - Normalized Axios envelope unwrapping across all chat endpoints in `StaffChatPage.jsx` and `Topbar.jsx`.
+- **Target Branch**: `master` pushed to `https://github.com/Henioluwa1/BFA`.
+
+### 6.2 Render Deployment Status
+- **Backend Web Service (`bfa-backend-mox8`)**: Deployed **Live** and healthy on Node.js 20.20.2 (`/api/v1/health` returning HTTP 200 with active Aiven PostgreSQL connectivity).
+- **Frontend Static Site (`bfa-xtdo`)**: Built cleanly in 13.9s and deployed **Live** on Render.
+
+### 6.3 Browser Subagent Live Verification Summary
+Conducted live automated verification in the browser on `https://bfa-xtdo.onrender.com`:
+1. **Topbar & Badge Alignment**:
+   - The Staff Chat speech bubble icon displays in the Topbar with a real-time unread badge (`4`).
+   - The Collapsed Booking Alert Queue pill (`top: 76px; right: 24px`) is cleanly positioned beneath the header, with **0% occlusion** of the user profile pill and Logout button.
+2. **Conversation Sidebar & Directory**:
+   - Conversations sidebar renders active direct and group threads (`Executive & Front Desk Roster Sync`, `BFA Super Admin`, `Front Desk Operations & Security`).
+   - The `+ DM` modal queries `/api/v1/chat/contacts` (HTTP 200) and displays active staff across all operational roles (`SUPER_ADMIN`, `OWNER`, `OPERATIONS_MANAGER`, `ADMIN`).
+3. **History, Attachments & Active Messaging**:
+   - Opening Thread #2 (`BFA Super Admin`) retrieved full chat history (HTTP 200), rendering role badges, timestamps, read checkmarks (`✓`), and persistent attachments (`guidelines.txt`, `keys_photo.png`, `BFA_SOP_Guidelines.txt`).
+   - Submitted live message: `"Front desk live verification test on Render"`. Endpoint `POST /api/v1/chat/threads/2/messages` returned HTTP 201 Created; message appeared immediately in the conversation stream.
+
+---
+
+## 7. Conclusion
+
+Both major modules—the **Real-Time Booking Alert Queue & Approval Fix** and the **Internal Staff Chat & Persistent File Sharing System**—are completely implemented, unified, verified against live Aiven PostgreSQL, deployed to Render, and verified end-to-end in the live browser. All requirements have been satisfied in this single coordinated delivery.
