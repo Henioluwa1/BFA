@@ -6,6 +6,7 @@ import { employeeService } from '../../services/api';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import DisciplinaryAndPipWorkspace from '../../components/workforce/DisciplinaryAndPipWorkspace';
 import {
   LineChart,
   BarChart,
@@ -39,6 +40,10 @@ export default function EmployeePerformancePage() {
   const [performanceData, setPerformanceData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const userRole = (user?.role || '').toUpperCase();
+  const isOwner = userRole === 'OWNER';
+  const [activeView, setActiveView] = useState('ANALYTICS'); // 'ANALYTICS' | 'DISCIPLINARY'
 
   // Filters for employee selection
   const [searchQuery, setSearchQuery] = useState('');
@@ -181,15 +186,38 @@ export default function EmployeePerformancePage() {
         </div>
       </div>
 
-      {/* Main 2-Column Layout */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(280px, 320px) minmax(0, 1fr)',
-          gap: '1.5rem',
-          alignItems: 'start',
-        }}
-      >
+      {/* View Switcher Tabs (Hidden for Owner per Mandatory Privacy Governance) */}
+      {!isOwner && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+          <Button
+            variant={activeView === 'ANALYTICS' ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => setActiveView('ANALYTICS')}
+          >
+            📊 Performance & Competency Analytics
+          </Button>
+          <Button
+            variant={activeView === 'DISCIPLINARY' ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => setActiveView('DISCIPLINARY')}
+          >
+            ⚖️ Disciplinary Queries, Show-Cause & PIPs
+          </Button>
+        </div>
+      )}
+
+      {activeView === 'DISCIPLINARY' && !isOwner ? (
+        <DisciplinaryAndPipWorkspace />
+      ) : (
+        /* Main 2-Column Layout */
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(280px, 320px) minmax(0, 1fr)',
+            gap: '1.5rem',
+            alignItems: 'start',
+          }}
+        >
         {/* Left Column: Staff Directory Selector */}
         <Card title="Staff Directory">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -818,6 +846,7 @@ export default function EmployeePerformancePage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

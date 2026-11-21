@@ -131,22 +131,22 @@ function App() {
                       <Route path="guests" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST']}><GuestsPage /></ProtectedRoute>} />
                       <Route path="tenants" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST']}><GuestsPage /></ProtectedRoute>} />
                       <Route path="apartments" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><ApartmentsPage /></ProtectedRoute>} />
-                      <Route path="financial" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><FinancialPage /></ProtectedRoute>} />
-                      <Route path="financials" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><NavigateToFinancial /></ProtectedRoute>} />
-                      <Route path="reports" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><ReportsPage /></ProtectedRoute>} />
-                      <Route path="analytics" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><AnalyticsPage /></ProtectedRoute>} />
-                      <Route path="agents" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><AgentsPage /></ProtectedRoute>} />
-                      <Route path="employees" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeesPage /></ProtectedRoute>} />
-                      <Route path="employees/:id" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeProfilePage /></ProtectedRoute>} />
-                      <Route path="employees/:id/id-card" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeIdCardPage /></ProtectedRoute>} />
-                      <Route path="employees/:id/performance" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeePerformancePage /></ProtectedRoute>} />
-                      <Route path="employees/:id/evaluation" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeEvaluationPage /></ProtectedRoute>} />
-                      <Route path="evaluations" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeEvaluationPage /></ProtectedRoute>} />
-                      <Route path="performance" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeePerformancePage /></ProtectedRoute>} />
-                      <Route path="id-cards" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeIdCardPage /></ProtectedRoute>} />
-                      <Route path="workforce" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><WorkforcePage /></ProtectedRoute>} />
+                      <Route path="financial" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><FinancialPage /></ProtectedRoute>} />
+                      <Route path="financials" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><NavigateToFinancial /></ProtectedRoute>} />
+                      <Route path="reports" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><ReportsPage /></ProtectedRoute>} />
+                      <Route path="analytics" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><AnalyticsPage /></ProtectedRoute>} />
+                      <Route path="agents" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><AgentsPage /></ProtectedRoute>} />
+                      <Route path="employees" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeesPage /></ProtectedRoute>} />
+                      <Route path="employees/:id" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeProfilePage /></ProtectedRoute>} />
+                      <Route path="employees/:id/id-card" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeIdCardPage /></ProtectedRoute>} />
+                      <Route path="employees/:id/performance" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><EmployeePerformancePage /></ProtectedRoute>} />
+                      <Route path="employees/:id/evaluation" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeEvaluationPage /></ProtectedRoute>} />
+                      <Route path="evaluations" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeEvaluationPage /></ProtectedRoute>} />
+                      <Route path="performance" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><EmployeePerformancePage /></ProtectedRoute>} />
+                      <Route path="id-cards" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><EmployeeIdCardPage /></ProtectedRoute>} />
+                      <Route path="workforce" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><WorkforcePage /></ProtectedRoute>} />
                       <Route path="roster" element={<Navigate to="/app/workforce" replace />} />
-                      <Route path="my-schedule" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><MySchedulePage /></ProtectedRoute>} />
+                      <Route path="my-schedule" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><MySchedulePage /></ProtectedRoute>} />
                       <Route path="my-profile" element={<EmployeeProfilePage isSelfService={true} />} />
                         <Route path="maintenance" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><MaintenancePage /></ProtectedRoute>} />
                       <Route path="inspection" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'STAFF']}><InspectionPage /></ProtectedRoute>} />

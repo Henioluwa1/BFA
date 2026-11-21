@@ -60,4 +60,9 @@ router.get('/context-preview', ChatController.getContextPreview);
 router.get('/retention', requireRoles('SUPER_ADMIN', 'ADMIN'), ChatController.getRetention);
 router.put('/retention', requireRoles('SUPER_ADMIN', 'ADMIN'), ChatController.updateRetention);
 
+// 8. Priority communications & Acknowledgement tracking
+router.get('/important-pending', ChatController.getPendingImportantMessages);
+router.post('/messages/:id/acknowledge', ChatController.acknowledgeMessage);
+router.post('/circulars', requireRoles('SUPER_ADMIN', 'ADMIN', 'OWNER'), ChatController.broadcastOwnerCircular);
+
 module.exports = router;

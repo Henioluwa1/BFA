@@ -255,6 +255,43 @@ class ChatController {
       next(err);
     }
   }
+
+  // ─── Operational Priority & Acknowledgement Controls ─────────────────────
+  static async acknowledgeMessage(req, res, next) {
+    try {
+      const result = await ChatService.acknowledgeMessage(req.user, req.params.id);
+      return ApiResponse.success(res, {
+        message: 'Message acknowledged successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getPendingImportantMessages(req, res, next) {
+    try {
+      const messages = await ChatService.getPendingImportantMessages(req.user);
+      return ApiResponse.success(res, {
+        message: 'Pending important notices retrieved',
+        data: messages,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async broadcastOwnerCircular(req, res, next) {
+    try {
+      const result = await ChatService.broadcastOwnerCircular(req.user, req.body);
+      return ApiResponse.created(res, {
+        message: 'Owner circular broadcasted successfully',
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = ChatController;

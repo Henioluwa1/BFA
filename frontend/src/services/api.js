@@ -235,6 +235,31 @@ export const reportService = {
       window.open(url, '_blank');
     });
   },
+
+  // Central Operational Reporting Engine
+  getOperationalDaily: (params) => api.get('/reports/operational/daily', { params }),
+  getOperationalMonthly: (params) => api.get('/reports/operational/monthly', { params }),
+  finalizeOperationalSnapshot: (data) => api.post('/reports/operational/finalize', data),
+  requestOperationalReport: (data) => api.post('/reports/operational/requests', data),
+  listOperationalReportRequests: (params) => api.get('/reports/operational/requests', { params }),
+  downloadOperationalPdf: (params = {}, filename = 'operational-report.pdf') => {
+    return api.get('/reports/operational/pdf', { params, responseType: 'blob' }).then((res) => {
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    });
+  },
+  openOperationalPdfInTab: (params = {}) => {
+    return api.get('/reports/operational/pdf', { params, responseType: 'blob' }).then((res) => {
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    });
+  },
 };
 
 export const auditService = {
@@ -522,6 +547,69 @@ export const workforceService = {
   rotateKioskSecret: (id, data = {}) => api.post(`/workforce/kiosks/${id}/rotate-secret`, data),
   escalateLeave: (id, data) => api.patch(`/workforce/leave/requests/${id}/escalate`, data),
 };
+
+export const operationsService = {
+  // Assignments
+  listAssignments: (params) => api.get('/workforce/assignments', { params }),
+  getAssignmentById: (id) => api.get(`/workforce/assignments/${id}`),
+  createAssignment: (data) => api.post('/workforce/assignments', data),
+  updateAssignmentStatus: (id, data) => api.patch(`/workforce/assignments/${id}/status`, data),
+  getAssignmentPdfUrl: (id) => `/api/v1/workforce/assignments/${id}/pdf`,
+  downloadAssignmentPdf: (id, filename = `assignment-${id}.pdf`) => {
+    return api.get(`/workforce/assignments/${id}/pdf`, { responseType: 'blob' }).then((res) => {
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    });
+  },
+
+  // Operational Tasks & Blockers
+  listTasks: (params) => api.get('/workforce/tasks', { params }),
+  getTaskById: (id) => api.get(`/workforce/tasks/${id}`),
+  createTask: (data) => api.post('/workforce/tasks', data),
+  updateTaskProgress: (id, data) => api.patch(`/workforce/tasks/${id}/progress`, data),
+  reportBlocker: (id, data) => api.post(`/workforce/tasks/${id}/blockers`, data),
+  resolveBlocker: (blockerId, data) => api.patch(`/workforce/blockers/${blockerId}/resolve`, data),
+  reviewTask: (id, data) => api.patch(`/workforce/tasks/${id}/review`, data),
+
+  // Disciplinary & Show-Cause (Owner barred)
+  listQueries: (params) => api.get('/workforce/disciplinary/queries', { params }),
+  getQueryById: (id) => api.get(`/workforce/disciplinary/queries/${id}`),
+  issueQuery: (data) => api.post('/workforce/disciplinary/queries', data),
+  submitQueryResponse: (id, data) => api.post(`/workforce/disciplinary/queries/${id}/respond`, data),
+  concludeQuery: (id, data) => api.patch(`/workforce/disciplinary/queries/${id}/conclude`, data),
+  reviewSanction: (id, data) => api.patch(`/workforce/disciplinary/queries/${id}/sanction-review`, data),
+
+  // Performance Improvement Plans (PIPs) & Positive Recognition (Owner barred)
+  listPips: (params) => api.get('/workforce/disciplinary/pips', { params }),
+  createPip: (data) => api.post('/workforce/disciplinary/pips', data),
+  updatePip: (id, data) => api.patch(`/workforce/disciplinary/pips/${id}`, data),
+
+  // Admin Directives & Manager Execution Plans
+  listDirectives: (params) => api.get('/workforce/directives', { params }),
+  getDirectiveById: (id) => api.get(`/workforce/directives/${id}`),
+  createDirective: (data) => api.post('/workforce/directives', data),
+  submitDirectivePlan: (id, data) => api.post(`/workforce/directives/${id}/plan`, data),
+  updateDirectiveStatus: (id, data) => api.patch(`/workforce/directives/${id}/status`, data),
+
+  // Staff Reports & Manager Non-Destructive Review
+  listStaffReports: (params) => api.get('/workforce/staff-reports', { params }),
+  getStaffReportById: (id) => api.get(`/workforce/staff-reports/${id}`),
+  submitStaffReport: (data) => api.post('/workforce/staff-reports', data),
+  reviewStaffReport: (id, data) => api.patch(`/workforce/staff-reports/${id}/review`, data),
+
+  // Performance Engine
+  getPersonalPerformance: (params) => api.get('/workforce/performance/personal', { params }),
+  getStaffPerformance: (userId, params) => api.get(`/workforce/performance/staff/${userId}`, { params }),
+  getPerformanceOverview: (params) => api.get('/workforce/performance/overview', { params }),
+};
+
+export { chatService } from './chatService';
 
 export const automationService = {
   getActions: () => api.get('/automation/actions'),

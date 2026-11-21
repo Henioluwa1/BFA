@@ -1,4 +1,5 @@
 const ReportsService = require('./reports.service');
+const CentralReportingService = require('./centralReporting.service');
 const ApiResponse = require('../../utils/apiResponse');
 
 class ReportsController {
@@ -340,6 +341,94 @@ class ReportsController {
       return ApiResponse.success(res, {
         message: 'Inspections report generated successfully',
         data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // ─── Central Operational Reporting Engine ────────────────────────────────
+  static async getOperationalDaily(req, res, next) {
+    try {
+      const report = await CentralReportingService.getDailyReport(req.user, req.query.date, req.query.propertyId);
+      return ApiResponse.success(res, {
+        message: 'Daily operational report retrieved successfully',
+        data: report,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getOperationalMonthly(req, res, next) {
+    try {
+      const report = await CentralReportingService.getMonthlyReport(
+        req.user,
+        req.query.year,
+        req.query.month,
+        req.query.propertyId
+      );
+      return ApiResponse.success(res, {
+        message: 'Monthly operational report retrieved successfully',
+        data: report,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async downloadOperationalPdf(req, res, next) {
+    try {
+      const { type = 'daily', date, year, month, propertyId, title } = req.query;
+      let data = null;
+      if (type === 'monthly') {
+        data = await CentralReportingService.getMonthlyReport(req.user, year, month, propertyId);
+      } else {
+        data = await CentralReportingService.getDailyReport(req.user, date, propertyId);
+      }
+
+      const pdfBuffer = await CentralReportingService.generateReportPdf(
+        data,
+        title || (type === 'monthly' ? 'MONTHLY OPERATIONAL REPORT' : 'DAILY OPERATIONAL REPORT')
+      );
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="BFA_Operational_Report_${Date.now()}.pdf"`);
+      return res.send(pdfBuffer);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async finalizeOperationalSnapshot(req, res, next) {
+    try {
+      const snapshot = await CentralReportingService.finalizeReportSnapshot(req.user, req.body);
+      return ApiResponse.created(res, {
+        message: 'Report snapshot finalized and recorded in ledger',
+        data: snapshot,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async requestOperationalReport(req, res, next) {
+    try {
+      const request = await CentralReportingService.requestReport(req.user, req.body);
+      return ApiResponse.created(res, {
+        message: 'Operational report requested successfully',
+        data: request,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async listOperationalReportRequests(req, res, next) {
+    try {
+      const requests = await CentralReportingService.listReportRequests(req.user);
+      return ApiResponse.success(res, {
+        message: 'Report requests retrieved',
+        data: requests,
       });
     } catch (err) {
       next(err);

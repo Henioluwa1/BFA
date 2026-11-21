@@ -45,6 +45,16 @@ export const chatService = {
 
   getDownloadUrl: (threadId, attachmentId) =>
     `/api/v1/chat/threads/${threadId}/attachments/${attachmentId}/download`,
+
+  // ─── Priority & Acknowledgements ────────────────────────────────────
+  getImportantPendingNotices: () =>
+    api.get('/chat/important-pending'),
+
+  acknowledgeMessage: (messageId) =>
+    api.post(`/chat/messages/${messageId}/acknowledge`),
+
+  broadcastCircular: (data) =>
+    api.post('/chat/circulars', data),
 };
 
 export default chatService;

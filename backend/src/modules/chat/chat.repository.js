@@ -772,15 +772,17 @@ class ChatRepository {
     let sql = `
       SELECT m.id, m.thread_id AS threadId, m.sender_id AS senderId,
              m.client_temp_id AS clientTempId, m.message_type AS messageType,
-             m.content, m.context_entity_type AS contextEntityType,
+             m.content, m.priority, m.context_entity_type AS contextEntityType,
              m.context_entity_id AS contextEntityId, m.is_edited AS isEdited,
              m.is_deleted AS isDeleted, m.created_at AS createdAt,
-             u.name AS senderName, u.role AS senderRole
+             u.name AS senderName, u.role AS senderRole,
+             cma.acknowledged_at AS acknowledgedAt
       FROM chat_messages m
       LEFT JOIN users u ON m.sender_id = u.id
+      LEFT JOIN chat_message_acknowledgements cma ON cma.message_id = m.id AND cma.user_id = ?
       WHERE m.thread_id = ?
     `;
-    const params = [tId];
+    const params = [uId, tId];
 
     if (beforeCursor && !isNaN(parseInt(beforeCursor, 10))) {
       sql += ' AND m.id < ?';
@@ -848,6 +850,8 @@ class ChatRepository {
           : null,
         isEdited: isMsgEdited,
         isDeleted: isMsgDeleted,
+        priority: msg.priority || 'NORMAL',
+        acknowledgedAt: msg.acknowledgedat || msg.acknowledgedAt || null,
         createdAt: msg.created_at || msg.createdat || msg.createdAt,
       };
     });
@@ -874,6 +878,7 @@ class ChatRepository {
     clientTempId,
     messageType = 'TEXT',
     content,
+    priority = 'NORMAL',
     contextEntityType = null,
     contextEntityId = null,
     attachment = null,
@@ -966,11 +971,36 @@ class ChatRepository {
       const [result] = await conn.query(
         `INSERT INTO chat_messages (
            thread_id, sender_id, client_temp_id, message_type, content,
-           context_entity_type, context_entity_id
-         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [tId, sId, tempId, computedMessageType, cleanContent, contextEntityType || null, contextEntityId || null]
+           context_entity_type, context_entity_id, priority
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [tId, sId, tempId, computedMessageType, cleanContent, contextEntityType || null, contextEntityId || null, priority || 'NORMAL']
       );
       const messageId = result.insertId;
+
+      // Create acknowledgement records for all thread recipients if message is IMPORTANT or URGENT
+      if (['IMPORTANT', 'URGENT'].includes(priority)) {
+        const partsRes = await conn.query(
+          'SELECT user_id FROM chat_thread_participants WHERE thread_id = ? AND user_id != ? AND left_at IS NULL',
+          [tId, sId]
+        );
+        const parts = Array.isArray(partsRes[0]) ? partsRes[0] : (Array.isArray(partsRes) ? partsRes : []);
+        for (const p of parts) {
+          const uid = p.user_id || p.userid || p.userId;
+          if (uid) {
+            if (pool.isPostgres()) {
+              await conn.query(
+                'INSERT INTO chat_message_acknowledgements (message_id, user_id) VALUES (?, ?) ON CONFLICT (message_id, user_id) DO NOTHING',
+                [messageId, uid]
+              );
+            } else {
+              await conn.query(
+                'INSERT IGNORE INTO chat_message_acknowledgements (message_id, user_id) VALUES (?, ?)',
+                [messageId, uid]
+              );
+            }
+          }
+        }
+      }
 
       // 3. Insert attachment binary if present
       let createdAttachment = null;
@@ -1055,6 +1085,7 @@ class ChatRepository {
         attachment: createdAttachment,
         contextEntityType,
         contextEntityId,
+        priority: priority || 'NORMAL',
         isEdited: false,
         isDeleted: false,
         createdAt: saved[0]?.created_at || new Date().toISOString(),
@@ -1202,6 +1233,121 @@ class ChatRepository {
     }
 
     return ChatRepository.getRetentionPolicy(propId);
+  }
+
+  /**
+   * Acknowledge an important message or circular
+   */
+  static async acknowledgeMessage(messageId, userId) {
+    const mId = Number(messageId);
+    const uId = Number(userId);
+
+    const updateSql = `
+      UPDATE chat_message_acknowledgements
+      SET acknowledged_at = CURRENT_TIMESTAMP, viewed_at = COALESCE(viewed_at, CURRENT_TIMESTAMP)
+      WHERE message_id = ? AND user_id = ?
+    `;
+    await pool.query(updateSql, [mId, uId]);
+    return { success: true, messageId: mId, acknowledgedAt: new Date().toISOString() };
+  }
+
+  /**
+   * Get all unacknowledged important/urgent messages for user upon login
+   */
+  static async getPendingImportantMessages(userId) {
+    const uId = Number(userId);
+    const sql = `
+      SELECT m.id, m.thread_id AS "threadId", m.content, m.priority,
+             m.context_entity_type AS "contextEntityType", m.context_entity_id AS "contextEntityId",
+             m.created_at AS "createdAt", u.name AS "senderName", u.role AS "senderRole",
+             t.title AS "threadTitle", t.thread_type AS "threadType"
+      FROM chat_message_acknowledgements cma
+      JOIN chat_messages m ON cma.message_id = m.id
+      JOIN chat_threads t ON m.thread_id = t.id
+      JOIN users u ON m.sender_id = u.id
+      WHERE cma.user_id = ? AND cma.acknowledged_at IS NULL
+      ORDER BY m.id DESC;
+    `;
+    const rows = await pool.query(sql, [uId]);
+    return rows || [];
+  }
+
+  /**
+   * Create an Owner Circular broadcast to company or property staff
+   */
+  static async createOwnerCircular(ownerUser, { title, content, priority = 'IMPORTANT', propertyId = null }) {
+    return pool.withTransaction(async (conn) => {
+      const cleanTitle = (title || 'Executive Operational Circular').trim();
+      const cleanContent = (content || '').trim();
+
+      const [threadResult] = await conn.query(
+        `INSERT INTO chat_threads (thread_type, property_id, title, created_by, status, last_message_at)
+         VALUES ('OWNER_CIRCULAR', ?, ?, ?, 'ACTIVE', CURRENT_TIMESTAMP)`,
+        [propertyId || null, cleanTitle, ownerUser.id]
+      );
+      const threadId = threadResult.insertId;
+
+      await conn.query(
+        `INSERT INTO chat_thread_participants (thread_id, user_id, role, last_read_at)
+         VALUES (?, ?, 'ADMIN', CURRENT_TIMESTAMP)`,
+        [threadId, ownerUser.id]
+      );
+
+      let staffQuery = 'SELECT id FROM users WHERE id != ? AND role IN (\'ADMIN\', \'OPERATIONS_MANAGER\', \'MANAGER\', \'STAFF\', \'RECEPTIONIST\')';
+      const staffParams = [ownerUser.id];
+      if (propertyId) {
+        staffQuery += ' AND property_id = ?';
+        staffParams.push(propertyId);
+      }
+      const staffRes = await conn.query(staffQuery, staffParams);
+      const staffList = Array.isArray(staffRes[0]) ? staffRes[0] : (Array.isArray(staffRes) ? staffRes : []);
+
+      for (const s of staffList) {
+        const uid = s.id;
+        if (uid) {
+          await conn.query(
+            `INSERT INTO chat_thread_participants (thread_id, user_id, role)
+             VALUES (?, ?, 'MEMBER')`,
+            [threadId, uid]
+          );
+        }
+      }
+
+      const tempId = crypto.randomUUID();
+      const [msgResult] = await conn.query(
+        `INSERT INTO chat_messages (
+           thread_id, sender_id, client_temp_id, message_type, content,
+           priority, context_entity_type
+         ) VALUES (?, ?, ?, 'TEXT', ?, ?, 'CIRCULAR')`,
+        [threadId, ownerUser.id, tempId, cleanContent, priority]
+      );
+      const messageId = msgResult.insertId;
+
+      for (const s of staffList) {
+        const uid = s.id;
+        if (uid) {
+          if (pool.isPostgres()) {
+            await conn.query(
+              'INSERT INTO chat_message_acknowledgements (message_id, user_id) VALUES (?, ?) ON CONFLICT (message_id, user_id) DO NOTHING',
+              [messageId, uid]
+            );
+          } else {
+            await conn.query(
+              'INSERT IGNORE INTO chat_message_acknowledgements (message_id, user_id) VALUES (?, ?)',
+              [messageId, uid]
+            );
+          }
+        }
+      }
+
+      return {
+        threadId,
+        messageId,
+        title: cleanTitle,
+        recipientsCount: (staffList || []).length,
+        priority,
+      };
+    });
   }
 }
 

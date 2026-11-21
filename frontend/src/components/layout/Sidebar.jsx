@@ -404,7 +404,7 @@ const navGroups = [
 ];
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, onCloseMobile }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const { unreadCount = 0 } = useNotifications() || {};
   const userRole = (user?.role || 'STAFF').toUpperCase();
@@ -624,6 +624,41 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, onCloseMo
               </div>
             );
           })}
+
+          {/* Logout Button positioned directly ABOVE Operations Assistant (Strict Requirement 12.1) */}
+          <button
+            type="button"
+            className="nav-link logout-sidebar-btn"
+            style={{
+              width: '100%',
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              textAlign: 'left',
+              cursor: 'pointer',
+              color: '#ef4444',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.65rem 1rem',
+              marginTop: '0.75rem',
+              marginBottom: '0.35rem',
+              borderRadius: '8px',
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+            }}
+            onClick={() => {
+              onCloseMobile?.();
+              logout();
+            }}
+            title={collapsed ? 'Sign Out' : undefined}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="nav-icon" style={{ color: '#ef4444' }}>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span className="nav-text">Sign Out</span>
+          </button>
 
           {/* Operations Assistant Quick Launcher (ADMIN, OPERATIONS_MANAGER, OWNER only) */}
           {['ADMIN', 'OPERATIONS_MANAGER', 'MANAGER', 'OWNER'].includes(userRole) && (

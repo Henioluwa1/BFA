@@ -178,6 +178,7 @@ class ChatService {
     clientTempId,
     messageType = 'TEXT',
     content,
+    priority = 'NORMAL',
     contextEntityType = null,
     contextEntityId = null,
     attachment = null,
@@ -207,6 +208,7 @@ class ChatService {
       clientTempId,
       messageType,
       content,
+      priority,
       contextEntityType,
       contextEntityId,
       attachment,
@@ -418,9 +420,110 @@ class ChatService {
         };
       }
 
+      case 'ROSTER_ASSIGNMENT': {
+        const [asg] = await pool.query(
+          `SELECT rpa.id, rpa.assignment_code, rpa.duty_category, rpa.status, p.name AS property_name 
+           FROM roster_property_assignments rpa 
+           JOIN properties p ON rpa.property_id = p.id 
+           WHERE rpa.id = ?`,
+          [entityId]
+        );
+        if (!asg) throw new NotFoundError(`Assignment #${entityId} not found.`);
+        return {
+          entityType: 'ROSTER_ASSIGNMENT',
+          entityId: asg.id,
+          title: `Assignment: ${asg.assignment_code}`,
+          subtitle: `${asg.duty_category} • ${asg.property_name}`,
+          status: asg.status,
+          badgeColor: asg.status === 'ACCEPTED' ? 'success' : asg.status === 'REJECTED' ? 'danger' : 'primary',
+          deepLink: `/app/workforce?tab=assignments&id=${asg.id}`,
+        };
+      }
+
+      case 'TASK': {
+        const [task] = await pool.query(
+          `SELECT ot.id, ot.task_code, ot.title, ot.status, p.name AS property_name 
+           FROM operational_tasks ot 
+           JOIN properties p ON ot.property_id = p.id 
+           WHERE ot.id = ?`,
+          [entityId]
+        );
+        if (!task) throw new NotFoundError(`Task #${entityId} not found.`);
+        return {
+          entityType: 'TASK',
+          entityId: task.id,
+          title: `Task: ${task.title}`,
+          subtitle: `${task.task_code} • ${task.property_name}`,
+          status: task.status,
+          badgeColor: task.status === 'COMPLETED' ? 'success' : task.status === 'BLOCKED' ? 'danger' : 'primary',
+          deepLink: `/app/workforce?tab=tasks&id=${task.id}`,
+        };
+      }
+
+      case 'DIRECTIVE': {
+        const [dir] = await pool.query(
+          `SELECT id, directive_code, title, priority, status FROM operational_directives WHERE id = ?`,
+          [entityId]
+        );
+        if (!dir) throw new NotFoundError(`Directive #${entityId} not found.`);
+        return {
+          entityType: 'DIRECTIVE',
+          entityId: dir.id,
+          title: `Directive: ${dir.title}`,
+          subtitle: `${dir.directive_code} • Priority: ${dir.priority}`,
+          status: dir.status,
+          badgeColor: dir.status === 'COMPLETED' ? 'success' : 'primary',
+          deepLink: `/app/operations?tab=directives&id=${dir.id}`,
+        };
+      }
+
+      case 'QUERY': {
+        const [qry] = await pool.query(
+          `SELECT id, query_code, subject, status, response_deadline_at FROM disciplinary_queries WHERE id = ?`,
+          [entityId]
+        );
+        if (!qry) throw new NotFoundError(`Query #${entityId} not found.`);
+        return {
+          entityType: 'QUERY',
+          entityId: qry.id,
+          title: `Notice: ${qry.subject}`,
+          subtitle: `${qry.query_code} • Due: ${new Date(qry.response_deadline_at).toLocaleDateString()}`,
+          status: qry.status,
+          badgeColor: 'warning',
+          deepLink: `/app/performance?tab=queries&id=${qry.id}`,
+        };
+      }
+
       default:
         throw new BadRequestError(`Unsupported context entity type: '${entityType}'.`);
     }
+  }
+
+  /**
+   * Acknowledge an important message or circular
+   */
+  static async acknowledgeMessage(user, messageId) {
+    this.assertEligibleRole(user.role);
+    return ChatRepository.acknowledgeMessage(messageId, user.id);
+  }
+
+  /**
+   * Get pending important messages/circulars for the logged in user
+   */
+  static async getPendingImportantMessages(user) {
+    this.assertEligibleRole(user.role);
+    return ChatRepository.getPendingImportantMessages(user.id);
+  }
+
+  /**
+   * Broadcast Owner Circular to company staff
+   */
+  static async broadcastOwnerCircular(ownerUser, payload) {
+    const role = (ownerUser.role || '').toUpperCase();
+    if (!['OWNER', 'SUPER_ADMIN', 'ADMIN'].includes(role)) {
+      throw new ForbiddenError('Only the Owner or Executive Admin can issue internal circulars.');
+    }
+    return ChatRepository.createOwnerCircular(ownerUser, payload);
   }
 
   /**

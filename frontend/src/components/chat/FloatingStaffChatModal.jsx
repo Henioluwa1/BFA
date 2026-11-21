@@ -74,6 +74,14 @@ export default function FloatingStaffChatModal() {
   const [participantsModalOpen, setParticipantsModalOpen] = useState(false);
   const [participants, setParticipants] = useState([]);
 
+  // Priority, Notice & Circular States
+  const [selectedPriority, setSelectedPriority] = useState('NORMAL'); // 'NORMAL' | 'IMPORTANT' | 'URGENT'
+  const [pendingNotices, setPendingNotices] = useState([]);
+  const [noticesModalOpen, setNoticesModalOpen] = useState(false);
+  const [circularModalOpen, setCircularModalOpen] = useState(false);
+  const [circularForm, setCircularForm] = useState({ title: '', content: '', priority: 'IMPORTANT' });
+  const [broadcastingCircular, setBroadcastingCircular] = useState(false);
+
   // Attachments State
   const [pendingAttachment, setPendingAttachment] = useState(null);
   const [lightboxUrl, setLightboxUrl] = useState(null);
@@ -109,6 +117,62 @@ export default function FloatingStaffChatModal() {
       return () => clearInterval(interval);
     }
   }, [isEligible, fetchUnread]);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Unacknowledged Important Notices & Circulars
+  // ───────────────────────────────────────────────────────────────────────────
+  const fetchPendingNotices = useCallback(async () => {
+    if (!isEligible) return;
+    try {
+      const res = await chatService.getImportantPendingNotices();
+      const raw = unpack(res);
+      setPendingNotices(raw?.notices || []);
+    } catch {
+      // background notices fetch error ignore
+    }
+  }, [isEligible]);
+
+  useEffect(() => {
+    if (isEligible) {
+      fetchPendingNotices();
+      const interval = setInterval(fetchPendingNotices, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [isEligible, fetchPendingNotices]);
+
+  const handleAcknowledgeMessage = async (messageId) => {
+    try {
+      await chatService.acknowledgeMessage(messageId);
+      addToast('Notice formally acknowledged and verified', 'success');
+      setPendingNotices((prev) => prev.filter((n) => n.id !== messageId));
+      fetchPendingNotices();
+      if (activeThreadId) {
+        loadMessages(activeThreadId);
+      }
+    } catch (err) {
+      addToast(err.message || 'Failed to acknowledge notice', 'error');
+    }
+  };
+
+  const handleBroadcastCircular = async (e) => {
+    e.preventDefault();
+    if (!circularForm.title || !circularForm.content) {
+      addToast('Please provide circular title and text', 'error');
+      return;
+    }
+    setBroadcastingCircular(true);
+    try {
+      await chatService.broadcastCircular(circularForm);
+      addToast('Executive circular broadcasted to company staff!', 'success');
+      setCircularModalOpen(false);
+      setCircularForm({ title: '', content: '', priority: 'IMPORTANT' });
+      loadThreads();
+    } catch (err) {
+      addToast(err.message || 'Failed to broadcast circular', 'error');
+    } finally {
+      setBroadcastingCircular(false);
+    }
+  };
 
   // ───────────────────────────────────────────────────────────────────────────
   // Global Event Listener to Open/Toggle Chat from any button
@@ -372,7 +436,9 @@ export default function FloatingStaffChatModal() {
         content: outgoingText,
         messageType: tempMsg.message_type,
         attachment: attToSend,
+        priority: selectedPriority,
       });
+      setSelectedPriority('NORMAL');
 
       const confirmedMsg = unpack(res);
       if (confirmedMsg) {
@@ -653,6 +719,28 @@ export default function FloatingStaffChatModal() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {user?.role === 'OWNER' && (
+                <button
+                  type="button"
+                  onClick={() => setCircularModalOpen(true)}
+                  style={{
+                    background: 'rgba(212, 175, 55, 0.2)',
+                    border: '1px solid #d4af37',
+                    color: '#fbbf24',
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    cursor: 'pointer',
+                  }}
+                  title="Broadcast Executive Circular to all Staff"
+                >
+                  📢 Broadcast Circular
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
@@ -695,6 +783,45 @@ export default function FloatingStaffChatModal() {
               </button>
             </div>
           </div>
+
+          {/* Unacknowledged Important Notices Alert Banner */}
+          {pendingNotices.length > 0 && (
+            <div
+              style={{
+                padding: '8px 14px',
+                background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.25), rgba(245, 158, 11, 0.25))',
+                borderBottom: '1px solid rgba(245, 158, 11, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '0.78rem',
+                color: '#fbbf24',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ShieldAlert size={15} style={{ color: '#ef4444' }} />
+                <span>
+                  You have <strong>{pendingNotices.length}</strong> unacknowledged operational notice{pendingNotices.length > 1 ? 's' : ''}.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNoticesModalOpen(true)}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: '#fbbf24',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  fontSize: '0.72rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Review & Sign
+              </button>
+            </div>
+          )}
 
           {/* Body: Split View (Conversations List + Active Chat) */}
           <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -1070,8 +1197,79 @@ export default function FloatingStaffChatModal() {
                               </div>
                             )}
 
+                            {/* Priority Indicator Badge */}
+                            {m.priority === 'URGENT' && (
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: 'rgba(239, 68, 68, 0.2)',
+                                  color: '#ef4444',
+                                  border: '1px solid #ef4444',
+                                  borderRadius: '4px',
+                                  padding: '1px 6px',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  marginBottom: '4px',
+                                }}
+                              >
+                                🚨 URGENT
+                              </div>
+                            )}
+                            {m.priority === 'IMPORTANT' && (
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: 'rgba(245, 158, 11, 0.2)',
+                                  color: '#f59e0b',
+                                  border: '1px solid #f59e0b',
+                                  borderRadius: '4px',
+                                  padding: '1px 6px',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  marginBottom: '4px',
+                                }}
+                              >
+                                ⚠️ IMPORTANT
+                              </div>
+                            )}
+
                             {/* Message text content */}
-                            {m.content && <div>{m.content}</div>}
+                            {m.content && <div style={{ wordBreak: 'break-word' }}>{m.content}</div>}
+
+                            {/* Acknowledge Receipt Button for critical/important notice */}
+                            {(m.priority === 'URGENT' || m.priority === 'IMPORTANT' || m.context_type) && !isMe && (
+                              <div style={{ marginTop: '6px' }}>
+                                {m.acknowledged ? (
+                                  <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>
+                                    ✓ Acknowledged
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAcknowledgeMessage(m.id)}
+                                    style={{
+                                      padding: '3px 8px',
+                                      fontSize: '0.7rem',
+                                      borderRadius: '4px',
+                                      background: '#10b981',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    <Check size={12} /> Acknowledge Receipt
+                                  </button>
+                                )}
+                              </div>
+                            )}
 
                             {/* Timestamp & read ticks */}
                             <div
@@ -1166,6 +1364,27 @@ export default function FloatingStaffChatModal() {
                     >
                       <Paperclip size={16} />
                     </button>
+
+                    <select
+                      value={selectedPriority}
+                      onChange={(e) => setSelectedPriority(e.target.value)}
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: '8px',
+                        background: selectedPriority === 'URGENT' ? 'rgba(239, 68, 68, 0.25)' : selectedPriority === 'IMPORTANT' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+                        border: selectedPriority === 'URGENT' ? '1px solid #ef4444' : selectedPriority === 'IMPORTANT' ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.12)',
+                        color: selectedPriority === 'URGENT' ? '#f87171' : selectedPriority === 'IMPORTANT' ? '#fbbf24' : '#cbd5e1',
+                        fontWeight: selectedPriority !== 'NORMAL' ? 700 : 500,
+                        fontSize: '0.72rem',
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                      title="Set Message Priority Level"
+                    >
+                      <option value="NORMAL" style={{ background: '#0f172a', color: '#fff' }}>Normal</option>
+                      <option value="IMPORTANT" style={{ background: '#0f172a', color: '#fbbf24' }}>⚠️ Important</option>
+                      <option value="URGENT" style={{ background: '#0f172a', color: '#f87171' }}>🚨 Urgent</option>
+                    </select>
 
                     <input
                       type="text"
@@ -1462,6 +1681,310 @@ export default function FloatingStaffChatModal() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      {/* 4.5 UNACKNOWLEDGED IMPORTANT NOTICES MODAL */}
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      {noticesModalOpen && (
+        <div
+          className="chat-lightbox-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1100,
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(16px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              background: 'rgba(15, 23, 42, 0.95)',
+              backdropFilter: 'blur(28px)',
+              borderRadius: '14px',
+              border: '1.5px solid rgba(245, 158, 11, 0.5)',
+              width: '520px',
+              maxWidth: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div
+              style={{
+                padding: '14px 18px',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShieldAlert size={18} style={{ color: '#ef4444' }} />
+                <h3 style={{ margin: 0, fontSize: '1rem', color: '#fff', fontWeight: 700 }}>
+                  Mandatory Operational Notices ({pendingNotices.length})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNoticesModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '360px', overflowY: 'auto' }}>
+              {pendingNotices.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#10b981', padding: '16px' }}>
+                  ✓ All operational notices and circulars have been acknowledged!
+                </div>
+              ) : (
+                pendingNotices.map((n) => (
+                  <div
+                    key={n.id}
+                    style={{
+                      padding: '12px',
+                      borderRadius: '8px',
+                      background: 'rgba(30, 41, 59, 0.7)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          background: n.priority === 'URGENT' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(245, 158, 11, 0.25)',
+                          color: n.priority === 'URGENT' ? '#f87171' : '#fbbf24',
+                          border: n.priority === 'URGENT' ? '1px solid #ef4444' : '1px solid #f59e0b',
+                        }}
+                      >
+                        {n.priority} NOTICE
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                        From {n.sender_name || 'Executive'} • {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: '0.84rem', color: '#ffffff', lineHeight: 1.4 }}>
+                      {n.content}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleAcknowledgeMessage(n.id)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          background: '#10b981',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <Check size={13} /> Acknowledge & Sign Receipt
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ padding: '12px 18px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setNoticesModalOpen(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#cbd5e1',
+                  border: 'none',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      {/* 4.6 BROADCAST OWNER CIRCULAR MODAL */}
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      {circularModalOpen && (
+        <div
+          className="chat-lightbox-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1100,
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(16px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              background: 'rgba(15, 23, 42, 0.95)',
+              backdropFilter: 'blur(28px)',
+              borderRadius: '14px',
+              border: '1.5px solid rgba(212, 175, 55, 0.5)',
+              width: '500px',
+              maxWidth: '100%',
+              overflow: 'hidden',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div
+              style={{
+                padding: '14px 18px',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: '1rem', color: '#fff', fontWeight: 700 }}>
+                📢 Broadcast Executive Circular to All Staff
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCircularModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleBroadcastCircular} style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                  Circular Subject / Title *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Standard Operating Directives: Mandatory Check-in Protocol & Guest Etiquette"
+                  value={circularForm.title}
+                  onChange={(e) => setCircularForm({ ...circularForm, title: e.target.value })}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'rgba(30, 41, 59, 0.75)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.85rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                  Priority Level
+                </label>
+                <select
+                  value={circularForm.priority}
+                  onChange={(e) => setCircularForm({ ...circularForm, priority: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'rgba(30, 41, 59, 0.75)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.85rem',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="IMPORTANT">⚠️ Important (Requires Staff Acknowledgement)</option>
+                  <option value="URGENT">🚨 Urgent (Immediate Mandatory Mobilization)</option>
+                  <option value="NORMAL">Normal Information</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                  Executive Circular Message *
+                </label>
+                <textarea
+                  rows={5}
+                  placeholder="Type the formal executive directive to be delivered and acknowledged across all properties..."
+                  value={circularForm.content}
+                  onChange={(e) => setCircularForm({ ...circularForm, content: e.target.value })}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'rgba(30, 41, 59, 0.75)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.85rem',
+                    boxSizing: 'border-box',
+                    lineHeight: 1.4,
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setCircularModalOpen(false)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    color: '#cbd5e1',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={broadcastingCircular}
+                  style={{
+                    background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
+                    color: '#0f172a',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {broadcastingCircular ? 'Broadcasting...' : 'Broadcast Circular'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

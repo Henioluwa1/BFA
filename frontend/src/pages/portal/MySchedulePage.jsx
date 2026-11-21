@@ -17,6 +17,8 @@ import {
   FileText,
 } from '../../components/ui/Icons';
 import AbsenceCalendar from '../../components/workforce/AbsenceCalendar';
+import StaffOperationsWorkspace from '../../components/workforce/StaffOperationsWorkspace';
+import { Building } from 'lucide-react';
 
 export default function MySchedulePage() {
   const { user } = useAuth();
@@ -26,11 +28,14 @@ export default function MySchedulePage() {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const tabParam = urlParams.get('tab');
-      if (tabParam === 'leave' || window.location.hash === '#leave') return 'leave';
-      if (tabParam === 'shifts' || window.location.hash === '#shifts') return 'shifts';
+      if (['operations', 'attendance', 'leave', 'shifts'].includes(tabParam)) return tabParam;
+      if (window.location.hash) {
+        const hash = window.location.hash.replace('#', '');
+        if (['operations', 'attendance', 'leave', 'shifts'].includes(hash)) return hash;
+      }
     }
-    return 'attendance';
-  }); // 'attendance', 'leave', 'shifts'
+    return 'operations';
+  }); // 'operations', 'attendance', 'leave', 'shifts'
   const [loading, setLoading] = useState(false);
 
   // Live Digital Clock state
@@ -526,6 +531,25 @@ export default function MySchedulePage() {
         }}
       >
         <button
+          onClick={() => setActiveTab('operations')}
+          style={{
+            padding: '0.65rem 1.25rem',
+            background: activeTab === 'operations' ? 'var(--bg-card)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'operations' ? '3px solid var(--brand-accent, #ca8a04)' : '3px solid transparent',
+            color: activeTab === 'operations' ? 'var(--text-primary)' : 'var(--text-muted)',
+            fontWeight: activeTab === 'operations' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+          }}
+        >
+          <Building size={16} /> My Property & Operations
+        </button>
+
+        <button
           onClick={() => setActiveTab('attendance')}
           style={{
             padding: '0.65rem 1.25rem',
@@ -573,6 +597,13 @@ export default function MySchedulePage() {
           My Shifts & Swaps
         </button>
       </div>
+
+      {/* ========================================================================= */}
+      {/* TAB 0: STAFF PROPERTY ASSIGNMENT, TASKS & SHIFT REPORTING                */}
+      {/* ========================================================================= */}
+      {activeTab === 'operations' && (
+        <StaffOperationsWorkspace />
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 1: ATTENDANCE HISTORY & MISSED PUNCH CORRECTIONS                     */}

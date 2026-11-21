@@ -8,6 +8,10 @@ import AttendancePolicyModal from '../../components/workforce/AttendancePolicyMo
 import KioskManagementModal from '../../components/workforce/KioskManagementModal';
 import ManualPunchModal from '../../components/workforce/ManualPunchModal';
 import AbsenceCalendar from '../../components/workforce/AbsenceCalendar';
+import PropertyAssignmentsTab from '../../components/workforce/PropertyAssignmentsTab';
+import DirectivesTab from '../../components/workforce/DirectivesTab';
+import OperationalTasksTab from '../../components/workforce/OperationalTasksTab';
+import StaffReportsReviewTab from '../../components/workforce/StaffReportsReviewTab';
 import { workforceService, employeeService, propertyService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useProperty } from '../../context/PropertyContext';
@@ -26,6 +30,7 @@ import {
   MapPin,
   ShieldCheck,
 } from '../../components/ui/Icons';
+import { Building, FileText } from 'lucide-react';
 
 export default function WorkforcePage() {
   const { user } = useAuth();
@@ -36,17 +41,18 @@ export default function WorkforcePage() {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const tabParam = urlParams.get('tab');
-      if (['roster', 'attendance', 'leave', 'timesheets', 'swaps'].includes(tabParam)) {
+      const validTabs = ['assignments', 'directives', 'tasks', 'staff-reports', 'roster', 'attendance', 'leave', 'timesheets', 'swaps'];
+      if (validTabs.includes(tabParam)) {
         return tabParam;
       }
       if (window.location.hash) {
         const hash = window.location.hash.replace('#', '');
-        if (['roster', 'attendance', 'leave', 'timesheets', 'swaps'].includes(hash)) {
+        if (validTabs.includes(hash)) {
           return hash;
         }
       }
     }
-    return 'attendance';
+    return 'assignments';
   }); // 'roster', 'attendance', 'leave', 'timesheets', 'swaps'
   const [loading, setLoading] = useState(false);
 
@@ -485,6 +491,90 @@ export default function WorkforcePage() {
         }}
       >
         <button
+          onClick={() => setActiveTab('assignments')}
+          style={{
+            padding: '0.65rem 1.25rem',
+            background: activeTab === 'assignments' ? 'var(--bg-card)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'assignments' ? '3px solid #10b981' : '3px solid transparent',
+            color: activeTab === 'assignments' ? 'var(--text-primary)' : 'var(--text-muted)',
+            fontWeight: activeTab === 'assignments' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Building size={16} /> Property Assignments
+        </button>
+
+        <button
+          onClick={() => setActiveTab('directives')}
+          style={{
+            padding: '0.65rem 1.25rem',
+            background: activeTab === 'directives' ? 'var(--bg-card)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'directives' ? '3px solid #10b981' : '3px solid transparent',
+            color: activeTab === 'directives' ? 'var(--text-primary)' : 'var(--text-muted)',
+            fontWeight: activeTab === 'directives' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <ShieldCheck size={16} /> Directives & Plans
+        </button>
+
+        <button
+          onClick={() => setActiveTab('tasks')}
+          style={{
+            padding: '0.65rem 1.25rem',
+            background: activeTab === 'tasks' ? 'var(--bg-card)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'tasks' ? '3px solid #10b981' : '3px solid transparent',
+            color: activeTab === 'tasks' ? 'var(--text-primary)' : 'var(--text-muted)',
+            fontWeight: activeTab === 'tasks' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <CheckCircle size={16} /> Operational Tasks
+        </button>
+
+        <button
+          onClick={() => setActiveTab('staff-reports')}
+          style={{
+            padding: '0.65rem 1.25rem',
+            background: activeTab === 'staff-reports' ? 'var(--bg-card)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'staff-reports' ? '3px solid #10b981' : '3px solid transparent',
+            color: activeTab === 'staff-reports' ? 'var(--text-primary)' : 'var(--text-muted)',
+            fontWeight: activeTab === 'staff-reports' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <FileText size={16} /> Staff Shift Reports
+        </button>
+
+        <button
           onClick={() => setActiveTab('roster')}
           style={{
             padding: '0.65rem 1.25rem',
@@ -631,6 +721,25 @@ export default function WorkforcePage() {
           )}
         </button>
       </div>
+
+      {/* ========================================================================= */}
+      {/* OPERATIONAL UPGRADE TABS                                                  */}
+      {/* ========================================================================= */}
+      {activeTab === 'assignments' && (
+        <PropertyAssignmentsTab activePropertyId={filterPropertyId} />
+      )}
+
+      {activeTab === 'directives' && (
+        <DirectivesTab activePropertyId={filterPropertyId} />
+      )}
+
+      {activeTab === 'tasks' && (
+        <OperationalTasksTab activePropertyId={filterPropertyId} />
+      )}
+
+      {activeTab === 'staff-reports' && (
+        <StaffReportsReviewTab activePropertyId={filterPropertyId} />
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 0: ROSTER PLANNING & SHIFT ASSIGNMENT GRID                            */}
