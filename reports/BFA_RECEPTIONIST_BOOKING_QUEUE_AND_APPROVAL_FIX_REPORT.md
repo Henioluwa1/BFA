@@ -1,9 +1,9 @@
 # BFA Receptionist Booking Queue & Approval Internal Server Error Resolution Report
 
-**Document Date:** November 20, 2026  
+**Document Date:** November 21, 2026  
 **System Version:** BFA Apartments Management System v2.6.0  
 **Target Environment:** Production (Render Static Site `bfa-xtdo`, Web Service `bfa-backend-mox8`, Aiven PostgreSQL 18.7)  
-**Verification Status:** VERIFIED & DEPLOYED  
+**Verification Status:** VERIFIED & DEPLOYED (Commits `a3dc23a`, `5958a1f`, `1fa1c70`)  
 
 ---
 
@@ -165,19 +165,35 @@ A dedicated regression test script was executed against the production Aiven Pos
 **Test Results:**
 ```text
 [TEST]: Starting Receptionist Booking Claim & Queue Verification...
-[INFO]: PostgreSQL connection pool initialized for target: avnadmin@pg-...
-[TEST]: Created test reservation ID 5 (TEST-CLAIM-1795191973298)
+[INFO]: PostgreSQL connection pool initialized for target: avnadmin@pg-2221f109-aladeisrael56-2310.i.aivencloud.com:26780/bfa_apartments_db
+[TEST]: Created test reservation ID 26 (TEST-CLAIM-1795263112963)
 [TEST PASS]: getUnclaimedBookings returns pending reservation.
 [TEST]: Executing simultaneous claim race condition...
-[INFO]: [AUDIT] Action: CLIENT_CLAIMED on reservation#5 by RECEPTIONIST
+[INFO]: [AUDIT] Action: CLIENT_CLAIMED on reservation#26 by RECEPTIONIST {"requestId":"req-rec-a","action":"CLIENT_CLAIMED","entityType":"reservation","entityId":26}
 [ERROR]: PostgreSQL transaction rolled back due to error: {"error":"One client cannot be assigned to two front desk staffs. This reservation has already been accepted and assigned to Elena Ramos (Reception).","code":"CONFLICT"}
 [TEST]: Concurrent claims outcome: 1 succeeded, 1 rejected.
 [TEST PASS]: Concurrency conflict cleanly rejected with message: "One client cannot be assigned to two front desk staffs. This reservation has already been accepted and assigned to Elena Ramos (Reception)."
 [TEST PASS]: Reservation is claimed and assigned to staff #4
 [TEST PASS]: reservation_staff_assignments audit row recorded with is_active = TRUE.
 [TEST PASS]: Claimed reservation immediately removed from unclaimed queue.
-[TEST]: Cleaned up test reservation ID 5.
+[TEST]: Cleaned up test reservation ID 26.
 ✅ ALL BACKEND BOOKING CLAIM & CONCURRENCY TESTS PASSED SUCCESSFULLY!
+```
+
+### 4.2 Comprehensive Multi-Booking Queue (Scenario B) E2E Verification
+Executed `node backend/src/scripts/testFullSystemVerification.js`:
+```text
+--- PART A: LIVE BOOKING ALERT QUEUE & CLAIM CONCURRENCY ---
+  ✓ Created pending booking #27 (TEST-BK-135877-1)
+  ✓ Created pending booking #28 (TEST-BK-136159-2)
+  ✓ Created pending booking #29 (TEST-BK-136441-3)
+  ✓ All 3 test bookings visible in receptionist queue: true
+  Testing claim on booking #27 by Receptionist 1...
+  ✓ Successfully claimed booking #27 without 500 error!
+    Status: CLAIMED, Assigned Staff ID: 4
+  ✓ Claimed booking #27 removed from queue: true
+  ✓ Remaining bookings intact in queue: true
+  ✓ Successfully claimed booking #28! Queue decremented to 1.
 ```
 
 ### 4.2 Full Upgrade Verification Suite
