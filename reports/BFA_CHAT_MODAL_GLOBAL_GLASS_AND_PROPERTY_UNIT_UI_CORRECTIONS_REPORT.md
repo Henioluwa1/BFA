@@ -165,6 +165,29 @@ dist/assets/index-DHd_7AGc.css          296.25 kB │ gzip:  49.03 kB
 
 ---
 
-## 9. Conclusion
+### 8.3 In-Browser Live Verification on Render Production (`bfa-xtdo`)
+Conducted live automated verification in the browser on `https://bfa-xtdo.onrender.com`:
+- **Render Static Site Deployment:** Built in 32s and confirmed **Live** with commit `7baa4b3`.
+- **Properties Toolbar:** "Quick Property" verified completely removed. Toolbar cleanly shows only `View All Units` and `⚡ Structure & Upload Property`.
+- **Add Units to Property Modal:** Clicked `+ Add Units` on Grand Horizon Tower. Glass modal opened with property identity header, manual unique Apartment ID input (`APT-201`), main photo uploader, and dynamic in-suite amenities.
+- **Redesigned Edit Property Modal:** Clicked `Edit` on Grand Horizon Tower. Modal opened with all 4 tabs (`Property Information`, `Amenities & Features`, `Media Gallery`, `Units`). Opened the `Units (3)` tab: verified the 3 physical units (Penthouse Horizon 101, Deluxe Suite 102, Studio Prime 103) loaded with nightly rates, occupancy status, and an internal `+ Add Units to Property` action.
+- **Floating Messenger Chat Window:** Floating chat button verified in bottom-right corner. Clicked to open the floating Messenger glass panel (`💬 Staff Collaboration & Files • LIVE`). Floats non-intrusively in the bottom-right quadrant above the page. Clicked outside: closed smoothly.
+- **Apartments Page Toolbar:** Navigated to `/app/apartments`: verified `+ Add Property` and `+ Add Apartment Unit` buttons are completely removed.
+
+---
+
+## 9. Visual Evidence Manifest
+
+| Screenshot | Description |
+|---|---|
+| `floating_messenger_chat_window.png` | Floating Messenger chat panel open in bottom-right quadrant above page |
+| `add_units_glass_modal.png` | Add Units glass modal with property banner, manual ID & in-suite amenities |
+| `edit_property_info_tab.png` | Redesigned Property Edit modal — Tab 1 (Property Information) |
+| `edit_property_units_tab.png` | Redesigned Property Edit modal — Tab 4 (Units list & Add Unit action) |
+| `apartments_page_clean_toolbar.png` | Apartments & Units page with creation buttons completely removed |
+
+---
+
+## 10. Conclusion
 
 All requested UI corrections, glass modal styling transformations, Messenger-style floating chat conversion, and property/unit management redesigns have been completed and verified with zero errors. The application maintains full architectural compatibility with Aiven PostgreSQL and Render deployment.
