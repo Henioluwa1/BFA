@@ -135,7 +135,7 @@
   color: #94a3b8;
   font-weight: 500;
   font-size: 0.92rem;
-  transition: var(--transition-normal);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   text-decoration: none;
 }
@@ -143,6 +143,7 @@
 .nav-link:hover {
   background: var(--sidebar-hover);
   color: #ffffff;
+  transform: translateX(3px);
 }
 
 .nav-link.active {
@@ -216,12 +217,13 @@
 .nav-group-chevron {
   width: 14px;
   height: 14px;
-  transition: transform var(--transition-normal);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   opacity: 0.7;
 }
 
 .nav-group-chevron.open {
   transform: rotate(90deg);
+  opacity: 1;
 }
 
 .nav-group-items {
@@ -230,7 +232,23 @@
   gap: 0.2rem;
   padding-left: 0.25rem;
   overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.25s ease;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease,
+              transform 0.28s ease,
+              margin 0.25s ease;
+}
+
+.nav-group-items.open {
+  max-height: 500px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  margin-top: 0.2rem;
+  margin-bottom: 0.25rem;
 }
 
 .nav-badge {

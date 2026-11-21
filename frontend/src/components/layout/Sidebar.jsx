@@ -566,10 +566,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, onCloseMo
                 </button>
 
                 <div
-                  className="nav-group-items"
-                  style={{
-                    display: isGroupOpen ? 'flex' : 'none',
-                  }}
+                  className={`nav-group-items ${isGroupOpen ? 'open' : ''}`}
                 >
                   {group.items.map((item) => (
                     <NavLink
