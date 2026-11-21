@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
@@ -6,6 +6,41 @@ import ErrorBoundary from '../ui/ErrorBoundary';
 import GlobalBookingAlertModal from '../frontOffice/GlobalBookingAlertModal';
 import FloatingStaffChatModal from '../chat/FloatingStaffChatModal';
 import { useAuth } from '../../context/AuthContext';
+
+function ContentLoader() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '45vh',
+        gap: '12px',
+        color: 'rgba(255, 255, 255, 0.7)',
+      }}
+    >
+      <div
+        style={{
+          width: '32px',
+          height: '32px',
+          border: '2.5px solid rgba(212, 175, 55, 0.2)',
+          borderTopColor: '#d4af37',
+          borderRadius: '50%',
+          animation: 'contentSpin 0.7s linear infinite',
+        }}
+      />
+      <span style={{ fontSize: '0.82rem', letterSpacing: '0.05em', fontWeight: 600 }}>
+        Loading...
+      </span>
+      <style>{`
+        @keyframes contentSpin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -43,7 +78,9 @@ export default function AppLayout() {
         <Topbar onToggleMobileNav={() => setMobileOpen((prev) => !prev)} />
         <main className="content-viewport">
           <ErrorBoundary>
-            <Outlet />
+            <Suspense fallback={<ContentLoader />}>
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>
