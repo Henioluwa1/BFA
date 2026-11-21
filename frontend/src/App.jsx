@@ -159,7 +159,7 @@ function App() {
                       <Route path="announcements" element={<AnnouncementsPage />} />
                       <Route path="team" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><TeamPage /></ProtectedRoute>} />
                       <Route path="settings" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><SettingsPage /></ProtectedRoute>} />
-                      <Route path="operations" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']}><OperationsPage /></ProtectedRoute>} />
+                      <Route path="operations" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'STAFF']}><OperationsPage /></ProtectedRoute>} />
                       <Route path="404" element={<NotFoundPage />} />
                     </Route>
                   </Route>

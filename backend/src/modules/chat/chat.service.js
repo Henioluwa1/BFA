@@ -494,6 +494,58 @@ class ChatService {
         };
       }
 
+      case 'OPERATION': {
+        const [op] = await pool.query(
+          `SELECT co.id, co.operation_code, co.title, co.category, co.priority, co.status, co.deadline_at,
+                  p.name AS property_name, om.memo_reference, om.id AS memo_id
+           FROM central_operations co
+           LEFT JOIN properties p ON co.property_id = p.id
+           LEFT JOIN operations_memos om ON co.latest_memo_id = om.id
+           WHERE co.id = ?`,
+          [entityId]
+        );
+        if (!op) throw new NotFoundError(`Operation #${entityId} not found.`);
+        return {
+          entityType: 'OPERATION',
+          entityId: op.id,
+          code: op.operation_code,
+          title: `Operation: ${op.title}`,
+          subtitle: `${op.operation_code} • ${(op.category || '').replace(/_/g, ' ')} • ${op.property_name || 'Corporate'}`,
+          status: op.status,
+          priority: op.priority,
+          memoReference: op.memo_reference,
+          memoId: op.memo_id,
+          deadlineAt: op.deadline_at,
+          badgeColor: op.priority === 'CRITICAL' ? 'danger' : op.priority === 'URGENT' ? 'warning' : 'primary',
+          deepLink: `/app/operations?id=${op.id}`,
+        };
+      }
+
+      case 'MEMO': {
+        const [memo] = await pool.query(
+          `SELECT om.id, om.memo_reference, om.title, om.category, om.priority, om.version_number,
+                  co.id AS operation_id, co.operation_code, co.status
+           FROM operations_memos om
+           JOIN central_operations co ON om.operation_id = co.id
+           WHERE om.id = ?`,
+          [entityId]
+        );
+        if (!memo) throw new NotFoundError(`Operations Memo #${entityId} not found.`);
+        return {
+          entityType: 'MEMO',
+          entityId: memo.id,
+          code: memo.memo_reference,
+          title: `Memo: ${memo.title}`,
+          subtitle: `${memo.memo_reference} (v${memo.version_number}) • Ref: ${memo.operation_code}`,
+          status: memo.status,
+          priority: memo.priority,
+          operationId: memo.operation_id,
+          badgeColor: memo.priority === 'CRITICAL' ? 'danger' : memo.priority === 'URGENT' ? 'warning' : 'primary',
+          deepLink: `/app/operations?id=${memo.operation_id}`,
+          pdfUrl: `/api/v1/workforce/operations/memos/${memo.id}/pdf`,
+        };
+      }
+
       default:
         throw new BadRequestError(`Unsupported context entity type: '${entityType}'.`);
     }

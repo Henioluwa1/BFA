@@ -609,6 +609,42 @@ export const operationsService = {
   getPerformanceOverview: (params) => api.get('/workforce/performance/overview', { params }),
 };
 
+export const centralOperationsService = {
+  listOperations: (params) => api.get('/workforce/operations', { params }),
+  getOperationById: (id) => api.get(`/workforce/operations/${id}`),
+  createOperation: (data) => api.post('/workforce/operations', data),
+  acknowledgeOperation: (id, note) => api.post(`/workforce/operations/${id}/acknowledge`, { note }),
+  requestClarification: (id, data) => api.post(`/workforce/operations/${id}/clarification`, data),
+  respondClarification: (id, data) => api.post(`/workforce/operations/${id}/clarification/respond`, data),
+  reportBlocker: (id, data) => api.post(`/workforce/operations/${id}/blockers`, data),
+  updateProgress: (id, data) => api.post(`/workforce/operations/${id}/progress`, data),
+  createLinkedTask: (id, data) => api.post(`/workforce/operations/${id}/tasks`, data),
+  submitCompletion: (id, data) => api.post(`/workforce/operations/${id}/completion`, data),
+  reviewOperation: (id, data) => api.post(`/workforce/operations/${id}/review`, data),
+  amendOperation: (id, data) => api.post(`/workforce/operations/${id}/amend`, data),
+  cancelOperation: (id, data) => api.post(`/workforce/operations/${id}/cancel`, data),
+  getMemoPdfUrl: (memoId) => `${api.defaults.baseURL}/workforce/operations/memos/${memoId}/pdf`,
+  downloadMemoPdf: (memoId, filename = 'operations_memo.pdf') => {
+    return axios({
+      url: `${api.defaults.baseURL}/workforce/operations/memos/${memoId}/pdf`,
+      method: 'GET',
+      responseType: 'blob',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('bfa_auth_token')}`,
+      },
+    }).then((res) => {
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    });
+  },
+};
+
 export { chatService } from './chatService';
 
 export const automationService = {

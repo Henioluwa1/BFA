@@ -1198,6 +1198,26 @@ export default function FloatingStaffChatModal() {
                             )}
 
                             {/* Priority Indicator Badge */}
+                            {m.priority === 'CRITICAL' && (
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  background: 'rgba(220, 38, 38, 0.25)',
+                                  color: '#ef4444',
+                                  border: '1px solid #ef4444',
+                                  borderRadius: '4px',
+                                  padding: '1px 6px',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 800,
+                                  marginBottom: '4px',
+                                  letterSpacing: '0.5px',
+                                }}
+                              >
+                                🚨 CRITICAL DIRECTIVE
+                              </div>
+                            )}
                             {m.priority === 'URGENT' && (
                               <div
                                 style={{
@@ -1214,7 +1234,7 @@ export default function FloatingStaffChatModal() {
                                   marginBottom: '4px',
                                 }}
                               >
-                                🚨 URGENT
+                                ⚡ URGENT
                               </div>
                             )}
                             {m.priority === 'IMPORTANT' && (
@@ -1238,10 +1258,51 @@ export default function FloatingStaffChatModal() {
                             )}
 
                             {/* Message text content */}
-                            {m.content && <div style={{ wordBreak: 'break-word' }}>{m.content}</div>}
+                            {m.content && <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
 
-                            {/* Acknowledge Receipt Button for critical/important notice */}
-                            {(m.priority === 'URGENT' || m.priority === 'IMPORTANT' || m.context_type) && !isMe && (
+                            {/* Operations Memo Preview Card */}
+                            {(m.context_entity_type === 'OPERATION' || m.context_entity_type === 'MEMO') && (
+                              <div
+                                style={{
+                                  marginTop: '8px',
+                                  padding: '8px 10px',
+                                  borderRadius: '8px',
+                                  background: 'rgba(15, 23, 42, 0.7)',
+                                  border: '1px solid rgba(59, 130, 246, 0.4)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '4px',
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#60a5fa', letterSpacing: '0.5px' }}>
+                                    📋 OFFICIAL OPERATIONS MEMO
+                                  </span>
+                                  <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                                    #{m.context_entity_id}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                  <a
+                                    href={`/app/operations?id=${m.context_entity_id}`}
+                                    style={{
+                                      fontSize: '0.72rem',
+                                      padding: '3px 8px',
+                                      borderRadius: '4px',
+                                      background: '#2563eb',
+                                      color: '#ffffff',
+                                      textDecoration: 'none',
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    View Full Operation ➔
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Acknowledge Receipt Button for critical/important notice or operations */}
+                            {(m.priority === 'CRITICAL' || m.priority === 'URGENT' || m.priority === 'IMPORTANT' || m.context_type || m.context_entity_type === 'OPERATION') && !isMe && (
                               <div style={{ marginTop: '6px' }}>
                                 {m.acknowledged ? (
                                   <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>

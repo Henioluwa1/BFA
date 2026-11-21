@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const WorkforceController = require('./workforce.controller');
 const OperationsWorkforceController = require('./operationsWorkforce.controller');
+const CentralOperationsController = require('./centralOperations.controller');
 const { requireAuth, requireRoles } = require('../../core/middleware/authContext');
 
 const MANAGEMENT_ROLES = ['ADMIN', 'OPERATIONS_MANAGER', 'MANAGER', 'OWNER'];
@@ -44,6 +45,22 @@ router.get('/directives', requireAuth, requireRoles(...MANAGEMENT_ROLES), Operat
 router.get('/directives/:id', requireAuth, requireRoles(...MANAGEMENT_ROLES), OperationsWorkforceController.getDirectiveById);
 router.post('/directives/:id/plan', requireAuth, requireRoles(...MANAGEMENT_ROLES), OperationsWorkforceController.submitDirectiveExecutionPlan);
 router.patch('/directives/:id/status', requireAuth, requireRoles('SUPER_ADMIN', 'ADMIN'), OperationsWorkforceController.updateDirectiveStatus);
+
+// ─── Central Operations, Directives, Operations Memos & Workflows ─────
+router.post('/operations', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN', 'STAFF', 'RECEPTIONIST'), CentralOperationsController.createOperation);
+router.get('/operations', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.listOperations);
+router.get('/operations/memos/:memoId/pdf', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.downloadMemoPdf);
+router.get('/operations/:id', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.getOperationById);
+router.post('/operations/:id/acknowledge', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.acknowledgeOperation);
+router.post('/operations/:id/clarification', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.requestClarification);
+router.post('/operations/:id/clarification/respond', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.respondClarification);
+router.post('/operations/:id/blockers', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.reportBlocker);
+router.post('/operations/:id/progress', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.updateProgress);
+router.post('/operations/:id/tasks', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.createLinkedTask);
+router.post('/operations/:id/completion', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.submitCompletion);
+router.post('/operations/:id/review', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.reviewOperation);
+router.post('/operations/:id/amend', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.amendOperation);
+router.post('/operations/:id/cancel', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.cancelOperation);
 
 // ─── Staff-Submitted Operational Reports ───────────────────────────────
 router.post('/staff-reports', requireAuth, requireRoles(...ALL_STAFF_ROLES), OperationsWorkforceController.submitStaffReport);
