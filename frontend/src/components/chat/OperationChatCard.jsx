@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, Download, CheckCircle2, AlertTriangle, ArrowRight, Check } from 'lucide-react';
-import api from '../../services/api';
+import api, { centralOperationsService } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
 /**
@@ -27,30 +27,14 @@ export default function OperationChatCard({
     if (!operationId) return;
     setDownloading(true);
     try {
-      const token = localStorage.getItem('bfa_auth_token');
-      const response = await fetch(`/api/v1/workforce/operations/${operationId}/memo/pdf`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
+      await centralOperationsService.downloadMemoPdf({
+        operationId,
+        filename: `${memoRef || `Operation_${operationId}`}.pdf`,
       });
-
-      if (!response.ok) {
-        throw new Error(`PDF generation responded with status ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${memoRef || `Operation_${operationId}`}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
       addToast('Operations Memorandum PDF downloaded successfully.', 'success');
     } catch (err) {
       console.error('[CARD] PDF download failed:', err);
-      addToast('Failed to download PDF memorandum.', 'error');
+      addToast(err.message || 'Failed to download PDF memorandum.', 'error');
     } finally {
       setDownloading(false);
     }

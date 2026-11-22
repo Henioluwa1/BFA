@@ -623,25 +623,76 @@ export const centralOperationsService = {
   reviewOperation: (id, data) => api.post(`/workforce/operations/${id}/review`, data),
   amendOperation: (id, data) => api.post(`/workforce/operations/${id}/amend`, data),
   cancelOperation: (id, data) => api.post(`/workforce/operations/${id}/cancel`, data),
-  getMemoPdfUrl: (memoId) => `${api.defaults.baseURL}/workforce/operations/memos/${memoId}/pdf`,
-  downloadMemoPdf: (memoId, filename = 'operations_memo.pdf') => {
-    return axios({
-      url: `${api.defaults.baseURL}/workforce/operations/memos/${memoId}/pdf`,
+  getMemoPdfUrl: (memoId, operationId) => {
+    if (memoId && memoId !== 'undefined') {
+      return `${api.defaults.baseURL}/workforce/operations/memos/${memoId}/pdf`;
+    }
+    return `${api.defaults.baseURL}/workforce/operations/${operationId}/memo/pdf`;
+  },
+  downloadMemoPdf: async (memoIdOrOpts, fallbackFilename = 'operations_memo.pdf') => {
+    let memoId = null;
+    let operationId = null;
+    let filename = fallbackFilename;
+
+    if (typeof memoIdOrOpts === 'object' && memoIdOrOpts !== null) {
+      memoId = memoIdOrOpts.memoId;
+      operationId = memoIdOrOpts.operationId;
+      filename = memoIdOrOpts.filename || fallbackFilename;
+    } else {
+      memoId = memoIdOrOpts;
+    }
+
+    let url;
+    if (memoId && memoId !== 'undefined' && memoId !== 'null') {
+      url = `${api.defaults.baseURL}/workforce/operations/memos/${memoId}/pdf`;
+    } else if (operationId && operationId !== 'undefined' && operationId !== 'null') {
+      url = `${api.defaults.baseURL}/workforce/operations/${operationId}/memo/pdf`;
+    } else {
+      throw new Error('A valid Memo ID or Operation ID is required to download the memorandum.');
+    }
+
+    const token = localStorage.getItem('bfa_auth_token');
+    const res = await axios({
+      url,
       method: 'GET',
       responseType: 'blob',
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('bfa_auth_token')}`,
+        Authorization: token ? `Bearer ${token}` : '',
       },
-    }).then((res) => {
-      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
     });
+
+    const contentType = res.headers['content-type'] || res.data?.type || '';
+    if (contentType.includes('application/json') || contentType.includes('text/html')) {
+      const text = await res.data.text();
+      let errorMsg = 'Failed to generate PDF memorandum.';
+      try {
+        const json = JSON.parse(text);
+        errorMsg = json.message || json.error?.message || errorMsg;
+      } catch {
+        if (text.includes('<html')) {
+          errorMsg = 'Received invalid server response instead of PDF.';
+        }
+      }
+      throw new Error(errorMsg);
+    }
+
+    // Validate PDF magic bytes (%PDF)
+    const arrayBuffer = await res.data.slice(0, 5).arrayBuffer();
+    const headerStr = new TextDecoder('utf-8').decode(arrayBuffer);
+    if (!headerStr.startsWith('%PDF')) {
+      throw new Error('The downloaded document is corrupted or not a valid PDF.');
+    }
+
+    const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+    const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.setAttribute('download', safeFilename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    return true;
   },
 };
 

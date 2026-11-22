@@ -1455,35 +1455,70 @@ class CentralOperationsService {
 
   /**
    * RETRIEVE MEMO PDF BINARY BUFFER
+   * Robust retrieval with automatic on-the-fly generation and binary integrity checks.
    */
   static async getMemoPdfBuffer(user, memoId, operationId) {
     let memoRes;
-    if (memoId) {
-      const memoIdNum = parseInt(memoId, 10);
+    const cleanMemoId = (memoId && memoId !== 'undefined' && memoId !== 'null') ? parseInt(memoId, 10) : null;
+    const cleanOpId = (operationId && operationId !== 'undefined' && operationId !== 'null') ? parseInt(operationId, 10) : null;
+
+    if (cleanMemoId && !isNaN(cleanMemoId)) {
       memoRes = await pool.query(
         `SELECT om.*, co.initiated_by_user_id 
          FROM operations_memos om 
          JOIN central_operations co ON om.operation_id = co.id 
          WHERE om.id = $1 LIMIT 1;`,
-        [memoIdNum]
+        [cleanMemoId]
       );
-    } else if (operationId) {
-      const opIdNum = parseInt(operationId, 10);
+    }
+
+    if ((!memoRes || memoRes.length === 0) && cleanOpId && !isNaN(cleanOpId)) {
       memoRes = await pool.query(
         `SELECT om.*, co.initiated_by_user_id 
          FROM operations_memos om 
          JOIN central_operations co ON om.operation_id = co.id 
          WHERE om.operation_id = $1 
          ORDER BY om.version_number DESC LIMIT 1;`,
-        [opIdNum]
+        [cleanOpId]
       );
     }
 
-    if (!memoRes || memoRes.length === 0) {
+    let memo = memoRes && memoRes.length > 0 ? memoRes[0] : null;
+    const targetOpId = memo ? memo.operation_id : (cleanOpId || cleanMemoId);
+
+    // If memo row does not exist yet for this operation, fetch the operation to synthesize
+    let op = null;
+    if (targetOpId && !isNaN(targetOpId)) {
+      try {
+        op = await this.getOperationById(user, targetOpId);
+      } catch (err) {
+        logger.warn(`Could not load operation #${targetOpId} for memo generation: ${err.message}`);
+      }
+    }
+
+    if (!memo && !op) {
       throw new NotFoundError(`Operations Memo not found.`);
     }
 
-    const memo = memoRes[0];
+    if (!memo && op) {
+      // Synthesize memo from operation record
+      memo = {
+        operation_id: op.id,
+        memo_reference: op.memo_reference || `MEMO-${op.operation_code || op.id}`,
+        version_number: op.memo_version || 1,
+        subject: op.subject,
+        purpose: op.purpose,
+        operational_instructions: op.operational_instructions,
+        expected_outcome: op.expected_outcome,
+        responsibility_definition: op.responsibility_definition,
+        reporting_requirements: op.reporting_requirements,
+        issuer_designation: op.initiator_role || 'Operations Directorate',
+        recipient_summary: op.target_audience_type || 'Operational Personnel',
+        property_scope_summary: op.property_name || 'Corporate / Multi-Property',
+        deadline_text: op.deadline_at ? new Date(op.deadline_at).toLocaleDateString() : 'Standard Timeline',
+        effective_date_text: new Date().toLocaleDateString(),
+      };
+    }
 
     // Access authorization check for non-admin
     const role = (user.role || '').toUpperCase();
@@ -1499,28 +1534,68 @@ class CentralOperationsService {
 
     // Check if stored in operational_documents_storage
     if (memo.document_storage_id) {
-      const docRes = await pool.query(
-        'SELECT file_data, file_name, mime_type FROM operational_documents_storage WHERE id = $1 LIMIT 1;',
-        [memo.document_storage_id]
-      );
-      if (docRes && docRes.length > 0 && docRes[0].file_data) {
-        return {
-          buffer: docRes[0].file_data,
-          fileName: docRes[0].file_name,
-          mimeType: docRes[0].mime_type,
-        };
+      try {
+        const docRes = await pool.query(
+          'SELECT file_data, file_name, mime_type FROM operational_documents_storage WHERE id = $1 LIMIT 1;',
+          [memo.document_storage_id]
+        );
+        if (docRes && docRes.length > 0 && docRes[0].file_data) {
+          let raw = docRes[0].file_data;
+          if (typeof raw === 'string') {
+            if (raw.startsWith('\\x')) {
+              raw = Buffer.from(raw.slice(2), 'hex');
+            } else if (raw.startsWith('%PDF')) {
+              raw = Buffer.from(raw, 'binary');
+            }
+          }
+          if (Buffer.isBuffer(raw) && raw.length > 100 && raw.slice(0, 4).toString('ascii') === '%PDF') {
+            return {
+              buffer: raw,
+              fileName: docRes[0].file_name || `${memo.memo_reference}.pdf`,
+              mimeType: 'application/pdf',
+            };
+          }
+        }
+      } catch (docErr) {
+        logger.warn(`Failed reading memo document storage #${memo.document_storage_id}: ${docErr.message}`);
       }
     }
 
-    // If binary not found, regenerate on-the-fly
-    const op = await this.getOperationById(user, memo.operation_id);
+    // If binary not found or corrupted, regenerate on-the-fly
+    if (!op) {
+      op = await this.getOperationById(user, memo.operation_id);
+    }
     const pdfBuffer = await this.generateOperationsMemoPdfBuffer({
       operation: op,
       memo,
       initiator: { name: op.initiator_name, role: op.initiator_role, email: op.initiator_email },
-      recipients: op.recipients,
+      recipients: op.recipients || [],
       property: { name: op.property_name, code: op.property_code, city: op.property_city },
     });
+
+    // Cache regenerated binary to storage
+    try {
+      const storeRes = await pool.query(
+        `INSERT INTO operational_documents_storage (
+           entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by
+         ) VALUES (
+           'OPERATIONS_MEMO', $1, $2, 'application/pdf', $3, $4, $5
+         ) RETURNING id;`,
+        [
+          memo.id || memo.operation_id,
+          `${memo.memo_reference}.pdf`,
+          pdfBuffer.length,
+          pdfBuffer,
+          user.id || op.initiated_by_user_id || 1,
+        ]
+      );
+      const newStorageId = storeRes.rows?.[0]?.id || (Array.isArray(storeRes) ? storeRes[0]?.id : null);
+      if (newStorageId && memo.id) {
+        await pool.query('UPDATE operations_memos SET document_storage_id = $1 WHERE id = $2;', [newStorageId, memo.id]);
+      }
+    } catch (saveErr) {
+      logger.warn(`Failed caching regenerated memo PDF: ${saveErr.message}`);
+    }
 
     return {
       buffer: pdfBuffer,

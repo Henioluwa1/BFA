@@ -214,9 +214,10 @@ class CentralOperationsController {
         req.params.id
       );
 
+      const safeFileName = fileName && fileName.endsWith('.pdf') ? fileName : `${fileName || 'operations_memo'}.pdf`;
       res.setHeader('Content-Type', mimeType || 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${fileName || 'operations_memo.pdf'}"`);
-      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+      res.setHeader('Content-Length', Buffer.byteLength(buffer));
       return res.end(buffer);
     } catch (err) {
       next(err);

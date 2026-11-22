@@ -214,6 +214,20 @@ export default function ReservationsPage() {
       return;
     }
 
+    // Client-side double booking prevention check
+    if (createForm.check_in_date) {
+      const isAlreadyBooked = reservations.some((r) =>
+        (String(r.apartment_id) === String(createForm.apartment_id) || String(r.unit_id) === String(createForm.apartment_id)) &&
+        ['CONFIRMED', 'CHECKED_IN', 'PENDING', 'PENDING_REVIEW', 'CLAIMED', 'AWAITING_ASSIGNMENT'].includes(r.status) &&
+        (r.check_in_date === createForm.check_in_date ||
+          (r.check_in_date <= createForm.check_in_date && r.check_out_date > createForm.check_in_date))
+      );
+      if (isAlreadyBooked) {
+        addToast('This room is already booked for that date by another client. Only one client can book a room at a time.', 'error');
+        return;
+      }
+    }
+
     setActionLoading(true);
     try {
       const payload = {
@@ -951,11 +965,19 @@ export default function ReservationsPage() {
                 }}
               >
                 <option value="">Select Unit...</option>
-                {apartments.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    Unit {a.unit_number} ({a.unit_type}) — {formatNaira(a.rate_per_night)}/nt [{a.status}]
-                  </option>
-                ))}
+                {apartments.map((a) => {
+                  const isBooked = createForm.check_in_date && reservations.some((r) =>
+                    (String(r.apartment_id) === String(a.id) || String(r.unit_id) === String(a.id)) &&
+                    ['CONFIRMED', 'CHECKED_IN', 'PENDING', 'PENDING_REVIEW', 'CLAIMED', 'AWAITING_ASSIGNMENT'].includes(r.status) &&
+                    (r.check_in_date === createForm.check_in_date ||
+                      (r.check_in_date <= createForm.check_in_date && r.check_out_date > createForm.check_in_date))
+                  );
+                  return (
+                    <option key={a.id} value={a.id} disabled={isBooked}>
+                      Unit {a.unit_number} ({a.unit_type}) — {formatNaira(a.rate_per_night)}/nt {isBooked ? '— 🔴 ALREADY BOOKED' : `[${a.status}]`}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>

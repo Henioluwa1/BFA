@@ -15,7 +15,7 @@ import {
   Eye,
   Check,
 } from 'lucide-react';
-import api from '../../services/api';
+import api, { centralOperationsService } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
 /**
@@ -92,30 +92,15 @@ export default function InChatOperationDetailsModal({
     if (!operationId) return;
     setDownloadingPdf(true);
     try {
-      const token = localStorage.getItem('bfa_auth_token');
-      const response = await fetch(`/api/v1/workforce/operations/${operationId}/memo/pdf`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-        },
+      await centralOperationsService.downloadMemoPdf({
+        operationId,
+        memoId: operation?.latest_memo?.id,
+        filename: `${operation?.latest_memo?.memo_reference || operation?.operation_code || 'Operation_Memo'}.pdf`,
       });
-
-      if (!response.ok) {
-        throw new Error(`PDF generation responded with status ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${operation?.latest_memo?.memo_reference || operation?.operation_code || 'Operation_Memo'}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
       addToast('Operations Memorandum PDF downloaded successfully.', 'success');
     } catch (err) {
       console.error('[IN_CHAT_MEMO] PDF download failed:', err);
-      addToast('Failed to download Operations Memorandum PDF.', 'error');
+      addToast(err.message || 'Failed to download Operations Memorandum PDF.', 'error');
     } finally {
       setDownloadingPdf(false);
     }

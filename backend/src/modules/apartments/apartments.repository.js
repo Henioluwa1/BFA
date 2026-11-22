@@ -279,13 +279,22 @@ class ApartmentsRepository {
     }
 
     // 2. Check conflicting active reservations for the date
+    const outDate = (() => {
+      const d = new Date(checkInDate + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().split('T')[0];
+    })();
+
     const [resConflict] = await pool.query(
       `SELECT id, reservation_code, status 
        FROM reservations 
        WHERE apartment_id = ? 
-         AND check_in_date = ? 
-         AND status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING')`,
-      [apartmentId, checkInDate]
+         AND status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING', 'PENDING_REVIEW', 'CLAIMED', 'AWAITING_ASSIGNMENT')
+         AND (
+           check_in_date = ? 
+           OR (check_in_date < ? AND check_out_date > ?)
+         )`,
+      [apartmentId, checkInDate, outDate, checkInDate]
     );
 
     if (resConflict) {

@@ -618,14 +618,21 @@ async function checkUnitAvailability(apartmentId, date) {
   if (!aptRows || aptRows.length === 0 || ['MAINTENANCE', 'BLOCKED', 'OUT_OF_SERVICE'].includes(aptRows[0].status)) {
     return false;
   }
+  const nextDate = (() => {
+    const d = new Date(date + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().split('T')[0];
+  })();
   const conflicts = await db.query(
     `SELECT id FROM reservations 
      WHERE apartment_id = ? 
-       AND status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING_REVIEW', 'CLAIMED')
-       AND check_in_date <= ? 
-       AND check_out_date > ? 
+       AND status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING', 'PENDING_REVIEW', 'CLAIMED', 'AWAITING_ASSIGNMENT')
+       AND (
+         check_in_date = ? 
+         OR (check_in_date < ? AND check_out_date > ?)
+       )
      LIMIT 1`,
-    [apartmentId, date, date]
+    [apartmentId, date, nextDate, date]
   );
   return conflicts.length === 0;
 }

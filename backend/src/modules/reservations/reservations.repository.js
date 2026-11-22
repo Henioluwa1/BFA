@@ -197,16 +197,26 @@ class ReservationsRepository {
 
   /**
    * Concurrency-safe availability check with exclusive row-level locking
+   * Guarantees one room is strictly bookable by only one client at a time across all active reservation statuses.
    */
-  static async checkAvailabilityWithLock(conn, apartmentId, checkInDate, excludeReservationId = null) {
+  static async checkAvailabilityWithLock(conn, apartmentId, checkInDate, excludeReservationId = null, checkOutDate = null) {
+    const outDate = checkOutDate || (() => {
+      const d = new Date(checkInDate + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().split('T')[0];
+    })();
+
     let sql = `
       SELECT id, reservation_code, status 
       FROM reservations 
       WHERE apartment_id = ? 
-        AND check_in_date = ? 
-        AND status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING')
+        AND status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING', 'PENDING_REVIEW', 'CLAIMED', 'AWAITING_ASSIGNMENT')
+        AND (
+          check_in_date = ? 
+          OR (check_in_date < ? AND check_out_date > ?)
+        )
     `;
-    const params = [apartmentId, checkInDate];
+    const params = [apartmentId, checkInDate, outDate, checkInDate];
 
     if (excludeReservationId) {
       sql += ' AND id != ?';
@@ -221,16 +231,26 @@ class ReservationsRepository {
 
   /**
    * Standard availability check
+   * Guarantees one room is strictly bookable by only one client at a time across all active reservation statuses.
    */
-  static async checkAvailability(apartmentId, checkInDate, excludeReservationId = null) {
+  static async checkAvailability(apartmentId, checkInDate, excludeReservationId = null, checkOutDate = null) {
+    const outDate = checkOutDate || (() => {
+      const d = new Date(checkInDate + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().split('T')[0];
+    })();
+
     let sql = `
       SELECT id, reservation_code, status 
       FROM reservations 
       WHERE apartment_id = ? 
-        AND check_in_date = ? 
-        AND status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING')
+        AND status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING', 'PENDING_REVIEW', 'CLAIMED', 'AWAITING_ASSIGNMENT')
+        AND (
+          check_in_date = ? 
+          OR (check_in_date < ? AND check_out_date > ?)
+        )
     `;
-    const params = [apartmentId, checkInDate];
+    const params = [apartmentId, checkInDate, outDate, checkInDate];
 
     if (excludeReservationId) {
       sql += ' AND id != ?';

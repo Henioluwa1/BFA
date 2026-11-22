@@ -930,7 +930,18 @@ export default function OperationsPage() {
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
                       <Button
                         variant="primary"
-                        onClick={() => centralOperationsService.downloadMemoPdf(selectedOp.latest_memo_id || selectedOp.memos?.[0]?.id, `${selectedOp.memo_reference}.pdf`)}
+                        onClick={async () => {
+                          try {
+                            await centralOperationsService.downloadMemoPdf({
+                              memoId: selectedOp.latest_memo_id || selectedOp.memos?.[0]?.id,
+                              operationId: selectedOp.id,
+                              filename: `${selectedOp.memo_reference || selectedOp.operation_code || 'Operations_Memo'}.pdf`,
+                            });
+                            addToast('Operations Memorandum PDF downloaded successfully.', 'success');
+                          } catch (err) {
+                            addToast(err.message || 'Failed to download Operations Memorandum PDF.', 'error');
+                          }
+                        }}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                       >
                         📥 Download Official PDF

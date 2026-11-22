@@ -290,7 +290,7 @@ class ReservationsService {
       }
 
       // 8. DOUBLE-BOOKING PREVENTION (Row-Level Locking on Active Conflicting Reservations)
-      const isAvailable = await ReservationsRepository.checkAvailabilityWithLock(conn, apartment.id, checkInDate);
+      const isAvailable = await ReservationsRepository.checkAvailabilityWithLock(conn, apartment.id, checkInDate, null, checkOutDate);
       if (!isAvailable) {
         throw new ConflictError(
           `Double-booking conflict: Unit '${apartment.unit_name}' (${apartment.unit_number}) is already reserved for ${checkInDate}.`
