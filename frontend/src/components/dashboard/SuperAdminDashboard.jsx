@@ -53,10 +53,10 @@ const QUICK_ACTIONS = [
     route: '/app/team',
   },
   {
-    icon: '📋',
-    label: 'View Operations Log',
-    description: 'Central operational commands & schedules',
-    route: '/app/operations',
+    icon: '💬',
+    label: 'Operations & Staff Chat',
+    description: 'Central operational directives & communication',
+    route: '/app/staff-chat',
   },
 ];
 

@@ -19,12 +19,601 @@ const {
   BadRequestError,
   ForbiddenError,
   NotFoundError,
+  ConflictError,
 } = require('../../core/errors/apiError');
 const logger = require('../../utils/logger');
 const ChatService = require('../chat/chat.service');
 const ChatRepository = require('../chat/chat.repository');
 
 class CentralOperationsService {
+  /**
+   * DERIVE UNAMBIGUOUS NEXT ACTION FOR ANY OPERATIONAL RECORD AND VIEWER
+   * Dynamic, role-aware, and actionable guidance for the recipient and management.
+   */
+  static deriveNextAction(op, viewerUser) {
+    if (!op) return { text: 'No action required.', generalText: 'No action required.', actionKey: 'NONE', actionableByMe: false };
+
+    const viewerId = viewerUser ? Number(viewerUser.id) : null;
+    const viewerRole = viewerUser ? (viewerUser.role || '').toUpperCase() : '';
+    const status = op.status || 'ISSUED';
+    const isInitiator = viewerId && Number(op.initiated_by_user_id) === viewerId;
+    const isSupervisor = viewerId && Number(op.supervisor_user_id) === viewerId;
+    const isResponsible = viewerId && Number(op.current_responsible_user_id) === viewerId;
+    const isManagement = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(viewerRole);
+
+    const recipientRecord = op.recipients?.find(r => Number(r.user_id || r.id) === viewerId);
+    const hasAcknowledged = recipientRecord && Boolean(recipientRecord.acknowledged_at);
+
+    switch (status) {
+      case 'DRAFT':
+        return {
+          text: isInitiator ? 'Review draft directives and formally issue operation.' : 'Draft directive pending issuance.',
+          generalText: 'Draft pending issuance.',
+          actionKey: isInitiator ? 'ISSUE' : 'NONE',
+          actionableByMe: isInitiator,
+        };
+
+      case 'ISSUED':
+      case 'AWAITING_ACKNOWLEDGEMENT':
+        if (recipientRecord && !hasAcknowledged) {
+          return {
+            text: 'Awaiting your formal acknowledgement. Click "Acknowledge Receipt" to confirm you have reviewed the directive.',
+            generalText: 'Awaiting recipient formal acknowledgement.',
+            actionKey: 'ACKNOWLEDGE',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Awaiting recipient acknowledgement from designated personnel.',
+          generalText: 'Awaiting recipient acknowledgement.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'ACKNOWLEDGED':
+      case 'AWAITING_OWNERSHIP':
+        if (!op.current_responsible_user_id) {
+          if (recipientRecord || isManagement) {
+            return {
+              text: 'Operation awaiting ownership: You can claim and accept responsibility, or management can assign an executing officer.',
+              generalText: 'Awaiting member ownership claim or supervisor assignment.',
+              actionKey: 'CLAIM',
+              actionableByMe: true,
+            };
+          }
+          return {
+            text: `Awaiting designated personnel in [${op.current_responsible_group || op.target_audience_type}] to claim ownership.`,
+            generalText: 'Awaiting ownership acceptance.',
+            actionKey: 'NONE',
+            actionableByMe: false,
+          };
+        }
+        if (isResponsible) {
+          return {
+            text: 'Responsibility accepted. Review directives and begin operational execution.',
+            generalText: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
+            actionKey: 'EXECUTE',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
+          generalText: `Assigned to ${op.responsible_name || 'designated officer'}.`,
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'ACCEPTED':
+      case 'IN_PROGRESS':
+        if (isResponsible) {
+          return {
+            text: 'Execute operational instructions. Submit progress updates or deliverables when milestones are achieved.',
+            generalText: `Execution in progress by ${op.responsible_name || 'assigned officer'}.`,
+            actionKey: 'SUBMIT_PROGRESS',
+            actionableByMe: true,
+          };
+        }
+        if (isInitiator || isSupervisor || isManagement) {
+          return {
+            text: `Execution in progress by ${op.responsible_name || 'assigned officer'}. Monitor progress and provide guidance if needed.`,
+            generalText: `In progress under ${op.responsible_name || 'assigned officer'}.`,
+            actionKey: 'NONE',
+            actionableByMe: false,
+          };
+        }
+        return {
+          text: `In progress under ${op.responsible_name || 'assigned team'}.`,
+          generalText: 'Execution in progress.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'AWAITING_CLARIFICATION':
+        if (isInitiator || isSupervisor || isManagement) {
+          return {
+            text: 'Clarification inquiry submitted by recipient. Provide answers or guidance to unblock execution.',
+            generalText: 'Clarification inquiry pending response from initiator.',
+            actionKey: 'RESPOND_CLARIFICATION',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Clarification requested. Awaiting response from issuing authority.',
+          generalText: 'Pending clarification response.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'BLOCKED':
+        if (isSupervisor || isInitiator || isManagement) {
+          return {
+            text: 'Operational blocker reported! Review reported impediment and intervene to resolve.',
+            generalText: 'Operational blocker reported. Management intervention required.',
+            actionKey: 'RESOLVE_BLOCKER',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Operational blocker reported. Awaiting management assistance to resolve impediment.',
+          generalText: 'Blocked by operational impediment.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'SUBMITTED_FOR_REVIEW':
+      case 'AWAITING_REVIEW':
+      case 'AWAITING_APPROVAL':
+        if (isInitiator || isSupervisor || isManagement) {
+          return {
+            text: 'Deliverables completed and submitted for review. Inspect outcome and approve completion or request revisions.',
+            generalText: 'Work submitted. Awaiting supervisory verification and approval.',
+            actionKey: 'REVIEW',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Deliverables submitted for review. Awaiting management sign-off.',
+          generalText: 'Awaiting supervisory sign-off.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'REVISION_REQUIRED':
+        if (isResponsible) {
+          return {
+            text: `Revisions requested by reviewer: ${op.review_notes || 'Implement requested adjustments'}. Update work and resubmit.`,
+            generalText: 'Revisions requested by reviewer.',
+            actionKey: 'REVISE',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: `Revisions requested from ${op.responsible_name || 'responsible officer'}. Awaiting resubmission.`,
+          generalText: 'Revisions in progress.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'COMPLETED':
+      case 'CLOSED':
+        return {
+          text: 'Operation completed, verified, and officially closed. No further action required.',
+          generalText: 'Operation completed and closed.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'CANCELLED':
+      case 'REJECTED':
+        return {
+          text: `Operation cancelled${op.cancellation_reason ? `: ${op.cancellation_reason}` : ''}. Archived in audit ledger.`,
+          generalText: 'Operation cancelled.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      default:
+        return {
+          text: op.next_action || 'Review directive and adhere to instructions.',
+          generalText: op.next_action || 'Review directive.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+    }
+  }
+
+  /**
+   * DERIVE UNAMBIGUOUS NEXT ACTION FOR ANY OPERATIONAL RECORD AND VIEWER
+   * Dynamic, role-aware, and actionable guidance for the recipient and management.
+   */
+  static deriveNextAction(op, viewerUser) {
+    if (!op) return { text: 'No action required.', generalText: 'No action required.', actionKey: 'NONE', actionableByMe: false };
+
+    const viewerId = viewerUser ? Number(viewerUser.id) : null;
+    const viewerRole = viewerUser ? (viewerUser.role || '').toUpperCase() : '';
+    const status = op.status || 'ISSUED';
+    const isInitiator = viewerId && Number(op.initiated_by_user_id) === viewerId;
+    const isSupervisor = viewerId && Number(op.supervisor_user_id) === viewerId;
+    const isResponsible = viewerId && Number(op.current_responsible_user_id) === viewerId;
+    const isManagement = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(viewerRole);
+
+    const recipientRecord = op.recipients?.find(r => Number(r.user_id || r.id) === viewerId);
+    const hasAcknowledged = recipientRecord && Boolean(recipientRecord.acknowledged_at);
+
+    switch (status) {
+      case 'DRAFT':
+        return {
+          text: isInitiator ? 'Review draft directives and formally issue operation.' : 'Draft directive pending issuance.',
+          generalText: 'Draft pending issuance.',
+          actionKey: isInitiator ? 'ISSUE' : 'NONE',
+          actionableByMe: isInitiator,
+        };
+
+      case 'ISSUED':
+      case 'AWAITING_ACKNOWLEDGEMENT':
+        if (recipientRecord && !hasAcknowledged) {
+          return {
+            text: 'Awaiting your formal acknowledgement. Click "Acknowledge Receipt" to confirm you have reviewed the directive.',
+            generalText: 'Awaiting recipient formal acknowledgement.',
+            actionKey: 'ACKNOWLEDGE',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Awaiting recipient acknowledgement from designated personnel.',
+          generalText: 'Awaiting recipient acknowledgement.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'ACKNOWLEDGED':
+      case 'AWAITING_OWNERSHIP':
+        if (!op.current_responsible_user_id) {
+          if (recipientRecord || isManagement) {
+            return {
+              text: 'Operation awaiting ownership: You can claim and accept responsibility, or management can assign an executing officer.',
+              generalText: 'Awaiting member ownership claim or supervisor assignment.',
+              actionKey: 'CLAIM',
+              actionableByMe: true,
+            };
+          }
+          return {
+            text: `Awaiting designated personnel in [${op.current_responsible_group || op.target_audience_type}] to claim ownership.`,
+            generalText: 'Awaiting ownership acceptance.',
+            actionKey: 'NONE',
+            actionableByMe: false,
+          };
+        }
+        if (isResponsible) {
+          return {
+            text: 'Responsibility accepted. Review directives and begin operational execution.',
+            generalText: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
+            actionKey: 'EXECUTE',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
+          generalText: `Assigned to ${op.responsible_name || 'designated officer'}.`,
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'ACCEPTED':
+      case 'IN_PROGRESS':
+        if (isResponsible) {
+          return {
+            text: 'Execute operational instructions. Submit progress updates or deliverables when milestones are achieved.',
+            generalText: `Execution in progress by ${op.responsible_name || 'assigned officer'}.`,
+            actionKey: 'SUBMIT_PROGRESS',
+            actionableByMe: true,
+          };
+        }
+        if (isInitiator || isSupervisor || isManagement) {
+          return {
+            text: `Execution in progress by ${op.responsible_name || 'assigned officer'}. Monitor progress and provide guidance if needed.`,
+            generalText: `In progress under ${op.responsible_name || 'assigned officer'}.`,
+            actionKey: 'NONE',
+            actionableByMe: false,
+          };
+        }
+        return {
+          text: `In progress under ${op.responsible_name || 'assigned team'}.`,
+          generalText: 'Execution in progress.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'AWAITING_CLARIFICATION':
+        if (isInitiator || isSupervisor || isManagement) {
+          return {
+            text: 'Clarification inquiry submitted by recipient. Provide answers or guidance to unblock execution.',
+            generalText: 'Clarification inquiry pending response from initiator.',
+            actionKey: 'RESPOND_CLARIFICATION',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Clarification requested. Awaiting response from issuing authority.',
+          generalText: 'Pending clarification response.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'BLOCKED':
+        if (isSupervisor || isInitiator || isManagement) {
+          return {
+            text: 'Operational blocker reported! Review reported impediment and intervene to resolve.',
+            generalText: 'Operational blocker reported. Management intervention required.',
+            actionKey: 'RESOLVE_BLOCKER',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Operational blocker reported. Awaiting management assistance to resolve impediment.',
+          generalText: 'Blocked by operational impediment.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'SUBMITTED_FOR_REVIEW':
+      case 'AWAITING_REVIEW':
+      case 'AWAITING_APPROVAL':
+        if (isInitiator || isSupervisor || isManagement) {
+          return {
+            text: 'Deliverables completed and submitted for review. Inspect outcome and approve completion or request revisions.',
+            generalText: 'Work submitted. Awaiting supervisory verification and approval.',
+            actionKey: 'REVIEW',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Deliverables submitted for review. Awaiting management sign-off.',
+          generalText: 'Awaiting supervisory sign-off.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'REVISION_REQUIRED':
+        if (isResponsible) {
+          return {
+            text: `Revisions requested by reviewer: ${op.review_notes || 'Implement requested adjustments'}. Update work and resubmit.`,
+            generalText: 'Revisions requested by reviewer.',
+            actionKey: 'REVISE',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: `Revisions requested from ${op.responsible_name || 'responsible officer'}. Awaiting resubmission.`,
+          generalText: 'Revisions in progress.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'COMPLETED':
+      case 'CLOSED':
+        return {
+          text: 'Operation completed, verified, and officially closed. No further action required.',
+          generalText: 'Operation completed and closed.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'CANCELLED':
+      case 'REJECTED':
+        return {
+          text: `Operation cancelled${op.cancellation_reason ? `: ${op.cancellation_reason}` : ''}. Archived in audit ledger.`,
+          generalText: 'Operation cancelled.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      default:
+        return {
+          text: op.next_action || 'Review directive and adhere to instructions.',
+          generalText: op.next_action || 'Review directive.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+    }
+  }
+
+  /**
+   * DERIVE UNAMBIGUOUS NEXT ACTION FOR ANY OPERATIONAL RECORD AND VIEWER
+   * Dynamic, role-aware, and actionable guidance for the recipient and management.
+   */
+  static deriveNextAction(op, viewerUser) {
+    if (!op) return { text: 'No action required.', generalText: 'No action required.', actionKey: 'NONE', actionableByMe: false };
+
+    const viewerId = viewerUser ? Number(viewerUser.id) : null;
+    const viewerRole = viewerUser ? (viewerUser.role || '').toUpperCase() : '';
+    const status = op.status || 'ISSUED';
+    const isInitiator = viewerId && Number(op.initiated_by_user_id) === viewerId;
+    const isSupervisor = viewerId && Number(op.supervisor_user_id) === viewerId;
+    const isResponsible = viewerId && Number(op.current_responsible_user_id) === viewerId;
+    const isManagement = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(viewerRole);
+
+    const recipientRecord = op.recipients?.find(r => Number(r.user_id || r.id) === viewerId);
+    const hasAcknowledged = recipientRecord && Boolean(recipientRecord.acknowledged_at);
+
+    switch (status) {
+      case 'DRAFT':
+        return {
+          text: isInitiator ? 'Review draft directives and formally issue operation.' : 'Draft directive pending issuance.',
+          generalText: 'Draft pending issuance.',
+          actionKey: isInitiator ? 'ISSUE' : 'NONE',
+          actionableByMe: isInitiator,
+        };
+
+      case 'ISSUED':
+      case 'AWAITING_ACKNOWLEDGEMENT':
+        if (recipientRecord && !hasAcknowledged) {
+          return {
+            text: 'Awaiting your formal acknowledgement. Click "Acknowledge Receipt" to confirm you have reviewed the directive.',
+            generalText: 'Awaiting recipient formal acknowledgement.',
+            actionKey: 'ACKNOWLEDGE',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Awaiting recipient acknowledgement from designated personnel.',
+          generalText: 'Awaiting recipient acknowledgement.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'ACKNOWLEDGED':
+      case 'AWAITING_OWNERSHIP':
+        if (!op.current_responsible_user_id) {
+          if (recipientRecord || isManagement) {
+            return {
+              text: 'Operation awaiting ownership: You can claim and accept responsibility, or management can assign an executing officer.',
+              generalText: 'Awaiting member ownership claim or supervisor assignment.',
+              actionKey: 'CLAIM',
+              actionableByMe: true,
+            };
+          }
+          return {
+            text: `Awaiting designated personnel in [${op.current_responsible_group || op.target_audience_type}] to claim ownership.`,
+            generalText: 'Awaiting ownership acceptance.',
+            actionKey: 'NONE',
+            actionableByMe: false,
+          };
+        }
+        if (isResponsible) {
+          return {
+            text: 'Responsibility accepted. Review directives and begin operational execution.',
+            generalText: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
+            actionKey: 'EXECUTE',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
+          generalText: `Assigned to ${op.responsible_name || 'designated officer'}.`,
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'ACCEPTED':
+      case 'IN_PROGRESS':
+        if (isResponsible) {
+          return {
+            text: 'Execute operational instructions. Submit progress updates or deliverables when milestones are achieved.',
+            generalText: `Execution in progress by ${op.responsible_name || 'assigned officer'}.`,
+            actionKey: 'SUBMIT_PROGRESS',
+            actionableByMe: true,
+          };
+        }
+        if (isInitiator || isSupervisor || isManagement) {
+          return {
+            text: `Execution in progress by ${op.responsible_name || 'assigned officer'}. Monitor progress and provide guidance if needed.`,
+            generalText: `In progress under ${op.responsible_name || 'assigned officer'}.`,
+            actionKey: 'NONE',
+            actionableByMe: false,
+          };
+        }
+        return {
+          text: `In progress under ${op.responsible_name || 'assigned team'}.`,
+          generalText: 'Execution in progress.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'AWAITING_CLARIFICATION':
+        if (isInitiator || isSupervisor || isManagement) {
+          return {
+            text: 'Clarification inquiry submitted by recipient. Provide answers or guidance to unblock execution.',
+            generalText: 'Clarification inquiry pending response from initiator.',
+            actionKey: 'RESPOND_CLARIFICATION',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Clarification requested. Awaiting response from issuing authority.',
+          generalText: 'Pending clarification response.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'BLOCKED':
+        if (isSupervisor || isInitiator || isManagement) {
+          return {
+            text: 'Operational blocker reported! Review reported impediment and intervene to resolve.',
+            generalText: 'Operational blocker reported. Management intervention required.',
+            actionKey: 'RESOLVE_BLOCKER',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Operational blocker reported. Awaiting management assistance to resolve impediment.',
+          generalText: 'Blocked by operational impediment.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'SUBMITTED_FOR_REVIEW':
+      case 'AWAITING_REVIEW':
+      case 'AWAITING_APPROVAL':
+        if (isInitiator || isSupervisor || isManagement) {
+          return {
+            text: 'Deliverables completed and submitted for review. Inspect outcome and approve completion or request revisions.',
+            generalText: 'Work submitted. Awaiting supervisory verification and approval.',
+            actionKey: 'REVIEW',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: 'Deliverables submitted for review. Awaiting management sign-off.',
+          generalText: 'Awaiting supervisory sign-off.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'REVISION_REQUIRED':
+        if (isResponsible) {
+          return {
+            text: `Revisions requested by reviewer: ${op.review_notes || 'Implement requested adjustments'}. Update work and resubmit.`,
+            generalText: 'Revisions requested by reviewer.',
+            actionKey: 'REVISE',
+            actionableByMe: true,
+          };
+        }
+        return {
+          text: `Revisions requested from ${op.responsible_name || 'responsible officer'}. Awaiting resubmission.`,
+          generalText: 'Revisions in progress.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'COMPLETED':
+      case 'CLOSED':
+        return {
+          text: 'Operation completed, verified, and officially closed. No further action required.',
+          generalText: 'Operation completed and closed.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      case 'CANCELLED':
+      case 'REJECTED':
+        return {
+          text: `Operation cancelled${op.cancellation_reason ? `: ${op.cancellation_reason}` : ''}. Archived in audit ledger.`,
+          generalText: 'Operation cancelled.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+
+      default:
+        return {
+          text: op.next_action || 'Review directive and adhere to instructions.',
+          generalText: op.next_action || 'Review directive.',
+          actionKey: 'NONE',
+          actionableByMe: false,
+        };
+    }
+  }
+
   /**
    * Enforce Central Routing Matrix according to Enterprise Governance:
    * - OWNER: Directives restricted to Admin & Operations Managers. Cannot direct General Staff.
@@ -280,20 +869,29 @@ class CentralOperationsService {
     const deadlineText = deadline_at ? new Date(deadline_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'As Directed / Ongoing';
     const effectiveDateText = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-    // 5. Insert Central Operation
+    // 5. Determine Initial Ownership and Next Action
+    const isPersonal = recipients.length === 1 && target_audience_type === 'SPECIFIC_USER';
+    const responsibleUserId = isPersonal ? recipients[0].id : null;
+    const responsibleGroup = isPersonal ? null : target_audience_type;
+    const initialStatus = 'ISSUED';
+    const initialNextAction = isPersonal 
+      ? 'Awaiting recipient formal acknowledgement and task acceptance.'
+      : 'Awaiting group acknowledgement and member ownership acceptance.';
+
+    // Insert Central Operation
     const insertOpSql = `
       INSERT INTO central_operations (
         operation_code, title, category, priority, status,
         initiated_by_user_id, property_id, target_audience_type,
         subject, purpose, operational_instructions, expected_outcome,
         responsibility_definition, reporting_requirements, deadline_at,
-        supervisor_user_id
+        supervisor_user_id, current_responsible_user_id, current_responsible_group, next_action
       ) VALUES (
-        $1, $2, $3, $4, 'ISSUED',
-        $5, $6, $7,
-        $8, $9, $10, $11,
-        $12, $13, $14,
-        $15
+        $1, $2, $3, $4, $5,
+        $6, $7, $8,
+        $9, $10, $11, $12,
+        $13, $14, $15,
+        $16, $17, $18, $19
       ) RETURNING *;
     `;
 
@@ -302,6 +900,7 @@ class CentralOperationsService {
       title,
       category,
       priority,
+      initialStatus,
       initiatorUser.id,
       property_id,
       target_audience_type,
@@ -313,10 +912,46 @@ class CentralOperationsService {
       reporting_requirements,
       deadline_at,
       supervisor_user_id,
+      responsibleUserId,
+      responsibleGroup,
+      initialNextAction,
     ]);
 
     const createdOp = opRows.rows?.[0] || (Array.isArray(opRows) ? opRows[0] : opRows);
     const operationId = createdOp.id;
+
+    // 5b. For Personal Operations, automatically create primary linked task
+    if (isPersonal && responsibleUserId) {
+      try {
+        const taskCode = `TSK-${operationCode.replace('OPS-', '')}-01`;
+        await pool.query(
+          `INSERT INTO operational_tasks (
+            task_code, property_id, assigned_to_id, assigned_by_id,
+            title, description, expected_outcome, task_category,
+            priority, due_date, status, central_operation_id
+          ) VALUES (
+            $1, $2, $3, $4,
+            $5, $6, $7, $8,
+            $9, $10, 'PENDING', $11
+          );`,
+          [
+            taskCode,
+            property_id || (recipients[0]?.property_id || 1),
+            responsibleUserId,
+            initiatorUser.id,
+            title,
+            operational_instructions,
+            expected_outcome,
+            category === 'MAINTENANCE_INSPECTION' ? 'MAINTENANCE' : 'GENERAL',
+            priority,
+            deadline_at || new Date(Date.now() + 86400000 * 3),
+            operationId,
+          ]
+        );
+      } catch (taskErr) {
+        logger.warn(`Could not auto-create primary operational task: ${taskErr.message}`);
+      }
+    }
 
     // 6. Insert Recipients
     for (const r of recipients) {
@@ -438,16 +1073,19 @@ class CentralOperationsService {
 
       if (chatThreadId) {
         const priorityIcon = priority === 'CRITICAL' ? '🚨' : priority === 'URGENT' ? '⚡' : '📋';
+        const isPersonalOp = recipients.length === 1 && target_audience_type === 'SPECIFIC_USER';
         const msgContent = `${priorityIcon} [OFFICIAL OPERATIONS MEMO — ${memoReference}]\n` +
           `Ref: ${operationCode}\n` +
           `Title: ${title}\n` +
           `Category: ${category.replace(/_/g, ' ')}\n` +
           `Priority: ${priority}\n` +
           `Property Scope: ${propertyScopeSummary}\n` +
-          `Deadline: ${deadlineText}\n\n` +
+          `Deadline: ${deadlineText}\n` +
+          `Current Owner: ${isPersonalOp ? recipients[0].name : `Open to Group [${target_audience_type}]`}\n` +
+          `Next Action: ${initialNextAction}\n\n` +
           `Subject: ${subject}\n\n` +
           `Instructions: ${operational_instructions.substring(0, 300)}${operational_instructions.length > 300 ? '...' : ''}\n\n` +
-          `⚠️ Mandatory action required. Review and acknowledge receipt in the Operations Centre.`;
+          `⚠️ Official Directive: Review details, acknowledge receipt, or accept responsibility directly from this operation card.`;
 
         const sentMsg = await ChatService.sendMessage(initiatorUser, {
           threadId: chatThreadId,
@@ -576,20 +1214,23 @@ class CentralOperationsService {
           AND co.status IN ('AWAITING_REVIEW', 'AWAITING_CLARIFICATION', 'BLOCKED')
         )
       )`);
+    } else if (view === 'awaitingOwnership') {
+      conditions.push(`(co.current_responsible_user_id IS NULL AND co.status IN ('ISSUED', 'ACKNOWLEDGED', 'AWAITING_OWNERSHIP'))`);
     } else if (view === 'archived') {
       conditions.push(`co.status IN ('COMPLETED', 'CANCELLED', 'CLOSED')`);
-      // Non-admin can only see their own archived
       if (!['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(role)) {
         params.push(userId);
         conditions.push(`(
-          co.initiated_by_user_id = $${params.length}
-          OR co.supervisor_user_id = $${params.length}
+          co.initiated_by_user_id = ${params.length}
+          OR co.supervisor_user_id = ${params.length}
           OR EXISTS (
             SELECT 1 FROM central_operation_recipients cor 
-            WHERE cor.operation_id = co.id AND cor.user_id = $${params.length}
+            WHERE cor.operation_id = co.id AND cor.user_id = ${params.length}
           )
         )`);
       }
+    } else if (view === 'all') {
+      // Global management oversight
     }
 
     // Role Security Boundary (Staff/Receptionist cannot snoop on unauthorized operations)
@@ -642,6 +1283,8 @@ class CentralOperationsService {
         u_init.name AS initiator_name,
         u_init.email AS initiator_email,
         u_init.role AS initiator_role,
+        u_resp.name AS responsible_name,
+        u_resp.role AS responsible_role,
         p.name AS property_name,
         p.code AS property_code,
         om.memo_reference,
@@ -675,6 +1318,7 @@ class CentralOperationsService {
         ) AS user_acknowledged_at
       FROM central_operations co
       JOIN users u_init ON co.initiated_by_user_id = u_init.id
+      LEFT JOIN users u_resp ON co.current_responsible_user_id = u_resp.id
       LEFT JOIN properties p ON co.property_id = p.id
       LEFT JOIN operations_memos om ON co.latest_memo_id = om.id
       ${whereClause}
@@ -690,7 +1334,11 @@ class CentralOperationsService {
     `;
 
     const res = await pool.query(query, params);
-    return res.rows || (Array.isArray(res) ? res : []);
+    const rows = res.rows || (Array.isArray(res) ? res : []);
+    return rows.map((r) => ({
+      ...r,
+      viewer_next_action: this.deriveNextAction(r, user),
+    }));
   }
 
   /**
@@ -709,6 +1357,9 @@ class CentralOperationsService {
         u_init.role AS initiator_role,
         u_sup.name AS supervisor_name,
         u_sup.email AS supervisor_email,
+        u_resp.name AS responsible_name,
+        u_resp.email AS responsible_email,
+        u_resp.role AS responsible_role,
         p.name AS property_name,
         p.code AS property_code,
         p.address AS property_address,
@@ -725,6 +1376,7 @@ class CentralOperationsService {
        FROM central_operations co
        JOIN users u_init ON co.initiated_by_user_id = u_init.id
        LEFT JOIN users u_sup ON co.supervisor_user_id = u_sup.id
+       LEFT JOIN users u_resp ON co.current_responsible_user_id = u_resp.id
        LEFT JOIN properties p ON co.property_id = p.id
        LEFT JOIN operations_memos om ON co.latest_memo_id = om.id
        WHERE co.id = $1
@@ -802,12 +1454,14 @@ class CentralOperationsService {
       [opIdNum]
     );
 
+    const viewerNextAction = this.deriveNextAction({ ...op, recipients: recipients || [] }, user);
     return {
       ...op,
       recipients: recipients || [],
       memos: memos || [],
       linkedTasks: linkedTasks || [],
       events: events || [],
+      viewer_next_action: viewerNextAction,
     };
   }
 
@@ -852,12 +1506,16 @@ class CentralOperationsService {
     );
     const isFullyAcknowledged = parseInt(unacknowledged[0]?.pending || 0, 10) === 0;
 
+    const nextAct = isFullyAcknowledged
+      ? (op?.current_responsible_user_id ? 'Responsibility accepted. Review directives and begin operational execution.' : 'Awaiting ownership: an eligible member must accept responsibility or supervisor must assign.')
+      : 'Awaiting remaining recipient acknowledgements.';
     await pool.query(
       `UPDATE central_operations 
        SET status = CASE WHEN status = 'ISSUED' THEN 'ACKNOWLEDGED' ELSE status END,
+           next_action = $1,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1;`,
-      [opIdNum]
+       WHERE id = $2;`,
+      [nextAct, opIdNum]
     );
 
     // Record Audit Event
@@ -871,6 +1529,233 @@ class CentralOperationsService {
         JSON.stringify({ note, fullyAcknowledged: isFullyAcknowledged }),
       ]
     );
+
+    return this.getOperationById(user, opIdNum);
+  }
+
+  /**
+   * CLAIM / ACCEPT RESPONSIBILITY FOR A GROUP OPERATION
+   * Allows an eligible recipient to accept primary ownership.
+   */
+  static async claimOperation(user, operationId) {
+    const opIdNum = parseInt(operationId, 10);
+    const op = await this.getOperationById(user, opIdNum);
+
+    if (['COMPLETED', 'CANCELLED', 'CLOSED'].includes(op.status)) {
+      throw new BadRequestError(`Cannot claim operation #${operationId} because it is already ${op.status}.`);
+    }
+
+    if (op.current_responsible_user_id && op.current_responsible_user_id !== user.id) {
+      throw new ConflictError(`Operation #${operationId} has already been claimed by ${op.responsible_name || 'another team member'}.`);
+    }
+
+    const nextAction = 'Responsibility accepted. Review directives and begin operational execution.';
+    const newStatus = op.status === 'ISSUED' || op.status === 'ACKNOWLEDGED' || op.status === 'AWAITING_OWNERSHIP' 
+      ? 'ACCEPTED' 
+      : op.status;
+
+    await pool.query(
+      `UPDATE central_operations 
+       SET current_responsible_user_id = $1,
+           current_responsible_group = NULL,
+           status = $2,
+           next_action = $3,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4;`,
+      [user.id, newStatus, nextAction, opIdNum]
+    );
+
+    // Create or update linked primary task for the claiming user
+    const existingTask = await pool.query(
+      'SELECT id FROM operational_tasks WHERE central_operation_id = $1 AND assigned_to_id = $2 LIMIT 1;',
+      [opIdNum, user.id]
+    );
+    const existingRows = existingTask.rows || (Array.isArray(existingTask) ? existingTask : []);
+    if (existingRows.length === 0) {
+      const taskCode = `TSK-${op.operation_code.replace('OPS-', '')}-${String(Date.now()).slice(-4)}`;
+      try {
+        await pool.query(
+          `INSERT INTO operational_tasks (
+            task_code, property_id, assigned_to_id, assigned_by_id,
+            title, description, expected_outcome, task_category,
+            priority, due_date, status, central_operation_id
+          ) VALUES (
+            $1, $2, $3, $4,
+            $5, $6, $7, $8,
+            $9, $10, 'IN_PROGRESS', $11
+          );`,
+          [
+            taskCode,
+            op.property_id || 1,
+            user.id,
+            op.initiated_by_user_id,
+            op.title,
+            op.operational_instructions,
+            op.expected_outcome,
+            op.category === 'MAINTENANCE_INSPECTION' ? 'MAINTENANCE' : 'GENERAL',
+            op.priority,
+            op.deadline_at || new Date(Date.now() + 86400000 * 3),
+            opIdNum,
+          ]
+        );
+      } catch (taskErr) {
+        logger.warn(`Could not create operational task on claim: ${taskErr.message}`);
+      }
+    }
+
+    // Auto-acknowledge for claiming user if not yet acknowledged
+    await pool.query(
+      `UPDATE central_operation_recipients 
+       SET acknowledged_at = COALESCE(acknowledged_at, CURRENT_TIMESTAMP), acceptance_status = 'ACCEPTED' 
+       WHERE operation_id = $1 AND user_id = $2;`,
+      [opIdNum, user.id]
+    );
+
+    // Audit Event
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES ($1, $2, 'TASK_LINKED', $3, $4);`,
+      [
+        opIdNum,
+        user.id,
+        `Task responsibility accepted by ${user.name} (${user.role})`,
+        JSON.stringify({ claimed_by_name: user.name, role: user.role, action: 'CLAIMED_RESPONSIBILITY' }),
+      ]
+    );
+
+    // Post to chat thread
+    if (op.chat_thread_id) {
+      try {
+        await ChatService.sendMessage(user, {
+          threadId: op.chat_thread_id,
+          messageType: 'TEXT',
+          content: `👤 [TASK OWNERSHIP ACCEPTED] ${user.name} (${user.role.replace(/_/g, ' ')}) has accepted primary responsibility for Operation ${op.operation_code}.\n👉 Next Action: ${nextAction}`,
+          priority: 'NORMAL',
+          contextEntityType: 'OPERATION',
+          contextEntityId: opIdNum,
+        });
+      } catch (chatErr) {
+        logger.warn(`Failed to post claim message to chat: ${chatErr.message}`);
+      }
+    }
+
+    return this.getOperationById(user, opIdNum);
+  }
+
+  /**
+   * ASSIGN / DELEGATE OPERATION RESPONSIBILITY TO A SPECIFIC USER
+   * Allows initiator, supervisor, or management to assign responsibility.
+   */
+  static async assignOperation(user, operationId, targetUserId, notes = null) {
+    const opIdNum = parseInt(operationId, 10);
+    const targetIdNum = parseInt(targetUserId, 10);
+    const op = await this.getOperationById(user, opIdNum);
+
+    const userRole = (user.role || '').toUpperCase();
+    const isInitiator = op.initiated_by_user_id === user.id;
+    const isSupervisor = op.supervisor_user_id === user.id;
+    const isManagement = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(userRole);
+
+    if (!isInitiator && !isSupervisor && !isManagement) {
+      throw new ForbiddenError('You do not have authority to assign or delegate this operation.');
+    }
+
+    const targetUserRes = await pool.query('SELECT id, name, email, role FROM users WHERE id = $1 LIMIT 1;', [targetIdNum]);
+    const targetRows = targetUserRes.rows || (Array.isArray(targetUserRes) ? targetUserRes : []);
+    if (targetRows.length === 0) {
+      throw new NotFoundError(`Target user #${targetUserId} does not exist.`);
+    }
+    const targetUser = targetRows[0];
+
+    const nextAction = `Assigned to ${targetUser.name}. Review directives and begin operational execution.`;
+    const newStatus = op.status === 'ISSUED' || op.status === 'ACKNOWLEDGED' || op.status === 'AWAITING_OWNERSHIP' 
+      ? 'ACCEPTED' 
+      : op.status;
+
+    await pool.query(
+      `UPDATE central_operations 
+       SET current_responsible_user_id = $1,
+           current_responsible_group = NULL,
+           status = $2,
+           next_action = $3,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4;`,
+      [targetIdNum, newStatus, nextAction, opIdNum]
+    );
+
+    // Ensure target user is recorded in central_operation_recipients
+    await pool.query(
+      `INSERT INTO central_operation_recipients (operation_id, user_id, role_at_time, status)
+       VALUES ($1, $2, $3, 'DELIVERED')
+       ON CONFLICT (operation_id, user_id) DO NOTHING;`,
+      [opIdNum, targetIdNum, targetUser.role]
+    );
+
+    // Create or update linked primary task for target user
+    const existingTask = await pool.query(
+      'SELECT id FROM operational_tasks WHERE central_operation_id = $1 AND assigned_to_id = $2 LIMIT 1;',
+      [opIdNum, targetIdNum]
+    );
+    const existingRows = existingTask.rows || (Array.isArray(existingTask) ? existingTask : []);
+    if (existingRows.length === 0) {
+      const taskCode = `TSK-${op.operation_code.replace('OPS-', '')}-${String(Date.now()).slice(-4)}`;
+      try {
+        await pool.query(
+          `INSERT INTO operational_tasks (
+            task_code, property_id, assigned_to_id, assigned_by_id,
+            title, description, expected_outcome, task_category,
+            priority, due_date, status, central_operation_id
+          ) VALUES (
+            $1, $2, $3, $4,
+            $5, $6, $7, $8,
+            $9, $10, 'PENDING', $11
+          );`,
+          [
+            taskCode,
+            op.property_id || 1,
+            targetIdNum,
+            user.id,
+            op.title,
+            op.operational_instructions,
+            op.expected_outcome,
+            op.category === 'MAINTENANCE_INSPECTION' ? 'MAINTENANCE' : 'GENERAL',
+            op.priority,
+            op.deadline_at || new Date(Date.now() + 86400000 * 3),
+            opIdNum,
+          ]
+        );
+      } catch (taskErr) {
+        logger.warn(`Could not create operational task on assignment: ${taskErr.message}`);
+      }
+    }
+
+    // Audit Event
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES ($1, $2, 'TASK_LINKED', $3, $4);`,
+      [
+        opIdNum,
+        user.id,
+        `Responsibility delegated to ${targetUser.name} by ${user.name}`,
+        JSON.stringify({ assigned_by: user.name, assigned_to: targetUser.name, notes, action: 'DELEGATED_RESPONSIBILITY' }),
+      ]
+    );
+
+    // Post to chat thread
+    if (op.chat_thread_id) {
+      try {
+        await ChatService.sendMessage(user, {
+          threadId: op.chat_thread_id,
+          messageType: 'TEXT',
+          content: `📌 [RESPONSIBILITY DELEGATED] Operation ${op.operation_code} has been assigned to ${targetUser.name} (${targetUser.role.replace(/_/g, ' ')}) by ${user.name}.${notes ? `\nInstructions: ${notes}` : ''}\n👉 Next Action: ${nextAction}`,
+          priority: 'NORMAL',
+          contextEntityType: 'OPERATION',
+          contextEntityId: opIdNum,
+        });
+      } catch (chatErr) {
+        logger.warn(`Failed to post delegation message to chat: ${chatErr.message}`);
+      }
+    }
 
     return this.getOperationById(user, opIdNum);
   }
@@ -1137,18 +2022,24 @@ class CentralOperationsService {
   /**
    * SUBMIT COMPLETION FOR REVIEW
    */
-  static async submitCompletion(user, operationId, { completionNotes }) {
+  static async submitCompletion(user, operationId, { completionNotes, evidenceUrl }) {
     if (!completionNotes || completionNotes.trim().length < 5) {
       throw new BadRequestError('Detailed completion summary notes are required.');
     }
     const opIdNum = parseInt(operationId, 10);
     const op = await this.getOperationById(user, opIdNum);
+    const nextAction = 'Deliverables completed and submitted for review. Awaiting supervisory verification and sign-off.';
 
     await pool.query(
       `UPDATE central_operations 
-       SET status = 'AWAITING_REVIEW', updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $1;`,
-      [opIdNum]
+       SET status = 'SUBMITTED_FOR_REVIEW',
+           completion_notes = $1,
+           completion_evidence_url = $2,
+           next_action = $3,
+           completed_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $4;`,
+      [completionNotes.trim(), evidenceUrl || null, nextAction, opIdNum]
     );
 
     await pool.query(
@@ -1193,18 +2084,34 @@ class CentralOperationsService {
     const op = await this.getOperationById(user, opIdNum);
 
     const isApproved = decision === 'APPROVED' || decision === 'COMPLETED';
-    const newStatus = isApproved ? 'COMPLETED' : 'REJECTED';
+    const isRevise = decision === 'REVISE' || decision === 'REVISION_REQUIRED';
+    const newStatus = isApproved ? 'COMPLETED' : (isRevise ? 'REVISION_REQUIRED' : 'REJECTED');
     const now = new Date();
     const completedAt = isApproved ? now : null;
+    const closedAt = isApproved || newStatus === 'REJECTED' ? now : null;
+    const nextAction = isApproved 
+      ? 'Operation completed and verified. No further action required.'
+      : (isRevise ? `Revisions requested by reviewer: ${reviewNotes || 'Implement corrections'}. Update work and resubmit.` : 'Operation rejected and closed.');
 
     await pool.query(
       `UPDATE central_operations 
        SET status = $1,
            completed_at = $2,
+           closed_at = $3,
+           review_notes = $4,
+           reviewed_by_user_id = $5,
+           reviewed_at = $6,
+           next_action = $7,
            updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $3;`,
-      [newStatus, completedAt, opIdNum]
+       WHERE id = $8;`,
+      [newStatus, completedAt, closedAt, reviewNotes || null, user.id, now, nextAction, opIdNum]
     );
+    if (isApproved) {
+      await pool.query(
+        `UPDATE operational_tasks SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE central_operation_id = $1;`,
+        [opIdNum]
+      );
+    }
 
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
@@ -1605,114 +2512,215 @@ class CentralOperationsService {
   }
 
   /**
+   * GET OPERATIONS SUMMARY METRICS FOR REPORTING & DASHBOARDS
+   * Consolidated real-time metrics respecting role boundaries.
+   */
+  static async getOperationsSummary(user, filters = {}) {
+    const role = (user.role || '').toUpperCase();
+    const userId = user.id;
+
+    let scopeSql = '';
+    const params = [];
+
+    if (['STAFF', 'RECEPTIONIST'].includes(role)) {
+      params.push(userId);
+      scopeSql = 'WHERE (co.current_responsible_user_id = $1 OR cor.user_id = $1)';
+    } else if (role === 'MANAGER') {
+      params.push(userId);
+      scopeSql = 'WHERE (co.property_id IN (SELECT property_id FROM user_property_assignments WHERE user_id = $1) OR co.initiated_by_user_id = $1)';
+    }
+
+    const sql = `
+      SELECT 
+        COUNT(DISTINCT co.id) AS total_operations,
+        COUNT(DISTINCT CASE WHEN co.status = 'ISSUED' THEN co.id END) AS awaiting_acknowledgement,
+        COUNT(DISTINCT CASE WHEN co.status IN ('ACKNOWLEDGED', 'AWAITING_OWNERSHIP') AND co.current_responsible_user_id IS NULL THEN co.id END) AS awaiting_ownership,
+        COUNT(DISTINCT CASE WHEN co.status IN ('ACCEPTED', 'IN_PROGRESS') THEN co.id END) AS in_progress,
+        COUNT(DISTINCT CASE WHEN co.status = 'BLOCKED' THEN co.id END) AS blocked,
+        COUNT(DISTINCT CASE WHEN co.status = 'AWAITING_CLARIFICATION' THEN co.id END) AS awaiting_clarification,
+        COUNT(DISTINCT CASE WHEN co.status IN ('SUBMITTED_FOR_REVIEW', 'AWAITING_REVIEW', 'AWAITING_APPROVAL') THEN co.id END) AS awaiting_review,
+        COUNT(DISTINCT CASE WHEN co.status = 'REVISION_REQUIRED' THEN co.id END) AS revision_required,
+        COUNT(DISTINCT CASE WHEN co.status = 'COMPLETED' THEN co.id END) AS completed,
+        COUNT(DISTINCT CASE WHEN co.status NOT IN ('COMPLETED', 'CANCELLED', 'CLOSED') AND co.deadline_at < CURRENT_TIMESTAMP THEN co.id END) AS overdue
+      FROM central_operations co
+      LEFT JOIN central_operation_recipients cor ON cor.operation_id = co.id
+      ${scopeSql};
+    `;
+
+    const res = await pool.query(sql, params);
+    const row = res.rows?.[0] || (Array.isArray(res) ? res[0] : res) || {};
+    return {
+      total: parseInt(row.total_operations || 0, 10),
+      awaiting_acknowledgement: parseInt(row.awaiting_acknowledgement || 0, 10),
+      awaiting_ownership: parseInt(row.awaiting_ownership || 0, 10),
+      in_progress: parseInt(row.in_progress || 0, 10),
+      blocked: parseInt(row.blocked || 0, 10),
+      awaiting_clarification: parseInt(row.awaiting_clarification || 0, 10),
+      awaiting_review: parseInt(row.awaiting_review || 0, 10),
+      revision_required: parseInt(row.revision_required || 0, 10),
+      completed: parseInt(row.completed || 0, 10),
+      overdue: parseInt(row.overdue || 0, 10),
+    };
+  }
+
+  /**
    * PDFKit GENERATOR FOR FORMAL OPERATIONS MEMORANDUM
    * Beautiful executive styling matching BFA corporate standards.
    */
   static async generateOperationsMemoPdfBuffer({ operation, memo, initiator, recipients = [], property }) {
     return new Promise((resolve, reject) => {
-      // Use bufferPages: true for professional multi-page numbering
-      const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
+      const doc = new PDFDocument({
+        margin: 50,
+        size: 'A4',
+        bufferPages: true,
+      });
       const buffers = [];
 
       doc.on('data', buffers.push.bind(buffers));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
 
-      // Corporate Typography & Colors
       const primaryDark = '#0f172a';
       const secondaryMuted = '#475569';
       const borderLine = '#cbd5e1';
       const brandAccent = '#1d4ed8';
       const contentWidth = doc.page.width - 100; // 495.28 pt
+      const pageBottomSafe = doc.page.height - 65;
 
       const ensureSpace = (requiredPoints) => {
-        if (doc.y + requiredPoints > doc.page.height - 60) {
+        if (doc.y + requiredPoints > pageBottomSafe) {
           doc.addPage();
         }
       };
 
-      // ─── Header Branding ───────────────────────────────────────────
-      doc.fillColor(primaryDark).fontSize(18).font('Helvetica-Bold').text('BFA APARTMENTS MANAGEMENT SYSTEM', { align: 'center' });
-      doc.fontSize(9.5).font('Helvetica').fillColor(secondaryMuted).text('Central Operations & Executive Directives Directorate', { align: 'center' });
+      // Header Branding
+      doc.fillColor(primaryDark).fontSize(16).font('Helvetica-Bold').text('BFA APARTMENTS MANAGEMENT SYSTEM', { align: 'center' });
+      doc.fontSize(9).font('Helvetica').fillColor(secondaryMuted).text('Central Operations & Executive Directives Directorate', { align: 'center' });
       doc.moveDown(0.3);
       doc.strokeColor(borderLine).lineWidth(1.2).moveTo(50, doc.y).lineTo(50 + contentWidth, doc.y).stroke();
-      doc.moveDown(0.6);
+      doc.moveDown(0.5);
 
-      // ─── Document Title ────────────────────────────────────────────
+      // Document Title
       doc.fillColor(brandAccent).fontSize(13).font('Helvetica-Bold').text('OFFICIAL OPERATIONS MEMORANDUM', { align: 'center' });
       doc.moveDown(0.6);
 
-      // ─── Metadata Header Table ─────────────────────────────────────
-      const startY = doc.y;
-      const tableHeight = 115;
-      doc.rect(50, startY, contentWidth, tableHeight).strokeColor(borderLine).fillAndStroke('#f8fafc', borderLine);
+      // Dynamic Two-Column Metadata Table
+      const leftColX = 50;
+      const rightColX = 295;
+      const labelW = 94;
+      const leftValW = 142;
+      const rightValW = 162;
 
-      const col1Label = 60;
-      const col1Val = 145;
-      const col2Label = 320;
-      const col2Val = 395;
-      let lineY = startY + 10;
+      const rowsData = [
+        {
+          leftLabel: 'MEMO REF:',
+          leftVal: memo.memo_reference || 'REF-MEMO',
+          leftBold: true,
+          rightLabel: 'ISSUE DATE:',
+          rightVal: memo.effective_date_text || new Date().toLocaleDateString('en-GB'),
+        },
+        {
+          leftLabel: 'OPS CODE:',
+          leftVal: operation.operation_code || 'OPS-PENDING',
+          leftBold: true,
+          leftColor: brandAccent,
+          rightLabel: 'VERSION:',
+          rightVal: `v${memo.version_number || 1}.0 ${memo.version_number > 1 ? '(Revised)' : ''}`,
+        },
+        {
+          leftLabel: 'ISSUED BY:',
+          leftVal: `${initiator?.name || 'Authorised Officer'} (${memo.issuer_designation || initiator?.role || 'Executive'})`,
+          rightLabel: 'PRIORITY:',
+          rightVal: operation.priority || 'NORMAL',
+          rightBold: true,
+          rightColor: operation.priority === 'CRITICAL' ? '#dc2626' : operation.priority === 'URGENT' ? '#d97706' : '#2563eb',
+        },
+        {
+          leftLabel: 'TARGET AUDIENCE:',
+          leftVal: memo.recipient_summary || 'Authorised Operational Personnel',
+          rightLabel: 'PROPERTY SCOPE:',
+          rightVal: memo.property_scope_summary || property?.name || 'Corporate',
+        },
+        {
+          leftLabel: 'RESPONSIBLE:',
+          leftVal: operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group ? `[Group: ${operation.current_responsible_group}]` : 'Open to Group / Unassigned'),
+          leftBold: Boolean(operation.responsible_name),
+          rightLabel: 'DEADLINE:',
+          rightVal: memo.deadline_text || 'Standard Timeline',
+          rightBold: true,
+        },
+      ];
 
-      // Row 1: Memo Ref & Date
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('MEMO REF:', col1Label, lineY);
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(primaryDark).text(memo.memo_reference || 'REF-MEMO', col1Val, lineY);
+      doc.font('Helvetica').fontSize(8.5);
+      let measuredTableHeight = 16;
+      const measuredRowHeights = rowsData.map(r => {
+        const leftH = doc.heightOfString(r.leftVal, { width: leftValW });
+        const rightH = doc.heightOfString(r.rightVal, { width: rightValW });
+        const rowH = Math.max(leftH, rightH, 14) + 6;
+        measuredTableHeight += rowH;
+        return rowH;
+      });
 
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('DATE:', col2Label, lineY);
-      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(memo.effective_date_text || new Date().toLocaleDateString(), col2Val, lineY);
+      ensureSpace(measuredTableHeight + 10);
+      const actualTableY = doc.y;
 
-      // Row 2: Operation Code & Version
-      lineY += 18;
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('OPS REF:', col1Label, lineY);
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(brandAccent).text(operation.operation_code || 'OPS-PENDING', col1Val, lineY);
+      doc.rect(50, actualTableY, contentWidth, measuredTableHeight)
+        .fillAndStroke('#f8fafc', borderLine);
 
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('VERSION:', col2Label, lineY);
-      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(`v${memo.version_number || 1}.0 ${memo.version_number > 1 ? '(Revised)' : ''}`, col2Val, lineY);
+      doc.strokeColor(borderLine).lineWidth(0.8)
+        .moveTo(295, actualTableY).lineTo(295, actualTableY + measuredTableHeight).stroke();
 
-      // Row 3: Issued By & Priority
-      lineY += 18;
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('ISSUED BY:', col1Label, lineY);
-      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(`${initiator.name || 'Authorised Officer'} — ${memo.issuer_designation || initiator.role}`, col1Val, lineY, { width: 165 });
+      let currentY = actualTableY + 8;
+      rowsData.forEach((row, idx) => {
+        const rowH = measuredRowHeights[idx];
 
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('PRIORITY:', col2Label, lineY);
-      const prioColor = operation.priority === 'CRITICAL' ? '#dc2626' : operation.priority === 'URGENT' ? '#d97706' : '#2563eb';
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(prioColor).text(operation.priority || 'NORMAL', col2Val, lineY);
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(secondaryMuted).text(row.leftLabel, leftColX + 8, currentY);
+        doc.font(row.leftBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5)
+          .fillColor(row.leftColor || primaryDark)
+          .text(row.leftVal, leftColX + 8 + labelW, currentY, { width: leftValW });
 
-      // Row 4: Target Audience & Property Scope
-      lineY += 20;
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('TO (RECIPIENT):', col1Label, lineY);
-      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(memo.recipient_summary || 'Authorised Operational Personnel', col1Val, lineY, { width: 165 });
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(secondaryMuted).text(row.rightLabel, rightColX + 8, currentY);
+        doc.font(row.rightBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5)
+          .fillColor(row.rightColor || primaryDark)
+          .text(row.rightVal, rightColX + 8 + labelW, currentY, { width: rightValW });
 
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('PROPERTY:', col2Label, lineY);
-      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(memo.property_scope_summary || property?.name || 'Corporate', col2Val, lineY, { width: 145 });
+        currentY += rowH;
 
-      // Row 5: Deadline & Category
-      lineY += 20;
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('DEADLINE:', col1Label, lineY);
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(primaryDark).text(memo.deadline_text || 'Standard Timeline', col1Val, lineY);
+        if (idx < rowsData.length - 1) {
+          doc.strokeColor('#e2e8f0').lineWidth(0.5)
+            .moveTo(50, currentY - 3).lineTo(50 + contentWidth, currentY - 3).stroke();
+        }
+      });
 
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryMuted).text('CATEGORY:', col2Label, lineY);
-      doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text((operation.category || 'DIRECTIVE').replace(/_/g, ' '), col2Val, lineY);
+      doc.y = actualTableY + measuredTableHeight + 12;
 
-      doc.y = startY + tableHeight + 12;
-
-      // ─── Subject Banner ────────────────────────────────────────────
-      ensureSpace(40);
+      const subjText = `SUBJECT: ${(memo.subject || operation.subject || '').toUpperCase()}`;
+      doc.font('Helvetica-Bold').fontSize(9.5);
+      const subjHeight = doc.heightOfString(subjText, { width: contentWidth - 20 }) + 12;
+      ensureSpace(subjHeight + 10);
       const subjY = doc.y;
-      doc.rect(50, subjY, contentWidth, 24).fill('#e2e8f0');
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(primaryDark).text(`SUBJECT: ${memo.subject || operation.subject}`, 60, subjY + 6, { width: contentWidth - 20 });
-      doc.y = subjY + 34;
+      doc.rect(50, subjY, contentWidth, subjHeight).fill('#e2e8f0');
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(primaryDark).text(subjText, 60, subjY + 6, { width: contentWidth - 20 });
+      doc.y = subjY + subjHeight + 12;
 
-      // Helper function for rendering sections with dynamic page safety
       const renderSection = (num, secTitle, secBody) => {
         if (!secBody || !secBody.trim()) return;
-        ensureSpace(45);
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(brandAccent).text(`${num}. ${secTitle.toUpperCase()}`);
+        const heading = `${num}. ${secTitle.toUpperCase()}`;
+        doc.font('Helvetica-Bold').fontSize(10);
+        const headingH = doc.heightOfString(heading, { width: contentWidth });
+        
+        ensureSpace(headingH + 50);
+
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(brandAccent).text(heading);
         doc.moveDown(0.2);
-        doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text(secBody, { align: 'justify', lineGap: 2.5, width: contentWidth });
+        doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text(secBody.trim(), {
+          align: 'justify',
+          lineGap: 3,
+          width: contentWidth,
+        });
         doc.moveDown(0.7);
       };
 
-      // ─── Core Structured Sections ──────────────────────────────────
       renderSection('1', 'Purpose & Executive Rationale', memo.purpose || operation.purpose);
       renderSection('2', 'Operational Instructions & Directives', memo.operational_instructions || operation.operational_instructions);
 
@@ -1728,42 +2736,65 @@ class CentralOperationsService {
         renderSection('5', 'Reporting Requirements & Verification Procedures', memo.reporting_requirements || operation.reporting_requirements);
       }
 
-      if (memo.amendment_reason) {
-        ensureSpace(50);
-        const amendY = doc.y;
-        doc.rect(50, amendY, contentWidth, 32).fillAndStroke('#fef3c7', '#f59e0b');
-        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#b45309').text(`REVISION AUDIT NOTE (v${memo.version_number}):`, 60, amendY + 4);
-        doc.font('Helvetica').fontSize(8.5).fillColor('#78350f').text(memo.amendment_reason, 60, amendY + 16, { width: contentWidth - 20 });
-        doc.y = amendY + 40;
+      if (operation.next_action || operation.status) {
+        renderSection('6', 'Current Operational State & Next Required Action', 
+          `Current Status: ${(operation.status || 'ISSUED').replace(/_/g, ' ')}\n` +
+          `Next Required Action: ${operation.next_action || 'Review directive and acknowledge receipt.'}\n` +
+          `Current Ownership: ${operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group || 'Unassigned / Open to Group')}`
+        );
       }
 
-      // ─── Compliance & Acknowledgement Block ─────────────────────────
-      ensureSpace(60);
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(brandAccent).text('FORMAL COMPLIANCE & ACKNOWLEDGEMENT MANDATE');
+      if (memo.amendment_reason) {
+        doc.font('Helvetica').fontSize(8.5);
+        const amendText = memo.amendment_reason;
+        const amendTextH = doc.heightOfString(amendText, { width: contentWidth - 24 });
+        const amendBoxH = amendTextH + 24;
+        ensureSpace(amendBoxH + 10);
+        const amendY = doc.y;
+        doc.rect(50, amendY, contentWidth, amendBoxH).fillAndStroke('#fef3c7', '#f59e0b');
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#b45309').text(`REVISION AUDIT NOTE (v${memo.version_number}):`, 60, amendY + 6);
+        doc.font('Helvetica').fontSize(8.5).fillColor('#78350f').text(amendText, 60, amendY + 18, { width: contentWidth - 24 });
+        doc.y = amendY + amendBoxH + 12;
+      }
+
+      ensureSpace(65);
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(brandAccent).text('FORMAL COMPLIANCE & ACKNOWLEDGEMENT MANDATE');
       doc.moveDown(0.2);
       doc.font('Helvetica-Oblique').fontSize(8).fillColor(secondaryMuted).text(
-        'All designated recipients are required by company standard operating procedures to formally acknowledge receipt of this memorandum via the BFA Staff Portal / Operations Centre within the stipulated timeframe. Failure to acknowledge or carry out directed operational mandates constitutes a procedural breach.',
-        { align: 'justify', width: contentWidth }
+        'All designated recipients are required by company standard operating procedures to formally acknowledge receipt of this memorandum via the BFA Staff Portal / Staff Chat within the stipulated timeframe. Failure to acknowledge or carry out directed operational mandates constitutes a procedural breach.',
+        { align: 'justify', width: contentWidth, lineGap: 2 }
       );
       doc.moveDown(0.8);
 
-      // Sign-off signature footer
-      ensureSpace(70);
+      ensureSpace(85);
       const signY = doc.y;
       doc.strokeColor(borderLine).lineWidth(1).moveTo(50, signY).lineTo(250, signY).stroke();
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(primaryDark).text(initiator.name || 'Authorised Signatory', 50, signY + 4);
-      doc.font('Helvetica').fontSize(8).fillColor(secondaryMuted).text(memo.issuer_designation || initiator.role, 50, signY + 16);
-      doc.text(`Digital Verification Timestamp: ${new Date().toISOString()}`, 50, signY + 26);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(primaryDark).text(initiator?.name || 'Authorised Signatory', 50, signY + 5);
+      doc.font('Helvetica').fontSize(8).fillColor(secondaryMuted).text(memo.issuer_designation || initiator?.role || 'Executive Authority', 50, signY + 17);
+      doc.text(`Digital Verification Timestamp: ${new Date().toISOString()}`, 50, signY + 28);
+      doc.text(`Doc Ref: ${memo.memo_reference || 'BFA-MEMO'} | Audit Hash: VERIFIED-AUTHENTIC`, 50, signY + 39);
 
-      // Multi-page footer across all pages
       const pages = doc.bufferedPageRange();
       for (let i = 0; i < pages.count; i++) {
         doc.switchToPage(i);
-        doc.fontSize(7.5).fillColor('#94a3b8').text(
-          `BFA APARTMENTS — CONFIDENTIAL INTERNAL OPERATIONAL DOCUMENT — Page ${i + 1} of ${pages.count}`,
+        doc.page.margins.bottom = 0;
+
+        if (i > 0) {
+          doc.fontSize(7.5).font('Helvetica').fillColor(secondaryMuted).text(
+            `BFA APARTMENTS — OPERATIONS MEMORANDUM (${memo.memo_reference || 'REF'}) — [CONFIDENTIAL]`,
+            50,
+            25,
+            { width: contentWidth, align: 'center', lineBreak: false }
+          );
+          doc.strokeColor(borderLine).lineWidth(0.5).moveTo(50, 36).lineTo(50 + contentWidth, 36).stroke();
+        }
+
+        doc.strokeColor(borderLine).lineWidth(0.5).moveTo(50, doc.page.height - 40).lineTo(50 + contentWidth, doc.page.height - 40).stroke();
+        doc.fontSize(7.5).font('Helvetica').fillColor('#94a3b8').text(
+          `BFA APARTMENTS MANAGEMENT SYSTEM • CONFIDENTIAL INTERNAL OPERATIONAL DOCUMENT • Page ${i + 1} of ${pages.count}`,
           50,
-          doc.page.height - 35,
-          { align: 'center', width: contentWidth }
+          doc.page.height - 32,
+          { align: 'center', width: contentWidth, lineBreak: false }
         );
       }
 

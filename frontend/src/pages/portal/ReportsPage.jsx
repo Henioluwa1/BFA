@@ -4,7 +4,8 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
-import { reportService, operationsService } from '../../services/api';
+import InChatOperationDetailsModal from '../../components/chat/InChatOperationDetailsModal';
+import { reportService, operationsService, centralOperationsService } from '../../services/api';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -93,6 +94,14 @@ export default function ReportsPage() {
   const [legacyToDate, setLegacyToDate] = useState('');
   const [legacyReportData, setLegacyReportData] = useState([]);
   const [legacyFinancialSummary, setLegacyFinancialSummary] = useState(null);
+
+  // Central Operations & Directives Report State
+  const [opsSummary, setOpsSummary] = useState(null);
+  const [operationsList, setOperationsList] = useState([]);
+  const [loadingOps, setLoadingOps] = useState(false);
+  const [opsStatusFilter, setOpsStatusFilter] = useState('all');
+  const [opsPriorityFilter, setOpsPriorityFilter] = useState('all');
+  const [viewingOperationId, setViewingOperationId] = useState(null);
 
   // Sync active property filter
   useEffect(() => {
@@ -209,6 +218,32 @@ export default function ReportsPage() {
     }
   }, [legacyReportType, propertyFilter, legacyFromDate, legacyToDate, addToast]);
 
+  // Central Operations Directives Report Fetcher
+  const fetchOperationsReport = useCallback(async () => {
+    setLoadingOps(true);
+    try {
+      const [summaryRes, listRes] = await Promise.all([
+        centralOperationsService.getSummary(),
+        centralOperationsService.listOperations({ view: 'all' }),
+      ]);
+      setOpsSummary(summaryRes?.data || summaryRes);
+      setOperationsList(listRes?.data || listRes || []);
+    } catch (err) {
+      console.error('[ReportsPage] Operations report fetch error:', err);
+      addToast('Failed to load operational directives report data.', 'error');
+    } finally {
+      setLoadingOps(false);
+    }
+  }, [addToast]);
+
+  const filteredOperations = useMemo(() => {
+    return operationsList.filter((op) => {
+      if (opsStatusFilter !== 'all' && op.status !== opsStatusFilter) return false;
+      if (opsPriorityFilter !== 'all' && op.priority !== opsPriorityFilter) return false;
+      return true;
+    });
+  }, [operationsList, opsStatusFilter, opsPriorityFilter]);
+
   // Mode Effect
   useEffect(() => {
     if (activeMode === 'DAILY') {
@@ -219,8 +254,10 @@ export default function ReportsPage() {
       fetchReportRequests();
     } else if (activeMode === 'LEGACY') {
       fetchLegacyReport();
+    } else if (activeMode === 'OPERATIONS') {
+      fetchOperationsReport();
     }
-  }, [activeMode, fetchDailyReport, fetchMonthlyReport, fetchReportRequests, fetchLegacyReport]);
+  }, [activeMode, fetchDailyReport, fetchMonthlyReport, fetchReportRequests, fetchLegacyReport, fetchOperationsReport]);
 
   // ───────────────────────────────────────────────────────────────────────────
   // Export & Action Handlers
@@ -397,6 +434,14 @@ export default function ReportsPage() {
           >
             Reservations & Financial Ledgers
           </Button>
+          <Button
+            variant={activeMode === 'OPERATIONS' ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => setActiveMode('OPERATIONS')}
+            icon={<CheckCheck size={16} />}
+          >
+            Operations & Directives Execution
+          </Button>
         </div>
       </Card>
 
@@ -483,8 +528,9 @@ export default function ReportsPage() {
                   if (activeMode === 'DAILY') fetchDailyReport();
                   else if (activeMode === 'MONTHLY') fetchMonthlyReport();
                   else if (activeMode === 'LEGACY') fetchLegacyReport();
+                  else if (activeMode === 'OPERATIONS') fetchOperationsReport();
                 }}
-                icon={<RefreshCw size={14} className={loading ? 'animate-spin' : ''} />}
+                icon={<RefreshCw size={14} className={(loading || loadingOps) ? 'animate-spin' : ''} />}
               >
                 Refresh
               </Button>
@@ -997,6 +1043,265 @@ export default function ReportsPage() {
         </div>
       )}
 
+      {/* ─── TAB 5: CENTRAL OPERATIONS & DIRECTIVES EXECUTION ────────────────── */}
+      {activeMode === 'OPERATIONS' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Executive Directives KPI Grid */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '1rem',
+            }}
+          >
+            <Card style={{ padding: '1.25rem', borderLeft: '4px solid #3b82f6' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                Total Directives
+              </span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '0.25rem', color: 'var(--text-primary)' }}>
+                {opsSummary?.total ?? '—'}
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>All recorded directives</span>
+            </Card>
+
+            <Card style={{ padding: '1.25rem', borderLeft: '4px solid #f59e0b' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                Awaiting Ownership
+              </span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '0.25rem', color: '#f59e0b' }}>
+                {opsSummary?.awaiting_ownership ?? '—'}
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Unassigned group operations</span>
+            </Card>
+
+            <Card style={{ padding: '1.25rem', borderLeft: '4px solid #38bdf8' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                Active Execution
+              </span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '0.25rem', color: '#38bdf8' }}>
+                {opsSummary?.in_progress ?? '—'}
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Currently in progress</span>
+            </Card>
+
+            <Card style={{ padding: '1.25rem', borderLeft: '4px solid #c084fc' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                Supervisory Review
+              </span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '0.25rem', color: '#c084fc' }}>
+                {opsSummary?.awaiting_review ?? '—'}
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Awaiting managerial sign-off</span>
+            </Card>
+
+            <Card style={{ padding: '1.25rem', borderLeft: '4px solid #ef4444' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                Blocked / Overdue
+              </span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '0.25rem', color: '#ef4444' }}>
+                {(opsSummary?.blocked || 0) + (opsSummary?.overdue || 0)}
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Requires escalation</span>
+            </Card>
+
+            <Card style={{ padding: '1.25rem', borderLeft: '4px solid #10b981' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                Completed & Verified
+              </span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '0.25rem', color: '#10b981' }}>
+                {opsSummary?.completed ?? '—'}
+              </div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Fully audited and closed</span>
+            </Card>
+          </div>
+
+          {/* Directives Accountability & Execution Ledger Table */}
+          <Card>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>
+                  Directives Accountability & Execution Ledger
+                </h3>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Authoritative record of operations, responsible owners, intended audience, and next required actions.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value={opsStatusFilter}
+                  onChange={(e) => setOpsStatusFilter(e.target.value)}
+                  style={{
+                    padding: '0.4rem 0.6rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-default)',
+                    background: 'var(--bg-surface)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.82rem',
+                  }}
+                >
+                  <option value="all">All Lifecycle Statuses</option>
+                  <option value="AWAITING_OWNERSHIP">Awaiting Ownership</option>
+                  <option value="AWAITING_ACKNOWLEDGEMENT">Awaiting Acknowledgement</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="SUBMITTED_FOR_REVIEW">Under Supervisory Review</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="BLOCKED">Blocked</option>
+                </select>
+
+                <select
+                  value={opsPriorityFilter}
+                  onChange={(e) => setOpsPriorityFilter(e.target.value)}
+                  style={{
+                    padding: '0.4rem 0.6rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-default)',
+                    background: 'var(--bg-surface)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.82rem',
+                  }}
+                >
+                  <option value="all">All Priorities</option>
+                  <option value="CRITICAL">Critical</option>
+                  <option value="URGENT">Urgent</option>
+                  <option value="IMPORTANT">Important</option>
+                  <option value="NORMAL">Normal</option>
+                </select>
+              </div>
+            </div>
+
+            {loadingOps ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                Loading operations ledger records...
+              </div>
+            ) : filteredOperations.length === 0 ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                No operational directives match the selected criteria.
+              </div>
+            ) : (
+              <Table
+                columns={[
+                  {
+                    header: 'Code / Ref',
+                    key: 'operation_code',
+                    render: (val, row) => (
+                      <div>
+                        <strong style={{ fontFamily: 'monospace', color: '#60a5fa' }}>{val}</strong>
+                        {row.memo_reference && (
+                          <div style={{ fontSize: '0.72rem', color: '#d4af37', fontFamily: 'monospace', fontWeight: 600 }}>
+                            {row.memo_reference}
+                          </div>
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    header: 'Directive Subject & Scope',
+                    key: 'title',
+                    render: (val, row) => (
+                      <div>
+                        <strong>{val}</strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {row.category ? row.category.replace(/_/g, ' ') : 'General Directive'}
+                        </div>
+                      </div>
+                    ),
+                  },
+                  {
+                    header: 'Initiator',
+                    key: 'initiator_name',
+                    render: (val, row) => (
+                      <span style={{ fontSize: '0.82rem' }}>
+                        {val} <span style={{ color: 'var(--text-muted)' }}>({row.initiator_role})</span>
+                      </span>
+                    ),
+                  },
+                  {
+                    header: 'Intended Audience',
+                    key: 'target_group',
+                    render: (val, row) => (
+                      <span style={{ fontSize: '0.82rem' }}>
+                        {val || row.target_role || row.audience_type}
+                      </span>
+                    ),
+                  },
+                  {
+                    header: 'Responsible Owner',
+                    key: 'responsible_name',
+                    render: (val, row) => (
+                      val ? (
+                        <span style={{ color: '#34d399', fontWeight: 700, fontSize: '0.82rem' }}>
+                          {val}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#fbbf24', fontStyle: 'italic', fontSize: '0.82rem' }}>
+                          ⚠️ Unassigned ({row.current_responsible_group || 'Open'})
+                        </span>
+                      )
+                    ),
+                  },
+                  {
+                    header: 'Priority',
+                    key: 'priority',
+                    render: (val) => (
+                      <Badge status={val === 'CRITICAL' ? 'danger' : val === 'URGENT' ? 'warning' : 'neutral'}>
+                        {val}
+                      </Badge>
+                    ),
+                  },
+                  {
+                    header: 'Status',
+                    key: 'status',
+                    render: (val) => (
+                      <Badge status={val === 'COMPLETED' ? 'success' : val === 'BLOCKED' ? 'danger' : val === 'IN_PROGRESS' ? 'info' : 'warning'}>
+                        {val ? val.replace(/_/g, ' ') : 'Active'}
+                      </Badge>
+                    ),
+                  },
+                  {
+                    header: 'Next Action',
+                    key: 'next_action',
+                    render: (val, row) => (
+                      <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                        {row.viewer_next_action?.text || val || '—'}
+                      </span>
+                    ),
+                  },
+                  {
+                    header: 'Actions',
+                    key: 'id',
+                    render: (id, row) => (
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setViewingOperationId(row.id)}
+                        >
+                          Details
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            centralOperationsService.downloadMemoPdf({
+                              operationId: row.id,
+                              filename: `${row.memo_reference || row.operation_code || 'Operation_Memo'}.pdf`,
+                            }).catch((err) => addToast(err.message || 'Download failed', 'error'));
+                          }}
+                        >
+                          PDF
+                        </Button>
+                      </div>
+                    ),
+                  },
+                ]}
+                data={filteredOperations}
+              />
+            )}
+          </Card>
+        </div>
+      )}
+
       {/* ─── MODAL: FINALIZE & FREEZE SNAPSHOT ─────────────────────────────── */}
       {isFinalizeModalOpen && (
         <Modal
@@ -1149,6 +1454,15 @@ export default function ReportsPage() {
           </form>
         </Modal>
       )}
+
+      {/* ─── MODAL: IN-CHAT OPERATION DETAILS MODAL ───────────────────────── */}
+      <InChatOperationDetailsModal
+        isOpen={Boolean(viewingOperationId)}
+        onClose={() => setViewingOperationId(null)}
+        operationId={viewingOperationId}
+        currentUser={user}
+        onOperationUpdated={fetchOperationsReport}
+      />
     </div>
   );
 }

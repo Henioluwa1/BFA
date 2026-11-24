@@ -4,6 +4,7 @@ import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import Table from '../ui/Table';
 import Modal from '../ui/Modal';
+import InChatOperationDetailsModal from '../chat/InChatOperationDetailsModal';
 import { operationsService, employeeService, propertyService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useProperty } from '../../context/PropertyContext';
@@ -42,6 +43,7 @@ export default function OperationalTasksTab({ activePropertyId }) {
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [viewingOperationId, setViewingOperationId] = useState(null);
 
   // Create Task Modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -223,7 +225,30 @@ export default function OperationalTasksTab({ activePropertyId }) {
                 key: 'title',
                 render: (val, row) => (
                   <div>
-                    <strong>{val}</strong>
+                    <strong style={{ display: 'block' }}>{val}</strong>
+                    {row.central_operation_id && (
+                      <button
+                        type="button"
+                        onClick={() => setViewingOperationId(row.central_operation_id)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: 'rgba(59, 130, 246, 0.15)',
+                          border: '1px solid rgba(59, 130, 246, 0.4)',
+                          borderRadius: '4px',
+                          padding: '1px 6px',
+                          fontSize: '0.68rem',
+                          color: '#60a5fa',
+                          fontWeight: 800,
+                          marginTop: '3px',
+                          cursor: 'pointer',
+                        }}
+                        title="Click to view full operational directive and memorandum"
+                      >
+                        ⚡ OPERATION DIRECTIVE {row.operation_code ? `· ${row.operation_code}` : ''}
+                      </button>
+                    )}
                     {row.has_active_blocker && (
                       <div style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: 600, marginTop: '0.2rem' }}>
                         ⚠️ BLOCKED: {row.blocker_category} - {row.blocker_description}
@@ -249,7 +274,16 @@ export default function OperationalTasksTab({ activePropertyId }) {
                 header: 'Actions',
                 key: 'id',
                 render: (id, row) => (
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {row.central_operation_id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setViewingOperationId(row.central_operation_id)}
+                      >
+                        Directive
+                      </Button>
+                    )}
                     {row.has_active_blocker && isManagement && (
                       <Button
                         size="sm"
@@ -563,6 +597,15 @@ export default function OperationalTasksTab({ activePropertyId }) {
           </form>
         </Modal>
       )}
+
+      {/* ─── MODAL: IN-CHAT OPERATION DETAILS MODAL ───────────────────────── */}
+      <InChatOperationDetailsModal
+        isOpen={Boolean(viewingOperationId)}
+        onClose={() => setViewingOperationId(null)}
+        operationId={viewingOperationId}
+        currentUser={user}
+        onOperationUpdated={fetchTasks}
+      />
     </div>
   );
 }

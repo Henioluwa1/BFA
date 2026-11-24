@@ -464,6 +464,16 @@ export const employeeService = {
   downloadIdCardPdf: (id) => api.get(`/employees/${id}/id-card/pdf`, { responseType: 'blob' }),
   downloadIdCardPDF: (id) => api.get(`/employees/${id}/id-card/pdf`, { responseType: 'blob' }),
   verifyIdCardToken: (token) => api.get(`/employees/verify-id-card/${token}`),
+  getActivities: (arg1, arg2) => {
+    if (typeof arg1 === 'object' || arg1 === undefined) {
+      return api.get('/employees/activities', { params: arg1 });
+    }
+    if (arg1 === 'me') {
+      return api.get('/employees/me/activities', { params: arg2 });
+    }
+    return api.get(`/employees/${arg1}/activities`, { params: arg2 });
+  },
+  logActivity: (id, data) => api.post(`/employees/${id}/activities`, data),
   getMyProfile: () => api.get('/employees/me/profile'),
   updateMyProfile: (data) => api.put('/employees/me/profile', data),
   getMyPerformance: (params) => api.get('/employees/me/performance', { params }),
@@ -611,8 +621,11 @@ export const operationsService = {
 
 export const centralOperationsService = {
   listOperations: (params) => api.get('/workforce/operations', { params }),
+  getSummary: (params) => api.get('/workforce/operations/summary', { params }),
   getOperationById: (id) => api.get(`/workforce/operations/${id}`),
   createOperation: (data) => api.post('/workforce/operations', data),
+  claimOperation: (id) => api.post(`/workforce/operations/${id}/claim`),
+  assignOperation: (id, targetUserId, notes) => api.post(`/workforce/operations/${id}/assign`, { targetUserId, notes }),
   acknowledgeOperation: (id, note) => api.post(`/workforce/operations/${id}/acknowledge`, { note }),
   requestClarification: (id, data) => api.post(`/workforce/operations/${id}/clarification`, data),
   respondClarification: (id, data) => api.post(`/workforce/operations/${id}/clarification/respond`, data),

@@ -204,6 +204,52 @@ class CentralOperationsController {
   }
 
   /**
+   * Claim / Accept responsibility for a group operation
+   */
+  static async claimOperation(req, res, next) {
+    try {
+      const operation = await CentralOperationsService.claimOperation(req.user, req.params.id);
+      return ApiResponse.success(res, {
+        message: 'Responsibility for operation successfully claimed.',
+        data: operation,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Assign / Delegate responsibility to a specific user
+   */
+  static async assignOperation(req, res, next) {
+    try {
+      const { targetUserId, notes } = req.body;
+      const operation = await CentralOperationsService.assignOperation(req.user, req.params.id, targetUserId, notes);
+      return ApiResponse.success(res, {
+        message: 'Operation responsibility successfully assigned.',
+        data: operation,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Authoritative real-time summary for reporting and dashboards
+   */
+  static async getOperationsSummary(req, res, next) {
+    try {
+      const summary = await CentralOperationsService.getOperationsSummary(req.user, req.query);
+      return ApiResponse.success(res, {
+        message: 'Operations summary metrics retrieved successfully.',
+        data: summary,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * Download / stream formal Operations Memo PDF
    */
   static async downloadMemoPdf(req, res, next) {

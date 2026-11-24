@@ -227,10 +227,13 @@ class TaskOperationsService {
         u_staff.name AS assigned_to_name,
         u_staff.email AS assigned_to_email,
         u_mgr.name AS assigned_by_name,
+        co.operation_code,
+        co.title AS central_operation_title,
         (SELECT COUNT(*) FROM task_blockers tb WHERE tb.task_id = ot.id AND tb.status = 'OPEN') AS open_blockers_count
       FROM operational_tasks ot
       JOIN properties p ON ot.property_id = p.id
       LEFT JOIN apartments a ON ot.apartment_id = a.id
+      LEFT JOIN central_operations co ON ot.central_operation_id = co.id
       JOIN users u_staff ON ot.assigned_to_id = u_staff.id
       JOIN users u_mgr ON ot.assigned_by_id = u_mgr.id
       ${whereClause}
@@ -259,10 +262,13 @@ class TaskOperationsService {
         u_staff.name AS assigned_to_name,
         u_staff.email AS assigned_to_email,
         u_mgr.name AS assigned_by_name,
-        u_rev.name AS reviewed_by_name
+        u_rev.name AS reviewed_by_name,
+        co.operation_code,
+        co.title AS central_operation_title
       FROM operational_tasks ot
       JOIN properties p ON ot.property_id = p.id
       LEFT JOIN apartments a ON ot.apartment_id = a.id
+      LEFT JOIN central_operations co ON ot.central_operation_id = co.id
       JOIN users u_staff ON ot.assigned_to_id = u_staff.id
       JOIN users u_mgr ON ot.assigned_by_id = u_mgr.id
       LEFT JOIN users u_rev ON ot.reviewed_by_id = u_rev.id

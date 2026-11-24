@@ -49,9 +49,12 @@ router.patch('/directives/:id/status', requireAuth, requireRoles('SUPER_ADMIN', 
 // ─── Central Operations, Directives, Operations Memos & Workflows ─────
 router.post('/operations', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.createOperation);
 router.get('/operations', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.listOperations);
+router.get('/operations/summary', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.getOperationsSummary);
 router.get('/operations/memos/:memoId/pdf', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.downloadMemoPdf);
 router.get('/operations/:id/memo/pdf', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.downloadMemoPdf);
 router.get('/operations/:id', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.getOperationById);
+router.post('/operations/:id/claim', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.claimOperation);
+router.post('/operations/:id/assign', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.assignOperation);
 router.post('/operations/:id/acknowledge', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.acknowledgeOperation);
 router.post('/operations/:id/clarification', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.requestClarification);
 router.post('/operations/:id/clarification/respond', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.respondClarification);

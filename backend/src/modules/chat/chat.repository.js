@@ -483,7 +483,7 @@ class ChatRepository {
         [threadId, creatorUser.id]
       );
 
-      const propertyStaff = await conn.query(
+      const [propertyStaff] = await conn.query(
         `SELECT id FROM users WHERE property_id = ? AND status = 'ACTIVE' AND id != ?`,
         [pId, creatorUser.id]
       );

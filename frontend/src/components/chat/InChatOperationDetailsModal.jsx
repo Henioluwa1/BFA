@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X,
   FileText,
   Download,
+  Printer,
   CheckCircle2,
   AlertTriangle,
   Clock,
@@ -14,15 +15,19 @@ import {
   Calendar,
   Eye,
   Check,
+  UserCheck,
+  ArrowRight,
+  ShieldAlert,
+  History,
+  ListTodo,
+  ExternalLink,
+  ChevronRight,
+  AlertCircle,
+  HelpCircle,
 } from 'lucide-react';
-import api, { centralOperationsService } from '../../services/api';
+import api, { centralOperationsService, userService } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
-/**
- * In-Chat Operation Details & Official Memo Viewer Modal
- * 100% Dark Glass / Black Glass design with crisp pure white typography.
- * Displays unambiguous next actions, complete memorandum text, task tracker, and PDF download.
- */
 export default function InChatOperationDetailsModal({
   isOpen,
   onClose,
@@ -34,151 +39,260 @@ export default function InChatOperationDetailsModal({
 
   const [loading, setLoading] = useState(true);
   const [operation, setOperation] = useState(null);
+  const [activeTab, setActiveTab] = useState('directive'); // 'directive' | 'actions' | 'memo' | 'tasks' | 'audit'
+
+  // Actions state
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [acknowledging, setAcknowledging] = useState(false);
-  const [progressNote, setProgressNote] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Forms inside Actions Tab
+  const [assigneeId, setAssigneeId] = useState('');
+  const [assignNotes, setAssignNotes] = useState('');
+  const [progressTaskId, setProgressTaskId] = useState('');
   const [progressPercent, setProgressPercent] = useState(50);
-  const [submittingProgress, setSubmittingProgress] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [progressNotes, setProgressNotes] = useState('');
+  const [blockerCategory, setBlockerCategory] = useState('MISSING_PARTS');
+  const [blockerDesc, setBlockerDesc] = useState('');
+  const [completionNotes, setCompletionNotes] = useState('');
+  const [completionEvidenceUrl, setCompletionEvidenceUrl] = useState('');
+  const [reviewDecision, setReviewDecision] = useState('APPROVED');
+  const [reviewNotes, setReviewNotes] = useState('');
+
+  // Staff options for assignment
+  const [staffList, setStaffList] = useState([]);
+
+  const cleanOpId = typeof operationId === 'string' && operationId.startsWith('OPS-')
+    ? operationId
+    : operationId;
 
   // Load Operation Record
-  const fetchOperation = async () => {
-    if (!operationId) return;
+  const fetchOperation = useCallback(async () => {
+    if (!cleanOpId) return;
     setLoading(true);
     try {
-      const res = await api.get(`/workforce/operations/${operationId}`);
-      const data = res.data || res;
+      const res = await centralOperationsService.getOperationById(cleanOpId);
+      const data = res?.data || res;
       setOperation(data);
-      if (data.tasks && data.tasks.length > 0 && !selectedTaskId) {
-        setSelectedTaskId(data.tasks[0].id);
+      if (data.tasks && data.tasks.length > 0 && !progressTaskId) {
+        setProgressTaskId(data.tasks[0].id);
       }
     } catch (err) {
-      console.error('[IN_CHAT_MEMO] Failed to fetch operation:', err);
+      console.error('[InChatOperationDetailsModal] Failed to fetch operation:', err);
       addToast('Failed to load operation details.', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [cleanOpId]);
 
   useEffect(() => {
-    if (isOpen && operationId) {
+    if (isOpen && cleanOpId) {
       fetchOperation();
     }
-  }, [isOpen, operationId]);
+  }, [isOpen, cleanOpId, fetchOperation]);
+
+  // Load staff list if management
+  useEffect(() => {
+    if (!isOpen) return;
+    const role = currentUser?.role || '';
+    if (['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(role)) {
+      userService.getUsers({ limit: 100 })
+        .then((res) => {
+          const users = res?.data?.users || res?.users || (Array.isArray(res?.data) ? res.data : []);
+          setStaffList(users);
+        })
+        .catch(() => {});
+    }
+  }, [isOpen, currentUser]);
 
   if (!isOpen) return null;
 
-  // Acknowledge Receipt
+  const currentUserId = Number(currentUser?.id);
+  const isInitiator = Number(currentUser?.id) === Number(operation?.initiated_by_user_id);
+  const isManagement = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(currentUser?.role);
+  const isSupervisor = isInitiator || isManagement;
+  const isResponsible = Number(operation?.current_responsible_user_id) === currentUserId;
+  const myRecipientRecord = operation?.recipients?.find(
+    (r) => Number(r.user_id) === currentUserId
+  );
+  const isRecipient = Boolean(myRecipientRecord);
+  const isAcknowledged = Boolean(myRecipientRecord?.acknowledged_at);
+  const canAcknowledge = isRecipient && !isAcknowledged;
+
+  const memo = operation?.latest_memo || (operation?.memos && operation.memos[0]) || {};
+
+  // Handlers
   const handleAcknowledge = async () => {
-    if (!operationId) return;
-    setAcknowledging(true);
+    if (!operation?.id) return;
+    setActionLoading(true);
     try {
-      await api.post(`/workforce/operations/${operationId}/acknowledge`, {
-        note: 'Acknowledged directly from Staff Chat',
-      });
+      await centralOperationsService.acknowledgeOperation(operation.id, 'Acknowledged in Operational Viewer');
       addToast('Directive receipt acknowledged successfully.', 'success');
       await fetchOperation();
       onOperationUpdated?.();
     } catch (err) {
-      console.error('[IN_CHAT_MEMO] Acknowledge error:', err);
       addToast(err.response?.data?.message || err.message || 'Failed to acknowledge receipt.', 'error');
     } finally {
-      setAcknowledging(false);
+      setActionLoading(false);
     }
   };
 
-  // Download PDF Memorandum
+  const handleClaim = async () => {
+    if (!operation?.id) return;
+    setActionLoading(true);
+    try {
+      await centralOperationsService.claimOperation(operation.id);
+      addToast('Responsibility successfully claimed! Primary task created.', 'success');
+      await fetchOperation();
+      onOperationUpdated?.();
+    } catch (err) {
+      addToast(err.response?.data?.message || err.message || 'Failed to claim responsibility.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAssign = async (e) => {
+    e.preventDefault();
+    if (!assigneeId) {
+      addToast('Please select a staff member to assign.', 'warning');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await centralOperationsService.assignOperation(operation.id, assigneeId, assignNotes);
+      addToast('Responsibility successfully assigned to team member.', 'success');
+      setAssignNotes('');
+      await fetchOperation();
+      onOperationUpdated?.();
+    } catch (err) {
+      addToast(err.response?.data?.message || err.message || 'Failed to assign responsibility.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleProgress = async (e) => {
+    e.preventDefault();
+    if (!progressNotes.trim()) {
+      addToast('Please describe the progress accomplished.', 'warning');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await centralOperationsService.updateProgress(operation.id, {
+        taskId: progressTaskId || undefined,
+        note: progressNotes.trim(),
+        progressPercent: parseInt(progressPercent, 10),
+      });
+      addToast('Operational progress update posted.', 'success');
+      setProgressNotes('');
+      await fetchOperation();
+      onOperationUpdated?.();
+    } catch (err) {
+      addToast(err.response?.data?.message || err.message || 'Failed to update progress.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBlocker = async (e) => {
+    e.preventDefault();
+    if (!blockerDesc.trim()) {
+      addToast('Please specify the nature of the blocker.', 'warning');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await centralOperationsService.reportBlocker(operation.id, {
+        blockerCategory,
+        description: blockerDesc.trim(),
+        severity: 'HIGH',
+      });
+      addToast('Operational blocker escalated to management.', 'warning');
+      setBlockerDesc('');
+      await fetchOperation();
+      onOperationUpdated?.();
+    } catch (err) {
+      addToast(err.response?.data?.message || err.message || 'Failed to report blocker.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCompletionSubmit = async (e) => {
+    e.preventDefault();
+    if (!completionNotes.trim()) {
+      addToast('Please provide completion summary notes.', 'warning');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await centralOperationsService.submitCompletion(operation.id, {
+        completionNotes: completionNotes.trim(),
+        completionEvidenceUrl: completionEvidenceUrl.trim() || undefined,
+      });
+      addToast('Operation submitted for supervisory review and sign-off.', 'success');
+      await fetchOperation();
+      onOperationUpdated?.();
+    } catch (err) {
+      addToast(err.response?.data?.message || err.message || 'Failed to submit completion.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    if (reviewDecision !== 'APPROVED' && !reviewNotes.trim()) {
+      addToast('Please provide feedback notes explaining the revision or rejection.', 'warning');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await centralOperationsService.reviewOperation(operation.id, {
+        decision: reviewDecision,
+        reviewNotes: reviewNotes.trim(),
+      });
+      addToast(`Supervisory review concluded (${reviewDecision}).`, 'success');
+      setReviewNotes('');
+      await fetchOperation();
+      onOperationUpdated?.();
+    } catch (err) {
+      addToast(err.response?.data?.message || err.message || 'Failed to submit review.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleDownloadPdf = async () => {
-    if (!operationId) return;
+    if (!operation?.id) return;
     setDownloadingPdf(true);
     try {
       await centralOperationsService.downloadMemoPdf({
-        operationId,
-        memoId: operation?.latest_memo?.id,
-        filename: `${operation?.latest_memo?.memo_reference || operation?.operation_code || 'Operation_Memo'}.pdf`,
+        operationId: operation.id,
+        memoId: memo?.id,
+        filename: `${memo?.memo_reference || operation?.operation_code || 'Operation_Memo'}.pdf`,
       });
       addToast('Operations Memorandum PDF downloaded successfully.', 'success');
     } catch (err) {
-      console.error('[IN_CHAT_MEMO] PDF download failed:', err);
-      addToast(err.message || 'Failed to download Operations Memorandum PDF.', 'error');
+      addToast(err.message || 'Failed to download PDF memorandum.', 'error');
     } finally {
       setDownloadingPdf(false);
     }
   };
 
-  // Submit Task Progress
-  const handleSubmitProgress = async (e) => {
-    e.preventDefault();
-    if (!selectedTaskId || !progressNote.trim()) {
-      addToast('Please select a task and describe progress achieved.', 'warning');
-      return;
-    }
-    setSubmittingProgress(true);
-    try {
-      await api.post(`/workforce/operations/${operationId}/progress`, {
-        taskId: selectedTaskId,
-        note: progressNote.trim(),
-        progressPercent: parseInt(progressPercent, 10),
-      });
-      addToast('Operational progress update submitted.', 'success');
-      setProgressNote('');
-      await fetchOperation();
-      onOperationUpdated?.();
-    } catch (err) {
-      console.error('[IN_CHAT_MEMO] Progress error:', err);
-      addToast(err.response?.data?.message || err.message || 'Failed to submit progress.', 'error');
-    } finally {
-      setSubmittingProgress(false);
-    }
+  const handlePrintMemo = () => {
+    window.print();
   };
 
-  const memo = operation?.latest_memo || {};
-  const isInitiator = Number(currentUser?.id) === Number(operation?.initiated_by_user_id);
-  const myRecipientRecord = operation?.recipients?.find(
-    (r) => Number(r.user_id) === Number(currentUser?.id)
-  );
-  const isRecipient = Boolean(myRecipientRecord);
-  const isAcknowledged = myRecipientRecord?.acknowledged_at !== null && myRecipientRecord?.acknowledged_at !== undefined;
+  const priorityColor = {
+    CRITICAL: '#f87171',
+    URGENT: '#fbbf24',
+    IMPORTANT: '#fbbf24',
+    NORMAL: '#60a5fa',
+  }[operation?.priority || 'NORMAL'] || '#60a5fa';
 
-  // Derive Unambiguous Next Action
-  let nextActionBanner = null;
-  if (operation?.status === 'COMPLETED') {
-    nextActionBanner = {
-      type: 'completed',
-      title: '✓ Operation Completed & Audited',
-      desc: 'All operational mandates have been verified and closed by authorized supervisors.',
-      bg: 'rgba(16, 185, 129, 0.15)',
-      border: 'rgba(16, 185, 129, 0.4)',
-      color: '#34d399',
-    };
-  } else if (isRecipient && !isAcknowledged) {
-    nextActionBanner = {
-      type: 'action_required',
-      title: '⚡ Immediate Next Action Required: Acknowledge Receipt',
-      desc: 'Company governance requires all designated recipients to formally acknowledge directives upon receipt.',
-      bg: 'rgba(239, 68, 68, 0.18)',
-      border: 'rgba(239, 68, 68, 0.45)',
-      color: '#f87171',
-    };
-  } else if (operation?.status === 'IN_PROGRESS' || operation?.status === 'ISSUED') {
-    nextActionBanner = {
-      type: 'in_progress',
-      title: '📋 Current Operational Step: Execution & Reporting',
-      desc: 'Carry out the operational instructions below and submit verified progress notes.',
-      bg: 'rgba(59, 130, 246, 0.15)',
-      border: 'rgba(59, 130, 246, 0.4)',
-      color: '#60a5fa',
-    };
-  } else if (operation?.status === 'AWAITING_REVIEW') {
-    nextActionBanner = {
-      type: 'review',
-      title: '🔍 Current Operational Step: Supervisory Verification & Sign-Off',
-      desc: 'Execution has been reported. Awaiting initiator or property manager sign-off.',
-      bg: 'rgba(245, 158, 11, 0.15)',
-      border: 'rgba(245, 158, 11, 0.4)',
-      color: '#fbbf24',
-    };
-  }
+  const nextActionText = operation?.viewer_next_action?.text || operation?.next_action || 'Review directive mandates and acknowledge receipt.';
 
   return (
     <div
@@ -188,7 +302,7 @@ export default function InChatOperationDetailsModal({
         position: 'fixed',
         inset: 0,
         zIndex: 1050,
-        background: 'rgba(0, 0, 0, 0.85)',
+        background: 'rgba(0, 0, 0, 0.88)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         display: 'flex',
@@ -204,14 +318,14 @@ export default function InChatOperationDetailsModal({
       <div
         style={{
           width: '100%',
-          maxWidth: '820px',
-          maxHeight: '92vh',
-          background: 'rgba(10, 10, 14, 0.95)',
+          maxWidth: '920px',
+          maxHeight: '94vh',
+          background: 'rgba(10, 10, 16, 0.96)',
           backdropFilter: 'blur(32px) saturate(180%)',
           WebkitBackdropFilter: 'blur(32px) saturate(180%)',
           border: '1.5px solid rgba(255, 255, 255, 0.18)',
           borderRadius: '16px',
-          boxShadow: '0 25px 60px -10px rgba(0, 0, 0, 0.95), 0 0 30px rgba(59, 130, 246, 0.2)',
+          boxShadow: '0 25px 70px -10px rgba(0, 0, 0, 0.95), 0 0 35px rgba(59, 130, 246, 0.15)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -223,17 +337,18 @@ export default function InChatOperationDetailsModal({
           style={{
             padding: '16px 22px',
             borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
-            background: 'rgba(255, 255, 255, 0.04)',
+            background: 'rgba(255, 255, 255, 0.03)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: '12px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
-                width: '38px',
-                height: '38px',
+                width: '42px',
+                height: '42px',
                 borderRadius: '10px',
                 background: 'rgba(212, 175, 55, 0.15)',
                 border: '1.5px solid rgba(212, 175, 55, 0.4)',
@@ -241,25 +356,27 @@ export default function InChatOperationDetailsModal({
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#fbbf24',
+                flexShrink: 0,
               }}
             >
-              <FileText size={20} />
+              <FileText size={22} />
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#ffffff' }}>
-                  {operation?.operation_code || 'Central Operation Record'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#ffffff' }}>
+                  {operation?.operation_code || 'Operational Directive'}
                 </h3>
                 {memo.memo_reference && (
                   <span
                     style={{
                       fontSize: '0.72rem',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.18)',
+                      background: 'rgba(212, 175, 55, 0.15)',
+                      border: '1px solid rgba(212, 175, 55, 0.4)',
                       padding: '2px 8px',
                       borderRadius: '4px',
-                      color: 'rgba(255, 255, 255, 0.85)',
+                      color: '#fbbf24',
                       fontFamily: 'monospace',
+                      fontWeight: 700,
                     }}
                   >
                     {memo.memo_reference}
@@ -272,33 +389,32 @@ export default function InChatOperationDetailsModal({
                       fontWeight: 800,
                       padding: '2px 8px',
                       borderRadius: '4px',
-                      background:
-                        operation.priority === 'CRITICAL'
-                          ? 'rgba(220, 38, 38, 0.25)'
-                          : operation.priority === 'URGENT'
-                          ? 'rgba(245, 158, 11, 0.25)'
-                          : 'rgba(59, 130, 246, 0.25)',
-                      color:
-                        operation.priority === 'CRITICAL'
-                          ? '#f87171'
-                          : operation.priority === 'URGENT'
-                          ? '#fbbf24'
-                          : '#60a5fa',
-                      border: `1px solid ${
-                        operation.priority === 'CRITICAL'
-                          ? '#ef4444'
-                          : operation.priority === 'URGENT'
-                          ? '#f59e0b'
-                          : '#3b82f6'
-                      }`,
+                      background: `${priorityColor}25`,
+                      color: priorityColor,
+                      border: `1px solid ${priorityColor}60`,
                     }}
                   >
                     {operation.priority}
                   </span>
                 )}
+                {operation?.status && (
+                  <span
+                    style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.18)',
+                      color: 'rgba(255, 255, 255, 0.85)',
+                    }}
+                  >
+                    {operation.status}
+                  </span>
+                )}
               </div>
-              <p style={{ margin: '3px 0 0', fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.70)' }}>
-                {operation?.title || 'Loading operational directive...'}
+              <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: 'rgba(255, 255, 255, 0.75)' }}>
+                {operation?.title || 'Operational details and execution workflow'}
               </p>
             </div>
           </div>
@@ -312,7 +428,7 @@ export default function InChatOperationDetailsModal({
                 background: 'rgba(59, 130, 246, 0.18)',
                 border: '1px solid #3b82f6',
                 color: '#60a5fa',
-                padding: '6px 12px',
+                padding: '7px 12px',
                 borderRadius: '8px',
                 fontSize: '0.78rem',
                 fontWeight: 700,
@@ -320,12 +436,11 @@ export default function InChatOperationDetailsModal({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                transition: 'all 0.15s',
               }}
-              title="Download Official PDF Memorandum"
+              title="Download Official Memorandum PDF"
             >
               <Download size={14} />
-              {downloadingPdf ? 'Downloading PDF...' : 'Download PDF Memo'}
+              {downloadingPdf ? 'Downloading...' : 'PDF'}
             </button>
             <button
               type="button"
@@ -347,306 +462,596 @@ export default function InChatOperationDetailsModal({
           </div>
         </div>
 
-        {/* Content Body */}
+        {/* Tab Bar */}
+        <div
+          style={{
+            display: 'flex',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+            background: 'rgba(0, 0, 0, 0.35)',
+            padding: '0 20px',
+            gap: '8px',
+            overflowX: 'auto',
+          }}
+        >
+          {[
+            { id: 'directive', label: '1. Directive & Overview', icon: FileText },
+            { id: 'actions', label: '2. Operational Actions', icon: CheckCircle2 },
+            { id: 'memo', label: '3. Official Memorandum', icon: Eye },
+            { id: 'tasks', label: `4. Linked Tasks (${operation?.tasks?.length || 0})`, icon: ListTodo },
+            { id: 'audit', label: `5. Audit Ledger (${operation?.events?.length || 0})`, icon: History },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '12px 14px',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: isActive ? '2.5px solid #3b82f6' : '2.5px solid transparent',
+                  color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.6)',
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Icon size={14} style={{ color: isActive ? '#60a5fa' : 'inherit' }} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Modal Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
           {loading && (
             <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255, 255, 255, 0.7)' }}>
-              Loading operational memorandum and action items...
+              Loading operational directive details...
             </div>
           )}
 
           {!loading && operation && (
             <>
-              {/* Unambiguous Next Action Banner */}
-              {nextActionBanner && (
-                <div
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: '10px',
-                    background: nextActionBanner.bg,
-                    border: `1.5px solid ${nextActionBanner.border}`,
-                    color: '#ffffff',
-                    marginBottom: '18px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: '0.88rem', color: nextActionBanner.color }}>
-                      {nextActionBanner.title}
+              {/* TAB 1: DIRECTIVE & OVERVIEW */}
+              {activeTab === 'directive' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Dynamic Next Action Banner */}
+                  <div
+                    style={{
+                      padding: '14px 18px',
+                      borderRadius: '10px',
+                      background: 'rgba(37, 99, 235, 0.15)',
+                      borderLeft: '5px solid #3b82f6',
+                      borderTop: '1px solid rgba(59, 130, 246, 0.25)',
+                      borderRight: '1px solid rgba(59, 130, 246, 0.25)',
+                      borderBottom: '1px solid rgba(59, 130, 246, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '0.86rem', color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        ⚡ Current Next Action Directive
+                      </div>
+                      <div style={{ fontSize: '0.84rem', color: '#ffffff', marginTop: '4px', fontWeight: 600 }}>
+                        {nextActionText}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.85)', marginTop: '2px' }}>
-                      {nextActionBanner.desc}
+
+                    {canAcknowledge && (
+                      <button
+                        type="button"
+                        onClick={handleAcknowledge}
+                        disabled={actionLoading}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '6px',
+                          background: '#10b981',
+                          border: 'none',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          cursor: actionLoading ? 'wait' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          flexShrink: 0,
+                          boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
+                        }}
+                      >
+                        <Check size={14} />
+                        {actionLoading ? 'Acknowledging...' : 'Acknowledge Receipt'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Accountability Matrix 4-Grid */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                      gap: '12px',
+                      padding: '14px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.10)',
+                      borderRadius: '10px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.55)', fontWeight: 700, textTransform: 'uppercase' }}>
+                        1. INITIATOR / ISSUER
+                      </div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#ffffff', marginTop: '3px' }}>
+                        {operation.initiator_name} ({operation.initiator_role})
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.55)', fontWeight: 700, textTransform: 'uppercase' }}>
+                        2. INTENDED AUDIENCE
+                      </div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#ffffff', marginTop: '3px' }}>
+                        {memo.recipient_summary || operation.target_group || operation.target_role || operation.audience_type}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.55)', fontWeight: 700, textTransform: 'uppercase' }}>
+                        3. RESPONSIBLE PERSON
+                      </div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 700, marginTop: '3px' }}>
+                        {isResponsible ? (
+                          <span style={{ color: '#34d399' }}>★ You (Assigned Owner)</span>
+                        ) : operation.responsible_name ? (
+                          <span style={{ color: '#38bdf8' }}>{operation.responsible_name} ({operation.responsible_role || 'Staff'})</span>
+                        ) : (
+                          <span style={{ color: '#fbbf24', fontStyle: 'italic' }}>
+                            ⚠️ Unassigned ({operation.current_responsible_group || 'Open to Group'})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: '0.68rem', color: 'rgba(255, 255, 255, 0.55)', fontWeight: 700, textTransform: 'uppercase' }}>
+                        4. SUPERVISOR / APPROVER
+                      </div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#ffffff', marginTop: '3px' }}>
+                        {operation.reviewer_name ? `${operation.reviewer_name} (Reviewed)` : `${operation.initiator_name} / Management`}
+                      </div>
                     </div>
                   </div>
 
-                  {isRecipient && !isAcknowledged && (
-                    <button
-                      type="button"
-                      onClick={handleAcknowledge}
-                      disabled={acknowledging}
-                      style={{
-                        padding: '7px 14px',
-                        borderRadius: '6px',
-                        background: '#10b981',
-                        border: 'none',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        fontSize: '0.78rem',
-                        cursor: acknowledging ? 'wait' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Check size={14} />
-                      {acknowledging ? 'Acknowledging...' : 'Acknowledge Now'}
-                    </button>
-                  )}
+                  {/* Core Content Blocks */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {/* Purpose */}
+                    <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(0, 0, 0, 0.4)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#60a5fa', marginBottom: '6px', textTransform: 'uppercase' }}>
+                        Executive Rationale & Operational Purpose
+                      </div>
+                      <div style={{ fontSize: '0.86rem', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                        {memo.purpose || operation.purpose || 'No statement of purpose provided.'}
+                      </div>
+                    </div>
+
+                    {/* Operational Instructions */}
+                    <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(0, 0, 0, 0.4)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#60a5fa', marginBottom: '6px', textTransform: 'uppercase' }}>
+                        Specific Operational Instructions
+                      </div>
+                      <div style={{ fontSize: '0.86rem', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                        {memo.operational_instructions || operation.operational_instructions || 'Execute directives as outlined in official mandate.'}
+                      </div>
+                    </div>
+
+                    {/* Expected Outcome */}
+                    {(memo.expected_outcome || operation.expected_outcome) && (
+                      <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(0, 0, 0, 0.4)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#60a5fa', marginBottom: '6px', textTransform: 'uppercase' }}>
+                          Expected Outcome & Deliverables
+                        </div>
+                        <div style={{ fontSize: '0.86rem', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                          {memo.expected_outcome || operation.expected_outcome}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Metadata Quick Grid */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: '12px',
-                  padding: '14px',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '10px',
-                  marginBottom: '18px',
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 600 }}>ISSUED BY</div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff', marginTop: '2px' }}>
-                    {operation.initiator_name || 'Authorised Officer'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 600 }}>TARGET AUDIENCE</div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff', marginTop: '2px' }}>
-                    {memo.recipient_summary || operation.target_audience_type}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 600 }}>PROPERTY SCOPE</div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff', marginTop: '2px' }}>
-                    {memo.property_scope_summary || 'Corporate / Multi-Property'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 600 }}>DEADLINE</div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fbbf24', marginTop: '2px' }}>
-                    {memo.deadline_text || 'Standard Timeline'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Subject Banner */}
-              <div
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  borderLeft: '4px solid #3b82f6',
-                  marginBottom: '18px',
-                }}
-              >
-                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase' }}>
-                  SUBJECT:
-                </span>{' '}
-                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff' }}>
-                  {memo.subject || operation.subject}
-                </span>
-              </div>
-
-              {/* Structured Sections */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {/* 1. Purpose */}
-                <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(0, 0, 0, 0.4)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#60a5fa', marginBottom: '6px', textTransform: 'uppercase' }}>
-                    1. Purpose & Executive Rationale
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                    {memo.purpose || operation.purpose}
-                  </div>
-                </div>
-
-                {/* 2. Instructions */}
-                <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(0, 0, 0, 0.4)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#60a5fa', marginBottom: '6px', textTransform: 'uppercase' }}>
-                    2. Operational Instructions & Directives
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                    {memo.operational_instructions || operation.operational_instructions}
-                  </div>
-                </div>
-
-                {/* 3. Expected Outcome */}
-                {(memo.expected_outcome || operation.expected_outcome) && (
-                  <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(0, 0, 0, 0.4)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#60a5fa', marginBottom: '6px', textTransform: 'uppercase' }}>
-                      3. Expected Outcome & Key Deliverables
+              {/* TAB 2: OPERATIONAL ACTIONS */}
+              {activeTab === 'actions' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Action 1: Ownership / Claim / Assign */}
+                  <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#ffffff', marginBottom: '4px' }}>
+                      Operational Ownership & Responsibility
                     </div>
-                    <div style={{ fontSize: '0.85rem', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                      {memo.expected_outcome || operation.expected_outcome}
-                    </div>
-                  </div>
-                )}
+                    <p style={{ fontSize: '0.76rem', color: 'rgba(255, 255, 255, 0.7)', margin: '0 0 12px' }}>
+                      Current Owner: <strong>{operation.responsible_name || 'Unassigned (Awaiting Ownership)'}</strong>
+                    </p>
 
-                {/* 4. Accountability */}
-                {(memo.responsibility_definition || operation.responsibility_definition) && (
-                  <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(0, 0, 0, 0.4)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#60a5fa', marginBottom: '6px', textTransform: 'uppercase' }}>
-                      4. Accountability Matrix
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                      {memo.responsibility_definition || operation.responsibility_definition}
-                    </div>
-                  </div>
-                )}
-
-                {/* 5. Reporting Procedures */}
-                {(memo.reporting_requirements || operation.reporting_requirements) && (
-                  <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(0, 0, 0, 0.4)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#60a5fa', marginBottom: '6px', textTransform: 'uppercase' }}>
-                      5. Reporting Requirements & Verification
-                    </div>
-                    <div style={{ fontSize: '0.85rem', color: '#ffffff', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                      {memo.reporting_requirements || operation.reporting_requirements}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Linked Operational Tasks & Progress Section */}
-              {operation.tasks && operation.tasks.length > 0 && (
-                <div style={{ marginTop: '22px' }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ffffff', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Layers size={16} style={{ color: '#60a5fa' }} />
-                    Linked Operational Tasks ({operation.tasks.length})
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
-                    {operation.tasks.map((t) => (
-                      <div
-                        key={t.id}
-                        style={{
-                          padding: '10px 14px',
-                          borderRadius: '8px',
-                          background: 'rgba(255, 255, 255, 0.04)',
-                          border: '1px solid rgba(255, 255, 255, 0.12)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '12px',
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#ffffff' }}>
-                            {t.title}
-                          </div>
-                          <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.65)', marginTop: '2px' }}>
-                            Assigned to: {t.assigned_to_name || 'Operational Staff'} · Status: {t.status}
-                          </div>
-                        </div>
-
-                        <span
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      {/* Self-claim if unassigned */}
+                      {!operation.current_responsible_user_id && (
+                        <button
+                          type="button"
+                          onClick={handleClaim}
+                          disabled={actionLoading}
                           style={{
-                            fontSize: '0.7rem',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            background: 'rgba(217, 119, 6, 0.25)',
+                            border: '1.5px solid #d97706',
+                            color: '#fbbf24',
                             fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            background:
-                              t.status === 'COMPLETED'
-                                ? 'rgba(16, 185, 129, 0.2)'
-                                : 'rgba(59, 130, 246, 0.2)',
-                            color: t.status === 'COMPLETED' ? '#34d399' : '#60a5fa',
-                            border: `1px solid ${
-                              t.status === 'COMPLETED' ? '#10b981' : '#3b82f6'
-                            }`,
+                            fontSize: '0.78rem',
+                            cursor: actionLoading ? 'wait' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
                           }}
                         >
-                          {t.status}
-                        </span>
-                      </div>
-                    ))}
+                          <UserCheck size={14} /> Accept / Claim Ownership
+                        </button>
+                      )}
+
+                      {/* Management Delegation Form */}
+                      {isManagement && (
+                        <form onSubmit={handleAssign} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
+                          <select
+                            value={assigneeId}
+                            onChange={(e) => setAssigneeId(e.target.value)}
+                            style={{
+                              padding: '7px 10px',
+                              background: '#0a0a0e',
+                              border: '1px solid rgba(255, 255, 255, 0.2)',
+                              borderRadius: '6px',
+                              color: '#ffffff',
+                              fontSize: '0.78rem',
+                              flex: 1,
+                              minWidth: '200px',
+                            }}
+                          >
+                            <option value="">Select staff member to assign...</option>
+                            {/* Priority: Eligible Recipients */}
+                            {operation.recipients && operation.recipients.map((r) => (
+                              <option key={`recip-${r.user_id}`} value={r.user_id}>
+                                [Recipient] {r.user_name || `User #${r.user_id}`} ({r.role})
+                              </option>
+                            ))}
+                            {/* General Staff */}
+                            {staffList.map((s) => (
+                              <option key={`staff-${s.id}`} value={s.id}>
+                                {s.full_name || s.name} ({s.role})
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="submit"
+                            disabled={actionLoading || !assigneeId}
+                            style={{
+                              padding: '7px 14px',
+                              borderRadius: '6px',
+                              background: '#2563eb',
+                              border: 'none',
+                              color: '#ffffff',
+                              fontWeight: 700,
+                              fontSize: '0.78rem',
+                              cursor: actionLoading ? 'wait' : 'pointer',
+                            }}
+                          >
+                            Delegate Ownership
+                          </button>
+                        </form>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Task Progress Submission Form (for assigned staff / performers) */}
-                  {operation.status !== 'COMPLETED' && (
-                    <form
-                      onSubmit={handleSubmitProgress}
-                      style={{
-                        padding: '14px',
-                        borderRadius: '10px',
-                        background: 'rgba(0, 0, 0, 0.45)',
-                        border: '1px solid rgba(255, 255, 255, 0.16)',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ffffff', marginBottom: '8px' }}>
-                        Submit Verified Task Progress Note
-                      </div>
+                  {/* Action 2: Submit Progress Update */}
+                  <form
+                    onSubmit={handleProgress}
+                    style={{
+                      padding: '16px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#ffffff', marginBottom: '8px' }}>
+                      Submit Progress Update & Evidence
+                    </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                      {operation.tasks && operation.tasks.length > 0 && (
                         <select
-                          value={selectedTaskId || ''}
-                          onChange={(e) => setSelectedTaskId(e.target.value)}
+                          value={progressTaskId}
+                          onChange={(e) => setProgressTaskId(e.target.value)}
                           style={{
-                            padding: '8px 10px',
-                            background: 'rgba(0, 0, 0, 0.6)',
+                            padding: '7px 10px',
+                            background: '#0a0a0e',
                             border: '1px solid rgba(255, 255, 255, 0.2)',
                             borderRadius: '6px',
                             color: '#ffffff',
-                            fontSize: '0.8rem',
+                            fontSize: '0.78rem',
                           }}
                         >
                           {operation.tasks.map((t) => (
-                            <option key={t.id} value={t.id} style={{ background: '#0a0a0e', color: '#fff' }}>
+                            <option key={t.id} value={t.id}>
                               Task: {t.title} ({t.status})
                             </option>
                           ))}
                         </select>
+                      )}
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.7)' }}>Progress:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.74rem', color: 'rgba(255, 255, 255, 0.7)' }}>Progress:</span>
+                        <input
+                          type="range"
+                          min="10"
+                          max="100"
+                          step="10"
+                          value={progressPercent}
+                          onChange={(e) => setProgressPercent(e.target.value)}
+                          style={{ flex: 1 }}
+                        />
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, width: '38px', textAlign: 'right' }}>
+                          {progressPercent}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <textarea
+                      rows={2}
+                      value={progressNotes}
+                      onChange={(e) => setProgressNotes(e.target.value)}
+                      placeholder="Detail work performed, tests completed, or milestone achieved..."
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        background: '#0a0a0e',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '6px',
+                        color: '#ffffff',
+                        fontSize: '0.8rem',
+                        boxSizing: 'border-box',
+                        resize: 'vertical',
+                        marginBottom: '8px',
+                      }}
+                    />
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="submit"
+                        disabled={actionLoading || !progressNotes.trim()}
+                        style={{
+                          padding: '7px 16px',
+                          borderRadius: '6px',
+                          background: '#2563eb',
+                          border: 'none',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          cursor: actionLoading ? 'wait' : 'pointer',
+                        }}
+                      >
+                        Submit Progress Update
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Action 3: Report Blocker */}
+                  <form
+                    onSubmit={handleBlocker}
+                    style={{
+                      padding: '16px',
+                      borderRadius: '10px',
+                      background: 'rgba(239, 68, 68, 0.05)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#f87171', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <AlertTriangle size={16} /> Escalate Blocker to Supervisors
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginBottom: '10px' }}>
+                      <select
+                        value={blockerCategory}
+                        onChange={(e) => setBlockerCategory(e.target.value)}
+                        style={{
+                          padding: '7px 10px',
+                          background: '#0a0a0e',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          borderRadius: '6px',
+                          color: '#ffffff',
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        <option value="MISSING_PARTS">Missing Tools / Parts</option>
+                        <option value="ACCESS_DENIED">Access Denied / Key Issue</option>
+                        <option value="SUPPLIER_DELAY">Supplier / Vendor Delay</option>
+                        <option value="CLIENT_REFUSAL">Guest / Tenant Conflict</option>
+                        <option value="SAFETY_HAZARD">Safety / Hazard Issue</option>
+                        <option value="OTHER">Other Operational Blocker</option>
+                      </select>
+
+                      <input
+                        type="text"
+                        value={blockerDesc}
+                        onChange={(e) => setBlockerDesc(e.target.value)}
+                        placeholder="Explain the impediment and what is required to unblock..."
+                        style={{
+                          padding: '7px 10px',
+                          background: '#0a0a0e',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          borderRadius: '6px',
+                          color: '#ffffff',
+                          fontSize: '0.78rem',
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="submit"
+                        disabled={actionLoading || !blockerDesc.trim()}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          border: '1px solid #ef4444',
+                          color: '#f87171',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          cursor: actionLoading ? 'wait' : 'pointer',
+                        }}
+                      >
+                        Report Blocker
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Action 4: Submit Completion (for Responsible Person) */}
+                  {(isResponsible || isSupervisor) && operation.status !== 'COMPLETED' && (
+                    <form
+                      onSubmit={handleCompletionSubmit}
+                      style={{
+                        padding: '16px',
+                        borderRadius: '10px',
+                        background: 'rgba(16, 185, 129, 0.05)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#34d399', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <CheckCircle2 size={16} /> Submit Operation for Completion Review
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                        <textarea
+                          rows={2}
+                          value={completionNotes}
+                          onChange={(e) => setCompletionNotes(e.target.value)}
+                          placeholder="Summarize completed work, deliverables delivered, and outcome achieved..."
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            background: '#0a0a0e',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            borderRadius: '6px',
+                            color: '#ffffff',
+                            fontSize: '0.8rem',
+                            boxSizing: 'border-box',
+                            resize: 'vertical',
+                          }}
+                        />
+
+                        <input
+                          type="url"
+                          value={completionEvidenceUrl}
+                          onChange={(e) => setCompletionEvidenceUrl(e.target.value)}
+                          placeholder="Evidence URL / photo link / report link (optional)"
+                          style={{
+                            padding: '7px 10px',
+                            background: '#0a0a0e',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            borderRadius: '6px',
+                            color: '#ffffff',
+                            fontSize: '0.78rem',
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          type="submit"
+                          disabled={actionLoading || !completionNotes.trim()}
+                          style={{
+                            padding: '7px 16px',
+                            borderRadius: '6px',
+                            background: '#10b981',
+                            border: 'none',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                            cursor: actionLoading ? 'wait' : 'pointer',
+                          }}
+                        >
+                          Submit for Supervisory Review
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Action 5: Supervisory Review Panel */}
+                  {isSupervisor && (operation.status === 'SUBMITTED_FOR_REVIEW' || operation.status === 'AWAITING_REVIEW') && (
+                    <form
+                      onSubmit={handleReviewSubmit}
+                      style={{
+                        padding: '16px',
+                        borderRadius: '10px',
+                        background: 'rgba(192, 132, 252, 0.08)',
+                        border: '1.5px solid rgba(192, 132, 252, 0.35)',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#c084fc', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ShieldCheck size={16} /> Supervisory Review & Sign-Off Panel
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', cursor: 'pointer' }}>
                           <input
-                            type="number"
-                            min="10"
-                            max="100"
-                            step="10"
-                            value={progressPercent}
-                            onChange={(e) => setProgressPercent(e.target.value)}
-                            style={{
-                              width: '60px',
-                              padding: '6px 8px',
-                              background: 'rgba(0, 0, 0, 0.6)',
-                              border: '1px solid rgba(255, 255, 255, 0.2)',
-                              borderRadius: '6px',
-                              color: '#ffffff',
-                              fontSize: '0.8rem',
-                              textAlign: 'center',
-                            }}
+                            type="radio"
+                            name="reviewDecision"
+                            value="APPROVED"
+                            checked={reviewDecision === 'APPROVED'}
+                            onChange={() => setReviewDecision('APPROVED')}
                           />
-                          <span style={{ fontSize: '0.75rem', color: '#ffffff' }}>%</span>
-                        </div>
+                          <span style={{ color: '#34d399', fontWeight: 700 }}>Approve & Close</span>
+                        </label>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', cursor: 'pointer' }}>
+                          <input
+                            type="radio"
+                            name="reviewDecision"
+                            value="REVISE"
+                            checked={reviewDecision === 'REVISE'}
+                            onChange={() => setReviewDecision('REVISE')}
+                          />
+                          <span style={{ color: '#fb923c', fontWeight: 700 }}>Request Revision</span>
+                        </label>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', cursor: 'pointer' }}>
+                          <input
+                            type="radio"
+                            name="reviewDecision"
+                            value="REJECTED"
+                            checked={reviewDecision === 'REJECTED'}
+                            onChange={() => setReviewDecision('REJECTED')}
+                          />
+                          <span style={{ color: '#f87171', fontWeight: 700 }}>Reject</span>
+                        </label>
                       </div>
 
                       <textarea
                         rows={2}
-                        value={progressNote}
-                        onChange={(e) => setProgressNote(e.target.value)}
-                        placeholder="Detail progress accomplished, tests run, or verification evidence..."
+                        value={reviewNotes}
+                        onChange={(e) => setReviewNotes(e.target.value)}
+                        placeholder="Enter supervisory feedback, approval notes, or required revisions..."
                         style={{
                           width: '100%',
                           padding: '8px 10px',
-                          background: 'rgba(0, 0, 0, 0.6)',
+                          background: '#0a0a0e',
                           border: '1px solid rgba(255, 255, 255, 0.2)',
                           borderRadius: '6px',
                           color: '#ffffff',
@@ -660,22 +1065,321 @@ export default function InChatOperationDetailsModal({
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <button
                           type="submit"
-                          disabled={submittingProgress}
+                          disabled={actionLoading}
                           style={{
-                            padding: '6px 14px',
+                            padding: '7px 18px',
                             borderRadius: '6px',
-                            background: '#2563eb',
+                            background: reviewDecision === 'APPROVED' ? '#10b981' : '#f59e0b',
                             border: 'none',
                             color: '#ffffff',
                             fontWeight: 700,
-                            fontSize: '0.75rem',
-                            cursor: submittingProgress ? 'wait' : 'pointer',
+                            fontSize: '0.78rem',
+                            cursor: actionLoading ? 'wait' : 'pointer',
                           }}
                         >
-                          {submittingProgress ? 'Submitting...' : 'Submit Progress Update'}
+                          Confirm Supervisory Decision
                         </button>
                       </div>
                     </form>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: OFFICIAL MEMORANDUM DOCUMENT */}
+              {activeTab === 'memo' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={handlePrintMemo}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
+                        color: '#ffffff',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
+                      <Printer size={13} /> Print Document
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadPdf}
+                      disabled={downloadingPdf}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        background: '#2563eb',
+                        border: 'none',
+                        color: '#ffffff',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        cursor: downloadingPdf ? 'wait' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
+                      <Download size={13} /> {downloadingPdf ? 'Downloading...' : 'Download Official PDF'}
+                    </button>
+                  </div>
+
+                  {/* High-Fidelity Memorandum Paper Preview */}
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      color: '#0f172a',
+                      padding: '36px 40px',
+                      borderRadius: '8px',
+                      boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)',
+                      fontFamily: '"Times New Roman", Times, Georgia, serif',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '14px', marginBottom: '18px' }}>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+                        BFA APARTMENTS MANAGEMENT SYSTEM
+                      </div>
+                      <div style={{ fontSize: '0.88rem', letterSpacing: '1px', textTransform: 'uppercase', marginTop: '2px', color: '#475569' }}>
+                        CENTRAL OPERATIONS & EXECUTIVE DIRECTIVES
+                      </div>
+                      <div style={{ fontSize: '1rem', fontWeight: 800, marginTop: '8px', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                        OFFICIAL MEMORANDUM
+                      </div>
+                    </div>
+
+                    {/* Meta Table Box */}
+                    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '0.88rem' }}>
+                      <tbody>
+                        <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+                          <td style={{ width: '15%', padding: '6px 8px', fontWeight: 700, color: '#334155' }}>TO:</td>
+                          <td style={{ width: '35%', padding: '6px 8px' }}>{memo.recipient_summary || operation.target_group || operation.audience_type}</td>
+                          <td style={{ width: '15%', padding: '6px 8px', fontWeight: 700, color: '#334155' }}>DATE:</td>
+                          <td style={{ width: '35%', padding: '6px 8px' }}>{new Date(operation.created_at).toLocaleDateString()}</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+                          <td style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}>FROM:</td>
+                          <td style={{ padding: '6px 8px' }}>{operation.initiator_name} ({operation.initiator_role})</td>
+                          <td style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}>REF:</td>
+                          <td style={{ padding: '6px 8px', fontFamily: 'monospace', fontWeight: 700 }}>
+                            {memo.memo_reference || operation.operation_code}
+                          </td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+                          <td style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}>SUBJECT:</td>
+                          <td colSpan={3} style={{ padding: '6px 8px', fontWeight: 700, textTransform: 'uppercase' }}>
+                            {memo.subject || operation.title}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}>PRIORITY:</td>
+                          <td style={{ padding: '6px 8px', fontWeight: 700 }}>{operation.priority}</td>
+                          <td style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}>DEADLINE:</td>
+                          <td style={{ padding: '6px 8px', fontWeight: 700 }}>
+                            {operation.deadline_at ? new Date(operation.deadline_at).toLocaleDateString() : 'Standard Timeline'}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    {/* Section 1: Purpose */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '6px' }}>
+                        1. Purpose & Executive Rationale
+                      </div>
+                      <div style={{ fontSize: '0.88rem', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>
+                        {memo.purpose || operation.purpose}
+                      </div>
+                    </div>
+
+                    {/* Section 2: Instructions */}
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '6px' }}>
+                        2. Operational Instructions & Directives
+                      </div>
+                      <div style={{ fontSize: '0.88rem', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>
+                        {memo.operational_instructions || operation.operational_instructions}
+                      </div>
+                    </div>
+
+                    {/* Section 3: Expected Outcome */}
+                    {(memo.expected_outcome || operation.expected_outcome) && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '6px' }}>
+                          3. Expected Outcome & Deliverables
+                        </div>
+                        <div style={{ fontSize: '0.88rem', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>
+                          {memo.expected_outcome || operation.expected_outcome}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Section 4: Accountability */}
+                    {(memo.responsibility_definition || operation.responsibility_definition) && (
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '6px' }}>
+                          4. Accountability & Task Responsibility
+                        </div>
+                        <div style={{ fontSize: '0.88rem', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>
+                          {memo.responsibility_definition || operation.responsibility_definition}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Section 5: Reporting */}
+                    {(memo.reporting_requirements || operation.reporting_requirements) && (
+                      <div style={{ marginBottom: '22px' }}>
+                        <div style={{ fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', marginBottom: '6px' }}>
+                          5. Reporting & Verification Requirements
+                        </div>
+                        <div style={{ fontSize: '0.88rem', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>
+                          {memo.reporting_requirements || operation.reporting_requirements}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sign-Off Footer */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #0f172a', paddingTop: '14px', marginTop: '30px', fontSize: '0.82rem' }}>
+                      <div>
+                        <div><strong>ISSUED BY:</strong> {operation.initiator_name}</div>
+                        <div style={{ color: '#64748b' }}>Designation: {operation.initiator_role}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div><strong>RESPONSIBLE OWNER:</strong> {operation.responsible_name || 'Designated Staff Team'}</div>
+                        <div style={{ color: '#64748b' }}>Status: {operation.status}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: LINKED TASKS & SUB-TASKS */}
+              {activeTab === 'tasks' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#ffffff', marginBottom: '4px' }}>
+                    Actionable Tasks Derived from Operation ({operation.tasks?.length || 0})
+                  </div>
+
+                  {(!operation.tasks || operation.tasks.length === 0) ? (
+                    <div style={{ padding: '30px', textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px' }}>
+                      No separate sub-tasks linked yet. A primary task is created upon claiming or personal assignment.
+                    </div>
+                  ) : (
+                    operation.tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '12px',
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.86rem', color: '#ffffff' }}>
+                              {task.title}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                background: task.status === 'COMPLETED' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                                color: task.status === 'COMPLETED' ? '#34d399' : '#60a5fa',
+                                border: `1px solid ${task.status === 'COMPLETED' ? '#10b981' : '#3b82f6'}`,
+                              }}
+                            >
+                              {task.status}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '0.74rem', color: 'rgba(255, 255, 255, 0.65)', marginTop: '4px', display: 'flex', gap: '14px' }}>
+                            <span>Assigned to: <strong>{task.assigned_to_name || 'Staff Member'}</strong></span>
+                            <span>Progress: <strong>{task.progress_percent || 0}%</strong></span>
+                            {task.deadline_at && <span>Deadline: {new Date(task.deadline_at).toLocaleDateString()}</span>}
+                          </div>
+
+                          {/* Progress bar */}
+                          <div style={{ height: '4px', width: '100%', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                height: '100%',
+                                width: `${task.progress_percent || 0}%`,
+                                background: task.status === 'COMPLETED' ? '#10b981' : '#3b82f6',
+                                borderRadius: '2px',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* TAB 5: AUDIT LEDGER & TIMELINE */}
+              {activeTab === 'audit' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#ffffff', marginBottom: '4px' }}>
+                    Immutable Lifecycle Audit Trail ({operation.events?.length || 0})
+                  </div>
+
+                  {(!operation.events || operation.events.length === 0) ? (
+                    <div style={{ padding: '30px', textAlign: 'center', color: 'rgba(255, 255, 255, 0.6)', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px' }}>
+                      No historical events recorded yet.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {operation.events.map((evt) => (
+                        <div
+                          key={evt.id}
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            fontSize: '0.78rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 700, color: '#60a5fa' }}>
+                              {evt.event_type}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.5)' }}>
+                              {new Date(evt.created_at).toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div style={{ color: '#ffffff', marginBottom: '2px' }}>
+                            Actor: <strong>{evt.actor_name || 'System'}</strong> ({evt.actor_role || 'AUTOMATION'})
+                            {evt.old_status && evt.new_status && (
+                              <span style={{ marginLeft: '8px', color: 'rgba(255, 255, 255, 0.7)' }}>
+                                [{evt.old_status} → {evt.new_status}]
+                              </span>
+                            )}
+                          </div>
+
+                          {evt.notes && (
+                            <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontStyle: 'italic', marginTop: '2px' }}>
+                              "{evt.notes}"
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
@@ -683,66 +1387,32 @@ export default function InChatOperationDetailsModal({
           )}
         </div>
 
-        {/* Footer */}
+        {/* Modal Footer */}
         <div
           style={{
-            padding: '14px 22px',
+            padding: '12px 22px',
             borderTop: '1px solid rgba(255, 255, 255, 0.12)',
-            background: 'rgba(0, 0, 0, 0.4)',
+            background: 'rgba(0, 0, 0, 0.45)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {isRecipient && (
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  color: isAcknowledged ? '#34d399' : '#f87171',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontWeight: 600,
-                }}
-              >
-                {isAcknowledged ? '✓ You acknowledged this memo' : '⚠️ Awaiting your acknowledgement'}
-              </span>
-            )}
+          <div style={{ fontSize: '0.74rem', color: 'rgba(255, 255, 255, 0.65)' }}>
+            Operation ID: {operation?.id} · Code: {operation?.operation_code}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={downloadingPdf || loading}
-              style={{
-                padding: '8px 14px',
-                borderRadius: '8px',
-                background: 'rgba(59, 130, 246, 0.15)',
-                border: '1px solid #3b82f6',
-                color: '#60a5fa',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <Download size={14} /> Download PDF
-            </button>
-
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button
               type="button"
               onClick={onClose}
               style={{
-                padding: '8px 18px',
+                padding: '7px 18px',
                 borderRadius: '8px',
                 background: 'rgba(255, 255, 255, 0.1)',
                 border: '1px solid rgba(255, 255, 255, 0.18)',
                 color: '#ffffff',
-                fontSize: '0.82rem',
+                fontSize: '0.8rem',
                 fontWeight: 600,
                 cursor: 'pointer',
               }}

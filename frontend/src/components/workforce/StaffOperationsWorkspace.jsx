@@ -4,6 +4,7 @@ import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import Table from '../ui/Table';
 import Modal from '../ui/Modal';
+import InChatOperationDetailsModal from '../chat/InChatOperationDetailsModal';
 import { operationsService, reportService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useProperty } from '../../context/PropertyContext';
@@ -50,6 +51,7 @@ export default function StaffOperationsWorkspace() {
 
   // My Tasks State
   const [myTasks, setMyTasks] = useState([]);
+  const [viewingOperationId, setViewingOperationId] = useState(null);
   const [blockerModalTask, setBlockerModalTask] = useState(null);
   const [blockerForm, setBlockerForm] = useState({
     blocker_category: 'MATERIALS',
@@ -386,9 +388,31 @@ export default function StaffOperationsWorkspace() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <strong style={{ fontSize: '1rem' }}>{t.title}</strong>
                           <Badge status="neutral">{t.category}</Badge>
+                          {t.central_operation_id && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingOperationId(t.central_operation_id)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                background: 'rgba(59, 130, 246, 0.15)',
+                                border: '1px solid rgba(59, 130, 246, 0.4)',
+                                borderRadius: '4px',
+                                padding: '2px 8px',
+                                fontSize: '0.68rem',
+                                color: '#60a5fa',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                              }}
+                              title="Click to view full operational directive and memorandum"
+                            >
+                              ⚡ OPERATION DIRECTIVE {t.operation_code ? `· ${t.operation_code}` : ''}
+                            </button>
+                          )}
                           {renderStatus(t.status)}
                         </div>
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
@@ -396,7 +420,16 @@ export default function StaffOperationsWorkspace() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {t.central_operation_id && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setViewingOperationId(t.central_operation_id)}
+                          >
+                            Directive
+                          </Button>
+                        )}
                         {t.status === 'PENDING' && (
                           <Button size="sm" variant="primary" onClick={() => handleUpdateTaskProgress(t.id, 'IN_PROGRESS')}>
                             Start Task
@@ -733,6 +766,15 @@ export default function StaffOperationsWorkspace() {
           </form>
         </Modal>
       )}
+
+      {/* ─── MODAL: IN-CHAT OPERATION DETAILS MODAL ───────────────────────── */}
+      <InChatOperationDetailsModal
+        isOpen={Boolean(viewingOperationId)}
+        onClose={() => setViewingOperationId(null)}
+        operationId={viewingOperationId}
+        currentUser={user}
+        onOperationUpdated={fetchOperationalData}
+      />
     </div>
   );
 }
