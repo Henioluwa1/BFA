@@ -72,10 +72,26 @@ async function runTests() {
       assert(false, `Owner Management Directive failed: ${err.message}`);
     }
 
-    // TEST 3: Admin issues Company-Wide Property Directive to Staff & Receptionist
+    // TEST 3: Strict Owner-Only Group Rule & Owner Property Directive
     let adminOp;
     try {
-      adminOp = await CentralOperationsService.createOperation(adminUser, {
+      // 3a. Admin attempting group operation must be blocked
+      try {
+        await CentralOperationsService.createOperation(adminUser, {
+          title: 'Unauthorized Admin Group Broadcast',
+          target_audience_type: 'PROPERTY_ALL',
+          property_id: property.id,
+          subject: 'Test',
+          purpose: 'Test',
+          operational_instructions: 'Test',
+        });
+        assert(false, 'Non-Owner group operation should be blocked');
+      } catch (err) {
+        assert(err.message.includes('Only the Owner role is authorized'), 'Admin group operation correctly blocked by governance rule');
+      }
+
+      // 3b. Owner issues Company-Wide Property Directive
+      adminOp = await CentralOperationsService.createOperation(ownerUser, {
         title: 'Festive Season Front Desk & Security Operations Standard',
         category: 'FRONT_OFFICE_RECEPTION',
         priority: 'URGENT',
@@ -89,11 +105,11 @@ async function runTests() {
         property_id: property.id,
         deadline_at: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
       });
-      assert(adminOp && adminOp.operation_code.startsWith('OPS-'), `Admin Operation issued (${adminOp.operation_code})`);
+      assert(adminOp && adminOp.operation_code.startsWith('OPS-'), `Owner Property Directive issued (${adminOp.operation_code})`);
       assert(adminOp.recipients.length > 0, `Multi-recipient audience populated (${adminOp.recipients.length} recipients)`);
-      assert(adminOp.chat_thread_id !== null, `Linked Staff Chat thread created (Thread #${adminOp.chat_thread_id})`);
+      assert(adminOp.chat_thread_id !== null, `Linked Staff Chat channel assigned (Thread #${adminOp.chat_thread_id})`);
     } catch (err) {
-      assert(false, `Admin Operation creation failed: ${err.message}`);
+      assert(false, `Owner Property Operation creation failed: ${err.message}`);
     }
 
     // TEST 4: Manager Operations Initiation (Property Scoped)
@@ -196,7 +212,7 @@ async function runTests() {
       const submitOp = await CentralOperationsService.submitCompletion(staffUser, managerOp.id, {
         completionNotes: 'All HVAC panels sanitized, Unit 201 sub-panel verified, inverter operating within normal thermal thresholds.',
       });
-      assert(submitOp.status === 'AWAITING_REVIEW', 'Operation status transitioned to AWAITING_REVIEW');
+      assert(submitOp.status === 'SUBMITTED_FOR_REVIEW' || submitOp.status === 'AWAITING_REVIEW', 'Operation status transitioned to SUBMITTED_FOR_REVIEW');
 
       const reviewedOp = await CentralOperationsService.reviewOperation(managerUser, managerOp.id, {
         decision: 'APPROVED',

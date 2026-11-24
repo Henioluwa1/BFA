@@ -10,7 +10,7 @@ import Breadcrumbs from './Breadcrumbs';
 import GlobalSearchModal from '../search/GlobalSearchModal';
 import OperationsAssistantModal from '../assistant/OperationsAssistantModal';
 
-export default function Topbar({ onToggleMobileNav }) {
+export default function Topbar({ onToggleSidebar, onToggleMobileNav, isSidebarOpen, isCollapsed }) {
   const { properties, activePropertyId, setActivePropertyId } = useProperty();
   const { user, logout, isSuperAdmin } = useAuth();
   const { notifications, unreadCount, permission, requestPermission, markAllAsRead } = useNotifications();
@@ -18,8 +18,13 @@ export default function Topbar({ onToggleMobileNav }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [notifsDropdownOpen, setNotifsDropdownOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
   const notifsRef = useRef(null);
+  const accountMenuRef = useRef(null);
+
+  const handleToggle = onToggleSidebar || onToggleMobileNav;
 
   const fetchChatUnread = useCallback(async () => {
     try {
@@ -82,11 +87,14 @@ export default function Topbar({ onToggleMobileNav }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Close notifications dropdown on outside click
+  // Close notifications and account dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (notifsRef.current && !notifsRef.current.contains(e.target)) {
         setNotifsDropdownOpen(false);
+      }
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
+        setAccountMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -124,71 +132,82 @@ export default function Topbar({ onToggleMobileNav }) {
   }, []);
 
   const handleToggleNotifs = () => {
-    if (!notifsDropdownOpen) {
-      fetchRecent();
-    }
+    setAccountMenuOpen(false);
     setNotifsDropdownOpen((prev) => !prev);
   };
 
-
+  const handleToggleAccountMenu = () => {
+    setNotifsDropdownOpen(false);
+    setAccountMenuOpen((prev) => !prev);
+  };
 
   const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
+  const roleDisplay = isSuperAdmin ? '👑 SUPER ADMIN' : (user?.role || 'AUTHENTICATED').replace(/_/g, ' ');
+
+  // Look up active property object for display
+  const activePropertyObj = (properties || []).find((p) => String(p.id) === String(activePropertyId));
 
   return (
     <>
       <header className="topbar">
+        {/* ── LEFT SECTION: Hamburger Toggle + Breadcrumbs/Page Title ── */}
         <div className="topbar-left">
-          {/* Mobile hamburger toggle (Section 16) */}
+          {/* Permanent, Predictable Sidebar Hamburger Toggle (NEVER disappears or flex-shrinks) */}
           <button
             type="button"
-            className="mobile-nav-toggle"
-            onClick={onToggleMobileNav}
-            title="Toggle Navigation Menu"
-            aria-label="Toggle navigation drawer"
+            className="topbar-nav-toggle"
+            onClick={handleToggle}
+            title={isSidebarOpen ? "Close navigation sidebar" : "Open navigation sidebar"}
+            aria-label={isSidebarOpen ? "Close navigation sidebar" : "Open navigation sidebar"}
+            aria-expanded={Boolean(isSidebarOpen)}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="12" x2="21" y2="12" />
               <line x1="3" y1="6" x2="21" y2="6" />
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
+
+          {/* Responsive Page Title & Breadcrumbs */}
           <Breadcrumbs />
         </div>
 
+        {/* ── RIGHT SECTION: Actions, Quick Controls, Notifications, Profile ── */}
         <div className="topbar-right">
-          {/* Global Search Trigger (Section 19) */}
-          <button
-            className="topbar-search-btn"
-            onClick={() => setIsSearchOpen(true)}
-            title="Search entire BFA platform (Ctrl+K)"
-            aria-label="Open Global Search"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <span>Search records...</span>
-            <span className="search-kbd">Ctrl K</span>
-          </button>
-
-          {/* Operations Assistant Trigger */}
+          {/* Global Search Trigger (Desktop full with shortcut, Mobile compact icon) */}
           <button
             type="button"
-            className="topbar-assistant-btn"
+            className="topbar-search-btn"
+            onClick={() => setIsSearchOpen(true)}
+            title="Search records across BFA platform (Ctrl+K)"
+            aria-label="Open Global Search"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span className="search-btn-label">Search records...</span>
+            <span className="search-kbd" aria-hidden="true">Ctrl K</span>
+          </button>
+
+          {/* Operations Assistant Trigger (Visible on desktop & tablet >= 768px, also in Mobile Menu) */}
+          <button
+            type="button"
+            className="topbar-assistant-btn desktop-tablet-only"
             onClick={() => setIsAssistantOpen(true)}
             title="Open BFA Operations Assistant (Alt+A)"
             aria-label="Open Operations Assistant"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
             </svg>
-            <span>Assistant</span>
-            <span className="assistant-badge-pill">AI</span>
+            <span className="assistant-btn-label">Assistant</span>
+            <span className="assistant-badge-pill" aria-hidden="true">AI</span>
           </button>
 
-          {/* Global Multi-Property Selector (Section 1 & 18) */}
-          <div className="property-switcher" title="Active Property Scope">
+          {/* Global Multi-Property Scope Selector (Visible on desktop & tablet >= 768px, also in Mobile Menu) */}
+          <div className="property-switcher desktop-tablet-only" title="Active Property Scope">
             <span className="property-switcher-label">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 9h1M9 13h1M9 17h1M14 9h1M14 13h1M14 17h1" />
               </svg>
               Scope:
@@ -198,6 +217,7 @@ export default function Topbar({ onToggleMobileNav }) {
               value={activePropertyId}
               onChange={(e) => setActivePropertyId(e.target.value)}
               id="property-switcher-select"
+              aria-label="Filter active property scope"
             >
               <option value="all">✦ All Properties</option>
               {(properties || []).map((prop) => (
@@ -208,92 +228,40 @@ export default function Topbar({ onToggleMobileNav }) {
             </select>
           </div>
 
-          {/* Staff Chat Icon with Real-Time Unread Badge */}
+          {/* Staff Chat Shortcut Icon with Real-Time Unread Badge */}
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('bfa:open-chat'))}
             className="topbar-icon-btn chat-topbar-btn"
             title="Staff Chat & File Sharing"
-            aria-label="Open staff chat"
-            style={{
-              position: 'relative',
-              background: 'transparent',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              padding: '0.45rem',
-              cursor: 'pointer',
-              color: 'var(--text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            aria-label={`Open staff chat ${chatUnreadCount > 0 ? `(${chatUnreadCount} unread)` : ''}`}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
             </svg>
             {chatUnreadCount > 0 && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '-4px',
-                  right: '-4px',
-                  background: 'var(--accent-gold, #f59e0b)',
-                  color: '#0f172a',
-                  fontSize: '0.6875rem',
-                  fontWeight: 800,
-                  borderRadius: '10px',
-                  padding: '1px 5px',
-                  minWidth: '16px',
-                  textAlign: 'center',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-                }}
-              >
+              <span className="topbar-badge topbar-badge-chat" aria-hidden="true">
                 {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
               </span>
             )}
           </button>
 
           {/* Central Notification Bell */}
-          <div className="notif-wrapper" ref={notifsRef} style={{ position: 'relative' }}>
+          <div className="notif-wrapper" ref={notifsRef}>
             <button
               type="button"
-              className="topbar-icon-btn"
+              className="topbar-icon-btn notif-topbar-btn"
               onClick={handleToggleNotifs}
               title="Notifications"
-              aria-label="View notifications"
-              style={{
-                position: 'relative',
-                background: 'transparent',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px',
-                padding: '0.45rem',
-                cursor: 'pointer',
-                color: 'var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              aria-label={`View notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
+              aria-expanded={notifsDropdownOpen}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
               {unreadCount > 0 && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '-4px',
-                    right: '-4px',
-                    background: '#ef4444',
-                    color: '#fff',
-                    fontSize: '0.6875rem',
-                    fontWeight: 700,
-                    borderRadius: '10px',
-                    padding: '1px 5px',
-                    minWidth: '16px',
-                    textAlign: 'center',
-                  }}
-                >
+                <span className="topbar-badge topbar-badge-notif" aria-hidden="true">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -301,45 +269,16 @@ export default function Topbar({ onToggleMobileNav }) {
 
             {/* Notification Dropdown Panel */}
             {notifsDropdownOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: '115%',
-                  width: '320px',
-                  background: 'var(--card-bg, #1a202c)',
-                  border: '1px solid var(--border-color, #2d3748)',
-                  borderRadius: '8px',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                  zIndex: 1000,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0.75rem 1rem',
-                    borderBottom: '1px solid var(--border-color)',
-                  }}
-                >
-                  <strong style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>Notifications</strong>
-                  <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+              <div className="topbar-dropdown notif-dropdown-panel" role="region" aria-label="Notifications Panel">
+                <div className="notif-dropdown-header">
+                  <strong>Notifications</strong>
+                  <div className="notif-header-actions">
                     {permission !== 'granted' && (
                       <button
                         type="button"
                         onClick={requestPermission}
-                        title="Enable desktop notifications"
-                        style={{
-                          background: 'rgba(59,130,246,0.12)',
-                          border: '1px solid rgba(59,130,246,0.3)',
-                          borderRadius: '4px',
-                          color: '#60a5fa',
-                          fontSize: '0.7rem',
-                          cursor: 'pointer',
-                          padding: '0.2rem 0.45rem',
-                        }}
+                        className="btn-enable-desktop-notifs"
+                        title="Enable desktop browser notifications"
                       >
                         🔔 Enable Desktop
                       </button>
@@ -348,14 +287,7 @@ export default function Topbar({ onToggleMobileNav }) {
                       <button
                         type="button"
                         onClick={markAllAsRead}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--brand-accent, #3b82f6)',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          padding: 0,
-                        }}
+                        className="btn-mark-all-read"
                       >
                         Mark all read
                       </button>
@@ -363,48 +295,33 @@ export default function Topbar({ onToggleMobileNav }) {
                   </div>
                 </div>
 
-                <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                <div className="notif-list-body">
                   {recentNotifs.slice(0, 5).map((n) => (
                     <div
                       key={n.id}
-                      style={{
-                        padding: '0.75rem 1rem',
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                        background: n.is_read ? 'transparent' : 'rgba(59,130,246,0.06)',
-                      }}
+                      className={`notif-item ${n.is_read ? 'read' : 'unread'}`}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {n.title}
-                        </span>
-                        <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
-                          {n.category}
-                        </span>
+                      <div className="notif-item-header">
+                        <span className="notif-item-title">{n.title}</span>
+                        <span className="notif-item-category">{n.category}</span>
                       </div>
-                      <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                      <p className="notif-item-message">
                         {n.message?.length > 70 ? `${n.message.substring(0, 70)}...` : n.message}
                       </p>
                     </div>
                   ))}
                   {recentNotifs.length === 0 && (
-                    <div style={{ padding: '1.5rem', textAlign: 'center', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                    <div className="notif-empty-state">
                       No new notifications
                     </div>
                   )}
                 </div>
 
-                <div
-                  style={{
-                    padding: '0.6rem 1rem',
-                    textAlign: 'center',
-                    borderTop: '1px solid var(--border-color)',
-                    background: 'rgba(0,0,0,0.15)',
-                  }}
-                >
+                <div className="notif-dropdown-footer">
                   <Link
                     to="/app/notifications"
                     onClick={() => setNotifsDropdownOpen(false)}
-                    style={{ fontSize: '0.8125rem', color: 'var(--brand-accent)', textDecoration: 'none' }}
+                    className="notif-view-all-link"
                   >
                     View all notifications ➔
                   </Link>
@@ -413,37 +330,171 @@ export default function Topbar({ onToggleMobileNav }) {
             )}
           </div>
 
-          {/* Authenticated User Profile Pill (Section 6 & 7 & 16: Clickable Profile Trigger) */}
-          <Link
-            to="/app/my-profile"
-            className="user-profile-pill"
-            title={`Logged in as ${user?.name} (${user?.role}) — Click to view My Profile`}
-            aria-label="View My Profile"
-          >
-            <div className="user-avatar" style={{ background: isSuperAdmin ? '#3b82f6' : 'var(--brand-primary)' }}>
-              {userInitial}
+          {/* User Profile Trigger & Responsive Account Menu */}
+          <div className="user-profile-wrapper" ref={accountMenuRef}>
+            {/* Desktop Full Profile Pill (>= 1200px) */}
+            <div
+              className="user-profile-pill desktop-only"
+              onClick={handleToggleAccountMenu}
+              title={`Logged in as ${user?.name} (${user?.role}) — Click for account actions`}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleToggleAccountMenu();
+                }
+              }}
+              aria-haspopup="true"
+              aria-expanded={accountMenuOpen}
+            >
+              <div className="user-avatar" style={{ background: isSuperAdmin ? '#3b82f6' : 'var(--brand-primary)' }}>
+                {userInitial}
+              </div>
+              <div className="user-details">
+                <span className="user-name">{user?.name || 'Authorized User'}</span>
+                <span className="user-role-tag">{roleDisplay}</span>
+              </div>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="profile-chevron">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </div>
-            <div className="user-details">
-              <span className="user-name">{user?.name || 'Authorized User'}</span>
-              <span className="user-role-tag">
-                {isSuperAdmin ? '👑 SUPER ADMIN' : user?.role || 'AUTHENTICATED'}
-              </span>
-            </div>
-          </Link>
 
-          {/* Logout Action */}
+            {/* Mobile / Tablet Compact Avatar Button (< 1200px) */}
+            <button
+              type="button"
+              className="user-avatar-btn mobile-tablet-only"
+              onClick={handleToggleAccountMenu}
+              title={`Account & Quick Actions: ${user?.name} (${roleDisplay})`}
+              aria-label="Open Account & Quick Actions Menu"
+              aria-expanded={accountMenuOpen}
+            >
+              <div className="user-avatar" style={{ background: isSuperAdmin ? '#3b82f6' : 'var(--brand-primary)' }}>
+                {userInitial}
+              </div>
+            </button>
+
+            {/* Account & Quick Actions Dropdown Menu */}
+            {accountMenuOpen && (
+              <div className="topbar-dropdown account-dropdown-panel" role="menu">
+                {/* User Identity Header */}
+                <div className="account-dropdown-user-header">
+                  <div className="account-dropdown-avatar" style={{ background: isSuperAdmin ? '#3b82f6' : 'var(--brand-primary)' }}>
+                    {userInitial}
+                  </div>
+                  <div className="account-dropdown-user-info">
+                    <div className="account-dropdown-name">{user?.name || 'Authorized User'}</div>
+                    <div className="account-dropdown-email">{user?.email || 'admin@bfa.com'}</div>
+                    <span className="account-dropdown-role-badge">{roleDisplay}</span>
+                  </div>
+                </div>
+
+                {/* Mobile Quick Action: Active Property Scope (< 768px) */}
+                <div className="account-dropdown-mobile-section mobile-only">
+                  <div className="account-dropdown-section-title">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 9h1M9 13h1M9 17h1M14 9h1M14 13h1M14 17h1" />
+                    </svg>
+                    Active Property Scope
+                  </div>
+                  <select
+                    className="property-select mobile-account-property-select"
+                    value={activePropertyId}
+                    onChange={(e) => setActivePropertyId(e.target.value)}
+                  >
+                    <option value="all">✦ All Properties</option>
+                    {(properties || []).map((prop) => (
+                      <option key={prop.id} value={prop.id}>
+                        🏢 {prop.name} ({prop.unitCount || 0} Units)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Mobile Quick Action: Assistant AI (< 768px) */}
+                <div className="account-dropdown-mobile-section mobile-only">
+                  <button
+                    type="button"
+                    className="account-dropdown-item assistant-quick-item"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      setIsAssistantOpen(true);
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                    </svg>
+                    <span>Operations Assistant AI</span>
+                    <span className="assistant-badge-pill" style={{ marginLeft: 'auto' }}>AI</span>
+                  </button>
+                </div>
+
+                <div className="account-dropdown-divider" />
+
+                {/* Navigation Links */}
+                <Link
+                  to="/app/my-profile"
+                  className="account-dropdown-item"
+                  onClick={() => setAccountMenuOpen(false)}
+                  role="menuitem"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                  </svg>
+                  <span>My Profile & Settings</span>
+                </Link>
+
+                <Link
+                  to="/app/notifications"
+                  className="account-dropdown-item"
+                  onClick={() => setAccountMenuOpen(false)}
+                  role="menuitem"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                  <span>Notifications & Alerts</span>
+                  {unreadCount > 0 && <span className="account-dropdown-badge">{unreadCount}</span>}
+                </Link>
+
+                <div className="account-dropdown-divider" />
+
+                {/* Logout Action */}
+                <button
+                  type="button"
+                  className="account-dropdown-item logout-item"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    logout();
+                  }}
+                  role="menuitem"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Dedicated Logout Action (Desktop & Tablet >= 768px) */}
           <button
             type="button"
-            className="btn-logout"
+            className="btn-logout desktop-tablet-only"
             onClick={logout}
             title="Sign out of BFA portal"
+            aria-label="Sign out"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-            <span>Logout</span>
+            <span className="logout-btn-text">Logout</span>
           </button>
         </div>
       </header>

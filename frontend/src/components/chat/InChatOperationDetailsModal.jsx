@@ -281,8 +281,20 @@ export default function InChatOperationDetailsModal({
     }
   };
 
-  const handlePrintMemo = () => {
-    window.print();
+  const handlePrintMemo = async () => {
+    if (!operation?.id) return;
+    setDownloadingPdf(true);
+    try {
+      await centralOperationsService.previewMemoPdf({
+        operationId: operation.id,
+        memoId: memo?.id,
+        filename: `${memo?.memo_reference || operation?.operation_code || 'Operation_Memo'}.pdf`,
+      });
+    } catch (err) {
+      addToast(err.message || 'Failed to open PDF preview.', 'error');
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   const priorityColor = {
@@ -420,6 +432,28 @@ export default function InChatOperationDetailsModal({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={handlePrintMemo}
+              disabled={downloadingPdf || loading}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                color: '#ffffff',
+                padding: '7px 12px',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: downloadingPdf ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              title="Preview Official Memorandum PDF in browser tab"
+            >
+              <Eye size={14} />
+              Preview
+            </button>
             <button
               type="button"
               onClick={handleDownloadPdf}

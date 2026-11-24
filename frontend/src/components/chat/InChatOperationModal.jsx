@@ -39,8 +39,10 @@ export default function InChatOperationModal({
   const [submitting, setSubmitting] = useState(false);
 
   // Form State
+  const isOwner = (currentUser?.role || '').toUpperCase() === 'OWNER';
   const [scope, setScope] = useState('PERSONAL'); // 'PERSONAL' (DM) | 'TEAM' (Property/Group Channel)
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState(currentUser?.propertyId || '');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('PROPERTY_OPERATIONS');
@@ -136,21 +138,30 @@ export default function InChatOperationModal({
       return;
     }
 
-    if (scope === 'PERSONAL' && !selectedUserId) {
+    if ((scope === 'PERSONAL' || !isOwner) && !selectedUserId) {
       addToast('Please select a target recipient user for this personal operation.', 'warning');
       return;
     }
 
     setSubmitting(true);
     try {
+      const isPersonal = scope === 'PERSONAL' || !isOwner;
+      const targetAudience = isPersonal
+        ? 'SPECIFIC_USER'
+        : (selectedUserIds.length > 0 ? 'ROLE_GROUP' : (selectedPropertyId ? 'PROPERTY_ALL' : 'ALL'));
+
+      const recipientIds = isPersonal
+        ? (selectedUserId ? [parseInt(selectedUserId, 10)] : [])
+        : (selectedUserIds.length > 0 ? selectedUserIds.map(Number) : []);
+
       const payload = {
         title: title.trim(),
         subject: subject.trim(),
         category,
         priority,
         property_id: selectedPropertyId ? parseInt(selectedPropertyId, 10) : null,
-        target_audience_type: scope === 'PERSONAL' ? 'SPECIFIC_USER' : 'PROPERTY_ALL',
-        recipient_user_ids: scope === 'PERSONAL' && selectedUserId ? [parseInt(selectedUserId, 10)] : [],
+        target_audience_type: targetAudience,
+        recipient_user_ids: recipientIds,
         purpose: purpose.trim(),
         operational_instructions: operationalInstructions.trim(),
         expected_outcome: expectedOutcome.trim() || null,
@@ -303,31 +314,77 @@ export default function InChatOperationModal({
 
               <button
                 type="button"
-                onClick={() => setScope('TEAM')}
+                aria-disabled={!isOwner}
+                title={!isOwner ? 'Restricted to Owner role by executive governance mandate.' : 'Initiate group operation'}
+                onClick={() => {
+                  if (!isOwner) {
+                    addToast('Enterprise Governance Rule: Only the Owner may initiate group / shared channel operations.', 'warning');
+                    return;
+                  }
+                  setScope('TEAM');
+                }}
                 style={{
                   padding: '12px 14px',
                   borderRadius: '10px',
-                  background: scope === 'TEAM' ? 'rgba(59, 130, 246, 0.22)' : 'rgba(255, 255, 255, 0.04)',
-                  border: scope === 'TEAM' ? '1.5px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.12)',
+                  background: scope === 'TEAM' && isOwner ? 'rgba(59, 130, 246, 0.22)' : 'rgba(255, 255, 255, 0.04)',
+                  border: scope === 'TEAM' && isOwner ? '1.5px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.12)',
                   color: '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
-                  cursor: 'pointer',
+                  cursor: isOwner ? 'pointer' : 'not-allowed',
+                  opacity: isOwner ? 1 : 0.55,
                   textAlign: 'left',
                   transition: 'all 0.15s ease',
                 }}
               >
-                <Users size={18} style={{ color: scope === 'TEAM' ? '#60a5fa' : 'rgba(255, 255, 255, 0.6)' }} />
+                <Users size={18} style={{ color: scope === 'TEAM' && isOwner ? '#60a5fa' : 'rgba(255, 255, 255, 0.6)' }} />
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>Shared Channel Operation</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
+                    Shared Channel / Group {isOwner ? 'Operation' : '(Owner Only)'}
+                  </div>
                   <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.65)' }}>
-                    Routes to the designated shared property team channel.
+                    {isOwner
+                      ? 'Routes to shared management group or team channel.'
+                      : 'Restricted to Owner role by executive governance mandate.'}
                   </div>
                 </div>
               </button>
             </div>
           </div>
+
+          {/* Multi-Recipient Selector (When Team/Group & Owner) */}
+          {scope === 'TEAM' && isOwner && (
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#ffffff', marginBottom: '6px' }}>
+                Target Recipients (Select Management Personnel)
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '140px', overflowY: 'auto', padding: '10px', background: 'rgba(0, 0, 0, 0.4)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
+                {eligibleUsers.map((u) => {
+                  const isChecked = selectedUserIds.includes(Number(u.id));
+                  return (
+                    <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', cursor: 'pointer', color: '#ffffff' }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedUserIds([...selectedUserIds, Number(u.id)]);
+                          } else {
+                            setSelectedUserIds(selectedUserIds.filter(id => id !== Number(u.id)));
+                          }
+                        }}
+                      />
+                      <span><strong>{u.name}</strong> — {u.role} ({u.email})</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.6)', marginTop: '4px' }}>
+                Leave unselected to address the entire property/corporate channel.
+              </div>
+            </div>
+          )}
 
           {/* Recipient Dropdown (When Personal) */}
           {scope === 'PERSONAL' && (

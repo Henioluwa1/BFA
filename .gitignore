@@ -53,7 +53,9 @@ backend/storage/*
 
 # Database Backups
 backups/
+backend/src/db/backups/
 *.sql
+*.pdf
 !backend/src/db/migrations/*.sql
 !backend/src/db/pgMigrations/*.sql
 

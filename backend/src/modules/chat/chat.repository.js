@@ -340,6 +340,98 @@ class ChatRepository {
   }
 
   /**
+   * Get or create the permanent General Group thread for company-wide internal communication
+   */
+  static async getOrCreateGeneralGroupThread() {
+    let threads = await pool.query(
+      "SELECT id, title, thread_type, status FROM chat_threads WHERE title = 'General Group' AND status = 'ACTIVE' LIMIT 1"
+    );
+    let group = threads && threads.length > 0 ? threads[0] : null;
+
+    if (!group) {
+      const res = await pool.query(
+        "INSERT INTO chat_threads (thread_type, title, status, created_by) VALUES ('GROUP', 'General Group', 'ACTIVE', 1)"
+      );
+      const insertedId = res.insertId || res.rows?.[0]?.id || (Array.isArray(res) ? res[0]?.id : null);
+      const fetched = await pool.query("SELECT id, title, thread_type, status FROM chat_threads WHERE title = 'General Group' LIMIT 1");
+      group = fetched && fetched.length > 0 ? fetched[0] : { id: insertedId, title: 'General Group', thread_type: 'GROUP', status: 'ACTIVE' };
+    }
+
+    // Auto-enroll all active staff members
+    try {
+      const activeUsers = await pool.query("SELECT id, role FROM users WHERE status = 'ACTIVE'");
+      if (activeUsers && activeUsers.length > 0) {
+        for (const u of activeUsers) {
+          await pool.query(
+            `INSERT INTO chat_thread_participants (thread_id, user_id, role, joined_at)
+             SELECT ?, ?, 'MEMBER', CURRENT_TIMESTAMP
+             WHERE NOT EXISTS (
+               SELECT 1 FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL
+             )`,
+            [group.id, u.id, group.id, u.id]
+          );
+        }
+      }
+    } catch (enrollErr) {
+      logger.warn(`Could not sync General Group participants: ${enrollErr.message}`);
+    }
+
+    return group;
+  }
+
+  /**
+   * Find or create canonical group thread for a set of participants (e.g. Owner, Admin, Manager)
+   * Prevents creating duplicate threads for every operation.
+   */
+  static async findOrCreateManagementGroupThread(creatorUser, participantIds = []) {
+    const cId = Number(creatorUser.id);
+    const targetIds = Array.from(new Set(participantIds.map(Number).filter(id => id > 0 && id !== cId)));
+    const allMemberIds = [cId, ...targetIds].sort((a, b) => a - b);
+
+    // Look for existing group thread containing these participants
+    const candidateThreads = await pool.query(`
+      SELECT t.id, t.title
+      FROM chat_threads t
+      WHERE t.thread_type = 'GROUP' AND t.status = 'ACTIVE'
+        AND t.title LIKE '%Management%'
+      ORDER BY t.id ASC
+    `);
+
+    for (const cand of candidateThreads) {
+      const parts = await pool.query(
+        "SELECT user_id FROM chat_thread_participants WHERE thread_id = ? AND left_at IS NULL",
+        [cand.id]
+      );
+      const candMemberIds = parts.map(p => Number(p.user_id)).sort((a, b) => a - b);
+      const hasAll = allMemberIds.every(id => candMemberIds.includes(id));
+      if (hasAll) {
+        return cand;
+      }
+    }
+
+    // Check if an existing [OPS] thread with these members exists to reuse
+    const opsThreads = await pool.query(`
+      SELECT t.id, t.title
+      FROM chat_threads t
+      WHERE t.thread_type = 'GROUP' AND t.status = 'ACTIVE'
+      ORDER BY t.id DESC LIMIT 10
+    `);
+    for (const cand of opsThreads) {
+      const parts = await pool.query(
+        "SELECT user_id FROM chat_thread_participants WHERE thread_id = ? AND left_at IS NULL",
+        [cand.id]
+      );
+      const candMemberIds = parts.map(p => Number(p.user_id)).sort((a, b) => a - b);
+      if (allMemberIds.length === candMemberIds.length && allMemberIds.every((id, idx) => id === candMemberIds[idx])) {
+        return cand;
+      }
+    }
+
+    // Create a clean, official management group thread
+    return this.createGroupThread(creatorUser, 'Executive Management Operations', targetIds);
+  }
+
+  /**
    * Get thread participants
    */
   static async getThreadParticipants(threadId) {
@@ -572,7 +664,8 @@ class ChatRepository {
              t.title, t.status, t.last_message_at, t.created_at,
              p.last_read_message_id,
              prop.name AS property_name,
-             COALESCE(t.last_message_at, t.created_at) AS sort_key
+             COALESCE(t.last_message_at, t.created_at) AS sort_key,
+             CASE WHEN t.title = 'General Group' THEN 0 ELSE 1 END AS pin_order
       FROM chat_threads t
       LEFT JOIN chat_thread_participants p ON t.id = p.thread_id AND p.user_id = ? AND p.left_at IS NULL
       LEFT JOIN properties prop ON t.property_id = prop.id
@@ -582,8 +675,9 @@ class ChatRepository {
           OR t.thread_type = 'SYSTEM_BROADCAST'
           OR (t.thread_type = 'PROPERTY_CHANNEL' AND t.property_id = ?)
           OR (t.thread_type = 'PROPERTY_CHANNEL' AND ? IN ('SUPER_ADMIN', 'ADMIN', 'OWNER'))
+          OR (t.title = 'General Group' AND t.thread_type = 'GROUP')
         )
-      ORDER BY sort_key DESC
+      ORDER BY pin_order ASC, sort_key DESC
     `;
 
     const threads = await pool.query(sql, [uId, propertyId || null, userRole]);
@@ -754,6 +848,53 @@ class ChatRepository {
   }
 
   /**
+   * Helper to verify participant or auto-enroll authorized members (Executives on Property Channels or General Group)
+   */
+  static async assertOrAutoEnrollParticipant(threadId, userId, role = null) {
+    const tId = Number(threadId);
+    const uId = Number(userId);
+
+    const [part] = await pool.query(
+      'SELECT id, last_read_message_id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL',
+      [tId, uId]
+    );
+    if (part) return part;
+
+    const [thread] = await pool.query('SELECT thread_type, property_id, title FROM chat_threads WHERE id = ?', [tId]);
+    if (!thread) {
+      throw new NotFoundError(`Chat thread #${tId} does not exist.`);
+    }
+
+    let uRole = role ? role.toUpperCase() : null;
+    if (!uRole) {
+      const [u] = await pool.query('SELECT role FROM users WHERE id = ?', [uId]);
+      uRole = (u?.role || '').toUpperCase();
+    }
+
+    const canAutoJoin =
+      thread.title === 'General Group' ||
+      (thread.thread_type === 'PROPERTY_CHANNEL' && ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(uRole)) ||
+      thread.thread_type === 'SYSTEM_BROADCAST';
+
+    if (canAutoJoin) {
+      const assignedRole = ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(uRole) ? 'ADMIN' : 'MEMBER';
+      await pool.query(
+        `INSERT INTO chat_thread_participants (thread_id, user_id, role, joined_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT (thread_id, user_id) DO UPDATE SET left_at = NULL`,
+        [tId, uId, assignedRole]
+      );
+      const [newPart] = await pool.query(
+        'SELECT id, last_read_message_id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL',
+        [tId, uId]
+      );
+      return newPart || { id: 1, last_read_message_id: 0 };
+    }
+
+    throw new ForbiddenError(`Access denied: You are not an active participant in thread #${tId}.`);
+  }
+
+  /**
    * Fetch paginated message history with attachments
    */
   static async getThreadHistory(threadId, userId, beforeCursor = null, limit = 50) {
@@ -761,13 +902,7 @@ class ChatRepository {
     const uId = Number(userId);
     const pageLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
 
-    const [part] = await pool.query(
-      'SELECT id, last_read_message_id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL',
-      [tId, uId]
-    );
-    if (!part) {
-      throw new ForbiddenError(`Access denied: You are not an active participant in thread #${tId}.`);
-    }
+    const part = await this.assertOrAutoEnrollParticipant(tId, uId);
 
     let sql = `
       SELECT m.id, m.thread_id AS threadId, m.sender_id AS senderId,
@@ -886,13 +1021,7 @@ class ChatRepository {
     const tId = Number(threadId);
     const sId = Number(senderId);
 
-    const [part] = await pool.query(
-      'SELECT id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL',
-      [tId, sId]
-    );
-    if (!part) {
-      throw new ForbiddenError(`You are not an active participant in thread #${tId}.`);
-    }
+    const part = await this.assertOrAutoEnrollParticipant(tId, sId);
 
     let cleanContent = (content || '').trim();
     let computedMessageType = messageType;
@@ -1129,13 +1258,7 @@ class ChatRepository {
       throw new BadRequestError(`Message #${mId} does not belong to thread #${tId}.`);
     }
 
-    const [part] = await pool.query(
-      'SELECT id, last_read_message_id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL',
-      [tId, uId]
-    );
-    if (!part) {
-      throw new ForbiddenError(`You are not an active participant in thread #${tId}.`);
-    }
+    const part = await this.assertOrAutoEnrollParticipant(tId, uId);
 
     return pool.withTransaction(async (conn) => {
       await conn.query(

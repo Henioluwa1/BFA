@@ -6,7 +6,11 @@ import chatService from '../../services/chatService';
 import '../../styles/staffChat.css';
 import InChatOperationModal from '../../components/chat/InChatOperationModal';
 import InChatOperationDetailsModal from '../../components/chat/InChatOperationDetailsModal';
-import OperationChatCard from '../../components/chat/OperationChatCard';
+import ChatConversationSidebar from '../../components/chat/ChatConversationSidebar';
+import ChatConversationHeader from '../../components/chat/ChatConversationHeader';
+import ChatMessageItem from '../../components/chat/ChatMessageItem';
+import ChatMessageComposer from '../../components/chat/ChatMessageComposer';
+import { parseChatMessage } from '../../components/chat/chatMessageParser';
 
 function unpack(res, fallback = null) {
   if (!res) return fallback;
@@ -25,7 +29,10 @@ export default function StaffChatPage() {
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'DIRECT' | 'GROUP'
+  const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'OPERATIONS' | 'DIRECT' | 'GROUP'
+
+  // Mobile View Navigation: 'LIST' or 'CHAT'
+  const [mobileView, setMobileView] = useState('LIST');
 
   // Online Presence & Typing State
   const [onlineUserIds, setOnlineUserIds] = useState(new Set());
@@ -36,7 +43,6 @@ export default function StaffChatPage() {
   const [messageText, setMessageText] = useState('');
   const [pendingAttachment, setPendingAttachment] = useState(null);
   const [sending, setSending] = useState(false);
-  const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   // Modals
@@ -302,8 +308,7 @@ export default function StaffChatPage() {
   // --------------------------------------------------------------------------
   // 5. File Attachment Selection
   // --------------------------------------------------------------------------
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleSelectFile = (file) => {
     if (!file) return;
 
     const MAX_SIZE = 15 * 1024 * 1024; // 15MB
@@ -325,9 +330,6 @@ export default function StaffChatPage() {
       addToast('Failed to read selected file', 'error');
     };
     reader.readAsDataURL(file);
-
-    // Reset input
-    e.target.value = '';
   };
 
   // --------------------------------------------------------------------------
@@ -402,13 +404,6 @@ export default function StaffChatPage() {
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
   // --------------------------------------------------------------------------
   // 7. Modals: Contacts Discovery & New Direct Message
   // --------------------------------------------------------------------------
@@ -436,6 +431,7 @@ export default function StaffChatPage() {
       await loadThreads();
       if (thread?.id) {
         setActiveThreadId(thread.id);
+        setMobileView('CHAT');
       }
       addToast('Conversation ready', 'success');
     } catch (err) {
@@ -492,6 +488,7 @@ export default function StaffChatPage() {
       await loadThreads();
       if (group?.id) {
         setActiveThreadId(group.id);
+        setMobileView('CHAT');
       }
       addToast(`Group "${groupTitle}" created successfully`, 'success');
     } catch (err) {
@@ -514,7 +511,6 @@ export default function StaffChatPage() {
       const res = await chatService.getThreadParticipants(activeThreadId);
       const pRaw = unpack(res);
       setParticipants(Array.isArray(pRaw) ? pRaw : []);
-      // Load contacts for add member dropdown
       const cRes = await chatService.getContacts();
       const cRaw = unpack(cRes);
       setContacts(Array.isArray(cRaw) ? cRaw : []);
@@ -551,253 +547,58 @@ export default function StaffChatPage() {
       addToast('You have left the group', 'info');
       await loadThreads();
       setActiveThreadId(null);
+      setMobileView('LIST');
     } catch (err) {
       console.error('[CHAT] Leave group error:', err);
       addToast(err.response?.data?.message || 'Failed to leave group', 'error');
     }
   };
 
-  // --------------------------------------------------------------------------
-  // Helpers: Filter Threads
-  // --------------------------------------------------------------------------
-  const filteredThreads = threads.filter((t) => {
-    if (activeTab === 'DIRECT' && t.threadType !== 'DIRECT') return false;
-    if (activeTab === 'GROUP' && t.threadType !== 'GROUP' && t.threadType !== 'PROPERTY_CHANNEL') return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = t.title?.toLowerCase().includes(q);
-      const matchMsg = t.lastMessage?.content?.toLowerCase().includes(q);
-      return matchTitle || matchMsg;
-    }
-    return true;
-  });
-
-  const formatFileSize = (bytes) => {
-    if (!bytes || isNaN(bytes)) return '0 B';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const formatTime = (isoString) => {
-    if (!isoString) return '';
-    try {
-      const d = new Date(isoString);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return '';
-    }
-  };
-
-  // Active typing user list for current thread
   const activeTypingList = Object.values(typingUsers).filter((u) => u.isTyping);
 
   return (
     <div className="staff-chat-container">
       {/* ==================================================================== */}
-      {/* LEFT SIDEBAR: THREAD LIST                                            */}
+      {/* 1. LEFT SIDEBAR: CONVERSATION LIST (REDESIGNED)                       */}
       {/* ==================================================================== */}
-      <aside className="chat-sidebar">
-        <div className="chat-sidebar-header">
-          <div className="chat-sidebar-title-row">
-            <h2>Team Messages</h2>
-            <div className="chat-action-buttons">
-              {canInitiateOperation && (
-                <button
-                  type="button"
-                  className="chat-btn-action"
-                  onClick={() => setOperationModalOpen(true)}
-                  style={{
-                    background: 'rgba(59, 130, 246, 0.22)',
-                    borderColor: '#3b82f6',
-                    color: '#60a5fa',
-                  }}
-                  title="Initiate Formal Central Operation Directive"
-                >
-                  ⚡ Operation
-                </button>
-              )}
-              <button
-                type="button"
-                className="chat-btn-action"
-                onClick={openNewDirectModal}
-                title="Start a 1-to-1 direct conversation"
-              >
-                <span>+</span> DM
-              </button>
-              <button
-                type="button"
-                className="chat-btn-action"
-                onClick={openNewGroupModal}
-                title="Create a new team group"
-              >
-                <span>+</span> Group
-              </button>
-            </div>
-          </div>
-
-          <div className="chat-search-box">
-            <span className="chat-search-icon">🔍</span>
-            <input
-              type="text"
-              className="chat-search-input"
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="chat-filter-tabs">
-            <button
-              type="button"
-              className={`chat-filter-tab ${activeTab === 'ALL' ? 'active' : ''}`}
-              onClick={() => setActiveTab('ALL')}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              className={`chat-filter-tab ${activeTab === 'DIRECT' ? 'active' : ''}`}
-              onClick={() => setActiveTab('DIRECT')}
-            >
-              Direct
-            </button>
-            <button
-              type="button"
-              className={`chat-filter-tab ${activeTab === 'GROUP' ? 'active' : ''}`}
-              onClick={() => setActiveTab('GROUP')}
-            >
-              Groups
-            </button>
-          </div>
-        </div>
-
-        <div className="chat-threads-list">
-          {loadingThreads && (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
-              Loading conversations...
-            </div>
-          )}
-
-          {!loadingThreads && filteredThreads.length === 0 && (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.8125rem' }}>
-              No conversations found. Click <strong>+ DM</strong> or <strong>+ Group</strong> to begin!
-            </div>
-          )}
-
-          {!loadingThreads &&
-            filteredThreads.map((thread) => {
-              const isDirect = thread.threadType === 'DIRECT';
-              const isGroup = thread.threadType === 'GROUP' || thread.threadType === 'PROPERTY_CHANNEL';
-              const otherUser = thread.otherParticipant;
-              const isOnline = otherUser ? onlineUserIds.has(Number(otherUser.id)) : false;
-              const initial = thread.title ? thread.title.charAt(0).toUpperCase() : 'T';
-
-              return (
-                <div
-                  key={thread.id}
-                  className={`chat-thread-item ${activeThreadId === thread.id ? 'active' : ''}`}
-                  onClick={() => setActiveThreadId(thread.id)}
-                >
-                  <div className="chat-avatar-wrapper">
-                    <div className={`chat-avatar ${isGroup ? 'group' : ''}`}>
-                      {isGroup ? '👥' : initial}
-                    </div>
-                    {isDirect && (
-                      <span className={`chat-presence-dot ${isOnline ? 'online' : 'offline'}`} />
-                    )}
-                  </div>
-
-                  <div className="chat-thread-info">
-                    <div className="chat-thread-header-row">
-                      <span className="chat-thread-name">{thread.title}</span>
-                      <span className="chat-thread-time">
-                        {formatTime(thread.lastMessage?.createdAt || thread.lastMessageAt)}
-                      </span>
-                    </div>
-
-                    <div className="chat-thread-preview-row">
-                      <span className="chat-thread-preview">
-                        {thread.lastMessage
-                          ? `${thread.lastMessage.senderName ? `${thread.lastMessage.senderName.split(' ')[0]}: ` : ''}${thread.lastMessage.content}`
-                          : 'No messages yet'}
-                      </span>
-                      {thread.unreadCount > 0 && (
-                        <span className="chat-unread-badge">
-                          {thread.unreadCount > 99 ? '99+' : thread.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-        </div>
-      </aside>
+      <ChatConversationSidebar
+        className={mobileView === 'CHAT' ? 'mobile-hidden' : ''}
+        threads={threads}
+        activeThreadId={activeThreadId}
+        onSelectThread={(id) => {
+          setActiveThreadId(id);
+          setMobileView('CHAT');
+        }}
+        loading={loadingThreads}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        canInitiateOperation={canInitiateOperation}
+        onOpenOperationModal={() => setOperationModalOpen(true)}
+        onOpenNewDirectModal={openNewDirectModal}
+        onOpenNewGroupModal={openNewGroupModal}
+        onlineUserIds={onlineUserIds}
+      />
 
       {/* ==================================================================== */}
-      {/* RIGHT MAIN PANE: ACTIVE CONVERSATION                                 */}
+      {/* 2. MAIN ACTIVE CHAT PANE (REDESIGNED)                                */}
       {/* ==================================================================== */}
-      <main className="chat-main-pane">
+      <main className={`chat-main-pane ${mobileView === 'LIST' ? 'mobile-hidden' : ''}`}>
         {activeThread ? (
           <>
-            {/* Thread Header */}
-            <header className="chat-pane-header">
-              <div className="chat-header-identity">
-                <div className={`chat-avatar ${activeThread.threadType === 'GROUP' ? 'group' : ''}`}>
-                  {activeThread.threadType === 'GROUP' ? '👥' : activeThread.title?.charAt(0).toUpperCase()}
-                </div>
-                <div className="chat-header-details">
-                  <h3>
-                    {activeThread.title}
-                    <span className="chat-role-chip">{activeThread.threadType}</span>
-                  </h3>
-                  <p>
-                    {activeThread.threadType === 'DIRECT' && activeThread.otherParticipant && (
-                      <>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            width: 7,
-                            height: 7,
-                            borderRadius: '50%',
-                            background: onlineUserIds.has(Number(activeThread.otherParticipant.id))
-                              ? '#10b981'
-                              : '#64748b',
-                            marginRight: 5,
-                          }}
-                        />
-                        {onlineUserIds.has(Number(activeThread.otherParticipant.id))
-                          ? 'Active Now'
-                          : 'Offline'}{' '}
-                        • {activeThread.otherParticipant.role} •{' '}
-                        {activeThread.propertyName || 'BFA Headquarters'}
-                      </>
-                    )}
-                    {(activeThread.threadType === 'GROUP' || activeThread.threadType === 'PROPERTY_CHANNEL') && (
-                      <>
-                        Team Channel • {activeThread.participantsCount || 'Multi'} members • Persistent file storage enabled
-                      </>
-                    )}
-                  </p>
-                </div>
-              </div>
+            {/* Conversation Header */}
+            <ChatConversationHeader
+              thread={activeThread}
+              currentUser={user}
+              onlineUserIds={onlineUserIds}
+              canInitiateOperation={canInitiateOperation}
+              onOpenOperationModal={() => setOperationModalOpen(true)}
+              onOpenGroupDetailsModal={openGroupDetailsModal}
+              onBackToList={() => setMobileView('LIST')}
+            />
 
-              <div className="chat-header-actions">
-                {(activeThread.threadType === 'GROUP' || activeThread.threadType === 'PROPERTY_CHANNEL') && (
-                  <button
-                    type="button"
-                    className="chat-btn-header"
-                    onClick={openGroupDetailsModal}
-                    title="View and manage group participants"
-                  >
-                    👥 Manage Members
-                  </button>
-                )}
-              </div>
-            </header>
-
-            {/* Messages Scrollable History */}
+            {/* Scrollable Message History with Distinct Visual Layouts */}
             <div className="chat-messages-container">
               {loadingMessages && (
                 <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.85rem' }}>
@@ -816,184 +617,60 @@ export default function StaffChatPage() {
               )}
 
               {!loadingMessages &&
-                messages.map((msg) => {
-                  const isSystem = msg.messageType === 'SYSTEM_NOTICE';
-                  const isOutgoing = Number(msg.sender?.id || msg.senderId) === Number(user?.id);
+                messages.map((msg, idx) => {
+                  const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                  const prevSenderId = prevMsg ? (prevMsg.sender?.id || prevMsg.senderId) : null;
+                  const currSenderId = msg.sender?.id || msg.senderId;
 
-                  if (isSystem) {
-                    return (
-                      <div key={msg.id || msg.clientTempId} className="chat-msg-row system">
-                        <div className="chat-system-bubble">{msg.content}</div>
-                      </div>
-                    );
-                  }
+                  // Consecutive grouping: same sender within 3 minutes, neither is an official operation
+                  const isSameSender = Boolean(
+                    prevSenderId &&
+                    Number(prevSenderId) === Number(currSenderId) &&
+                    prevMsg?.createdAt &&
+                    msg?.createdAt &&
+                    Math.abs(new Date(msg.createdAt) - new Date(prevMsg.createdAt)) < 180000 &&
+                    parseChatMessage(prevMsg).type === 'NORMAL' &&
+                    parseChatMessage(msg).type === 'NORMAL'
+                  );
 
                   return (
-                    <div
-                      key={msg.id || msg.clientTempId}
-                      className={`chat-msg-row ${isOutgoing ? 'outgoing' : 'incoming'}`}
-                    >
-                      {!isOutgoing && (
-                        <div className="chat-sender-label">
-                          <span>{msg.sender?.name || 'Staff Member'}</span>
-                          <span className="chat-role-chip">{msg.sender?.role || 'STAFF'}</span>
-                        </div>
-                      )}
-
-                      <div className="chat-msg-bubble">
-                        {/* Text message content */}
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-
-                        {/* Official Operations Memo Interactive Card */}
-                        {(msg.context_entity_type === 'OPERATION' || msg.context_entity_type === 'MEMO' || (msg.content && msg.content.includes('[OFFICIAL OPERATIONS MEMO'))) && (
-                          <OperationChatCard
-                            operationId={msg.context_entity_id || (msg.content && msg.content.match(/Ref:\s*(OPS-[^\s\n]+)/)?.[1])}
-                            memoRef={msg.context_type || (msg.content && msg.content.match(/MEMO-[^\s\n\]]+/)?.[0])}
-                            priority={msg.priority || 'NORMAL'}
-                            title={msg.content && msg.content.match(/Title:\s*([^\n]+)/)?.[1]}
-                            currentUser={user}
-                            onViewOperation={(opId) => {
-                              setViewingOperationId(opId || msg.context_entity_id);
-                            }}
-                            onOperationUpdated={() => {
-                              if (activeThreadId) loadMessages(activeThreadId);
-                            }}
-                          />
-                        )}
-
-                        {/* Image attachment */}
-                        {msg.attachment && msg.attachment.fileType?.startsWith('image/') && (
-                          <div className="chat-attachment-card">
-                            <img
-                              src={msg.attachment.url}
-                              alt={msg.attachment.originalName || 'Photo'}
-                              className="chat-attachment-img-preview"
-                              onClick={() => setLightboxImage(msg.attachment)}
-                            />
-                          </div>
-                        )}
-
-                        {/* Document attachment */}
-                        {msg.attachment && !msg.attachment.fileType?.startsWith('image/') && (
-                          <div className="chat-doc-card">
-                            <span style={{ fontSize: '1.4rem' }}>📄</span>
-                            <div className="chat-doc-info">
-                              <div className="chat-doc-name">{msg.attachment.originalName}</div>
-                              <div className="chat-doc-size">{formatFileSize(msg.attachment.fileSize)}</div>
-                            </div>
-                            <a
-                              href={msg.attachment.downloadUrl}
-                              download={msg.attachment.originalName}
-                              className="chat-btn-download"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              ⬇ Download
-                            </a>
-                          </div>
-                        )}
-
-                        {/* Timestamp & Delivery Status */}
-                        <div className="chat-msg-meta">
-                          <span>{formatTime(msg.createdAt)}</span>
-                          {isOutgoing && (
-                            <span title={msg.isRead ? 'Read' : 'Delivered'}>
-                              {msg.isRead ? '✓✓' : '✓'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <ChatMessageItem
+                      key={msg.id || msg.clientTempId || idx}
+                      message={msg}
+                      currentUser={user}
+                      isPreviousSameSender={isSameSender}
+                      onViewOperation={(opId) => {
+                        setViewingOperationId(opId || msg.context_entity_id);
+                      }}
+                      onOperationUpdated={() => {
+                        if (activeThreadId) loadMessages(activeThreadId);
+                      }}
+                      onImageClick={(att) => setLightboxImage(att)}
+                    />
                   );
                 })}
-
-              {/* Real-Time Typing Bubble */}
-              {activeTypingList.length > 0 && (
-                <div className="chat-typing-indicator">
-                  <div className="chat-typing-dots">
-                    <span className="chat-typing-dot" />
-                    <span className="chat-typing-dot" />
-                    <span className="chat-typing-dot" />
-                  </div>
-                  <span>
-                    {activeTypingList.map((u) => u.userName).join(', ')}{' '}
-                    {activeTypingList.length === 1 ? 'is' : 'are'} typing...
-                  </span>
-                </div>
-              )}
 
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Attachment Preview Bar above Composer */}
-            {pendingAttachment && (
-              <div className="chat-composer-attachment-preview">
-                <div className="chat-composer-att-badge">
-                  <span>{pendingAttachment.fileType.startsWith('image/') ? '📷' : '📎'}</span>
-                  <strong>{pendingAttachment.originalName}</strong>
-                  <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
-                    ({formatFileSize(pendingAttachment.fileSize)})
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="chat-btn-remove-att"
-                  onClick={() => setPendingAttachment(null)}
-                >
-                  ✕ Remove
-                </button>
-              </div>
-            )}
-
-            {/* Message Composer */}
-            <form className="chat-composer" onSubmit={handleSendMessage}>
-              <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-                onChange={handleFileSelect}
-              />
-
-              <button
-                type="button"
-                className="chat-composer-btn-attach"
-                onClick={() => fileInputRef.current?.click()}
-                title="Attach photo or document (Max 15MB)"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
-              </button>
-
-              <textarea
-                className="chat-composer-textarea"
-                rows="1"
-                placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
-                value={messageText}
-                onChange={handleTextChange}
-                onKeyDown={handleKeyDown}
-              />
-
-              <button
-                type="submit"
-                className="chat-composer-btn-send"
-                disabled={sending || (!messageText.trim() && !pendingAttachment)}
-              >
-                <span>Send</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
-              </button>
-            </form>
+            {/* Fixed Message Composer */}
+            <ChatMessageComposer
+              messageText={messageText}
+              onTextChange={handleTextChange}
+              onSendMessage={handleSendMessage}
+              pendingAttachment={pendingAttachment}
+              onRemoveAttachment={() => setPendingAttachment(null)}
+              onSelectFile={handleSelectFile}
+              sending={sending}
+              typingUsers={activeTypingList}
+            />
           </>
         ) : (
           <div className="chat-empty-state">
             <div className="chat-empty-icon">✉️</div>
             <h3 style={{ color: '#fff', margin: '0 0 0.5rem 0' }}>BFA Staff Communications</h3>
             <p style={{ margin: 0, fontSize: '0.875rem', maxWidth: 420 }}>
-              Select a conversation from the left sidebar, or initiate a new direct message or group chat to begin collaborating in real-time.
+              Select a conversation or directive from the left sidebar, or initiate a new direct message or group chat to begin collaborating in real-time.
             </p>
           </div>
         )}
@@ -1228,7 +905,6 @@ export default function StaffChatPage() {
             </div>
 
             <div className="chat-modal-body">
-              {/* Add Member Dropdown */}
               <div style={{ marginBottom: '1.25rem', padding: '0.85rem', background: 'rgba(30, 41, 59, 0.5)', borderRadius: '8px' }}>
                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#fff', marginBottom: '0.4rem' }}>
                   Add Member to Group
@@ -1260,7 +936,6 @@ export default function StaffChatPage() {
                 </div>
               </div>
 
-              {/* Members List */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {loadingParticipants && (
                   <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8' }}>
@@ -1343,7 +1018,7 @@ export default function StaffChatPage() {
               <strong style={{ color: '#fff', fontSize: '0.9rem' }}>{lightboxImage.originalName}</strong>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <a
-                  href={lightboxImage.downloadUrl}
+                  href={lightboxImage.downloadUrl || lightboxImage.url}
                   download={lightboxImage.originalName}
                   className="chat-btn-download"
                   target="_blank"
@@ -1361,7 +1036,7 @@ export default function StaffChatPage() {
               </div>
             </div>
             <img
-              src={lightboxImage.url}
+              src={lightboxImage.url || lightboxImage.previewUrl}
               alt={lightboxImage.originalName}
               style={{ maxWidth: '100%', maxHeight: '78vh', objectFit: 'contain', borderRadius: '8px' }}
             />
@@ -1379,6 +1054,7 @@ export default function StaffChatPage() {
           loadThreads();
           if (newOp?.chat_thread_id) {
             setActiveThreadId(newOp.chat_thread_id);
+            setMobileView('CHAT');
           }
         }}
       />

@@ -5,7 +5,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
-import { employeeService } from '../../services/api';
+import { employeeService, api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
@@ -46,6 +46,15 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
     qualifications: '',
     skills: '',
     bio_notes: '',
+  });
+
+  // Activity Logging Modal
+  const [isLogActivityOpen, setIsLogActivityOpen] = useState(false);
+  const [activityForm, setActivityForm] = useState({
+    activity_type: 'TASK',
+    activity_category: 'GENERAL',
+    description: '',
+    status: 'COMPLETED',
   });
 
   // Load employee profile
@@ -104,19 +113,56 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
       // Load sub-resources concurrently if valid employee id
       const empId = typeof emp.id === 'number' || (typeof emp.id === 'string' && !emp.id.startsWith('user-')) ? emp.id : null;
       if (empId) {
+        const fetchPerformance = async () => {
+          if (typeof employeeService?.getPerformance === 'function') {
+            return await employeeService.getPerformance(empId);
+          }
+          if (effectiveIsSelf && typeof employeeService?.getMyPerformance === 'function') {
+            return await employeeService.getMyPerformance();
+          }
+          return await api.get(`/employees/${empId}/performance`);
+        };
+
+        const fetchActivities = async () => {
+          if (typeof employeeService?.getActivities === 'function') {
+            return await employeeService.getActivities(empId, { limit: 50 });
+          }
+          if (effectiveIsSelf && typeof employeeService?.getMyActivities === 'function') {
+            return await employeeService.getMyActivities({ limit: 50 });
+          }
+          return await api.get(`/employees/${empId}/activities`, { params: { limit: 50 } });
+        };
+
+        const fetchIdCards = async () => {
+          if (typeof employeeService?.getIdCards === 'function') {
+            return await employeeService.getIdCards({ employeeId: empId, status: 'ACTIVE' });
+          }
+          return await api.get('/employees/id-cards', { params: { employeeId: empId, status: 'ACTIVE' } });
+        };
+
         const [perfRes, actRes, cardRes] = await Promise.all([
-          employeeService.getPerformance(empId).catch(() => null),
-          employeeService.getActivities(empId, { limit: 50 }).catch(() => null),
-          employeeService.getIdCards({ employeeId: empId, status: 'ACTIVE' }).catch(() => null),
+          fetchPerformance().catch((err) => {
+            console.warn('[EmployeeProfilePage] Performance data unavailable:', err?.message || err);
+            return null;
+          }),
+          fetchActivities().catch((err) => {
+            console.warn('[EmployeeProfilePage] Activity history unavailable:', err?.message || err);
+            return null;
+          }),
+          fetchIdCards().catch((err) => {
+            console.warn('[EmployeeProfilePage] ID cards unavailable:', err?.message || err);
+            return null;
+          }),
         ]);
 
         if (perfRes?.data?.data || perfRes?.data) {
           setPerformance(perfRes.data?.data || perfRes.data);
         }
-        if (actRes?.data?.data || actRes?.data) {
-          setActivities(actRes.data?.data || actRes.data || []);
+        if (actRes) {
+          const rawActivities = actRes?.data?.activities || actRes?.activities || actRes?.data?.data || actRes?.data || actRes;
+          setActivities(Array.isArray(rawActivities) ? rawActivities : []);
         }
-        const cardsList = cardRes?.data?.data || cardRes?.data || [];
+        const cardsList = cardRes?.data?.data || cardRes?.data || (Array.isArray(cardRes) ? cardRes : []);
         if (cardsList.length > 0) {
           setActiveCard(cardsList[0]);
         } else {
@@ -218,6 +264,64 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
       addToast('Official ID card PDF downloaded successfully.', 'success');
     } catch (err) {
       addToast(`Failed to download ID card: ${err.message}`, 'error');
+    }
+  };
+
+  // Submit Activity Log
+  const handleLogActivitySubmit = async (e) => {
+    e.preventDefault();
+    if (!employee || !activityForm.description.trim()) return;
+    setActionLoading(true);
+    try {
+      const empId = typeof employee.id === 'number' || (typeof employee.id === 'string' && !employee.id.startsWith('user-')) ? employee.id : null;
+      const payload = {
+        activity_type: activityForm.activity_type,
+        activity_category: activityForm.activity_category,
+        description: activityForm.description.trim(),
+        status: activityForm.status,
+        property_id: employee.property_id || 1,
+      };
+
+      if (empId) {
+        if (typeof employeeService?.logActivity === 'function') {
+          await employeeService.logActivity(empId, payload);
+        } else {
+          await api.post(`/employees/${empId}/activities`, payload);
+        }
+      } else {
+        await api.post('/employees/activities', payload);
+      }
+
+      addToast('Activity logged successfully.', 'success');
+      setIsLogActivityOpen(false);
+      setActivityForm({
+        activity_type: 'TASK',
+        activity_category: 'GENERAL',
+        description: '',
+        status: 'COMPLETED',
+      });
+
+      // Refetch activities safely
+      if (empId) {
+        const fetchAct = async () => {
+          if (typeof employeeService?.getActivities === 'function') {
+            return await employeeService.getActivities(empId, { limit: 50 });
+          }
+          if (effectiveIsSelf && typeof employeeService?.getMyActivities === 'function') {
+            return await employeeService.getMyActivities({ limit: 50 });
+          }
+          return await api.get(`/employees/${empId}/activities`, { params: { limit: 50 } });
+        };
+        const refreshed = await fetchAct().catch(() => null);
+        if (refreshed) {
+          const rawList = refreshed?.data?.activities || refreshed?.activities || refreshed?.data?.data || refreshed?.data || refreshed;
+          setActivities(Array.isArray(rawList) ? rawList : []);
+        }
+      }
+    } catch (err) {
+      addToast(`Failed to log activity: ${err.message}`, 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -575,7 +679,18 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
 
       {/* TAB 4: ACTIVITY LOG */}
       {activeTab === 'activities' && (
-        <Card title={`Operational Activity Log (${activities.length})`}>
+        <Card
+          title={`Operational Activity Log (${activities.length})`}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsLogActivityOpen(true)}
+            >
+              ➕ Log Activity
+            </Button>
+          }
+        >
           {activities.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               No operational activities logged for this employee yet.
@@ -950,6 +1065,71 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
               value={personalForm.skills}
               onChange={(e) => setPersonalForm({ ...personalForm, skills: e.target.value })}
               placeholder="Technical competencies, languages, domain skills..."
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* Activity Logging Modal */}
+      <Modal
+        isOpen={isLogActivityOpen}
+        onClose={() => setIsLogActivityOpen(false)}
+        title="Log Operational Activity"
+        size="md"
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+            <Button variant="secondary" onClick={() => setIsLogActivityOpen(false)} disabled={actionLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleLogActivitySubmit}
+              disabled={actionLoading || !activityForm.description.trim()}
+            >
+              {actionLoading ? 'Recording...' : 'Save Activity'}
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleLogActivitySubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="form-group">
+            <label className="form-label">Activity Type *</label>
+            <select
+              className="form-control"
+              value={activityForm.activity_type}
+              onChange={(e) => setActivityForm({ ...activityForm, activity_type: e.target.value })}
+            >
+              <option value="TASK">TASK — Operational Assignment</option>
+              <option value="INSPECTION">INSPECTION — Unit or Space Check</option>
+              <option value="MAINTENANCE">MAINTENANCE — Service & Repair</option>
+              <option value="GUEST_SERVICE">GUEST_SERVICE — Resident Assistance</option>
+              <option value="NOTE">NOTE — Duty Observation / Shift Handover</option>
+              <option value="OTHER">OTHER — General Operational Event</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Category *</label>
+            <select
+              className="form-control"
+              value={activityForm.activity_category}
+              onChange={(e) => setActivityForm({ ...activityForm, activity_category: e.target.value })}
+            >
+              <option value="GENERAL">GENERAL</option>
+              <option value="OPERATIONS">OPERATIONS</option>
+              <option value="MAINTENANCE">MAINTENANCE</option>
+              <option value="CLEANING">CLEANING</option>
+              <option value="SAFETY">SAFETY</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Description *</label>
+            <textarea
+              required
+              rows={3}
+              className="form-textarea"
+              value={activityForm.description}
+              onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
+              placeholder="Detailed description of the operational action taken..."
             />
           </div>
         </form>

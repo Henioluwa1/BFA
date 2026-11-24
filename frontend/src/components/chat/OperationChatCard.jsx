@@ -11,6 +11,7 @@ import {
   Shield,
   Layers,
   Sparkles,
+  Eye,
 } from 'lucide-react';
 import api, { centralOperationsService } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
@@ -181,6 +182,25 @@ export default function OperationChatCard({
       addToast('Operations Memorandum PDF downloaded successfully.', 'success');
     } catch (err) {
       addToast(err.message || 'Failed to download PDF memorandum.', 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Preview PDF Memorandum
+  const handlePreviewPdf = async (e) => {
+    e.stopPropagation();
+    if (!targetOpId) return;
+    setDownloading(true);
+    try {
+      await centralOperationsService.previewMemoPdf({
+        operationId: targetOpId,
+        memoId: opData?.memos?.[0]?.id,
+        filename: `${displayMemoRef || `Operation_${targetOpId}`}.pdf`,
+      });
+      addToast('Opening Official Memorandum preview...', 'info');
+    } catch (err) {
+      addToast(err.message || 'Failed to preview PDF memorandum.', 'error');
     } finally {
       setDownloading(false);
     }
@@ -398,6 +418,30 @@ export default function OperationChatCard({
           </button>
         )}
 
+        {/* Preview Memo PDF */}
+        <button
+          type="button"
+          onClick={handlePreviewPdf}
+          disabled={downloading}
+          style={{
+            fontSize: '0.75rem',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            background: 'rgba(59, 130, 246, 0.12)',
+            border: '1px solid rgba(59, 130, 246, 0.35)',
+            color: '#60a5fa',
+            fontWeight: 600,
+            cursor: downloading ? 'wait' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            marginLeft: 'auto',
+          }}
+          title="Preview Official Operations Memorandum (PDF) in browser"
+        >
+          <Eye size={14} /> Preview Memo
+        </button>
+
         {/* Download Memo PDF */}
         <button
           type="button"
@@ -415,11 +459,10 @@ export default function OperationChatCard({
             display: 'flex',
             alignItems: 'center',
             gap: '5px',
-            marginLeft: 'auto',
           }}
           title="Download Official Operations Memorandum (PDF)"
         >
-          <Download size={14} /> {downloading ? 'Downloading...' : 'Memo PDF'}
+          <Download size={14} /> {downloading ? 'Downloading...' : 'Download PDF'}
         </button>
       </div>
     </div>

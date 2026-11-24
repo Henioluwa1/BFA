@@ -261,8 +261,9 @@ class CentralOperationsController {
       );
 
       const safeFileName = fileName && fileName.endsWith('.pdf') ? fileName : `${fileName || 'operations_memo'}.pdf`;
+      const isInline = req.query.preview === 'true' || req.query.disposition === 'inline';
       res.setHeader('Content-Type', mimeType || 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+      res.setHeader('Content-Disposition', `${isInline ? 'inline' : 'attachment'}; filename="${safeFileName}"`);
       res.setHeader('Content-Length', Buffer.byteLength(buffer));
       return res.end(buffer);
     } catch (err) {

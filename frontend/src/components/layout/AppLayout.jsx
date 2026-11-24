@@ -64,6 +64,29 @@ export default function AppLayout() {
     };
   }, [user]);
 
+  // Lock body scroll on mobile viewports when navigation drawer is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.classList.add('sidebar-drawer-open');
+    } else {
+      document.body.classList.remove('sidebar-drawer-open');
+    }
+    return () => {
+      document.body.classList.remove('sidebar-drawer-open');
+    };
+  }, [mobileOpen]);
+
+  // Unified sidebar toggle across all breakpoints:
+  // On desktop (> 1024px): toggles collapsed / expanded state
+  // On tablet & mobile (<= 1024px): toggles slide-in drawer
+  const handleToggleSidebar = () => {
+    if (window.innerWidth <= 1024) {
+      setMobileOpen((prev) => !prev);
+    } else {
+      setCollapsed((prev) => !prev);
+    }
+  };
+
   return (
     <div className="app-shell">
       {/* Global Booking Alert Modal: Strictly mounted ONLY within the Receptionist Portal */}
@@ -75,7 +98,12 @@ export default function AppLayout() {
         onCloseMobile={() => setMobileOpen(false)}
       />
       <div className={`main-wrapper ${collapsed ? 'expanded' : ''}`}>
-        <Topbar onToggleMobileNav={() => setMobileOpen((prev) => !prev)} />
+        <Topbar
+          onToggleSidebar={handleToggleSidebar}
+          onToggleMobileNav={handleToggleSidebar}
+          isSidebarOpen={mobileOpen}
+          isCollapsed={collapsed}
+        />
         <main className="content-viewport">
           <ErrorBoundary>
             <Suspense fallback={<ContentLoader />}>

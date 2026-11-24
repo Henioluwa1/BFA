@@ -473,7 +473,13 @@ export const employeeService = {
     }
     return api.get(`/employees/${arg1}/activities`, { params: arg2 });
   },
-  logActivity: (id, data) => api.post(`/employees/${id}/activities`, data),
+  logActivity: (arg1, arg2) => {
+    if (typeof arg1 === 'object' && arg1 !== null) {
+      const empId = arg1.employeeId || arg1.employee_id;
+      return api.post(empId ? `/employees/${empId}/activities` : '/employees/activities', arg1);
+    }
+    return api.post(`/employees/${arg1}/activities`, arg2);
+  },
   getMyProfile: () => api.get('/employees/me/profile'),
   updateMyProfile: (data) => api.put('/employees/me/profile', data),
   getMyPerformance: (params) => api.get('/employees/me/performance', { params }),
@@ -698,6 +704,13 @@ export const centralOperationsService = {
 
     const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
     const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+
+    if (memoIdOrOpts?.preview || memoIdOrOpts?.action === 'preview') {
+      window.open(blobUrl, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+      return true;
+    }
+
     const link = document.createElement('a');
     link.href = blobUrl;
     link.setAttribute('download', safeFilename);
@@ -706,6 +719,10 @@ export const centralOperationsService = {
     link.remove();
     setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
     return true;
+  },
+  previewMemoPdf: async (memoIdOrOpts) => {
+    const opts = typeof memoIdOrOpts === 'object' && memoIdOrOpts !== null ? memoIdOrOpts : { memoId: memoIdOrOpts };
+    return centralOperationsService.downloadMemoPdf({ ...opts, preview: true });
   },
 };
 

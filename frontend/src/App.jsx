@@ -191,6 +191,9 @@ function App() {
                   <Route path="/settings" element={<Navigate to="/app/settings" replace />} />
                   <Route path="/operations" element={<Navigate to="/app/staff-chat" replace />} />
                   <Route path="/chat" element={<Navigate to="/app/staff-chat" replace />} />
+                  <Route path="/portal/chat" element={<Navigate to="/app/staff-chat" replace />} />
+                  <Route path="/portal/staff-chat" element={<Navigate to="/app/staff-chat" replace />} />
+                  <Route path="/portal/operations" element={<Navigate to="/app/staff-chat" replace />} />
                   <Route path="/app/operations" element={<Navigate to="/app/staff-chat" replace />} />
                   <Route path="/404" element={<NotFoundPage />} />
                   <Route path="*" element={<Navigate to="/404" replace />} />

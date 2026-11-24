@@ -28,6 +28,8 @@ import '../../styles/staffChat.css';
 import InChatOperationModal from './InChatOperationModal';
 import InChatOperationDetailsModal from './InChatOperationDetailsModal';
 import OperationChatCard from './OperationChatCard';
+import ChatMessageItem from './ChatMessageItem';
+import { parseConversationTitle } from './chatMessageParser';
 
 const ALLOWED_CHAT_ROLES = [
   'SUPER_ADMIN',
@@ -43,6 +45,20 @@ function unpack(res, fallback = null) {
   if (!res) return fallback;
   if (res.data !== undefined) return res.data;
   return res;
+}
+
+function formatThreadTime(isoString) {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  } catch {
+    return '';
+  }
 }
 
 export default function FloatingStaffChatModal() {
@@ -65,7 +81,19 @@ export default function FloatingStaffChatModal() {
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
-  const [threadFilter, setThreadFilter] = useState('ALL'); // 'ALL' | 'DIRECT' | 'GROUP'
+  const [threadFilter, setThreadFilter] = useState('ALL'); // 'ALL' | 'OPERATIONS' | 'DIRECT' | 'GROUP'
+
+  // Mobile View Navigation: 'LIST' or 'CHAT'
+  const [mobileView, setMobileView] = useState('LIST');
+  const [isMobileScreen, setIsMobileScreen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileScreen(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Modals for Actions inside Chat
   const [contacts, setContacts] = useState([]);
@@ -192,6 +220,11 @@ export default function FloatingStaffChatModal() {
       setIsOpen(true);
       if (e.detail?.threadId) {
         setActiveThreadId(e.detail.threadId);
+        setMobileView('CHAT');
+      } else {
+        if (window.innerWidth <= 768) {
+          setMobileView('LIST');
+        }
       }
     };
     window.addEventListener('bfa:open-chat', handleOpenEvent);
@@ -573,13 +606,27 @@ export default function FloatingStaffChatModal() {
   // ───────────────────────────────────────────────────────────────────────────
   const filteredThreads = useMemo(() => {
     return threads.filter((t) => {
-      if (threadFilter === 'DIRECT' && t.thread_type !== 'DIRECT') return false;
-      if (threadFilter === 'GROUP' && t.thread_type === 'DIRECT') return false;
+      const parsed = parseConversationTitle(t);
+      const tType = t.thread_type || t.threadType;
+      if (threadFilter === 'DIRECT' && tType !== 'DIRECT') return false;
+      if (threadFilter === 'GROUP' && (tType === 'DIRECT' || parsed.isOperation)) return false;
+      if (threadFilter === 'OPERATIONS' && !parsed.isOperation) return false;
+
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
-      const title = (t.title || t.otherUserName || '').toLowerCase();
+      const rawTitle = (t.title || t.otherUserName || '').toLowerCase();
+      const cleanTitle = (parsed.cleanTitle || '').toLowerCase();
+      const opCode = (parsed.operationCode || '').toLowerCase();
       const role = (t.otherUserRole || '').toLowerCase();
-      return title.includes(q) || role.includes(q);
+      const lastMsg = (t.last_message_preview || t.lastMessage?.content || '').toLowerCase();
+
+      return (
+        rawTitle.includes(q) ||
+        cleanTitle.includes(q) ||
+        opCode.includes(q) ||
+        role.includes(q) ||
+        lastMsg.includes(q)
+      );
     });
   }, [threads, threadFilter, searchQuery]);
 
@@ -595,6 +642,17 @@ export default function FloatingStaffChatModal() {
       .map(([, name]) => name);
   }, [typingUsersByThread, activeThreadId, user]);
 
+  const handleSelectThread = (threadId) => {
+    setActiveThreadId(threadId);
+    if (isMobileScreen) {
+      setMobileView('CHAT');
+    }
+  };
+
+  const handleBackToList = () => {
+    setMobileView('LIST');
+  };
+
   if (!isEligible) {
     return null;
   }
@@ -602,41 +660,23 @@ export default function FloatingStaffChatModal() {
   return (
     <>
       {/* ───────────────────────────────────────────────────────────────────── */}
-      {/* 1. FLOATING CHAT TRIGGER BUTTON (Bottom-Right, Elegant Glass & Brass) */}
+      {/* 1. FLOATING CHAT TRIGGER BUTTON (Bottom-Right, Elegant Glass & Gold) */}
       {/* ───────────────────────────────────────────────────────────────────── */}
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => {
+          setIsOpen((prev) => {
+            const next = !prev;
+            if (next && isMobileScreen && !activeThreadId) {
+              setMobileView('LIST');
+            }
+            return next;
+          });
+        }}
         aria-label="Staff Team Chat"
         title="Open BFA Staff Team Chat"
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          zIndex: 999,
-          width: '56px',
-          height: '56px',
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, rgba(12, 12, 16, 0.95) 0%, rgba(22, 22, 28, 0.95) 100%)',
-          border: '1.5px solid #d4af37',
-          color: '#ffffff',
-          boxShadow: '0 10px 25px -4px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.4)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-          animation: 'chatButtonEntrance 0.5s ease-out',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-3px) scale(1.05)';
-          e.currentTarget.style.boxShadow = '0 16px 32px -4px rgba(0, 0, 0, 0.8), 0 0 22px rgba(212, 175, 55, 0.6)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0) scale(1)';
-          e.currentTarget.style.boxShadow = '0 10px 25px -4px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.4)';
-        }}
+        className="floating-chat-trigger-btn"
       >
         <MessageSquare size={24} style={{ color: '#d4af37' }} />
         {unreadTotal > 0 && (
@@ -672,148 +712,240 @@ export default function FloatingStaffChatModal() {
         <aside
           ref={panelRef}
           aria-label="Staff Team Chat Window"
-          style={{
-            position: 'fixed',
-            bottom: '88px',
-            right: '24px',
-            zIndex: 1000,
-            width: '760px',
-            maxWidth: 'calc(100vw - 32px)',
-            height: '580px',
-            maxHeight: 'calc(100vh - 110px)',
-            background: 'rgba(10, 10, 14, 0.94)',
-            backdropFilter: 'blur(32px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-            borderRadius: '16px',
-            border: '1.5px solid rgba(255, 255, 255, 0.18)',
-            boxShadow: '0 25px 60px -10px rgba(0, 0, 0, 0.9), 0 0 30px rgba(212, 175, 55, 0.15)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            animation: 'chatModalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-          }}
+          className="floating-chat-window"
         >
-          {/* Top Window Header */}
-          <div
-            style={{
-              padding: '12px 18px',
-              background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 24, 0.95))',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              color: '#ffffff',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <MessageSquare size={18} style={{ color: '#d4af37' }} />
-              <span style={{ fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.01em' }}>
-                Staff Collaboration & Operations
-              </span>
-              <span
-                style={{
-                  fontSize: '0.7rem',
-                  background: 'rgba(16, 185, 129, 0.2)',
-                  color: '#34d399',
-                  border: '1px solid rgba(16, 185, 129, 0.35)',
-                  padding: '2px 7px',
-                  borderRadius: '10px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Circle size={6} fill="#34d399" /> LIVE
-              </span>
-            </div>
+          {/* Top Window Header (Switches dynamically on Mobile between List & Chat) */}
+          <div className="floating-chat-header">
+            {isMobileScreen && mobileView === 'CHAT' ? (
+              /* Mobile View B: Individual Conversation Header */
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                  <button
+                    type="button"
+                    onClick={handleBackToList}
+                    className="floating-chat-mobile-back"
+                    aria-label="Back to conversation list"
+                    title="Back to conversations"
+                  >
+                    <ChevronLeft size={18} />
+                    <span>Chats</span>
+                  </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {canInitiateOperation && (
-                <button
-                  type="button"
-                  onClick={() => setOperationModalOpen(true)}
-                  style={{
-                    background: 'rgba(59, 130, 246, 0.22)',
-                    border: '1px solid #3b82f6',
-                    color: '#60a5fa',
-                    borderRadius: '6px',
-                    padding: '4px 10px',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    cursor: 'pointer',
-                  }}
-                  title="Initiate Formal Central Operation Directive"
-                >
-                  ⚡ Initiate Operation
-                </button>
-              )}
-              {user?.role === 'OWNER' && (
-                <button
-                  type="button"
-                  onClick={() => setCircularModalOpen(true)}
-                  style={{
-                    background: 'rgba(212, 175, 55, 0.2)',
-                    border: '1px solid #d4af37',
-                    color: '#fbbf24',
-                    borderRadius: '6px',
-                    padding: '4px 8px',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    cursor: 'pointer',
-                  }}
-                  title="Broadcast Executive Circular to all Staff"
-                >
-                  📢 Broadcast Circular
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: 'none',
-                  color: '#cbd5e1',
-                  borderRadius: '6px',
-                  width: '30px',
-                  height: '30px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-                title="Minimize chat"
-              >
-                <Minimize2 size={15} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.15)',
-                  border: 'none',
-                  color: '#f87171',
-                  borderRadius: '6px',
-                  width: '30px',
-                  height: '30px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-                title="Close chat window (Click outside also closes)"
-              >
-                <X size={16} />
-              </button>
-            </div>
+                  {activeThread && (() => {
+                    const parsedHeader = parseConversationTitle(activeThread);
+                    const tType = activeThread.thread_type || activeThread.threadType;
+                    const isDirect = tType === 'DIRECT';
+                    const isGroup = tType === 'GROUP';
+                    const isProperty = tType === 'PROPERTY_CHANNEL';
+                    const isOnline = activeThread.otherUserId && onlineUserIds.has(activeThread.otherUserId);
+
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                        <div style={{ position: 'relative', flexShrink: 0 }}>
+                          <div
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              background: parsedHeader.isOperation
+                                ? 'linear-gradient(135deg, #d97706, #b45309)'
+                                : isProperty
+                                ? '#0284c7'
+                                : isGroup
+                                ? '#4f46e5'
+                                : '#d4af37',
+                              color: parsedHeader.isOperation || isProperty || isGroup ? '#ffffff' : '#000000',
+                              fontWeight: 800,
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: parsedHeader.isOperation ? '1.5px solid #fbbf24' : 'none',
+                            }}
+                          >
+                            {parsedHeader.isOperation
+                              ? '⚡'
+                              : isProperty
+                              ? '🏢'
+                              : isGroup
+                              ? '👥'
+                              : parsedHeader.cleanTitle.slice(0, 2).toUpperCase()}
+                          </div>
+                          {isDirect && (
+                            <span
+                              style={{
+                                position: 'absolute',
+                                bottom: '-1px',
+                                right: '-1px',
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                background: isOnline ? '#10b981' : '#64748b',
+                                border: '1.5px solid #0a0a0e',
+                              }}
+                            />
+                          )}
+                        </div>
+
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              fontSize: '0.85rem',
+                              color: '#ffffff',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {parsedHeader.cleanTitle}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '0.68rem',
+                              color: '#cbd5e1',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {parsedHeader.isOperation && parsedHeader.operationCode ? (
+                              <>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#fbbf24' }}>
+                                  {parsedHeader.operationCode}
+                                </span>
+                                <span>· Directive</span>
+                              </>
+                            ) : isProperty ? (
+                              <span>Property Channel</span>
+                            ) : isGroup ? (
+                              <span>Team Group</span>
+                            ) : (
+                              <span>
+                                {activeThread.otherUserRole || 'Direct'}
+                                {isOnline ? ' · Online' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  {activeThread?.thread_type === 'GROUP' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setParticipantsModalOpen(true);
+                        try {
+                          const res = await chatService.getThreadParticipants(activeThread.id);
+                          const raw = unpack(res);
+                          setParticipants(Array.isArray(raw) ? raw : []);
+                        } catch {}
+                      }}
+                      className="chat-btn-glass"
+                      style={{ padding: '5px 8px', fontSize: '0.72rem' }}
+                      title="View Team Members"
+                    >
+                      <Users size={13} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="chat-btn-glass"
+                    style={{ padding: '5px 8px', color: '#f87171' }}
+                    title="Close chat window"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Desktop or Mobile View A: App Window Header */
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                  <MessageSquare size={18} style={{ color: '#d4af37', flexShrink: 0 }} />
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      fontSize: isMobileScreen ? '0.88rem' : '0.95rem',
+                      letterSpacing: '-0.01em',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {isMobileScreen ? 'Staff Operations' : 'Staff Collaboration & Operations'}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      background: 'rgba(16, 185, 129, 0.2)',
+                      color: '#34d399',
+                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                      padding: '2px 7px',
+                      borderRadius: '10px',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Circle size={6} fill="#34d399" /> LIVE
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  {canInitiateOperation && (
+                    <button
+                      type="button"
+                      onClick={() => setOperationModalOpen(true)}
+                      className="chat-btn-glass-gold"
+                      title="Initiate Formal Central Operation Directive"
+                    >
+                      ⚡ {isMobileScreen ? 'Operation' : 'Initiate Operation'}
+                    </button>
+                  )}
+                  {!isMobileScreen && user?.role === 'OWNER' && (
+                    <button
+                      type="button"
+                      onClick={() => setCircularModalOpen(true)}
+                      className="chat-btn-glass"
+                      title="Broadcast Executive Circular to all Staff"
+                    >
+                      📢 Circular
+                    </button>
+                  )}
+                  {!isMobileScreen && (
+                    <button
+                      type="button"
+                      onClick={() => setIsOpen(false)}
+                      className="chat-btn-glass"
+                      style={{ padding: '6px 8px' }}
+                      title="Minimize chat"
+                    >
+                      <Minimize2 size={15} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="chat-btn-glass"
+                    style={{ padding: '6px 8px', color: '#f87171' }}
+                    title="Close chat window"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Unacknowledged Important Notices Alert Banner */}
@@ -828,6 +960,7 @@ export default function FloatingStaffChatModal() {
                 justifyContent: 'space-between',
                 fontSize: '0.78rem',
                 color: '#fbbf24',
+                flexShrink: 0,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -855,25 +988,21 @@ export default function FloatingStaffChatModal() {
             </div>
           )}
 
-          {/* Body: Split View (Conversations List + Active Chat) */}
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            {/* ──── Column 1: Conversations List (Width ~270px) ──── */}
+          {/* Body: Responsive Layout (Split on Desktop, Single-Panel on Mobile) */}
+          <div className="floating-chat-body">
+            {/* ──── Column 1: Conversations List ──── */}
             <div
-              style={{
-                width: '270px',
-                borderRight: '1px solid rgba(255, 255, 255, 0.1)',
-                display: 'flex',
-                flexDirection: 'column',
-                background: 'rgba(12, 12, 16, 0.90)',
-              }}
+              className={`floating-chat-sidebar ${
+                isMobileScreen && mobileView === 'CHAT' ? 'mobile-hidden' : ''
+              }`}
             >
-              {/* Header Actions */}
-              <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              {/* Action Buttons: DM and Group */}
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
                   <button
                     type="button"
                     onClick={handleOpenDirectModal}
-                    className="chat-btn-action"
+                    className="chat-btn-glass"
                     style={{ flex: 1, justifyContent: 'center' }}
                   >
                     <Plus size={13} /> DM
@@ -881,27 +1010,36 @@ export default function FloatingStaffChatModal() {
                   <button
                     type="button"
                     onClick={handleOpenGroupModal}
-                    className="chat-btn-action"
+                    className="chat-btn-glass"
                     style={{ flex: 1, justifyContent: 'center' }}
                   >
                     <Users size={13} /> Group
                   </button>
                 </div>
 
-                {/* Search */}
+                {/* Search Bar */}
                 <div style={{ position: 'relative' }}>
-                  <Search size={13} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <Search
+                    size={13}
+                    style={{
+                      position: 'absolute',
+                      left: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#94a3b8',
+                    }}
+                  />
                   <input
                     type="text"
-                    placeholder="Search team or chat..."
+                    placeholder="Search team, directives, or chats..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '5px 8px 5px 26px',
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '6px',
+                      padding: '6px 8px 6px 28px',
+                      background: 'rgba(0, 0, 0, 0.35)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '8px',
                       color: '#ffffff',
                       fontSize: '0.78rem',
                       outline: 'none',
@@ -911,142 +1049,195 @@ export default function FloatingStaffChatModal() {
                 </div>
 
                 {/* Filter Tabs */}
-                <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
-                  {['ALL', 'DIRECT', 'GROUP'].map((f) => (
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '4px',
+                    marginTop: '8px',
+                    background: 'rgba(0, 0, 0, 0.35)',
+                    padding: '3px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                  }}
+                >
+                  {[
+                    { key: 'ALL', label: 'All' },
+                    { key: 'OPERATIONS', label: '⚡ Directives' },
+                    { key: 'DIRECT', label: 'Direct' },
+                    { key: 'GROUP', label: 'Groups' },
+                  ].map(({ key, label }) => (
                     <button
-                      key={f}
+                      key={key}
                       type="button"
-                      onClick={() => setThreadFilter(f)}
+                      onClick={() => setThreadFilter(key)}
                       style={{
                         flex: 1,
-                        padding: '3px 0',
+                        padding: '4px 0',
                         fontSize: '0.68rem',
                         fontWeight: 700,
-                        border: 'none',
-                        borderRadius: '4px',
-                        background: threadFilter === f ? 'rgba(212, 175, 55, 0.25)' : 'transparent',
-                        color: threadFilter === f ? '#fbbf24' : '#94a3b8',
+                        borderRadius: '6px',
+                        background:
+                          threadFilter === key
+                            ? 'linear-gradient(135deg, rgba(212, 175, 55, 0.28) 0%, rgba(212, 175, 55, 0.12) 100%)'
+                            : 'transparent',
+                        color: threadFilter === key ? '#fbbf24' : '#94a3b8',
                         cursor: 'pointer',
                         transition: 'all 0.15s',
+                        border: threadFilter === key ? '1px solid rgba(212, 175, 55, 0.4)' : '1px solid transparent',
                       }}
                     >
-                      {f}
+                      {label}
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Threads List */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
                 {loadingThreads && (
-                  <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem' }}>
-                    Loading threads...
+                  <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>
+                    Loading conversations...
                   </div>
                 )}
                 {!loadingThreads && filteredThreads.length === 0 && (
-                  <div style={{ padding: '20px 12px', textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem' }}>
-                    No conversations found.
+                  <div style={{ padding: '28px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>
+                    No conversations found. Click <strong>+ DM</strong> or <strong>+ Group</strong> to begin!
                   </div>
                 )}
                 {filteredThreads.map((t) => {
                   const isActive = t.id === activeThreadId;
-                  const title = t.title || t.otherUserName || 'Staff Channel';
-                  const roleTag = t.otherUserRole || (t.thread_type === 'DIRECT' ? 'DIRECT' : 'GROUP');
+                  const parsed = parseConversationTitle(t);
+                  const tType = t.thread_type || t.threadType;
+                  const isDirect = tType === 'DIRECT';
+                  const isGroup = tType === 'GROUP';
+                  const isProperty = tType === 'PROPERTY_CHANNEL';
                   const isOnline = t.otherUserId && onlineUserIds.has(t.otherUserId);
-                  const unread = Number(t.unread_count || 0);
+                  const unread = Number(t.unread_count || t.unreadCount || 0);
 
                   return (
                     <div
                       key={t.id}
-                      onClick={() => setActiveThreadId(t.id)}
-                      style={{
-                        padding: '8px 10px',
-                        borderRadius: '8px',
-                        background: isActive ? 'rgba(212, 175, 55, 0.16)' : 'transparent',
-                        border: isActive ? '1px solid rgba(212, 175, 55, 0.4)' : '1px solid transparent',
-                        marginBottom: '4px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        transition: 'background 0.15s',
-                      }}
+                      onClick={() => handleSelectThread(t.id)}
+                      className={`floating-thread-card ${isActive ? 'active' : ''}`}
                     >
-                      <div style={{ position: 'relative' }}>
+                      {/* Avatar */}
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
                         <div
                           style={{
-                            width: '32px',
-                            height: '32px',
+                            width: '38px',
+                            height: '38px',
                             borderRadius: '50%',
-                            background: t.thread_type === 'GROUP' ? '#4f46e5' : '#d4af37',
-                            color: '#000000',
+                            background: parsed.isOperation
+                              ? 'linear-gradient(135deg, #d97706, #b45309)'
+                              : isProperty
+                              ? 'linear-gradient(135deg, #0284c7, #0369a1)'
+                              : isGroup
+                              ? 'linear-gradient(135deg, #4f46e5, #4338ca)'
+                              : 'linear-gradient(135deg, #d4af37, #b8972e)',
+                            color: parsed.isOperation || isProperty || isGroup ? '#ffffff' : '#000000',
                             fontWeight: 800,
-                            fontSize: '0.78rem',
+                            fontSize: '0.82rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
+                            border: parsed.isOperation
+                              ? '1.5px solid #fbbf24'
+                              : '1px solid rgba(255, 255, 255, 0.15)',
+                            boxShadow: parsed.isOperation ? '0 0 10px rgba(245, 158, 11, 0.4)' : 'none',
                           }}
                         >
-                          {title.slice(0, 2).toUpperCase()}
+                          {parsed.isOperation ? (
+                            '⚡'
+                          ) : isProperty ? (
+                            '🏢'
+                          ) : isGroup ? (
+                            '👥'
+                          ) : (
+                            (t.title || t.otherUserName || 'SC').slice(0, 2).toUpperCase()
+                          )}
                         </div>
-                        {t.thread_type === 'DIRECT' && (
+                        {isDirect && (
                           <span
                             style={{
                               position: 'absolute',
-                              bottom: '-1px',
-                              right: '-1px',
-                              width: '9px',
-                              height: '9px',
+                              bottom: '0px',
+                              right: '0px',
+                              width: '10px',
+                              height: '10px',
                               borderRadius: '50%',
                               background: isOnline ? '#10b981' : '#64748b',
-                              border: '1.5px solid #0a0a0e',
+                              border: '2px solid #0a0a0e',
                             }}
                           />
                         )}
                       </div>
 
+                      {/* Structured Content */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span
-                            style={{
-                              fontSize: '0.8rem',
-                              fontWeight: 700,
-                              color: '#ffffff',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {title}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                          <span className="floating-thread-title">
+                            {parsed.cleanTitle}
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b', flexShrink: 0, marginTop: '1px' }}>
+                            {formatThreadTime(t.last_message_at || t.lastMessage?.createdAt || t.created_at)}
+                          </span>
+                        </div>
+
+                        {parsed.isOperation && parsed.operationCode ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', margin: '2px 0' }}>
+                            <span
+                              style={{
+                                fontFamily: 'monospace',
+                                fontWeight: 700,
+                                fontSize: '0.65rem',
+                                color: '#fbbf24',
+                                background: 'rgba(245, 158, 11, 0.18)',
+                                border: '1px solid rgba(245, 158, 11, 0.35)',
+                                padding: '0 4px',
+                                borderRadius: '3px',
+                              }}
+                            >
+                              {parsed.operationCode}
+                            </span>
+                            <span style={{ fontSize: '0.68rem', color: '#60a5fa', fontWeight: 600 }}>
+                              Directive
+                            </span>
+                          </div>
+                        ) : isProperty ? (
+                          <div style={{ fontSize: '0.68rem', color: '#38bdf8', margin: '2px 0', fontWeight: 500 }}>
+                            🏢 Property Team
+                          </div>
+                        ) : isGroup ? (
+                          <div style={{ fontSize: '0.68rem', color: '#a78bfa', margin: '2px 0', fontWeight: 500 }}>
+                            {t.title === 'General Group' ? '👥 All active staff' : '👥 Team Channel'}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '2px 0' }}>
+                            {t.otherUserRole || 'Staff Member'}
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                          <span className="floating-thread-preview">
+                            {t.last_message_preview || t.lastMessage?.content || 'No messages yet'}
                           </span>
                           {unread > 0 && (
                             <span
                               style={{
-                                background: '#ef4444',
-                                color: '#fff',
+                                background: '#f59e0b',
+                                color: '#000000',
                                 borderRadius: '10px',
-                                fontSize: '0.65rem',
+                                fontSize: '0.68rem',
                                 fontWeight: 800,
-                                padding: '1px 5px',
-                                minWidth: '14px',
+                                padding: '1px 6px',
+                                minWidth: '18px',
                                 textAlign: 'center',
+                                flexShrink: 0,
                               }}
                             >
-                              {unread}
+                              {unread > 99 ? '99+' : unread}
                             </span>
                           )}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: '0.7rem',
-                            color: '#94a3b8',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            marginTop: '2px',
-                          }}
-                        >
-                          {t.last_message_preview || roleTag}
                         </div>
                       </div>
                     </div>
@@ -1055,66 +1246,81 @@ export default function FloatingStaffChatModal() {
               </div>
             </div>
 
-            {/* ──── Column 2: Active Chat Pane (Flex 1) ──── */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'rgba(10, 10, 14, 0.75)' }}>
+            {/* ──── Column 2: Active Chat Pane ──── */}
+            <div
+              className={`floating-chat-main ${
+                isMobileScreen && mobileView === 'LIST' ? 'mobile-hidden' : ''
+              }`}
+            >
               {activeThread ? (
                 <>
-                  {/* Active Header */}
-                  <div
-                    style={{
-                      padding: '10px 16px',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'rgba(15, 15, 20, 0.85)',
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#ffffff' }}>
-                        {activeThread.title || activeThread.otherUserName || 'Conversation'}
+                  {/* Desktop Active Header (hidden on mobile since top header handles it) */}
+                  {!isMobileScreen && (
+                    <div
+                      style={{
+                        padding: '10px 16px',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'rgba(15, 18, 26, 0.85)',
+                        backdropFilter: 'blur(16px)',
+                      }}
+                    >
+                      <div>
+                        {(() => {
+                          const parsedHeader = parseConversationTitle(activeThread);
+                          return (
+                            <>
+                              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#ffffff' }}>
+                                {parsedHeader.cleanTitle}
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                {parsedHeader.isOperation && parsedHeader.operationCode ? (
+                                  <>
+                                    <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#fbbf24', background: 'rgba(245, 158, 11, 0.16)', padding: '1px 5px', borderRadius: '3px' }}>
+                                      {parsedHeader.operationCode}
+                                    </span>
+                                    <span>· Operational Directive</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>{activeThread.thread_type}</span>
+                                    {activeThread.otherUserRole && <span>· {activeThread.otherUserRole}</span>}
+                                  </>
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
-                      <div style={{ fontSize: '0.7rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <span>{activeThread.thread_type}</span>
-                        {activeThread.otherUserRole && <span>· {activeThread.otherUserRole}</span>}
-                      </div>
+
+                      {activeThread.thread_type === 'GROUP' && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setParticipantsModalOpen(true);
+                            try {
+                              const res = await chatService.getThreadParticipants(activeThread.id);
+                              const raw = unpack(res);
+                              setParticipants(Array.isArray(raw) ? raw : []);
+                            } catch {}
+                          }}
+                          className="chat-btn-glass"
+                          style={{ padding: '5px 10px', fontSize: '0.74rem' }}
+                        >
+                          <Users size={13} /> Members
+                        </button>
+                      )}
                     </div>
+                  )}
 
-                    {activeThread.thread_type === 'GROUP' && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setParticipantsModalOpen(true);
-                          try {
-                            const res = await chatService.getThreadParticipants(activeThread.id);
-                            const raw = unpack(res);
-                            setParticipants(Array.isArray(raw) ? raw : []);
-                          } catch {}
-                        }}
-                        style={{
-                          background: 'rgba(255, 255, 255, 0.08)',
-                          border: 'none',
-                          color: '#cbd5e1',
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          fontSize: '0.72rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        <Users size={12} /> Members
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Message Stream */}
+                  {/* Message History Stream */}
                   <div
                     style={{
                       flex: 1,
                       overflowY: 'auto',
-                      padding: '14px',
+                      padding: isMobileScreen ? '12px 10px' : '14px 16px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '10px',
@@ -1130,233 +1336,29 @@ export default function FloatingStaffChatModal() {
                         No messages in this conversation yet. Say hello!
                       </div>
                     )}
-                    {messages.map((m) => {
-                      const isMe = Number(m.sender_id || m.senderId) === Number(user?.id);
-                      const hasAtt = Boolean(m.attachment);
-                      const timeStr = m.created_at
-                        ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        : '';
-
+                    {messages.map((m, idx) => {
+                      const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                      const prevSenderId = prevMsg ? (prevMsg.sender_id || prevMsg.senderId) : null;
+                      const currSenderId = m.sender_id || m.senderId;
+                      const isSameSender = Boolean(
+                        prevSenderId &&
+                        Number(prevSenderId) === Number(currSenderId) &&
+                        prevMsg?.created_at &&
+                        m?.created_at &&
+                        Math.abs(new Date(m.created_at) - new Date(prevMsg.created_at)) < 180000
+                      );
                       return (
-                        <div
-                          key={m.id || m.clientTempId}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: isMe ? 'flex-end' : 'flex-start',
-                            maxWidth: '85%',
-                            alignSelf: isMe ? 'flex-end' : 'flex-start',
+                        <ChatMessageItem
+                          key={m.id || m.clientTempId || idx}
+                          message={m}
+                          currentUser={user}
+                          isPreviousSameSender={isSameSender}
+                          onViewOperation={(opId) => setViewingOperationId(opId || m.context_entity_id)}
+                          onOperationUpdated={() => {
+                            if (activeThread?.id) loadMessages(activeThread.id);
                           }}
-                        >
-                          {!isMe && (
-                            <span style={{ fontSize: '0.68rem', color: '#94a3b8', marginBottom: '2px', paddingLeft: '4px' }}>
-                              {m.senderName || 'Staff'} ({m.senderRole || 'Team'})
-                            </span>
-                          )}
-
-                          <div
-                            style={{
-                              background: isMe
-                                ? 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)'
-                                : 'rgba(255, 255, 255, 0.08)',
-                              color: isMe ? '#000000' : '#ffffff',
-                              border: isMe ? 'none' : '1px solid rgba(255, 255, 255, 0.14)',
-                              borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                              padding: '8px 12px',
-                              fontSize: '0.82rem',
-                              lineHeight: 1.4,
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                              wordBreak: 'break-word',
-                            }}
-                          >
-                            {/* Attachment Rendering */}
-                            {hasAtt && (
-                              <div style={{ marginBottom: m.content ? '8px' : 0 }}>
-                                {m.attachment.file_type?.startsWith('image/') || m.attachment.fileType?.startsWith('image/') ? (
-                                  <div>
-                                    <img
-                                      src={m.attachment.previewUrl || `/api/v1/chat/threads/${activeThread.id}/attachments/${m.attachment.id}`}
-                                      alt={m.attachment.original_name || 'Attachment'}
-                                      style={{
-                                        maxWidth: '220px',
-                                        maxHeight: '160px',
-                                        borderRadius: '8px',
-                                        cursor: 'pointer',
-                                        display: 'block',
-                                      }}
-                                      onClick={() =>
-                                        setLightboxUrl(
-                                          m.attachment.previewUrl ||
-                                            `/api/v1/chat/threads/${activeThread.id}/attachments/${m.attachment.id}`
-                                        )
-                                      }
-                                    />
-                                  </div>
-                                ) : (
-                                  <div
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '8px',
-                                      background: isMe ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.06)',
-                                      padding: '6px 10px',
-                                      borderRadius: '6px',
-                                    }}
-                                  >
-                                    <FileText size={16} />
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <div style={{ fontWeight: 700, fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {m.attachment.original_name || m.attachment.originalName || 'Document'}
-                                      </div>
-                                    </div>
-                                    {m.attachment.id && (
-                                      <a
-                                        href={`/api/v1/chat/threads/${activeThread.id}/attachments/${m.attachment.id}/download`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{
-                                          color: isMe ? '#000000' : '#38bdf8',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                        }}
-                                        title="Download document"
-                                      >
-                                        <Download size={14} />
-                                      </a>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Priority Indicator Badge */}
-                            {m.priority === 'CRITICAL' && (
-                              <div
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  background: 'rgba(220, 38, 38, 0.25)',
-                                  color: '#ef4444',
-                                  border: '1px solid #ef4444',
-                                  borderRadius: '4px',
-                                  padding: '1px 6px',
-                                  fontSize: '0.65rem',
-                                  fontWeight: 800,
-                                  marginBottom: '4px',
-                                  letterSpacing: '0.5px',
-                                }}
-                              >
-                                🚨 CRITICAL DIRECTIVE
-                              </div>
-                            )}
-                            {m.priority === 'URGENT' && (
-                              <div
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  background: 'rgba(239, 68, 68, 0.2)',
-                                  color: '#ef4444',
-                                  border: '1px solid #ef4444',
-                                  borderRadius: '4px',
-                                  padding: '1px 6px',
-                                  fontSize: '0.65rem',
-                                  fontWeight: 700,
-                                  marginBottom: '4px',
-                                }}
-                              >
-                                ⚡ URGENT
-                              </div>
-                            )}
-                            {m.priority === 'IMPORTANT' && (
-                              <div
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  background: 'rgba(245, 158, 11, 0.2)',
-                                  color: '#f59e0b',
-                                  border: '1px solid #f59e0b',
-                                  borderRadius: '4px',
-                                  padding: '1px 6px',
-                                  fontSize: '0.65rem',
-                                  fontWeight: 700,
-                                  marginBottom: '4px',
-                                }}
-                              >
-                                ⚠️ IMPORTANT
-                              </div>
-                            )}
-
-                            {/* Message text content */}
-                            {m.content && <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{m.content}</div>}
-
-                            {/* Official Operations Memo Interactive Card */}
-                            {(m.context_entity_type === 'OPERATION' || m.context_entity_type === 'MEMO' || (m.content && m.content.includes('[OFFICIAL OPERATIONS MEMO'))) && (
-                              <OperationChatCard
-                                operationId={m.context_entity_id || (m.content && m.content.match(/Ref:\s*(OPS-[^\s\n]+)/)?.[1])}
-                                memoRef={m.context_type || (m.content && m.content.match(/MEMO-[^\s\n\]]+/)?.[0])}
-                                priority={m.priority || 'NORMAL'}
-                                title={m.content && m.content.match(/Title:\s*([^\n]+)/)?.[1]}
-                                currentUser={user}
-                                onViewOperation={(opId) => {
-                                  setViewingOperationId(opId || m.context_entity_id);
-                                }}
-                                onOperationUpdated={() => {
-                                  loadMessages(activeThread.id);
-                                }}
-                              />
-                            )}
-
-                            {/* Acknowledge Receipt Button for critical/important notice or operations */}
-                            {(m.priority === 'CRITICAL' || m.priority === 'URGENT' || m.priority === 'IMPORTANT' || m.context_type || m.context_entity_type === 'OPERATION') && !isMe && (
-                              <div style={{ marginTop: '6px' }}>
-                                {m.acknowledged ? (
-                                  <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>
-                                    ✓ Acknowledged
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAcknowledgeMessage(m.id)}
-                                    style={{
-                                      padding: '3px 8px',
-                                      fontSize: '0.7rem',
-                                      borderRadius: '4px',
-                                      background: '#10b981',
-                                      color: '#ffffff',
-                                      border: 'none',
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '4px',
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    <Check size={12} /> Acknowledge Receipt
-                                  </button>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Timestamp & read ticks */}
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'flex-end',
-                                gap: '3px',
-                                fontSize: '0.62rem',
-                                color: isMe ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.65)',
-                                marginTop: '3px',
-                              }}
-                            >
-                              <span>{timeStr}</span>
-                              {isMe && <CheckCheck size={11} />}
-                            </div>
-                          </div>
-                        </div>
+                          onImageClick={(att) => setLightboxUrl(att.url || att.previewUrl)}
+                        />
                       );
                     })}
                     <div ref={messagesEndRef} />
@@ -1364,7 +1366,7 @@ export default function FloatingStaffChatModal() {
 
                   {/* Typing Indicator */}
                   {currentTypingUsers.length > 0 && (
-                    <div style={{ padding: '4px 14px', fontSize: '0.7rem', color: '#fbbf24', fontStyle: 'italic' }}>
+                    <div style={{ padding: '4px 14px', fontSize: '0.7rem', color: '#fbbf24', fontStyle: 'italic', background: 'rgba(0, 0, 0, 0.4)' }}>
                       {currentTypingUsers.join(', ')} {currentTypingUsers.length === 1 ? 'is' : 'are'} typing...
                     </div>
                   )}
@@ -1396,16 +1398,18 @@ export default function FloatingStaffChatModal() {
                     </div>
                   )}
 
-                  {/* Composer Form */}
+                  {/* Frosted Glass Composer */}
                   <form
                     onSubmit={handleSendMessage}
+                    className="floating-chat-composer"
                     style={{
-                      padding: '10px 14px',
-                      borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                      padding: isMobileScreen ? '8px 10px' : '10px 14px',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.10)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      background: 'rgba(10, 10, 14, 0.95)',
+                      background: 'rgba(14, 18, 26, 0.94)',
+                      backdropFilter: 'blur(20px)',
                     }}
                   >
                     <input
@@ -1419,16 +1423,8 @@ export default function FloatingStaffChatModal() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        color: '#cbd5e1',
-                        borderRadius: '8px',
-                        padding: '7px 9px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                      }}
+                      className="chat-btn-glass"
+                      style={{ padding: '8px 10px', borderRadius: '8px' }}
                       title="Attach file or photo (max 15MB)"
                     >
                       <Paperclip size={16} />
@@ -1438,15 +1434,16 @@ export default function FloatingStaffChatModal() {
                       value={selectedPriority}
                       onChange={(e) => setSelectedPriority(e.target.value)}
                       style={{
-                        padding: '6px 8px',
+                        padding: '7px 8px',
                         borderRadius: '8px',
                         background: selectedPriority === 'URGENT' ? 'rgba(239, 68, 68, 0.25)' : selectedPriority === 'IMPORTANT' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.08)',
-                        border: selectedPriority === 'URGENT' ? '1px solid #ef4444' : selectedPriority === 'IMPORTANT' ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.12)',
+                        border: selectedPriority === 'URGENT' ? '1px solid #ef4444' : selectedPriority === 'IMPORTANT' ? '1px solid #f59e0b' : '1px solid rgba(255, 255, 255, 0.14)',
                         color: selectedPriority === 'URGENT' ? '#f87171' : selectedPriority === 'IMPORTANT' ? '#fbbf24' : '#cbd5e1',
                         fontWeight: selectedPriority !== 'NORMAL' ? 700 : 500,
                         fontSize: '0.72rem',
                         cursor: 'pointer',
                         outline: 'none',
+                        maxWidth: isMobileScreen ? '85px' : 'auto',
                       }}
                       title="Set Message Priority Level"
                     >
@@ -1457,7 +1454,7 @@ export default function FloatingStaffChatModal() {
 
                     <input
                       type="text"
-                      placeholder="Type a message to team..."
+                      placeholder={isMobileScreen ? 'Message...' : 'Type a message to team...'}
                       value={textInput}
                       onChange={(e) => {
                         setTextInput(e.target.value);
@@ -1466,12 +1463,13 @@ export default function FloatingStaffChatModal() {
                       style={{
                         flex: 1,
                         padding: '8px 12px',
-                        background: 'rgba(255, 255, 255, 0.06)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        background: 'rgba(0, 0, 0, 0.35)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
                         borderRadius: '8px',
                         color: '#ffffff',
                         fontSize: '0.82rem',
                         outline: 'none',
+                        minWidth: 0,
                       }}
                     />
 
@@ -1485,16 +1483,18 @@ export default function FloatingStaffChatModal() {
                         color: '#000000',
                         border: 'none',
                         borderRadius: '8px',
-                        padding: '8px 14px',
+                        padding: isMobileScreen ? '8px 12px' : '8px 14px',
                         fontWeight: 800,
                         fontSize: '0.82rem',
                         cursor: sending || (!textInput.trim() && !pendingAttachment) ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '5px',
+                        flexShrink: 0,
+                        boxShadow: '0 2px 8px rgba(212, 175, 55, 0.3)',
                       }}
                     >
-                      <Send size={14} /> Send
+                      <Send size={14} /> {!isMobileScreen && <span>Send</span>}
                     </button>
                   </form>
                 </>

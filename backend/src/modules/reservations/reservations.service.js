@@ -208,6 +208,35 @@ class ReservationsService {
    */
   static async createReservation(data, req = null) {
     const reservationId = await pool.withTransaction(async (conn) => {
+      // 0. Strict Incomplete Booking Validation
+      const guestFullName = (data.tenant_name || data.guest_name || '').trim();
+      const guestEmail = (data.tenant_email || data.guest_email || '').trim().toLowerCase();
+      const guestPhone = (data.tenant_phone || data.guest_phone || '').trim();
+
+      const missingFields = [];
+      if (!guestFullName || guestFullName.split(/\s+/).length < 2) {
+        missingFields.push('Guest full name (first and last name required)');
+      }
+      if (!guestEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) {
+        missingFields.push('Valid guest email address');
+      }
+      if (!guestPhone || guestPhone.length < 7) {
+        missingFields.push('Valid guest phone number (min 7 digits)');
+      }
+      if (!data.apartment_id) {
+        missingFields.push('Valid apartment unit ID');
+      }
+      if (!data.property_id) {
+        missingFields.push('Valid property ID');
+      }
+      if (!data.check_in_date) {
+        missingFields.push('Valid check-in date');
+      }
+
+      if (missingFields.length > 0) {
+        throw new ValidationError(`Incomplete booking submission rejected: ${missingFields.join(', ')}.`);
+      }
+
       // 1. Validate mandatory 1-night stay
       const { checkInDate, checkOutDate } = this.validateOneNightStay(data.check_in_date, data.check_out_date);
 
@@ -476,59 +505,61 @@ class ReservationsService {
     });
 
     const createdReservation = await ReservationsRepository.findById(reservationId);
-    try {
-      broadcastOperationalEvent('frontdesk:new_booking', {
-        id: reservationId,
-        reservationCode: createdReservation?.reservation_code,
-        tenantName: createdReservation?.tenant_name,
-        tenantEmail: createdReservation?.tenant_email,
-        tenantPhone: createdReservation?.tenant_phone,
-        propertyId: createdReservation?.property_id,
-        propertyName: createdReservation?.property_name,
-        apartmentId: createdReservation?.apartment_id,
-        unitNumber: createdReservation?.unit_number,
-        unitName: createdReservation?.unit_name,
-        checkInDate: createdReservation?.check_in_date,
-        checkOutDate: createdReservation?.check_out_date,
-        totalAmount: createdReservation?.total_amount,
-        status: createdReservation?.status,
-        paymentStatus: createdReservation?.payment_status,
-        assignedStaffId: createdReservation?.assigned_staff_id || null,
-        createdAt: createdReservation?.created_at,
-      }, {
-        propertyId: createdReservation?.property_id,
-      });
-
-      // Global Booking Alert Event for Receptionist Modal
-      broadcastOperationalEvent('booking:new_alert', {
-        id: reservationId,
-        reservationCode: createdReservation?.reservation_code,
-        tenantName: createdReservation?.tenant_name,
-        tenantEmail: createdReservation?.tenant_email,
-        tenantPhone: createdReservation?.tenant_phone,
-        propertyId: createdReservation?.property_id,
-        propertyName: createdReservation?.property_name,
-        apartmentId: createdReservation?.apartment_id,
-        unitNumber: createdReservation?.unit_number,
-        unitName: createdReservation?.unit_name,
-        checkInDate: createdReservation?.check_in_date,
-        checkOutDate: createdReservation?.check_out_date,
-        totalAmount: createdReservation?.total_amount,
-        status: createdReservation?.status,
-        paymentStatus: createdReservation?.payment_status,
-        createdAt: createdReservation?.created_at,
-      }, {
-        propertyId: createdReservation?.property_id,
-      });
-
-      // Record daily monitor metric for alerts received
-      if (createdReservation?.property_id) {
-        ReceptionistMonitorService.recordBookingAlert(createdReservation.property_id, reservationId).catch((err) => {
-          logger.warn('Failed to record monitor booking alert metric:', { error: err.message });
+    if (createdReservation && !['REJECTED', 'CANCELLED'].includes(createdReservation.status)) {
+      try {
+        broadcastOperationalEvent('frontdesk:new_booking', {
+          id: reservationId,
+          reservationCode: createdReservation?.reservation_code,
+          tenantName: createdReservation?.tenant_name,
+          tenantEmail: createdReservation?.tenant_email,
+          tenantPhone: createdReservation?.tenant_phone,
+          propertyId: createdReservation?.property_id,
+          propertyName: createdReservation?.property_name,
+          apartmentId: createdReservation?.apartment_id,
+          unitNumber: createdReservation?.unit_number,
+          unitName: createdReservation?.unit_name,
+          checkInDate: createdReservation?.check_in_date,
+          checkOutDate: createdReservation?.check_out_date,
+          totalAmount: createdReservation?.total_amount,
+          status: createdReservation?.status,
+          paymentStatus: createdReservation?.payment_status,
+          assignedStaffId: createdReservation?.assigned_staff_id || null,
+          createdAt: createdReservation?.created_at,
+        }, {
+          propertyId: createdReservation?.property_id,
         });
+
+        // Global Booking Alert Event for Receptionist Modal
+        broadcastOperationalEvent('booking:new_alert', {
+          id: reservationId,
+          reservationCode: createdReservation?.reservation_code,
+          tenantName: createdReservation?.tenant_name,
+          tenantEmail: createdReservation?.tenant_email,
+          tenantPhone: createdReservation?.tenant_phone,
+          propertyId: createdReservation?.property_id,
+          propertyName: createdReservation?.property_name,
+          apartmentId: createdReservation?.apartment_id,
+          unitNumber: createdReservation?.unit_number,
+          unitName: createdReservation?.unit_name,
+          checkInDate: createdReservation?.check_in_date,
+          checkOutDate: createdReservation?.check_out_date,
+          totalAmount: createdReservation?.total_amount,
+          status: createdReservation?.status,
+          paymentStatus: createdReservation?.payment_status,
+          createdAt: createdReservation?.created_at,
+        }, {
+          propertyId: createdReservation?.property_id,
+        });
+
+        // Record daily monitor metric for alerts received
+        if (createdReservation?.property_id) {
+          ReceptionistMonitorService.recordBookingAlert(createdReservation.property_id, reservationId).catch((err) => {
+            logger.warn('Failed to record monitor booking alert metric:', { error: err.message });
+          });
+        }
+      } catch (bcErr) {
+        logger.warn('Failed to broadcast new booking event:', { error: bcErr.message });
       }
-    } catch (bcErr) {
-      logger.warn('Failed to broadcast new booking event:', { error: bcErr.message });
     }
     return createdReservation;
   }

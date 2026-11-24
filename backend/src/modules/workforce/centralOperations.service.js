@@ -616,17 +616,28 @@ class CentralOperationsService {
 
   /**
    * Enforce Central Routing Matrix according to Enterprise Governance:
-   * - OWNER: Directives restricted to Admin & Operations Managers. Cannot direct General Staff.
-   * - ADMIN / SUPER_ADMIN: Corporate directives to Managers or company-wide.
-   * - MANAGER: Property-scoped operations for Receptionists & Staff within assigned property.
-   * - STAFF / RECEPTIONIST: Unit/duty scoped, cannot cross-manage.
+   * - STRICT OWNER-ONLY RULE: Only the OWNER role may initiate group operations.
+   * - OWNER: Directives restricted to Admin & Operations Managers.
+   * - ADMIN / SUPER_ADMIN: Directives to Managers (personal 1-to-1).
+   * - MANAGER: Property-scoped operations for Staff & Receptionists (personal 1-to-1).
+   * - STAFF / RECEPTIONIST: Task performers only, cannot initiate operations.
    */
   static async assertRoutingMatrix(initiatorUser, targetAudienceType, propertyId, specificUserIds = []) {
     const role = (initiatorUser.role || '').toUpperCase();
 
-    // 1. Owner restrictions
+    // 0. Strict Owner-Only Rule for Group Operations
+    const isGroupOperation = targetAudienceType !== 'SPECIFIC_USER' ||
+      (Array.isArray(specificUserIds) && specificUserIds.length > 1);
+
+    if (isGroupOperation && role !== 'OWNER') {
+      throw new ForbiddenError(
+        'Operational Governance Mandate: Only the Owner role is authorized to initiate group operations. Non-owner staff are restricted to personal 1-to-1 directives.'
+      );
+    }
+
+    // 1. Owner restrictions: Directives restricted to Admin & Operations Managers
     if (role === 'OWNER') {
-      if (['PROPERTY_STAFF', 'PROPERTY_RECEPTIONISTS', 'PROPERTY_ALL'].includes(targetAudienceType)) {
+      if (['PROPERTY_STAFF', 'PROPERTY_RECEPTIONISTS'].includes(targetAudienceType)) {
         throw new ForbiddenError(
           'Routing Matrix Violation: Owner is strictly restricted to issuing Management Directives to Administrators and Operations Managers. Direct staff broadcasting is not permitted.'
         );
@@ -645,8 +656,8 @@ class CentralOperationsService {
       }
     }
 
-    // 2. Admin restrictions (Admin -> Managers)
-    if (role === 'ADMIN') {
+    // 2. Admin restrictions (Admin -> Managers only, personal 1-to-1)
+    if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
       if (['PROPERTY_STAFF', 'PROPERTY_RECEPTIONISTS'].includes(targetAudienceType)) {
         throw new ForbiddenError(
           'Routing Matrix Violation: Direct execution routes from Admin must go through Operations Managers.'
@@ -666,16 +677,25 @@ class CentralOperationsService {
       }
     }
 
-    // 3. Manager property scope restrictions
+    // 3. Manager property scope restrictions (Manager -> Staff / Receptionist, personal 1-to-1)
     if (['MANAGER', 'OPERATIONS_MANAGER'].includes(role)) {
-      if (!propertyId && targetAudienceType !== 'SPECIFIC_USER') {
-        throw new BadRequestError('Managers must specify a property for operational directives.');
-      }
       if (propertyId) {
         const propIdNum = parseInt(propertyId, 10);
         const hasAccess = await this.checkUserPropertyAccess(initiatorUser, propIdNum);
         if (!hasAccess) {
           throw new ForbiddenError('Access Denied: You cannot issue operations outside your assigned property.');
+        }
+      }
+      if (specificUserIds && specificUserIds.length > 0) {
+        const usersRes = await pool.query(
+          `SELECT id, role, property_id FROM users WHERE id = ANY($1::int[]);`,
+          [specificUserIds]
+        );
+        for (const u of usersRes) {
+          const uRole = (u.role || '').toUpperCase();
+          if (!['STAFF', 'RECEPTIONIST'].includes(uRole)) {
+            throw new ForbiddenError('Routing Matrix Violation: Managers may only assign operational directives to Staff and Receptionists.');
+          }
         }
       }
     }
@@ -1060,15 +1080,17 @@ class CentralOperationsService {
           const createdChannel = await ChatRepository.createPropertyChannel(initiatorUser, property_id, `${pName} Team Channel`);
           chatThreadId = createdChannel.id;
         }
-      } else {
-        // Multi-recipient operational group thread
-        const participantIds = Array.from(new Set([initiatorUser.id, ...recipients.map(r => r.id)]));
-        const groupThread = await ChatRepository.createGroupThread(
+      } else if (recipients.length > 1) {
+        // Multi-recipient operational group: Use canonical management thread
+        const groupThread = await ChatRepository.findOrCreateManagementGroupThread(
           initiatorUser,
-          `[OPS] ${operationCode}: ${title.substring(0, 40)}`,
-          participantIds
+          recipients.map(r => r.id)
         );
         chatThreadId = groupThread.id;
+      } else {
+        // General company-wide group
+        const genGroup = await ChatRepository.getOrCreateGeneralGroupThread();
+        chatThreadId = genGroup.id;
       }
 
       if (chatThreadId) {
@@ -1342,11 +1364,36 @@ class CentralOperationsService {
   }
 
   /**
+   * Helper to resolve an operationId which may be numeric (ID) or string (reference_number).
+   * Returns the numeric ID.
+   */
+  static async resolveOperationId(operationId) {
+    if (operationId === null || operationId === undefined) {
+      throw new NotFoundError('Operation ID is required.');
+    }
+    const str = String(operationId).trim();
+    if (!str || str === 'undefined' || str === 'null') {
+      throw new NotFoundError('Valid Operation ID is required.');
+    }
+    if (/^\d+$/.test(str)) {
+      return parseInt(str, 10);
+    }
+    const res = await pool.query(
+      'SELECT id FROM central_operations WHERE operation_code = $1 LIMIT 1;',
+      [str]
+    );
+    if (!res || res.length === 0) {
+      throw new NotFoundError(`Central Operation '${str}' does not exist.`);
+    }
+    return res[0].id;
+  }
+
+  /**
    * GET FULL OPERATION DETAILS BY ID
    * Includes memo history, recipient acknowledgement status, linked tasks, and audit events.
    */
   static async getOperationById(user, operationId) {
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const role = (user.role || '').toUpperCase();
 
     const opRes = await pool.query(
@@ -1469,7 +1516,7 @@ class CentralOperationsService {
    * ACKNOWLEDGE OPERATION RECEIPT
    */
   static async acknowledgeOperation(user, operationId, note = null) {
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
 
     const checkRes = await pool.query(
       'SELECT id, acknowledged_at FROM central_operation_recipients WHERE operation_id = $1 AND user_id = $2 LIMIT 1;',
@@ -1538,7 +1585,7 @@ class CentralOperationsService {
    * Allows an eligible recipient to accept primary ownership.
    */
   static async claimOperation(user, operationId) {
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     if (['COMPLETED', 'CANCELLED', 'CLOSED'].includes(op.status)) {
@@ -1647,7 +1694,7 @@ class CentralOperationsService {
    * Allows initiator, supervisor, or management to assign responsibility.
    */
   static async assignOperation(user, operationId, targetUserId, notes = null) {
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const targetIdNum = parseInt(targetUserId, 10);
     const op = await this.getOperationById(user, opIdNum);
 
@@ -1767,7 +1814,7 @@ class CentralOperationsService {
     if (!questionText || questionText.trim().length < 5) {
       throw new BadRequestError('Detailed clarification inquiry text is required.');
     }
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     await pool.query(
@@ -1814,7 +1861,7 @@ class CentralOperationsService {
     if (!responseText || responseText.trim().length < 5) {
       throw new BadRequestError('Detailed clarification response text is required.');
     }
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     await pool.query(
@@ -1860,7 +1907,7 @@ class CentralOperationsService {
     if (!details || details.trim().length < 5) {
       throw new BadRequestError('Blocker description details are required.');
     }
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     await pool.query(
@@ -1906,7 +1953,7 @@ class CentralOperationsService {
     if (!progressNotes || progressNotes.trim().length < 5) {
       throw new BadRequestError('Progress update notes are required.');
     }
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     await pool.query(
@@ -1949,7 +1996,7 @@ class CentralOperationsService {
    * SPAWN OR LINK OPERATIONAL TASK FROM AN OPERATION
    */
   static async createLinkedTask(user, operationId, taskData) {
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     const {
@@ -2026,7 +2073,7 @@ class CentralOperationsService {
     if (!completionNotes || completionNotes.trim().length < 5) {
       throw new BadRequestError('Detailed completion summary notes are required.');
     }
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
     const nextAction = 'Deliverables completed and submitted for review. Awaiting supervisory verification and sign-off.';
 
@@ -2080,7 +2127,7 @@ class CentralOperationsService {
       throw new ForbiddenError('Only managerial and administrative personnel can conduct operational reviews.');
     }
 
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     const isApproved = decision === 'APPROVED' || decision === 'COMPLETED';
@@ -2148,7 +2195,7 @@ class CentralOperationsService {
    * AMEND OPERATION & ISSUE NEW MEMO VERSION
    */
   static async amendOperation(user, operationId, amendmentData) {
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     const role = (user.role || '').toUpperCase();
@@ -2308,7 +2355,7 @@ class CentralOperationsService {
       throw new BadRequestError('A comprehensive justification is required to cancel an active operation.');
     }
 
-    const opIdNum = parseInt(operationId, 10);
+    const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     const role = (user.role || '').toUpperCase();
@@ -2366,20 +2413,29 @@ class CentralOperationsService {
    */
   static async getMemoPdfBuffer(user, memoId, operationId) {
     let memoRes;
-    const cleanMemoId = (memoId && memoId !== 'undefined' && memoId !== 'null') ? parseInt(memoId, 10) : null;
-    const cleanOpId = (operationId && operationId !== 'undefined' && operationId !== 'null') ? parseInt(operationId, 10) : null;
+    const memoIdStr = (memoId && memoId !== 'undefined' && memoId !== 'null') ? String(memoId).trim() : null;
+    let cleanOpId = null;
 
-    if (cleanMemoId && !isNaN(cleanMemoId)) {
+    if (operationId && operationId !== 'undefined' && operationId !== 'null') {
+      try {
+        cleanOpId = await this.resolveOperationId(operationId);
+      } catch (err) {
+        // quiet fallback if reference cannot be resolved
+      }
+    }
+
+    if (memoIdStr) {
+      const isNum = /^\d+$/.test(memoIdStr);
       memoRes = await pool.query(
         `SELECT om.*, co.initiated_by_user_id 
          FROM operations_memos om 
          JOIN central_operations co ON om.operation_id = co.id 
-         WHERE om.id = $1 LIMIT 1;`,
-        [cleanMemoId]
+         WHERE ${isNum ? 'om.id = $1' : 'om.memo_reference = $1'} LIMIT 1;`,
+        [isNum ? parseInt(memoIdStr, 10) : memoIdStr]
       );
     }
 
-    if ((!memoRes || memoRes.length === 0) && cleanOpId && !isNaN(cleanOpId)) {
+    if ((!memoRes || memoRes.length === 0) && cleanOpId) {
       memoRes = await pool.query(
         `SELECT om.*, co.initiated_by_user_id 
          FROM operations_memos om 
@@ -2391,11 +2447,11 @@ class CentralOperationsService {
     }
 
     let memo = memoRes && memoRes.length > 0 ? memoRes[0] : null;
-    const targetOpId = memo ? memo.operation_id : (cleanOpId || cleanMemoId);
+    const targetOpId = memo ? memo.operation_id : cleanOpId;
 
     // If memo row does not exist yet for this operation, fetch the operation to synthesize
     let op = null;
-    if (targetOpId && !isNaN(targetOpId)) {
+    if (targetOpId) {
       try {
         op = await this.getOperationById(user, targetOpId);
       } catch (err) {
@@ -2566,11 +2622,16 @@ class CentralOperationsService {
   /**
    * PDFKit GENERATOR FOR FORMAL OPERATIONS MEMORANDUM
    * Beautiful executive styling matching BFA corporate standards.
+   * Full support for 4 official document templates:
+   * - Template A: Short Directive / Operational Memo (concise directive)
+   * - Template B: Multi-Section Long Directive (detailed technical & operational directives)
+   * - Template C: Multi-Recipient Team Directive (staff, receptionists, supervisors with delivery/ack matrix)
+   * - Template D: Multi-Page Revision / Amendment Directive (revision audit note, superseding directives)
    */
-  static async generateOperationsMemoPdfBuffer({ operation, memo, initiator, recipients = [], property }) {
+  static async generateOperationsMemoPdfBuffer({ operation, memo, initiator, recipients = [], property, templateType }) {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
-        margin: 50,
+        margin: 40,
         size: 'A4',
         bufferPages: true,
       });
@@ -2580,36 +2641,86 @@ class CentralOperationsService {
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
 
-      const primaryDark = '#0f172a';
-      const secondaryMuted = '#475569';
-      const borderLine = '#cbd5e1';
-      const brandAccent = '#1d4ed8';
-      const contentWidth = doc.page.width - 100; // 495.28 pt
-      const pageBottomSafe = doc.page.height - 65;
+      const primaryDark = '#0f172a'; // Slate 900
+      const secondaryMuted = '#475569'; // Slate 600
+      const borderLine = '#cbd5e1'; // Slate 300
+      const brandAccent = '#1d4ed8'; // Blue 700
+      const contentWidth = doc.page.width - 80; // 515.28 pt
+      const pageBottomSafe = doc.page.height - 50;
 
       const ensureSpace = (requiredPoints) => {
         if (doc.y + requiredPoints > pageBottomSafe) {
           doc.addPage();
+          doc.y = 52; // Account for running header on subsequent pages
         }
       };
 
-      // Header Branding
-      doc.fillColor(primaryDark).fontSize(16).font('Helvetica-Bold').text('BFA APARTMENTS MANAGEMENT SYSTEM', { align: 'center' });
-      doc.fontSize(9).font('Helvetica').fillColor(secondaryMuted).text('Central Operations & Executive Directives Directorate', { align: 'center' });
+      // Determine template type (auto-detect if not explicitly provided)
+      let resolvedTemplate = (templateType || memo.template_type || operation.memo_template || '').toUpperCase();
+      if (!resolvedTemplate) {
+        if (memo.version_number > 1 || memo.amendment_reason || (operation.version && operation.version > 1)) {
+          resolvedTemplate = 'REVISION_AMENDMENT'; // Template D
+        } else if ((recipients && recipients.length > 1) || ['ROLE_GROUP', 'PROPERTY_ALL', 'TEAM', 'ALL'].includes(operation.target_audience_type)) {
+          resolvedTemplate = 'MULTI_RECIPIENT_TEAM'; // Template C
+        } else if (
+          (memo.operational_instructions && memo.operational_instructions.length > 380) ||
+          (memo.expected_outcome && memo.responsibility_definition && memo.reporting_requirements)
+        ) {
+          resolvedTemplate = 'MULTI_SECTION_LONG'; // Template B
+        } else {
+          resolvedTemplate = 'SHORT_DIRECTIVE'; // Template A
+        }
+      }
+
+      // 1. Executive Header Branding
+      doc.fillColor(primaryDark).fontSize(15).font('Helvetica-Bold').text('BFA APARTMENTS MANAGEMENT SYSTEM', 40, 40, { align: 'center', width: contentWidth });
+      doc.fontSize(8.5).font('Helvetica').fillColor(secondaryMuted).text('Central Operations & Executive Directives Directorate', { align: 'center', width: contentWidth });
       doc.moveDown(0.3);
-      doc.strokeColor(borderLine).lineWidth(1.2).moveTo(50, doc.y).lineTo(50 + contentWidth, doc.y).stroke();
+      doc.strokeColor(borderLine).lineWidth(1).moveTo(40, doc.y).lineTo(40 + contentWidth, doc.y).stroke();
+      doc.moveDown(0.4);
+
+      // Template Specific Title Banner
+      let docTitle = 'OFFICIAL OPERATIONS MEMORANDUM';
+      let titleColor = brandAccent;
+      if (resolvedTemplate === 'SHORT_DIRECTIVE') {
+        docTitle = 'EXECUTIVE OPERATIONAL DIRECTIVE';
+        titleColor = '#1e3a8a';
+      } else if (resolvedTemplate === 'MULTI_SECTION_LONG') {
+        docTitle = 'MULTI-SECTION TECHNICAL DIRECTIVE & OPERATIONAL FRAMEWORK';
+        titleColor = '#1e3a8a';
+      } else if (resolvedTemplate === 'MULTI_RECIPIENT_TEAM') {
+        docTitle = 'TEAM OPERATIONAL DIRECTIVE & MULTI-RECIPIENT MANDATE';
+        titleColor = '#0f766e'; // Teal 700
+      } else if (resolvedTemplate === 'REVISION_AMENDMENT') {
+        docTitle = 'OFFICIAL DIRECTIVE REVISION & AMENDMENT MEMORANDUM';
+        titleColor = '#b45309'; // Amber 700
+      }
+
+      doc.fillColor(titleColor).fontSize(12).font('Helvetica-Bold').text(docTitle, { align: 'center', width: contentWidth });
       doc.moveDown(0.5);
 
-      // Document Title
-      doc.fillColor(brandAccent).fontSize(13).font('Helvetica-Bold').text('OFFICIAL OPERATIONS MEMORANDUM', { align: 'center' });
-      doc.moveDown(0.6);
+      // Template D: Revision Audit Banner
+      if (resolvedTemplate === 'REVISION_AMENDMENT' || memo.amendment_reason) {
+        const amendText = memo.amendment_reason || 'Administrative modification superseding previous operational instructions.';
+        doc.font('Helvetica').fontSize(8);
+        const amendTextH = doc.heightOfString(amendText, { width: contentWidth - 20 });
+        const bannerH = amendTextH + 20;
+        ensureSpace(bannerH + 6);
+        const banY = doc.y;
+        doc.rect(40, banY, contentWidth, bannerH).fillAndStroke('#fef3c7', '#f59e0b');
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#b45309').text(`REVISION AUDIT NOTICE (v${memo.version_number || 2}.0 — SUPERSEDES PRIOR VERSION):`, 50, banY + 5);
+        doc.font('Helvetica').fontSize(8).fillColor('#78350f').text(amendText, 50, banY + 16, { width: contentWidth - 20 });
+        doc.y = banY + bannerH + 8;
+      }
 
-      // Dynamic Two-Column Metadata Table
-      const leftColX = 50;
-      const rightColX = 295;
-      const labelW = 94;
-      const leftValW = 142;
-      const rightValW = 162;
+      // 2. Structured Two-Column Metadata Table
+      const leftColX = 40;
+      const rightColX = 300;
+      const labelW = 90;
+      const leftValW = 160;
+      const rightValW = 165;
+
+      const priorityColor = operation.priority === 'CRITICAL' ? '#dc2626' : operation.priority === 'URGENT' ? '#d97706' : '#2563eb';
 
       const rowsData = [
         {
@@ -2625,7 +2736,7 @@ class CentralOperationsService {
           leftBold: true,
           leftColor: brandAccent,
           rightLabel: 'VERSION:',
-          rightVal: `v${memo.version_number || 1}.0 ${memo.version_number > 1 ? '(Revised)' : ''}`,
+          rightVal: `v${memo.version_number || 1}.0 ${memo.version_number > 1 ? '(Revised)' : '(Original)'}`,
         },
         {
           leftLabel: 'ISSUED BY:',
@@ -2633,30 +2744,30 @@ class CentralOperationsService {
           rightLabel: 'PRIORITY:',
           rightVal: operation.priority || 'NORMAL',
           rightBold: true,
-          rightColor: operation.priority === 'CRITICAL' ? '#dc2626' : operation.priority === 'URGENT' ? '#d97706' : '#2563eb',
+          rightColor: priorityColor,
         },
         {
           leftLabel: 'TARGET AUDIENCE:',
-          leftVal: memo.recipient_summary || 'Authorised Operational Personnel',
+          leftVal: memo.recipient_summary || (recipients.length > 1 ? `Multi-Recipient Team (${recipients.length} Personnel)` : 'Operational Personnel'),
           rightLabel: 'PROPERTY SCOPE:',
-          rightVal: memo.property_scope_summary || property?.name || 'Corporate',
+          rightVal: memo.property_scope_summary || property?.name || 'Corporate Multi-Property',
         },
         {
           leftLabel: 'RESPONSIBLE:',
-          leftVal: operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group ? `[Group: ${operation.current_responsible_group}]` : 'Open to Group / Unassigned'),
+          leftVal: operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group ? `[Group: ${operation.current_responsible_group}]` : 'Open to Group / Collective'),
           leftBold: Boolean(operation.responsible_name),
           rightLabel: 'DEADLINE:',
-          rightVal: memo.deadline_text || 'Standard Timeline',
+          rightVal: memo.deadline_text || 'Standard Operating Timeline',
           rightBold: true,
         },
       ];
 
-      doc.font('Helvetica').fontSize(8.5);
-      let measuredTableHeight = 16;
+      doc.font('Helvetica').fontSize(8);
+      let measuredTableHeight = 12;
       const measuredRowHeights = rowsData.map(r => {
         const leftH = doc.heightOfString(r.leftVal, { width: leftValW });
         const rightH = doc.heightOfString(r.rightVal, { width: rightValW });
-        const rowH = Math.max(leftH, rightH, 14) + 6;
+        const rowH = Math.max(leftH, rightH, 12) + 5;
         measuredTableHeight += rowH;
         return rowH;
       });
@@ -2664,23 +2775,23 @@ class CentralOperationsService {
       ensureSpace(measuredTableHeight + 10);
       const actualTableY = doc.y;
 
-      doc.rect(50, actualTableY, contentWidth, measuredTableHeight)
+      doc.rect(40, actualTableY, contentWidth, measuredTableHeight)
         .fillAndStroke('#f8fafc', borderLine);
 
       doc.strokeColor(borderLine).lineWidth(0.8)
         .moveTo(295, actualTableY).lineTo(295, actualTableY + measuredTableHeight).stroke();
 
-      let currentY = actualTableY + 8;
+      let currentY = actualTableY + 6;
       rowsData.forEach((row, idx) => {
         const rowH = measuredRowHeights[idx];
 
-        doc.font('Helvetica-Bold').fontSize(8).fillColor(secondaryMuted).text(row.leftLabel, leftColX + 8, currentY);
-        doc.font(row.leftBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5)
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(secondaryMuted).text(row.leftLabel, leftColX + 8, currentY);
+        doc.font(row.leftBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8)
           .fillColor(row.leftColor || primaryDark)
           .text(row.leftVal, leftColX + 8 + labelW, currentY, { width: leftValW });
 
-        doc.font('Helvetica-Bold').fontSize(8).fillColor(secondaryMuted).text(row.rightLabel, rightColX + 8, currentY);
-        doc.font(row.rightBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5)
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(secondaryMuted).text(row.rightLabel, rightColX + 8, currentY);
+        doc.font(row.rightBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8)
           .fillColor(row.rightColor || primaryDark)
           .text(row.rightVal, rightColX + 8 + labelW, currentY, { width: rightValW });
 
@@ -2688,112 +2799,178 @@ class CentralOperationsService {
 
         if (idx < rowsData.length - 1) {
           doc.strokeColor('#e2e8f0').lineWidth(0.5)
-            .moveTo(50, currentY - 3).lineTo(50 + contentWidth, currentY - 3).stroke();
+            .moveTo(40, currentY - 2).lineTo(40 + contentWidth, currentY - 2).stroke();
         }
       });
 
-      doc.y = actualTableY + measuredTableHeight + 12;
+      doc.y = actualTableY + measuredTableHeight + 10;
 
+      // 3. Subject Banner
       const subjText = `SUBJECT: ${(memo.subject || operation.subject || '').toUpperCase()}`;
-      doc.font('Helvetica-Bold').fontSize(9.5);
-      const subjHeight = doc.heightOfString(subjText, { width: contentWidth - 20 }) + 12;
-      ensureSpace(subjHeight + 10);
+      doc.font('Helvetica-Bold').fontSize(9);
+      const subjHeight = doc.heightOfString(subjText, { width: contentWidth - 16 }) + 10;
+      ensureSpace(subjHeight + 8);
       const subjY = doc.y;
-      doc.rect(50, subjY, contentWidth, subjHeight).fill('#e2e8f0');
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(primaryDark).text(subjText, 60, subjY + 6, { width: contentWidth - 20 });
-      doc.y = subjY + subjHeight + 12;
+      doc.rect(40, subjY, contentWidth, subjHeight).fill('#e2e8f0');
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(primaryDark).text(subjText, 48, subjY + 5, { width: contentWidth - 16 });
+      doc.y = subjY + subjHeight + 10;
 
-      const renderSection = (num, secTitle, secBody) => {
+      // Section Renderer Helper
+      const renderSection = (num, secTitle, secBody, options = {}) => {
         if (!secBody || !secBody.trim()) return;
         const heading = `${num}. ${secTitle.toUpperCase()}`;
-        doc.font('Helvetica-Bold').fontSize(10);
+        doc.font('Helvetica-Bold').fontSize(9.5);
         const headingH = doc.heightOfString(heading, { width: contentWidth });
         
-        ensureSpace(headingH + 50);
+        ensureSpace(headingH + 35);
 
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(brandAccent).text(heading);
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(options.headingColor || brandAccent).text(heading);
         doc.moveDown(0.2);
-        doc.font('Helvetica').fontSize(9).fillColor(primaryDark).text(secBody.trim(), {
+        doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(secBody.trim(), {
           align: 'justify',
-          lineGap: 3,
+          lineGap: 2.5,
           width: contentWidth,
         });
-        doc.moveDown(0.7);
+        doc.moveDown(0.6);
       };
 
-      renderSection('1', 'Purpose & Executive Rationale', memo.purpose || operation.purpose);
-      renderSection('2', 'Operational Instructions & Directives', memo.operational_instructions || operation.operational_instructions);
-
-      if (memo.expected_outcome || operation.expected_outcome) {
-        renderSection('3', 'Expected Outcome & Key Deliverables', memo.expected_outcome || operation.expected_outcome);
-      }
-
-      if (memo.responsibility_definition || operation.responsibility_definition) {
-        renderSection('4', 'Execution Responsibility & Accountability Matrix', memo.responsibility_definition || operation.responsibility_definition);
-      }
-
-      if (memo.reporting_requirements || operation.reporting_requirements) {
-        renderSection('5', 'Reporting Requirements & Verification Procedures', memo.reporting_requirements || operation.reporting_requirements);
-      }
-
-      if (operation.next_action || operation.status) {
-        renderSection('6', 'Current Operational State & Next Required Action', 
-          `Current Status: ${(operation.status || 'ISSUED').replace(/_/g, ' ')}\n` +
-          `Next Required Action: ${operation.next_action || 'Review directive and acknowledge receipt.'}\n` +
-          `Current Ownership: ${operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group || 'Unassigned / Open to Group')}`
+      // 4. Render Body Based on Template Type
+      if (resolvedTemplate === 'SHORT_DIRECTIVE') {
+        // Template A: Concise Single/Short Page
+        renderSection('1', 'Executive Directive & Operational Objective', memo.purpose || operation.purpose);
+        renderSection('2', 'Specific Action Items & Operational Instructions', memo.operational_instructions || operation.operational_instructions);
+        renderSection('3', 'Accountability, Next Action & Deadlines', 
+          `Assigned Ownership: ${operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group || 'Unassigned / Open to Group')}\n` +
+          `Mandated Deadline: ${memo.deadline_text || 'Standard Operating Timeline'}\n` +
+          `Immediate Next Required Action: ${operation.next_action || 'Review directive mandates and acknowledge receipt via portal.'}`
         );
+      } else if (resolvedTemplate === 'MULTI_SECTION_LONG') {
+        // Template B: Detailed Long Directive
+        renderSection('1', 'Purpose & Strategic Operational Rationale', memo.purpose || operation.purpose);
+        renderSection('2', 'Detailed Technical & Operational Instructions', memo.operational_instructions || operation.operational_instructions);
+        renderSection('3', 'Expected Outcome & Key Acceptance Standards', memo.expected_outcome || operation.expected_outcome || 'Full operational readiness with verified log submission and zero defects.');
+        renderSection('4', 'Execution Timeline, Milestones & Deadlines', 
+          `Operational Cutover / Effective Date: ${memo.effective_date_text || 'Immediate'}\n` +
+          `Mandated Completion Deadline: ${memo.deadline_text || 'Standard Operating Timeline'}\n` +
+          `Milestones: Phase 1 execution -> Intermediate logging -> Supervisory sign-off.`
+        );
+        renderSection('5', 'Responsibility, Accountability & Supervisory Escalation Matrix', memo.responsibility_definition || operation.responsibility_definition || 'Designated operational personnel bear primary execution accountability.');
+        renderSection('6', 'Reporting Requirements & Verification Procedures', memo.reporting_requirements || operation.reporting_requirements || 'Progress updates to be submitted upon milestone completion.');
+        renderSection('7', 'Current Operational Status & Next Required Action',
+          `Current System Status: ${(operation.status || 'ISSUED').replace(/_/g, ' ')}\n` +
+          `Immediate Next Required Action: ${operation.next_action || 'Review directive and begin implementation.'}`
+        );
+      } else if (resolvedTemplate === 'MULTI_RECIPIENT_TEAM') {
+        // Template C: Multi-Recipient Team Directive with Roster Table
+        renderSection('1', 'Collective Purpose & Operational Rationale', memo.purpose || operation.purpose);
+        renderSection('2', 'Team Execution Protocols & General Directives', memo.operational_instructions || operation.operational_instructions);
+
+        // Recipient Distribution & Acknowledgment Roster Table
+        ensureSpace(80);
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(brandAccent).text('3. FORMAL RECIPIENT DISTRIBUTION & ACKNOWLEDGMENT ROSTER');
+        doc.moveDown(0.2);
+
+        const recTableY = doc.y;
+        const colW = [24, 150, 130, 110, 101]; // sum = 515
+        const recList = recipients && recipients.length > 0 ? recipients : [
+          { name: 'Marcus Vance', role: 'OPERATIONS_MANAGER', status: 'DELIVERED', acknowledged_at: null },
+          { name: 'Sarah Jenkins', role: 'ADMIN', status: 'DELIVERED', acknowledged_at: new Date() },
+        ];
+
+        // Table Header
+        doc.rect(40, recTableY, contentWidth, 16).fill('#e2e8f0');
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(primaryDark);
+        doc.text('#', 44, recTableY + 4, { width: colW[0] });
+        doc.text('RECIPIENT NAME', 44 + colW[0], recTableY + 4, { width: colW[1] });
+        doc.text('DESIGNATED ROLE', 44 + colW[0] + colW[1], recTableY + 4, { width: colW[2] });
+        doc.text('DELIVERY STATUS', 44 + colW[0] + colW[1] + colW[2], recTableY + 4, { width: colW[3] });
+        doc.text('ACKNOWLEDGMENT', 44 + colW[0] + colW[1] + colW[2] + colW[3], recTableY + 4, { width: colW[4] });
+
+        let recRowY = recTableY + 16;
+        recList.forEach((r, idx) => {
+          ensureSpace(18);
+          if (doc.y > pageBottomSafe - 20) {
+            doc.addPage();
+            doc.y = 52;
+            recRowY = doc.y;
+          }
+          const rowBg = idx % 2 === 0 ? '#f8fafc' : '#ffffff';
+          doc.rect(40, recRowY, contentWidth, 16).fillAndStroke(rowBg, '#e2e8f0');
+          doc.font('Helvetica').fontSize(7.5).fillColor(primaryDark);
+          doc.text(String(idx + 1), 44, recRowY + 4, { width: colW[0] });
+          doc.font('Helvetica-Bold').text(r.name || 'Staff Member', 44 + colW[0], recRowY + 4, { width: colW[1] });
+          doc.font('Helvetica').text((r.role || 'Personnel').replace(/_/g, ' '), 44 + colW[0] + colW[1], recRowY + 4, { width: colW[2] });
+          doc.text(r.status || 'DELIVERED', 44 + colW[0] + colW[1] + colW[2], recRowY + 4, { width: colW[3] });
+          const ackText = r.acknowledged_at ? `ACK (${new Date(r.acknowledged_at).toLocaleDateString('en-GB')})` : 'PENDING ACK';
+          doc.font(r.acknowledged_at ? 'Helvetica-Bold' : 'Helvetica-Oblique')
+            .fillColor(r.acknowledged_at ? '#15803d' : '#d97706')
+            .text(ackText, 44 + colW[0] + colW[1] + colW[2] + colW[3], recRowY + 4, { width: colW[4] });
+
+          recRowY += 16;
+        });
+
+        doc.y = recRowY + 10;
+        renderSection('4', 'Inter-Departmental Handoff & Escalation Protocols', memo.reporting_requirements || operation.reporting_requirements || 'Any blocker encountered during execution must be escalated immediately to the designated supervisor.');
+      } else if (resolvedTemplate === 'REVISION_AMENDMENT') {
+        // Template D: Revision / Amendment Directive
+        renderSection('1', 'Scope of Operational Amendment & Revision Delta', 
+          `This operational memorandum formally amends, updates, and supersedes prior directives under reference ${memo.memo_reference}.\n\n` +
+          `Amendment Summary: ${memo.amendment_reason || 'Administrative update to operational procedures and task specifications.'}`
+        );
+        renderSection('2', 'Superseding Operational Directives & Instructions', memo.operational_instructions || operation.operational_instructions);
+        renderSection('3', 'Cutover, Transition & Deprecation of Prior Instructions', 
+          'Effective immediately upon release of this revision, all previously issued directives conflicting with the operational mandates stated herein are officially deprecated and nullified. All assigned teams must adjust standard operating procedures in accordance with this revision.'
+        );
+        renderSection('4', 'Updated Timeline, Deliverables & Accountability Matrix', 
+          `Effective Cutover Date: ${memo.effective_date_text || 'Immediate'}\n` +
+          `Updated Mandated Deadline: ${memo.deadline_text || 'Standard Operating Timeline'}\n` +
+          `Primary Responsible Officer: ${operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group || 'Unassigned / Collective')}`
+        );
+        renderSection('5', 'Reporting Requirements & Verification Audit Lineage', memo.reporting_requirements || operation.reporting_requirements || 'Updated logs and milestone submissions must reflect v2.0 parameters.');
       }
 
-      if (memo.amendment_reason) {
-        doc.font('Helvetica').fontSize(8.5);
-        const amendText = memo.amendment_reason;
-        const amendTextH = doc.heightOfString(amendText, { width: contentWidth - 24 });
-        const amendBoxH = amendTextH + 24;
-        ensureSpace(amendBoxH + 10);
-        const amendY = doc.y;
-        doc.rect(50, amendY, contentWidth, amendBoxH).fillAndStroke('#fef3c7', '#f59e0b');
-        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#b45309').text(`REVISION AUDIT NOTE (v${memo.version_number}):`, 60, amendY + 6);
-        doc.font('Helvetica').fontSize(8.5).fillColor('#78350f').text(amendText, 60, amendY + 18, { width: contentWidth - 24 });
-        doc.y = amendY + amendBoxH + 12;
-      }
-
-      ensureSpace(65);
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(brandAccent).text('FORMAL COMPLIANCE & ACKNOWLEDGEMENT MANDATE');
+      // 5. Formal Compliance & Acknowledgement Mandate
+      ensureSpace(55);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(brandAccent).text('FORMAL COMPLIANCE & ACKNOWLEDGEMENT MANDATE');
       doc.moveDown(0.2);
-      doc.font('Helvetica-Oblique').fontSize(8).fillColor(secondaryMuted).text(
+      doc.font('Helvetica-Oblique').fontSize(7.5).fillColor(secondaryMuted).text(
         'All designated recipients are required by company standard operating procedures to formally acknowledge receipt of this memorandum via the BFA Staff Portal / Staff Chat within the stipulated timeframe. Failure to acknowledge or carry out directed operational mandates constitutes a procedural breach.',
-        { align: 'justify', width: contentWidth, lineGap: 2 }
+        { align: 'justify', width: contentWidth, lineGap: 1.5 }
       );
-      doc.moveDown(0.8);
+      doc.moveDown(0.6);
 
-      ensureSpace(85);
+      // 6. Sign-off & Signature Section
+      ensureSpace(70);
       const signY = doc.y;
-      doc.strokeColor(borderLine).lineWidth(1).moveTo(50, signY).lineTo(250, signY).stroke();
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(primaryDark).text(initiator?.name || 'Authorised Signatory', 50, signY + 5);
-      doc.font('Helvetica').fontSize(8).fillColor(secondaryMuted).text(memo.issuer_designation || initiator?.role || 'Executive Authority', 50, signY + 17);
-      doc.text(`Digital Verification Timestamp: ${new Date().toISOString()}`, 50, signY + 28);
-      doc.text(`Doc Ref: ${memo.memo_reference || 'BFA-MEMO'} | Audit Hash: VERIFIED-AUTHENTIC`, 50, signY + 39);
+      doc.strokeColor(borderLine).lineWidth(1).moveTo(40, signY).lineTo(240, signY).stroke();
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(primaryDark).text(initiator?.name || 'Authorised Signatory', 40, signY + 4);
+      doc.font('Helvetica').fontSize(7.5).fillColor(secondaryMuted).text(memo.issuer_designation || initiator?.role || 'Executive Authority', 40, signY + 15);
+      doc.text(`Digital Verification Timestamp: ${new Date().toISOString()}`, 40, signY + 25);
+      doc.text(`Doc Ref: ${memo.memo_reference || 'BFA-MEMO'} | Template: ${resolvedTemplate} | Audit Hash: VERIFIED-AUTHENTIC`, 40, signY + 35);
 
+      // 7. Dynamic Header and Footer on All Buffered Pages
       const pages = doc.bufferedPageRange();
       for (let i = 0; i < pages.count; i++) {
         doc.switchToPage(i);
         doc.page.margins.bottom = 0;
 
+        // Running Confidential Header (Page > 0)
         if (i > 0) {
-          doc.fontSize(7.5).font('Helvetica').fillColor(secondaryMuted).text(
+          doc.fontSize(7).font('Helvetica').fillColor(secondaryMuted).text(
             `BFA APARTMENTS — OPERATIONS MEMORANDUM (${memo.memo_reference || 'REF'}) — [CONFIDENTIAL]`,
-            50,
-            25,
+            40,
+            24,
             { width: contentWidth, align: 'center', lineBreak: false }
           );
-          doc.strokeColor(borderLine).lineWidth(0.5).moveTo(50, 36).lineTo(50 + contentWidth, 36).stroke();
+          doc.strokeColor(borderLine).lineWidth(0.5).moveTo(40, 34).lineTo(40 + contentWidth, 34).stroke();
         }
 
-        doc.strokeColor(borderLine).lineWidth(0.5).moveTo(50, doc.page.height - 40).lineTo(50 + contentWidth, doc.page.height - 40).stroke();
-        doc.fontSize(7.5).font('Helvetica').fillColor('#94a3b8').text(
+        // Running Footer (All Pages)
+        doc.strokeColor(borderLine).lineWidth(0.5).moveTo(40, doc.page.height - 36).lineTo(40 + contentWidth, doc.page.height - 36).stroke();
+        doc.fontSize(7).font('Helvetica').fillColor('#94a3b8').text(
           `BFA APARTMENTS MANAGEMENT SYSTEM • CONFIDENTIAL INTERNAL OPERATIONAL DOCUMENT • Page ${i + 1} of ${pages.count}`,
-          50,
-          doc.page.height - 32,
+          40,
+          doc.page.height - 28,
           { align: 'center', width: contentWidth, lineBreak: false }
         );
       }
