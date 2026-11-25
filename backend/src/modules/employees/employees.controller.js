@@ -130,7 +130,10 @@ class EmployeesController {
   // === PERFORMANCE & ACTIVITIES ===
   static async getPerformance(req, res, next) {
     try {
-      const performance = await EmployeePerformanceService.getEmployeePerformance(req.params.id, req.query);
+      const performance = await EmployeePerformanceService.getEmployeePerformance(req.params.id, {
+        ...req.query,
+        requestingUser: req.user,
+      });
       res.status(200).json({
         success: true,
         data: performance,

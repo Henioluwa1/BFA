@@ -620,6 +620,8 @@ export const operationsService = {
   reviewStaffReport: (id, data) => api.patch(`/workforce/staff-reports/${id}/review`, data),
 
   // Performance Engine
+  getPerformanceConfig: () => api.get('/workforce/performance/weights'),
+  updatePerformanceConfig: (data) => api.put('/workforce/performance/weights', data),
   getPersonalPerformance: (params) => api.get('/workforce/performance/personal', { params }),
   getStaffPerformance: (userId, params) => api.get(`/workforce/performance/staff/${userId}`, { params }),
   getPerformanceOverview: (params) => api.get('/workforce/performance/overview', { params }),
@@ -628,18 +630,33 @@ export const operationsService = {
 export const centralOperationsService = {
   listOperations: (params) => api.get('/workforce/operations', { params }),
   getSummary: (params) => api.get('/workforce/operations/summary', { params }),
+  getAckSlaConfig: () => api.get('/workforce/operations/sla-config'),
+  updateAckSlaConfig: (data) => api.put('/workforce/operations/sla-config', data),
   getOperationById: (id) => api.get(`/workforce/operations/${id}`),
   createOperation: (data) => api.post('/workforce/operations', data),
   claimOperation: (id) => api.post(`/workforce/operations/${id}/claim`),
-  assignOperation: (id, targetUserId, notes) => api.post(`/workforce/operations/${id}/assign`, { targetUserId, notes }),
+  assignOperation: (id, targetUserIdOrPayload, notes, reason) => {
+    const payload = typeof targetUserIdOrPayload === 'object' && targetUserIdOrPayload !== null
+      ? targetUserIdOrPayload
+      : { targetUserId: targetUserIdOrPayload, notes, reason };
+    return api.post(`/workforce/operations/${id}/assign`, payload);
+  },
   acknowledgeOperation: (id, note) => api.post(`/workforce/operations/${id}/acknowledge`, { note }),
+  startExecution: (id, data = {}) => api.post(`/workforce/operations/${id}/start`, data),
   requestClarification: (id, data) => api.post(`/workforce/operations/${id}/clarification`, data),
   respondClarification: (id, data) => api.post(`/workforce/operations/${id}/clarification/respond`, data),
   reportBlocker: (id, data) => api.post(`/workforce/operations/${id}/blockers`, data),
+  resolveBlocker: (id, data = {}) => api.post(`/workforce/operations/${id}/blockers/resolve`, data),
+  requestExtension: (id, data) => api.post(`/workforce/operations/${id}/extension-request`, data),
+  reviewExtension: (id, data) => api.post(`/workforce/operations/${id}/extension-review`, data),
   updateProgress: (id, data) => api.post(`/workforce/operations/${id}/progress`, data),
+  uploadEvidence: (id, data) => api.post(`/workforce/operations/${id}/evidence`, data),
   createLinkedTask: (id, data) => api.post(`/workforce/operations/${id}/tasks`, data),
   submitCompletion: (id, data) => api.post(`/workforce/operations/${id}/completion`, data),
   reviewOperation: (id, data) => api.post(`/workforce/operations/${id}/review`, data),
+  rejectTicket: (id, data) => api.post(`/workforce/operations/${id}/reject`, data),
+  closeTicket: (id, data = {}) => api.post(`/workforce/operations/${id}/close`, data),
+  reopenTicket: (id, data) => api.post(`/workforce/operations/${id}/reopen`, data),
   amendOperation: (id, data) => api.post(`/workforce/operations/${id}/amend`, data),
   cancelOperation: (id, data) => api.post(`/workforce/operations/${id}/cancel`, data),
   getMemoPdfUrl: (memoId, operationId) => {
@@ -723,6 +740,26 @@ export const centralOperationsService = {
   previewMemoPdf: async (memoIdOrOpts) => {
     const opts = typeof memoIdOrOpts === 'object' && memoIdOrOpts !== null ? memoIdOrOpts : { memoId: memoIdOrOpts };
     return centralOperationsService.downloadMemoPdf({ ...opts, preview: true });
+  },
+  downloadEvidenceFile: async (operationId, docId, filename = 'ticket_evidence', preview = false) => {
+    const res = await api.get(`/workforce/operations/${operationId}/evidence/${docId}`, {
+      responseType: 'blob',
+    });
+    const mime = res.headers?.['content-type'] || res.data?.type || 'application/octet-stream';
+    const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: mime }));
+    if (preview) {
+      window.open(blobUrl, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+      return true;
+    }
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.setAttribute('download', filename || 'ticket_evidence');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    return true;
   },
 };
 

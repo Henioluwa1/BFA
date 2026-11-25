@@ -409,6 +409,20 @@ class ChatService {
           [entityId]
         );
         if (!guest) throw new NotFoundError(`Guest profile #${entityId} not found.`);
+        if (!isGlobal) {
+          if (!['MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST'].includes(userRole)) {
+            throw new ForbiddenError('Access denied: Guest PII preview is restricted to authorized hospitality management and front-desk staff.');
+          }
+          if (userPropId) {
+            const [resMatch] = await pool.query(
+              'SELECT id FROM reservations WHERE guest_id = ? AND property_id = ? LIMIT 1',
+              [entityId, userPropId]
+            );
+            if (!resMatch) {
+              throw new ForbiddenError('Access to guest profile outside your assigned property scope is denied.');
+            }
+          }
+        }
         return {
           entityType: 'GUEST',
           entityId: guest.id,
@@ -422,13 +436,21 @@ class ChatService {
 
       case 'ROSTER_ASSIGNMENT': {
         const [asg] = await pool.query(
-          `SELECT rpa.id, rpa.assignment_code, rpa.duty_category, rpa.status, p.name AS property_name 
-           FROM roster_property_assignments rpa 
-           JOIN properties p ON rpa.property_id = p.id 
+          `SELECT rpa.id, rpa.assignment_code, rpa.duty_category, rpa.status, rpa.property_id, rpa.staff_user_id, rpa.assigned_by_id, p.name AS property_name
+           FROM roster_property_assignments rpa
+           JOIN properties p ON rpa.property_id = p.id
            WHERE rpa.id = ?`,
           [entityId]
         );
         if (!asg) throw new NotFoundError(`Assignment #${entityId} not found.`);
+        const canViewAsg =
+          isGlobal ||
+          Number(asg.staff_user_id) === Number(user.id) ||
+          Number(asg.assigned_by_id) === Number(user.id) ||
+          (['MANAGER', 'OPERATIONS_MANAGER'].includes(userRole) && (!userPropId || userPropId === Number(asg.property_id)));
+        if (!canViewAsg) {
+          throw new ForbiddenError('Access to another staff member or property roster assignment is denied.');
+        }
         return {
           entityType: 'ROSTER_ASSIGNMENT',
           entityId: asg.id,
@@ -442,13 +464,21 @@ class ChatService {
 
       case 'TASK': {
         const [task] = await pool.query(
-          `SELECT ot.id, ot.task_code, ot.title, ot.status, p.name AS property_name 
-           FROM operational_tasks ot 
-           JOIN properties p ON ot.property_id = p.id 
+          `SELECT ot.id, ot.task_code, ot.title, ot.status, ot.property_id, ot.assigned_to_id, ot.assigned_by_id, p.name AS property_name
+           FROM operational_tasks ot
+           JOIN properties p ON ot.property_id = p.id
            WHERE ot.id = ?`,
           [entityId]
         );
         if (!task) throw new NotFoundError(`Task #${entityId} not found.`);
+        const canViewTask =
+          isGlobal ||
+          Number(task.assigned_to_id) === Number(user.id) ||
+          Number(task.assigned_by_id) === Number(user.id) ||
+          (['MANAGER', 'OPERATIONS_MANAGER'].includes(userRole) && (!userPropId || userPropId === Number(task.property_id)));
+        if (!canViewTask) {
+          throw new ForbiddenError('Access to operational task outside your assignment or property scope is denied.');
+        }
         return {
           entityType: 'TASK',
           entityId: task.id,
@@ -462,10 +492,18 @@ class ChatService {
 
       case 'DIRECTIVE': {
         const [dir] = await pool.query(
-          `SELECT id, directive_code, title, priority, status FROM operational_directives WHERE id = ?`,
+          'SELECT id, directive_code, title, priority, status, property_id, initiated_by_admin_id, assigned_manager_id FROM operational_directives WHERE id = ?',
           [entityId]
         );
         if (!dir) throw new NotFoundError(`Directive #${entityId} not found.`);
+        const canViewDir =
+          isGlobal ||
+          Number(dir.initiated_by_admin_id) === Number(user.id) ||
+          Number(dir.assigned_manager_id) === Number(user.id) ||
+          (['MANAGER', 'OPERATIONS_MANAGER'].includes(userRole) && dir.property_id && userPropId === Number(dir.property_id));
+        if (!canViewDir) {
+          throw new ForbiddenError('Access to operational directive outside your scope is denied.');
+        }
         return {
           entityType: 'DIRECTIVE',
           entityId: dir.id,
@@ -478,11 +516,22 @@ class ChatService {
       }
 
       case 'QUERY': {
+        if (userRole === 'OWNER') {
+          throw new ForbiddenError('Disciplinary notices are strictly excluded from executive Owner access.');
+        }
         const [qry] = await pool.query(
-          `SELECT id, query_code, subject, status, response_deadline_at FROM disciplinary_queries WHERE id = ?`,
+          'SELECT id, query_code, subject, status, response_deadline_at, property_id, staff_user_id, issued_by_id FROM disciplinary_queries WHERE id = ?',
           [entityId]
         );
         if (!qry) throw new NotFoundError(`Query #${entityId} not found.`);
+        const canViewQuery =
+          ['SUPER_ADMIN', 'ADMIN'].includes(userRole) ||
+          Number(qry.staff_user_id) === Number(user.id) ||
+          Number(qry.issued_by_id) === Number(user.id) ||
+          (['MANAGER', 'OPERATIONS_MANAGER'].includes(userRole) && (!userPropId || userPropId === Number(qry.property_id)));
+        if (!canViewQuery) {
+          throw new ForbiddenError('Access to confidential disciplinary record is denied.');
+        }
         return {
           entityType: 'QUERY',
           entityId: qry.id,
@@ -496,7 +545,9 @@ class ChatService {
 
       case 'OPERATION': {
         const [op] = await pool.query(
-          `SELECT co.id, co.operation_code, co.title, co.category, co.priority, co.status, co.deadline_at,
+          `SELECT co.id, co.operation_code, co.ticket_reference, co.title, co.category, co.priority, co.status,
+                  co.deadline_at, co.acknowledgment_deadline_at, co.acknowledgment_sla_hours,
+                  co.property_id, co.initiated_by_user_id, co.supervisor_user_id, co.current_responsible_user_id,
                   p.name AS property_name, om.memo_reference, om.id AS memo_id
            FROM central_operations co
            LEFT JOIN properties p ON co.property_id = p.id
@@ -505,18 +556,41 @@ class ChatService {
           [entityId]
         );
         if (!op) throw new NotFoundError(`Operation #${entityId} not found.`);
+
+        if (!['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(userRole)) {
+          const isDirectParty =
+            Number(op.initiated_by_user_id) === Number(user.id) ||
+            Number(op.supervisor_user_id) === Number(user.id) ||
+            Number(op.current_responsible_user_id) === Number(user.id);
+          const [recipMatch] = await pool.query(
+            'SELECT 1 AS ok FROM central_operation_recipients WHERE operation_id = ? AND user_id = ? LIMIT 1',
+            [op.id, user.id]
+          );
+          const isPropMgr =
+            ['MANAGER', 'OPERATIONS_MANAGER'].includes(userRole) &&
+            op.property_id &&
+            userPropId === Number(op.property_id);
+          if (!isDirectParty && !recipMatch && !isPropMgr) {
+            throw new ForbiddenError('Access to this operational ticket preview is denied.');
+          }
+        }
+
+        const refCode = op.ticket_reference || op.operation_code;
         return {
           entityType: 'OPERATION',
           entityId: op.id,
           code: op.operation_code,
-          title: `Operation: ${op.title}`,
-          subtitle: `${op.operation_code} • ${(op.category || '').replace(/_/g, ' ')} • ${op.property_name || 'Corporate'}`,
+          ticketReference: refCode,
+          title: `Ticket: ${op.title}`,
+          subtitle: `${refCode} • ${(op.category || '').replace(/_/g, ' ')} • ${op.property_name || 'Corporate'}`,
           status: op.status,
           priority: op.priority,
           memoReference: op.memo_reference,
           memoId: op.memo_id,
           deadlineAt: op.deadline_at,
-          badgeColor: op.priority === 'CRITICAL' ? 'danger' : op.priority === 'URGENT' ? 'warning' : 'primary',
+          acknowledgmentDeadlineAt: op.acknowledgment_deadline_at,
+          acknowledgmentSlaHours: op.acknowledgment_sla_hours,
+          badgeColor: op.priority === 'CRITICAL' ? 'danger' : ['URGENT', 'HIGH'].includes(op.priority) ? 'warning' : 'primary',
           deepLink: `/app/operations?id=${op.id}`,
         };
       }
@@ -524,23 +598,43 @@ class ChatService {
       case 'MEMO': {
         const [memo] = await pool.query(
           `SELECT om.id, om.memo_reference, om.title, om.category, om.priority, om.version_number,
-                  co.id AS operation_id, co.operation_code, co.status
+                  co.id AS operation_id, co.operation_code, co.ticket_reference, co.status,
+                  co.property_id, co.initiated_by_user_id, co.supervisor_user_id, co.current_responsible_user_id
            FROM operations_memos om
            JOIN central_operations co ON om.operation_id = co.id
            WHERE om.id = ?`,
           [entityId]
         );
         if (!memo) throw new NotFoundError(`Operations Memo #${entityId} not found.`);
+
+        if (!['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(userRole)) {
+          const isDirectParty =
+            Number(memo.initiated_by_user_id) === Number(user.id) ||
+            Number(memo.supervisor_user_id) === Number(user.id) ||
+            Number(memo.current_responsible_user_id) === Number(user.id);
+          const [recipMatch] = await pool.query(
+            'SELECT 1 AS ok FROM central_operation_recipients WHERE operation_id = ? AND user_id = ? LIMIT 1',
+            [memo.operation_id, user.id]
+          );
+          const isPropMgr =
+            ['MANAGER', 'OPERATIONS_MANAGER'].includes(userRole) &&
+            memo.property_id &&
+            userPropId === Number(memo.property_id);
+          if (!isDirectParty && !recipMatch && !isPropMgr) {
+            throw new ForbiddenError('Access to this memorandum preview is denied.');
+          }
+        }
+
         return {
           entityType: 'MEMO',
           entityId: memo.id,
           code: memo.memo_reference,
           title: `Memo: ${memo.title}`,
-          subtitle: `${memo.memo_reference} (v${memo.version_number}) • Ref: ${memo.operation_code}`,
+          subtitle: `${memo.memo_reference} (v${memo.version_number}) • Ticket: ${memo.ticket_reference || memo.operation_code}`,
           status: memo.status,
           priority: memo.priority,
           operationId: memo.operation_id,
-          badgeColor: memo.priority === 'CRITICAL' ? 'danger' : memo.priority === 'URGENT' ? 'warning' : 'primary',
+          badgeColor: memo.priority === 'CRITICAL' ? 'danger' : ['URGENT', 'HIGH'].includes(memo.priority) ? 'warning' : 'primary',
           deepLink: `/app/operations?id=${memo.operation_id}`,
           pdfUrl: `/api/v1/workforce/operations/memos/${memo.id}/pdf`,
         };

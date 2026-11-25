@@ -762,6 +762,25 @@ body.light-theme .modal-footer,
   border-left: 4px solid #3b82f6;
 }
 
+.toast-warning {
+  background: var(--bg-card);
+  color: #92400e;
+  border-color: #fde68a;
+  border-left: 4px solid #f59e0b;
+}
+
+@media (max-width: 640px) {
+  .toast-container {
+    top: 72px;
+    bottom: auto;
+    left: 0.75rem;
+    right: 0.75rem;
+    max-width: none;
+    width: auto;
+    z-index: 3000;
+  }
+}
+
 /* Form Controls */
 .form-group {
   display: flex;

@@ -1,653 +1,175 @@
 /**
- * Central Operations, Directives, Operations Memos & Chat Integration Service
+ * Central Operations & Unified Ticketing Engine Service
  * BFA Apartments Management System
  *
- * Implements:
- * 1. Operation Initiation & Centrally Enforced Routing Matrix
- * 2. Automatic Operations Memo Generation (Versioned, with PDF storage)
- * 3. Chat System Transport Integration (Direct/Group Thread creation, Context Cards, Acknowledgements)
- * 4. Multi-View Scoping (Initiated by me, Assigned to me, Supervising, Action Required, Archived)
- * 5. Lifecycle Management (Acknowledgement, Clarifications, Blockers, Progress, Task Linkage, Reviews)
- * 6. Versioned Amendments & Cancellation Notices
- * 7. Immutable Audit Events Ledger
+ * Authoritative service backing Ticket Issuance, Priority-Based Ack SLA,
+ * Ownership & Reassignment History, Deadline Extensions, DB-Persisted Evidence,
+ * Formal Closure / Reopen Workflows, Official Memorandum PDF Generation,
+ * and Property-Scoped Authorization.
  */
 
 const pool = require('../../db/pool');
-const PDFDocument = require('pdfkit');
-const AuditService = require('../../core/audit/audit.service');
+const logger = require('../../utils/logger');
 const {
   BadRequestError,
   ForbiddenError,
   NotFoundError,
   ConflictError,
 } = require('../../core/errors/apiError');
-const logger = require('../../utils/logger');
-const ChatService = require('../chat/chat.service');
 const ChatRepository = require('../chat/chat.repository');
+const ChatService = require('../chat/chat.service');
+const NotificationsService = require('../notifications/notifications.service');
+const MemoPdfGenerator = require('./memoPdfGenerator');
+const {
+  DEFAULT_ACK_SLA_HOURS,
+  normalizePriority,
+  getSlaHoursForPriority,
+  validateAckSlaConfig,
+  formatLagosTime,
+  deriveNextAction,
+} = require('./ticketSla.helper');
+
+function extractRows(res) {
+  if (!res) return [];
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res.rows)) return res.rows;
+  return [];
+}
+
+function extractInsertId(res) {
+  if (!res) return null;
+  if (Array.isArray(res) && res[0]?.id) return res[0].id;
+  if (res.rows?.[0]?.id) return res.rows[0].id;
+  if (res.insertId) return res.insertId;
+  return null;
+}
+
+function addHoursDate(date, hours) {
+  const base = date instanceof Date ? date : new Date(date);
+  return new Date(base.getTime() + Number(hours) * 3600 * 1000);
+}
 
 class CentralOperationsService {
-  /**
-   * DERIVE UNAMBIGUOUS NEXT ACTION FOR ANY OPERATIONAL RECORD AND VIEWER
-   * Dynamic, role-aware, and actionable guidance for the recipient and management.
-   */
   static deriveNextAction(op, viewerUser) {
-    if (!op) return { text: 'No action required.', generalText: 'No action required.', actionKey: 'NONE', actionableByMe: false };
-
-    const viewerId = viewerUser ? Number(viewerUser.id) : null;
-    const viewerRole = viewerUser ? (viewerUser.role || '').toUpperCase() : '';
-    const status = op.status || 'ISSUED';
-    const isInitiator = viewerId && Number(op.initiated_by_user_id) === viewerId;
-    const isSupervisor = viewerId && Number(op.supervisor_user_id) === viewerId;
-    const isResponsible = viewerId && Number(op.current_responsible_user_id) === viewerId;
-    const isManagement = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(viewerRole);
-
-    const recipientRecord = op.recipients?.find(r => Number(r.user_id || r.id) === viewerId);
-    const hasAcknowledged = recipientRecord && Boolean(recipientRecord.acknowledged_at);
-
-    switch (status) {
-      case 'DRAFT':
-        return {
-          text: isInitiator ? 'Review draft directives and formally issue operation.' : 'Draft directive pending issuance.',
-          generalText: 'Draft pending issuance.',
-          actionKey: isInitiator ? 'ISSUE' : 'NONE',
-          actionableByMe: isInitiator,
-        };
-
-      case 'ISSUED':
-      case 'AWAITING_ACKNOWLEDGEMENT':
-        if (recipientRecord && !hasAcknowledged) {
-          return {
-            text: 'Awaiting your formal acknowledgement. Click "Acknowledge Receipt" to confirm you have reviewed the directive.',
-            generalText: 'Awaiting recipient formal acknowledgement.',
-            actionKey: 'ACKNOWLEDGE',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Awaiting recipient acknowledgement from designated personnel.',
-          generalText: 'Awaiting recipient acknowledgement.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'ACKNOWLEDGED':
-      case 'AWAITING_OWNERSHIP':
-        if (!op.current_responsible_user_id) {
-          if (recipientRecord || isManagement) {
-            return {
-              text: 'Operation awaiting ownership: You can claim and accept responsibility, or management can assign an executing officer.',
-              generalText: 'Awaiting member ownership claim or supervisor assignment.',
-              actionKey: 'CLAIM',
-              actionableByMe: true,
-            };
-          }
-          return {
-            text: `Awaiting designated personnel in [${op.current_responsible_group || op.target_audience_type}] to claim ownership.`,
-            generalText: 'Awaiting ownership acceptance.',
-            actionKey: 'NONE',
-            actionableByMe: false,
-          };
-        }
-        if (isResponsible) {
-          return {
-            text: 'Responsibility accepted. Review directives and begin operational execution.',
-            generalText: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
-            actionKey: 'EXECUTE',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
-          generalText: `Assigned to ${op.responsible_name || 'designated officer'}.`,
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'ACCEPTED':
-      case 'IN_PROGRESS':
-        if (isResponsible) {
-          return {
-            text: 'Execute operational instructions. Submit progress updates or deliverables when milestones are achieved.',
-            generalText: `Execution in progress by ${op.responsible_name || 'assigned officer'}.`,
-            actionKey: 'SUBMIT_PROGRESS',
-            actionableByMe: true,
-          };
-        }
-        if (isInitiator || isSupervisor || isManagement) {
-          return {
-            text: `Execution in progress by ${op.responsible_name || 'assigned officer'}. Monitor progress and provide guidance if needed.`,
-            generalText: `In progress under ${op.responsible_name || 'assigned officer'}.`,
-            actionKey: 'NONE',
-            actionableByMe: false,
-          };
-        }
-        return {
-          text: `In progress under ${op.responsible_name || 'assigned team'}.`,
-          generalText: 'Execution in progress.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'AWAITING_CLARIFICATION':
-        if (isInitiator || isSupervisor || isManagement) {
-          return {
-            text: 'Clarification inquiry submitted by recipient. Provide answers or guidance to unblock execution.',
-            generalText: 'Clarification inquiry pending response from initiator.',
-            actionKey: 'RESPOND_CLARIFICATION',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Clarification requested. Awaiting response from issuing authority.',
-          generalText: 'Pending clarification response.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'BLOCKED':
-        if (isSupervisor || isInitiator || isManagement) {
-          return {
-            text: 'Operational blocker reported! Review reported impediment and intervene to resolve.',
-            generalText: 'Operational blocker reported. Management intervention required.',
-            actionKey: 'RESOLVE_BLOCKER',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Operational blocker reported. Awaiting management assistance to resolve impediment.',
-          generalText: 'Blocked by operational impediment.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'SUBMITTED_FOR_REVIEW':
-      case 'AWAITING_REVIEW':
-      case 'AWAITING_APPROVAL':
-        if (isInitiator || isSupervisor || isManagement) {
-          return {
-            text: 'Deliverables completed and submitted for review. Inspect outcome and approve completion or request revisions.',
-            generalText: 'Work submitted. Awaiting supervisory verification and approval.',
-            actionKey: 'REVIEW',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Deliverables submitted for review. Awaiting management sign-off.',
-          generalText: 'Awaiting supervisory sign-off.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'REVISION_REQUIRED':
-        if (isResponsible) {
-          return {
-            text: `Revisions requested by reviewer: ${op.review_notes || 'Implement requested adjustments'}. Update work and resubmit.`,
-            generalText: 'Revisions requested by reviewer.',
-            actionKey: 'REVISE',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: `Revisions requested from ${op.responsible_name || 'responsible officer'}. Awaiting resubmission.`,
-          generalText: 'Revisions in progress.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'COMPLETED':
-      case 'CLOSED':
-        return {
-          text: 'Operation completed, verified, and officially closed. No further action required.',
-          generalText: 'Operation completed and closed.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'CANCELLED':
-      case 'REJECTED':
-        return {
-          text: `Operation cancelled${op.cancellation_reason ? `: ${op.cancellation_reason}` : ''}. Archived in audit ledger.`,
-          generalText: 'Operation cancelled.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      default:
-        return {
-          text: op.next_action || 'Review directive and adhere to instructions.',
-          generalText: op.next_action || 'Review directive.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-    }
+    return deriveNextAction(op, viewerUser);
   }
 
-  /**
-   * DERIVE UNAMBIGUOUS NEXT ACTION FOR ANY OPERATIONAL RECORD AND VIEWER
-   * Dynamic, role-aware, and actionable guidance for the recipient and management.
-   */
-  static deriveNextAction(op, viewerUser) {
-    if (!op) return { text: 'No action required.', generalText: 'No action required.', actionKey: 'NONE', actionableByMe: false };
-
-    const viewerId = viewerUser ? Number(viewerUser.id) : null;
-    const viewerRole = viewerUser ? (viewerUser.role || '').toUpperCase() : '';
-    const status = op.status || 'ISSUED';
-    const isInitiator = viewerId && Number(op.initiated_by_user_id) === viewerId;
-    const isSupervisor = viewerId && Number(op.supervisor_user_id) === viewerId;
-    const isResponsible = viewerId && Number(op.current_responsible_user_id) === viewerId;
-    const isManagement = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(viewerRole);
-
-    const recipientRecord = op.recipients?.find(r => Number(r.user_id || r.id) === viewerId);
-    const hasAcknowledged = recipientRecord && Boolean(recipientRecord.acknowledged_at);
-
-    switch (status) {
-      case 'DRAFT':
-        return {
-          text: isInitiator ? 'Review draft directives and formally issue operation.' : 'Draft directive pending issuance.',
-          generalText: 'Draft pending issuance.',
-          actionKey: isInitiator ? 'ISSUE' : 'NONE',
-          actionableByMe: isInitiator,
-        };
-
-      case 'ISSUED':
-      case 'AWAITING_ACKNOWLEDGEMENT':
-        if (recipientRecord && !hasAcknowledged) {
-          return {
-            text: 'Awaiting your formal acknowledgement. Click "Acknowledge Receipt" to confirm you have reviewed the directive.',
-            generalText: 'Awaiting recipient formal acknowledgement.',
-            actionKey: 'ACKNOWLEDGE',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Awaiting recipient acknowledgement from designated personnel.',
-          generalText: 'Awaiting recipient acknowledgement.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'ACKNOWLEDGED':
-      case 'AWAITING_OWNERSHIP':
-        if (!op.current_responsible_user_id) {
-          if (recipientRecord || isManagement) {
-            return {
-              text: 'Operation awaiting ownership: You can claim and accept responsibility, or management can assign an executing officer.',
-              generalText: 'Awaiting member ownership claim or supervisor assignment.',
-              actionKey: 'CLAIM',
-              actionableByMe: true,
-            };
-          }
-          return {
-            text: `Awaiting designated personnel in [${op.current_responsible_group || op.target_audience_type}] to claim ownership.`,
-            generalText: 'Awaiting ownership acceptance.',
-            actionKey: 'NONE',
-            actionableByMe: false,
-          };
-        }
-        if (isResponsible) {
-          return {
-            text: 'Responsibility accepted. Review directives and begin operational execution.',
-            generalText: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
-            actionKey: 'EXECUTE',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
-          generalText: `Assigned to ${op.responsible_name || 'designated officer'}.`,
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'ACCEPTED':
-      case 'IN_PROGRESS':
-        if (isResponsible) {
-          return {
-            text: 'Execute operational instructions. Submit progress updates or deliverables when milestones are achieved.',
-            generalText: `Execution in progress by ${op.responsible_name || 'assigned officer'}.`,
-            actionKey: 'SUBMIT_PROGRESS',
-            actionableByMe: true,
-          };
-        }
-        if (isInitiator || isSupervisor || isManagement) {
-          return {
-            text: `Execution in progress by ${op.responsible_name || 'assigned officer'}. Monitor progress and provide guidance if needed.`,
-            generalText: `In progress under ${op.responsible_name || 'assigned officer'}.`,
-            actionKey: 'NONE',
-            actionableByMe: false,
-          };
-        }
-        return {
-          text: `In progress under ${op.responsible_name || 'assigned team'}.`,
-          generalText: 'Execution in progress.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'AWAITING_CLARIFICATION':
-        if (isInitiator || isSupervisor || isManagement) {
-          return {
-            text: 'Clarification inquiry submitted by recipient. Provide answers or guidance to unblock execution.',
-            generalText: 'Clarification inquiry pending response from initiator.',
-            actionKey: 'RESPOND_CLARIFICATION',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Clarification requested. Awaiting response from issuing authority.',
-          generalText: 'Pending clarification response.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'BLOCKED':
-        if (isSupervisor || isInitiator || isManagement) {
-          return {
-            text: 'Operational blocker reported! Review reported impediment and intervene to resolve.',
-            generalText: 'Operational blocker reported. Management intervention required.',
-            actionKey: 'RESOLVE_BLOCKER',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Operational blocker reported. Awaiting management assistance to resolve impediment.',
-          generalText: 'Blocked by operational impediment.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'SUBMITTED_FOR_REVIEW':
-      case 'AWAITING_REVIEW':
-      case 'AWAITING_APPROVAL':
-        if (isInitiator || isSupervisor || isManagement) {
-          return {
-            text: 'Deliverables completed and submitted for review. Inspect outcome and approve completion or request revisions.',
-            generalText: 'Work submitted. Awaiting supervisory verification and approval.',
-            actionKey: 'REVIEW',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Deliverables submitted for review. Awaiting management sign-off.',
-          generalText: 'Awaiting supervisory sign-off.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'REVISION_REQUIRED':
-        if (isResponsible) {
-          return {
-            text: `Revisions requested by reviewer: ${op.review_notes || 'Implement requested adjustments'}. Update work and resubmit.`,
-            generalText: 'Revisions requested by reviewer.',
-            actionKey: 'REVISE',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: `Revisions requested from ${op.responsible_name || 'responsible officer'}. Awaiting resubmission.`,
-          generalText: 'Revisions in progress.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'COMPLETED':
-      case 'CLOSED':
-        return {
-          text: 'Operation completed, verified, and officially closed. No further action required.',
-          generalText: 'Operation completed and closed.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'CANCELLED':
-      case 'REJECTED':
-        return {
-          text: `Operation cancelled${op.cancellation_reason ? `: ${op.cancellation_reason}` : ''}. Archived in audit ledger.`,
-          generalText: 'Operation cancelled.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      default:
-        return {
-          text: op.next_action || 'Review directive and adhere to instructions.',
-          generalText: op.next_action || 'Review directive.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
+  // ─── Priority Ack SLA Configuration (Owner-Configurable 3-24h) ─────────
+  static async getAckSlaConfig() {
+    try {
+      const rows = await pool.query(
+        "SELECT setting_value FROM system_settings WHERE setting_key = 'ticket_ack_sla_hours' LIMIT 1"
+      );
+      const list = extractRows(rows);
+      if (list.length > 0 && list[0].setting_value) {
+        const parsed = typeof list[0].setting_value === 'string'
+          ? JSON.parse(list[0].setting_value)
+          : list[0].setting_value;
+        return { ...DEFAULT_ACK_SLA_HOURS, ...parsed };
+      }
+    } catch (err) {
+      logger.warn(`Using default Ack SLA config: ${err.message}`);
     }
+    return { ...DEFAULT_ACK_SLA_HOURS };
   }
 
-  /**
-   * DERIVE UNAMBIGUOUS NEXT ACTION FOR ANY OPERATIONAL RECORD AND VIEWER
-   * Dynamic, role-aware, and actionable guidance for the recipient and management.
-   */
-  static deriveNextAction(op, viewerUser) {
-    if (!op) return { text: 'No action required.', generalText: 'No action required.', actionKey: 'NONE', actionableByMe: false };
-
-    const viewerId = viewerUser ? Number(viewerUser.id) : null;
-    const viewerRole = viewerUser ? (viewerUser.role || '').toUpperCase() : '';
-    const status = op.status || 'ISSUED';
-    const isInitiator = viewerId && Number(op.initiated_by_user_id) === viewerId;
-    const isSupervisor = viewerId && Number(op.supervisor_user_id) === viewerId;
-    const isResponsible = viewerId && Number(op.current_responsible_user_id) === viewerId;
-    const isManagement = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(viewerRole);
-
-    const recipientRecord = op.recipients?.find(r => Number(r.user_id || r.id) === viewerId);
-    const hasAcknowledged = recipientRecord && Boolean(recipientRecord.acknowledged_at);
-
-    switch (status) {
-      case 'DRAFT':
-        return {
-          text: isInitiator ? 'Review draft directives and formally issue operation.' : 'Draft directive pending issuance.',
-          generalText: 'Draft pending issuance.',
-          actionKey: isInitiator ? 'ISSUE' : 'NONE',
-          actionableByMe: isInitiator,
-        };
-
-      case 'ISSUED':
-      case 'AWAITING_ACKNOWLEDGEMENT':
-        if (recipientRecord && !hasAcknowledged) {
-          return {
-            text: 'Awaiting your formal acknowledgement. Click "Acknowledge Receipt" to confirm you have reviewed the directive.',
-            generalText: 'Awaiting recipient formal acknowledgement.',
-            actionKey: 'ACKNOWLEDGE',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Awaiting recipient acknowledgement from designated personnel.',
-          generalText: 'Awaiting recipient acknowledgement.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'ACKNOWLEDGED':
-      case 'AWAITING_OWNERSHIP':
-        if (!op.current_responsible_user_id) {
-          if (recipientRecord || isManagement) {
-            return {
-              text: 'Operation awaiting ownership: You can claim and accept responsibility, or management can assign an executing officer.',
-              generalText: 'Awaiting member ownership claim or supervisor assignment.',
-              actionKey: 'CLAIM',
-              actionableByMe: true,
-            };
-          }
-          return {
-            text: `Awaiting designated personnel in [${op.current_responsible_group || op.target_audience_type}] to claim ownership.`,
-            generalText: 'Awaiting ownership acceptance.',
-            actionKey: 'NONE',
-            actionableByMe: false,
-          };
-        }
-        if (isResponsible) {
-          return {
-            text: 'Responsibility accepted. Review directives and begin operational execution.',
-            generalText: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
-            actionKey: 'EXECUTE',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: `Assigned to ${op.responsible_name || 'designated officer'}. Execution pending.`,
-          generalText: `Assigned to ${op.responsible_name || 'designated officer'}.`,
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'ACCEPTED':
-      case 'IN_PROGRESS':
-        if (isResponsible) {
-          return {
-            text: 'Execute operational instructions. Submit progress updates or deliverables when milestones are achieved.',
-            generalText: `Execution in progress by ${op.responsible_name || 'assigned officer'}.`,
-            actionKey: 'SUBMIT_PROGRESS',
-            actionableByMe: true,
-          };
-        }
-        if (isInitiator || isSupervisor || isManagement) {
-          return {
-            text: `Execution in progress by ${op.responsible_name || 'assigned officer'}. Monitor progress and provide guidance if needed.`,
-            generalText: `In progress under ${op.responsible_name || 'assigned officer'}.`,
-            actionKey: 'NONE',
-            actionableByMe: false,
-          };
-        }
-        return {
-          text: `In progress under ${op.responsible_name || 'assigned team'}.`,
-          generalText: 'Execution in progress.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'AWAITING_CLARIFICATION':
-        if (isInitiator || isSupervisor || isManagement) {
-          return {
-            text: 'Clarification inquiry submitted by recipient. Provide answers or guidance to unblock execution.',
-            generalText: 'Clarification inquiry pending response from initiator.',
-            actionKey: 'RESPOND_CLARIFICATION',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Clarification requested. Awaiting response from issuing authority.',
-          generalText: 'Pending clarification response.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'BLOCKED':
-        if (isSupervisor || isInitiator || isManagement) {
-          return {
-            text: 'Operational blocker reported! Review reported impediment and intervene to resolve.',
-            generalText: 'Operational blocker reported. Management intervention required.',
-            actionKey: 'RESOLVE_BLOCKER',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Operational blocker reported. Awaiting management assistance to resolve impediment.',
-          generalText: 'Blocked by operational impediment.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'SUBMITTED_FOR_REVIEW':
-      case 'AWAITING_REVIEW':
-      case 'AWAITING_APPROVAL':
-        if (isInitiator || isSupervisor || isManagement) {
-          return {
-            text: 'Deliverables completed and submitted for review. Inspect outcome and approve completion or request revisions.',
-            generalText: 'Work submitted. Awaiting supervisory verification and approval.',
-            actionKey: 'REVIEW',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: 'Deliverables submitted for review. Awaiting management sign-off.',
-          generalText: 'Awaiting supervisory sign-off.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'REVISION_REQUIRED':
-        if (isResponsible) {
-          return {
-            text: `Revisions requested by reviewer: ${op.review_notes || 'Implement requested adjustments'}. Update work and resubmit.`,
-            generalText: 'Revisions requested by reviewer.',
-            actionKey: 'REVISE',
-            actionableByMe: true,
-          };
-        }
-        return {
-          text: `Revisions requested from ${op.responsible_name || 'responsible officer'}. Awaiting resubmission.`,
-          generalText: 'Revisions in progress.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'COMPLETED':
-      case 'CLOSED':
-        return {
-          text: 'Operation completed, verified, and officially closed. No further action required.',
-          generalText: 'Operation completed and closed.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      case 'CANCELLED':
-      case 'REJECTED':
-        return {
-          text: `Operation cancelled${op.cancellation_reason ? `: ${op.cancellation_reason}` : ''}. Archived in audit ledger.`,
-          generalText: 'Operation cancelled.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
-
-      default:
-        return {
-          text: op.next_action || 'Review directive and adhere to instructions.',
-          generalText: op.next_action || 'Review directive.',
-          actionKey: 'NONE',
-          actionableByMe: false,
-        };
+  static async updateAckSlaConfig(user, inputMap) {
+    const role = String(user?.role || '').toUpperCase();
+    if (!['OWNER', 'SUPER_ADMIN'].includes(role)) {
+      throw new ForbiddenError('Only the Owner or Super Admin may modify priority Acknowledgment SLA thresholds.');
     }
-  }
+    let validated;
+    try {
+      validated = validateAckSlaConfig(inputMap);
+    } catch (err) {
+      throw new BadRequestError(err.message);
+    }
 
-  /**
-   * Enforce Central Routing Matrix according to Enterprise Governance:
-   * - STRICT OWNER-ONLY RULE: Only the OWNER role may initiate group operations.
-   * - OWNER: Directives restricted to Admin & Operations Managers.
-   * - ADMIN / SUPER_ADMIN: Directives to Managers (personal 1-to-1).
-   * - MANAGER: Property-scoped operations for Staff & Receptionists (personal 1-to-1).
-   * - STAFF / RECEPTIONIST: Task performers only, cannot initiate operations.
-   */
-  static async assertRoutingMatrix(initiatorUser, targetAudienceType, propertyId, specificUserIds = []) {
-    const role = (initiatorUser.role || '').toUpperCase();
-
-    // 0. Strict Owner-Only Rule for Group Operations
-    const isGroupOperation = targetAudienceType !== 'SPECIFIC_USER' ||
-      (Array.isArray(specificUserIds) && specificUserIds.length > 1);
-
-    if (isGroupOperation && role !== 'OWNER') {
-      throw new ForbiddenError(
-        'Operational Governance Mandate: Only the Owner role is authorized to initiate group operations. Non-owner staff are restricted to personal 1-to-1 directives.'
+    const jsonStr = JSON.stringify(validated);
+    if (pool.isPostgres()) {
+      await pool.query(
+        `INSERT INTO system_settings (category, setting_key, setting_value, description)
+         VALUES ('ticketing', 'ticket_ack_sla_hours', ?, 'Priority-based ticket acknowledgment SLA in hours (3-24h)')
+         ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = CURRENT_TIMESTAMP`,
+        [jsonStr]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO system_settings (category, setting_key, setting_value, description)
+         VALUES ('ticketing', 'ticket_ack_sla_hours', ?, 'Priority-based ticket acknowledgment SLA in hours (3-24h)')
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+        [jsonStr]
       );
     }
 
-    // 1. Owner restrictions: Directives restricted to Admin & Operations Managers
+    await pool.query(
+      `INSERT INTO audit_logs (actor_id, actor_email, actor_role, action, entity_type, entity_id, new_values)
+       VALUES (?, ?, ?, 'TICKET_SLA_CONFIG_UPDATED', 'system_settings', 'ticket_ack_sla_hours', ?)`,
+      [user.id, user.email || null, role, jsonStr]
+    );
+
+    return validated;
+  }
+
+  // ─── Routing Matrix & Property Access Governance ────────────────────────
+  static async checkUserPropertyAccess(user, propertyId) {
+    const role = String(user?.role || '').toUpperCase();
+    if (['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(role)) return true;
+
+    const targetPropId = parseInt(propertyId, 10);
+    if (Number.isNaN(targetPropId)) return false;
+
+    const uRes = await pool.query('SELECT property_id FROM users WHERE id = ? LIMIT 1', [user.id]);
+    const uRow = extractRows(uRes)[0];
+    if (uRow?.property_id && Number(uRow.property_id) === targetPropId) {
+      return true;
+    }
+
+    const assignRes = await pool.query(
+      'SELECT id FROM user_property_assignments WHERE user_id = ? AND property_id = ? LIMIT 1',
+      [user.id, targetPropId]
+    );
+    return extractRows(assignRes).length > 0;
+  }
+
+  static async assertRoutingMatrix(initiatorUser, targetAudienceType, propertyId, specificUserIds = []) {
+    const role = String(initiatorUser?.role || '').toUpperCase();
+    const audience = String(targetAudienceType || 'SPECIFIC_USER').toUpperCase();
+
+    if (['STAFF', 'RECEPTIONIST', 'AGENT'].includes(role)) {
+      throw new ForbiddenError('Access Denied: Staff, Receptionists, and Agents cannot initiate operational tickets.');
+    }
+
+    const cleanIds = Array.isArray(specificUserIds)
+      ? Array.from(new Set(specificUserIds.map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n) && n > 0)))
+      : [];
+
+    // 0. Strict Owner-Only Rule for Group Operations
+    const isGroupOperation = !['SPECIFIC_USER', 'SPECIFIC_USERS'].includes(audience) || cleanIds.length > 1 ||
+      (audience === 'SPECIFIC_USERS' && cleanIds.length !== 1);
+
+    if (isGroupOperation && role !== 'OWNER') {
+      throw new ForbiddenError(
+        'Operational Governance Mandate: Only the Owner role is authorized to initiate group operations/tickets. Non-owner roles are restricted to 1-to-1 personal tickets.'
+      );
+    }
+
+    // 1. Validate Owner group & direct targeting
     if (role === 'OWNER') {
-      if (['PROPERTY_STAFF', 'PROPERTY_RECEPTIONISTS'].includes(targetAudienceType)) {
+      if (['PROPERTY_STAFF', 'PROPERTY_RECEPTIONISTS'].includes(audience)) {
         throw new ForbiddenError(
-          'Routing Matrix Violation: Owner is strictly restricted to issuing Management Directives to Administrators and Operations Managers. Direct staff broadcasting is not permitted.'
+          'Routing Matrix Violation: Owner group tickets should target Management, Property Team (PROPERTY_ALL), or All Staff rather than sub-department bypass.'
         );
       }
-      if (specificUserIds && specificUserIds.length > 0) {
+      if (cleanIds.length > 0) {
         const usersRes = await pool.query(
-          `SELECT id, role FROM users WHERE id = ANY($1::int[]);`,
-          [specificUserIds]
+          `SELECT id, role FROM users WHERE id IN (${cleanIds.map(() => '?').join(', ')}) AND status = 'ACTIVE'`,
+          cleanIds
         );
-        const nonMgmt = usersRes.filter(u => !['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'MANAGER'].includes((u.role || '').toUpperCase()));
+        const rows = extractRows(usersRes);
+        const nonMgmt = rows.filter(
+          (u) => !['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'MANAGER'].includes(String(u.role || '').toUpperCase())
+        );
         if (nonMgmt.length > 0) {
           throw new ForbiddenError(
             'Routing Matrix Violation: Owner directives may only target Administrative and Operations Management personnel.'
@@ -656,190 +178,225 @@ class CentralOperationsService {
       }
     }
 
-    // 2. Admin restrictions (Admin -> Managers only, personal 1-to-1)
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
-      if (['PROPERTY_STAFF', 'PROPERTY_RECEPTIONISTS'].includes(targetAudienceType)) {
-        throw new ForbiddenError(
-          'Routing Matrix Violation: Direct execution routes from Admin must go through Operations Managers.'
-        );
-      }
-      if (specificUserIds && specificUserIds.length > 0) {
+    // 2. Admin / Super Admin restrictions: Personal 1-to-1 tickets to Managers or Property/Admin Staff
+    if (['ADMIN', 'SUPER_ADMIN'].includes(role)) {
+      if (cleanIds.length > 0) {
         const usersRes = await pool.query(
-          `SELECT id, role FROM users WHERE id = ANY($1::int[]);`,
-          [specificUserIds]
+          `SELECT id, role FROM users WHERE id IN (${cleanIds.map(() => '?').join(', ')}) AND status = 'ACTIVE'`,
+          cleanIds
         );
-        const nonMgmt = usersRes.filter(u => !['MANAGER', 'OPERATIONS_MANAGER', 'SUPER_ADMIN', 'OWNER'].includes((u.role || '').toUpperCase()));
-        if (nonMgmt.length > 0) {
-          throw new ForbiddenError(
-            'Routing Matrix Violation: Admin directives must be directed to Operations Managers.'
-          );
+        const disallowed = extractRows(usersRes).filter(
+          (u) => !['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF'].includes(String(u.role || '').toUpperCase())
+        );
+        if (disallowed.length > 0) {
+          throw new ForbiddenError('Routing Matrix Violation: Recipients must be active internal BFA personnel.');
         }
       }
     }
 
-    // 3. Manager property scope restrictions (Manager -> Staff / Receptionist, personal 1-to-1)
+    // 3. Manager / Operations Manager property-scoped 1-to-1 Staff/Receptionist restrictions
     if (['MANAGER', 'OPERATIONS_MANAGER'].includes(role)) {
       if (propertyId) {
-        const propIdNum = parseInt(propertyId, 10);
-        const hasAccess = await this.checkUserPropertyAccess(initiatorUser, propIdNum);
+        const hasAccess = await this.checkUserPropertyAccess(initiatorUser, propertyId);
         if (!hasAccess) {
-          throw new ForbiddenError('Access Denied: You cannot issue operations outside your assigned property.');
+          throw new ForbiddenError('Access Denied: You cannot issue tickets outside your assigned property.');
         }
       }
-      if (specificUserIds && specificUserIds.length > 0) {
+      if (cleanIds.length > 0) {
         const usersRes = await pool.query(
-          `SELECT id, role, property_id FROM users WHERE id = ANY($1::int[]);`,
-          [specificUserIds]
+          `SELECT id, role, property_id FROM users WHERE id IN (${cleanIds.map(() => '?').join(', ')}) AND status = 'ACTIVE'`,
+          cleanIds
         );
-        for (const u of usersRes) {
-          const uRole = (u.role || '').toUpperCase();
+        const rows = extractRows(usersRes);
+        for (const u of rows) {
+          const uRole = String(u.role || '').toUpperCase();
           if (!['STAFF', 'RECEPTIONIST'].includes(uRole)) {
-            throw new ForbiddenError('Routing Matrix Violation: Managers may only assign operational directives to Staff and Receptionists.');
+            throw new ForbiddenError(
+              'Routing Matrix Violation: Managers may only assign personal tickets to Staff and Receptionists.'
+            );
+          }
+          if (u.property_id) {
+            const canReachTarget = await this.checkUserPropertyAccess(initiatorUser, u.property_id);
+            if (!canReachTarget) {
+              throw new ForbiddenError('Access Denied: You cannot assign tickets to staff outside your assigned property.');
+            }
           }
         }
       }
     }
 
-    // 4. Staff and Receptionist restrictions: Cannot initiate operations
-    if (['STAFF', 'RECEPTIONIST'].includes(role)) {
-      throw new ForbiddenError(
-        'Access Denied: Staff and Receptionists are task performers only and cannot initiate operations.'
-      );
-    }
-
     return true;
   }
 
-  /**
-   * Check if a user has access to a property
-   */
-  static async checkUserPropertyAccess(user, propertyId) {
-    const role = (user.role || '').toUpperCase();
+  static async assertUserCanViewOperation(user, op, recipients = null) {
+    const role = String(user?.role || '').toUpperCase();
     if (['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(role)) {
       return true;
     }
-    const propIdNum = parseInt(propertyId, 10);
-    if (user.propertyId && parseInt(user.propertyId, 10) === propIdNum) {
+
+    const userId = Number(user.id);
+    if (
+      Number(op.initiated_by_user_id) === userId ||
+      Number(op.supervisor_user_id) === userId ||
+      Number(op.current_responsible_user_id) === userId
+    ) {
       return true;
     }
-    const checkRes = await pool.query(
-      'SELECT 1 FROM user_property_assignments WHERE user_id = $1 AND property_id = $2 LIMIT 1;',
-      [user.id, propIdNum]
-    );
-    return checkRes && checkRes.length > 0;
+
+    let recipList = recipients;
+    if (!recipList) {
+      const rRes = await pool.query(
+        'SELECT user_id FROM central_operation_recipients WHERE operation_id = ? AND user_id = ? LIMIT 1',
+        [op.id, userId]
+      );
+      if (extractRows(rRes).length > 0) return true;
+    } else if (recipList.some((r) => Number(r.user_id) === userId)) {
+      return true;
+    }
+
+    if (['MANAGER', 'OPERATIONS_MANAGER'].includes(role) && op.property_id) {
+      const hasAccess = await this.checkUserPropertyAccess(user, op.property_id);
+      if (hasAccess) return true;
+    }
+
+    throw new ForbiddenError('Access Denied: You are not authorized to access this operational ticket or memorandum.');
   }
 
-  /**
-   * Generate sequential codes
-   */
-  static async generateOperationCode() {
+  // ─── Sequential Reference Code Generators ──────────────────────────────
+  static async generateNextSequence(table, column, prefixBase) {
     const now = new Date();
-    const prefix = `OPS-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-`;
-    const countRes = await pool.query(
-      "SELECT COUNT(*) AS total FROM central_operations WHERE operation_code LIKE $1;",
+    const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const prefix = `${prefixBase}-${ym}-`;
+    const rows = await pool.query(
+      `SELECT ${column} AS code FROM ${table} WHERE ${column} LIKE ? ORDER BY id DESC LIMIT 20`,
       [`${prefix}%`]
     );
-    const count = parseInt(countRes[0]?.total || 0, 10) + 1;
-    return `${prefix}${String(count).padStart(4, '0')}`;
+    let maxSeq = 0;
+    for (const r of extractRows(rows)) {
+      const tail = String(r.code || '').split('-').pop();
+      const num = parseInt(tail, 10);
+      if (Number.isFinite(num) && num > maxSeq) maxSeq = num;
+    }
+    const suffix = String(maxSeq + 1).padStart(4, '0');
+    return `${prefix}${suffix}`;
+  }
+
+  static async generateOperationCode() {
+    return this.generateNextSequence('central_operations', 'operation_code', 'OPS');
+  }
+
+  static async generateTicketReference() {
+    return this.generateNextSequence('central_operations', 'ticket_reference', 'BFA-TKT');
   }
 
   static async generateMemoReference() {
-    const now = new Date();
-    const prefix = `MEMO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-`;
-    const countRes = await pool.query(
-      "SELECT COUNT(*) AS total FROM operations_memos WHERE memo_reference LIKE $1;",
-      [`${prefix}%`]
-    );
-    const count = parseInt(countRes[0]?.total || 0, 10) + 1;
-    return `${prefix}${String(count).padStart(4, '0')}`;
+    return this.generateNextSequence('operations_memos', 'memo_reference', 'MEMO');
   }
 
-  /**
-   * Resolve recipient users based on audience type and property
-   */
+  // ─── Recipient Resolution Across All Audience Types ────────────────────
   static async resolveRecipientUsers(targetAudienceType, propertyId, specificUserIds = []) {
-    let resolved = [];
+    const audience = String(targetAudienceType || 'SPECIFIC_USER').toUpperCase();
+    const cleanIds = Array.isArray(specificUserIds)
+      ? Array.from(new Set(specificUserIds.map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n) && n > 0)))
+      : [];
 
-    if (['SPECIFIC_USER', 'SPECIFIC_USERS'].includes(targetAudienceType)) {
-      if (!specificUserIds || specificUserIds.length === 0) {
-        throw new BadRequestError('Specific recipient user IDs are required for this audience type.');
+    if (['SPECIFIC_USER', 'SPECIFIC_USERS', 'MULTI_RECIPIENT_TEAM'].includes(audience) || cleanIds.length > 0) {
+      if (cleanIds.length === 0) {
+        throw new BadRequestError('At least one valid recipient user ID is required.');
       }
-      resolved = await pool.query(
-        `SELECT id, name, email, role FROM users WHERE id = ANY($1::int[]) AND status = 'ACTIVE';`,
-        [specificUserIds]
+      const res = await pool.query(
+        `SELECT id, name, email, role, property_id FROM users WHERE id IN (${cleanIds.map(() => '?').join(', ')}) AND status = 'ACTIVE'`,
+        cleanIds
       );
-    } else if (targetAudienceType === 'MANAGERS_ONLY') {
-      resolved = await pool.query(
-        `SELECT id, name, email, role FROM users WHERE role IN ('MANAGER', 'OPERATIONS_MANAGER', 'ADMIN') AND status = 'ACTIVE';`
+      const found = extractRows(res);
+      if (found.length === 0) {
+        throw new BadRequestError('No active recipient accounts matched the provided user IDs.');
+      }
+      return found;
+    }
+
+    if (audience === 'MANAGERS_ONLY') {
+      const res = await pool.query(
+        "SELECT id, name, email, role, property_id FROM users WHERE role IN ('MANAGER', 'OPERATIONS_MANAGER', 'ADMIN') AND status = 'ACTIVE' ORDER BY id ASC"
       );
-    } else if (targetAudienceType === 'PROPERTY_STAFF') {
-      if (!propertyId) throw new BadRequestError('Property is required for PROPERTY_STAFF audience.');
-      resolved = await pool.query(
-        `SELECT DISTINCT u.id, u.name, u.email, u.role
+      return extractRows(res);
+    }
+
+    if (audience === 'ALL_MANAGEMENT') {
+      const res = await pool.query(
+        "SELECT id, name, email, role, property_id FROM users WHERE role IN ('MANAGER', 'OPERATIONS_MANAGER', 'ADMIN', 'SUPER_ADMIN') AND status = 'ACTIVE' ORDER BY id ASC"
+      );
+      return extractRows(res);
+    }
+
+    if (audience === 'ALL_RECEPTIONISTS') {
+      const res = await pool.query(
+        "SELECT id, name, email, role, property_id FROM users WHERE role = 'RECEPTIONIST' AND status = 'ACTIVE' ORDER BY id ASC"
+      );
+      return extractRows(res);
+    }
+
+    if (audience === 'ALL_STAFF') {
+      const res = await pool.query(
+        "SELECT id, name, email, role, property_id FROM users WHERE role IN ('ADMIN', 'OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF') AND status = 'ACTIVE' ORDER BY id ASC"
+      );
+      return extractRows(res);
+    }
+
+    if (audience === 'PROPERTY_STAFF') {
+      if (!propertyId) throw new BadRequestError('Property ID is required for PROPERTY_STAFF audience.');
+      const res = await pool.query(
+        `SELECT DISTINCT u.id, u.name, u.email, u.role, u.property_id
          FROM users u
          LEFT JOIN user_property_assignments upa ON upa.user_id = u.id
-         WHERE (u.property_id = $1 OR upa.property_id = $1)
-           AND u.role = 'STAFF'
-           AND u.status = 'ACTIVE';`,
-        [propertyId]
+         WHERE (u.property_id = ? OR upa.property_id = ?) AND u.role = 'STAFF' AND u.status = 'ACTIVE'`,
+        [propertyId, propertyId]
       );
-    } else if (targetAudienceType === 'PROPERTY_RECEPTIONISTS') {
-      if (!propertyId) throw new BadRequestError('Property is required for PROPERTY_RECEPTIONISTS audience.');
-      resolved = await pool.query(
-        `SELECT DISTINCT u.id, u.name, u.email, u.role
+      return extractRows(res);
+    }
+
+    if (audience === 'PROPERTY_RECEPTIONISTS') {
+      if (!propertyId) throw new BadRequestError('Property ID is required for PROPERTY_RECEPTIONISTS audience.');
+      const res = await pool.query(
+        `SELECT DISTINCT u.id, u.name, u.email, u.role, u.property_id
          FROM users u
          LEFT JOIN user_property_assignments upa ON upa.user_id = u.id
-         WHERE (u.property_id = $1 OR upa.property_id = $1)
-           AND u.role = 'RECEPTIONIST'
-           AND u.status = 'ACTIVE';`,
-        [propertyId]
+         WHERE (u.property_id = ? OR upa.property_id = ?) AND u.role = 'RECEPTIONIST' AND u.status = 'ACTIVE'`,
+        [propertyId, propertyId]
       );
-    } else if (targetAudienceType === 'PROPERTY_ALL') {
-      if (!propertyId) throw new BadRequestError('Property is required for PROPERTY_ALL audience.');
-      resolved = await pool.query(
-        `SELECT DISTINCT u.id, u.name, u.email, u.role
-         FROM users u
-         LEFT JOIN user_property_assignments upa ON upa.user_id = u.id
-         WHERE (u.property_id = $1 OR upa.property_id = $1)
-           AND u.role IN ('STAFF', 'RECEPTIONIST', 'MANAGER', 'OPERATIONS_MANAGER')
-           AND u.status = 'ACTIVE';`,
-        [propertyId]
-      );
-    } else if (targetAudienceType === 'DEPARTMENT_GROUP') {
-      if (specificUserIds && specificUserIds.length > 0) {
-        resolved = await pool.query(
-          `SELECT id, name, email, role FROM users WHERE id = ANY($1::int[]) AND status = 'ACTIVE';`,
-          [specificUserIds]
+      return extractRows(res);
+    }
+
+    if (['PROPERTY_ALL', 'DEPARTMENT', 'DEPARTMENT_GROUP'].includes(audience)) {
+      if (propertyId) {
+        const res = await pool.query(
+          `SELECT DISTINCT u.id, u.name, u.email, u.role, u.property_id
+           FROM users u
+           LEFT JOIN user_property_assignments upa ON upa.user_id = u.id
+           WHERE (u.property_id = ? OR upa.property_id = ?)
+             AND u.role IN ('OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF')
+             AND u.status = 'ACTIVE'`,
+          [propertyId, propertyId]
         );
-      } else {
-        throw new BadRequestError('Department group requires recipient users list.');
+        return extractRows(res);
       }
+      const res = await pool.query(
+        "SELECT id, name, email, role, property_id FROM users WHERE role IN ('ADMIN', 'OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF') AND status = 'ACTIVE' ORDER BY id ASC"
+      );
+      return extractRows(res);
     }
 
-    if (!resolved || resolved.length === 0) {
-      throw new BadRequestError('No active recipients found for the selected operational audience.');
-    }
-
-    return resolved;
+    throw new BadRequestError(`Unsupported target audience type '${targetAudienceType}'.`);
   }
 
-  /**
-   * INITIATE A NEW CENTRAL OPERATION
-   * Transactional creation of:
-   * 1. central_operations record
-   * 2. central_operation_recipients records
-   * 3. operations_memos record (Version 1)
-   * 4. PDF document storage in operational_documents_storage
-   * 5. Chat thread & memo dispatch card with acknowledgements
-   * 6. Audit event ledger entry
-   */
+  // ─── 1. Create New Ticket / Operation ──────────────────────────────────
   static async createOperation(initiatorUser, data) {
     const {
       title,
-      category = 'PROPERTY_OPERATIONS',
-      priority = 'NORMAL',
+      category: rawCategory = 'ADMINISTRATIVE_DIRECTIVE',
+      priority: rawPriority = 'NORMAL',
       property_id = null,
-      target_audience_type = 'SPECIFIC_USER',
+      target_audience_type: rawAudience = 'SPECIFIC_USER',
       recipient_user_ids = [],
       subject,
       purpose,
@@ -849,99 +406,196 @@ class CentralOperationsService {
       reporting_requirements = null,
       deadline_at = null,
       supervisor_user_id = null,
+      template_type = null,
     } = data;
 
-    if (!title || !subject || !purpose || !operational_instructions) {
-      throw new BadRequestError('Title, subject, purpose, and operational instructions are required.');
+    const ALLOWED_CATEGORIES = new Set([
+      'ADMINISTRATIVE_DIRECTIVE',
+      'PROPERTY_OPERATIONS',
+      'MAINTENANCE_INSPECTION',
+      'FRONT_OFFICE_RECEPTION',
+      'STAFF_ASSIGNMENT',
+      'OPERATIONAL_IMPROVEMENT',
+      'COMPLIANCE_POLICY',
+      'EMERGENCY_OPERATION',
+      'MANAGEMENT_COMMUNICATION',
+    ]);
+    const upperCat = String(rawCategory || 'ADMINISTRATIVE_DIRECTIVE').trim().toUpperCase();
+    const category = ALLOWED_CATEGORIES.has(upperCat) ? upperCat : 'ADMINISTRATIVE_DIRECTIVE';
+
+    if (!title || !title.trim() || !purpose || !purpose.trim() || !operational_instructions || !operational_instructions.trim()) {
+      throw new BadRequestError('Title, Operational Purpose, and Specific Instructions are strictly required.');
     }
 
-    // 1. Routing Matrix check
-    await this.assertRoutingMatrix(initiatorUser, target_audience_type, property_id, recipient_user_ids);
+    const priority = normalizePriority(rawPriority);
+    const target_audience_type = String(rawAudience || 'SPECIFIC_USER').toUpperCase();
+    const cleanRecipIds = Array.isArray(recipient_user_ids)
+      ? Array.from(new Set(recipient_user_ids.map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n) && n > 0)))
+      : [];
 
-    // 2. Resolve recipients
-    const recipients = await this.resolveRecipientUsers(target_audience_type, property_id, recipient_user_ids);
+    // 1. Governance & Routing check
+    await this.assertRoutingMatrix(initiatorUser, target_audience_type, property_id, cleanRecipIds);
 
-    // 3. Generate sequential codes
+    // 2. Resolve Active Recipients
+    const recipients = await this.resolveRecipientUsers(target_audience_type, property_id, cleanRecipIds);
+    if (recipients.length === 0) {
+      throw new BadRequestError('No active eligible recipients found for the specified target audience.');
+    }
+
+    // 3. Priority-Based Ack SLA Calculation (Server Authoritative)
+    const slaConfig = await this.getAckSlaConfig();
+    const ackSlaHours = getSlaHoursForPriority(priority, slaConfig);
+    const issuedAt = new Date();
+    const ackDeadlineAt = addHoursDate(issuedAt, ackSlaHours);
+    const parsedExecDeadline = deadline_at ? new Date(deadline_at) : null;
+    if (parsedExecDeadline && Number.isNaN(parsedExecDeadline.getTime())) {
+      throw new BadRequestError('Invalid execution deadline timestamp supplied.');
+    }
+
+    // 4. Generate Unique Sequential Identifiers
     const operationCode = await this.generateOperationCode();
+    const ticketReference = await this.generateTicketReference();
     const memoReference = await this.generateMemoReference();
 
-    // 4. Resolve Property details for memo header
+    // 5. Property Scope Metadata
     let propertyDetails = null;
     let propertyScopeSummary = 'Corporate / Multi-Property';
     if (property_id) {
-      const pRes = await pool.query('SELECT id, name, code, city FROM properties WHERE id = $1 LIMIT 1;', [property_id]);
-      if (pRes && pRes.length > 0) {
-        propertyDetails = pRes[0];
-        propertyScopeSummary = `${propertyDetails.name} (${propertyDetails.code || 'BFA'})`;
+      const pRes = await pool.query('SELECT id, name, code, city FROM properties WHERE id = ? LIMIT 1', [property_id]);
+      const pRow = extractRows(pRes)[0];
+      if (pRow) {
+        propertyDetails = pRow;
+        propertyScopeSummary = `${pRow.name} (${pRow.code || 'BFA'})`;
       }
     }
 
-    // Issuer designation
-    const issuerRoleName = (initiatorUser.role || '').replace(/_/g, ' ');
-    const issuerDesignation = initiatorUser.jobTitle || `${issuerRoleName.charAt(0).toUpperCase() + issuerRoleName.slice(1).toLowerCase()} Executive`;
-
-    // Recipient summary
+    const issuerRoleName = String(initiatorUser.role || '').replace(/_/g, ' ');
+    const issuerDesignation = initiatorUser.jobTitle || `${initiatorUser.name || 'Management'} (${issuerRoleName})`;
     const recipientSummary = recipients.length === 1
       ? `${recipients[0].name} (${recipients[0].role})`
-      : target_audience_type.replace(/_/g, ' ') + ` (${recipients.length} Personnel)`;
+      : `${target_audience_type.replace(/_/g, ' ')} (${recipients.length} Personnel)`;
 
-    // Deadline & effective date strings
-    const deadlineText = deadline_at ? new Date(deadline_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'As Directed / Ongoing';
-    const effectiveDateText = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const deadlineText = parsedExecDeadline ? formatLagosTime(parsedExecDeadline) : 'As Directed / Ongoing';
+    const effectiveDateText = formatLagosTime(issuedAt);
 
-    // 5. Determine Initial Ownership and Next Action
-    const isPersonal = recipients.length === 1 && target_audience_type === 'SPECIFIC_USER';
-    const responsibleUserId = isPersonal ? recipients[0].id : null;
-    const responsibleGroup = isPersonal ? null : target_audience_type;
-    const initialStatus = 'ISSUED';
-    const initialNextAction = isPersonal 
-      ? 'Awaiting recipient formal acknowledgement and task acceptance.'
-      : 'Awaiting group acknowledgement and member ownership acceptance.';
+    // 6. Ownership Semantics: Personal Ticket vs Open Group Ticket
+    const isSinglePersonal = recipients.length === 1 && ['SPECIFIC_USER', 'SPECIFIC_USERS'].includes(target_audience_type);
+    const responsibleUserId = isSinglePersonal ? recipients[0].id : null;
+    const responsibleGroup = isSinglePersonal ? null : target_audience_type;
+    const initialStatus = 'AWAITING_ACKNOWLEDGEMENT';
+    const initialNextAction = isSinglePersonal
+      ? `Awaiting receipt acknowledgement by ${recipients[0].name} (Due within ${ackSlaHours}h SLA — ${formatLagosTime(ackDeadlineAt)}).`
+      : `Group ticket dispatched to ${recipients.length} eligible personnel. Acknowledge receipt & Accept Responsibility (or Supervisor assign owner).`;
 
-    // Insert Central Operation
-    const insertOpSql = `
-      INSERT INTO central_operations (
-        operation_code, title, category, priority, status,
-        initiated_by_user_id, property_id, target_audience_type,
-        subject, purpose, operational_instructions, expected_outcome,
-        responsibility_definition, reporting_requirements, deadline_at,
-        supervisor_user_id, current_responsible_user_id, current_responsible_group, next_action
-      ) VALUES (
-        $1, $2, $3, $4, $5,
-        $6, $7, $8,
-        $9, $10, $11, $12,
-        $13, $14, $15,
-        $16, $17, $18, $19
-      ) RETURNING *;
-    `;
+    const cleanSubject = (subject && subject.trim()) || title.trim();
+    const effectiveSupervisorId = supervisor_user_id || initiatorUser.id;
 
-    const opRows = await pool.query(insertOpSql, [
-      operationCode,
-      title,
-      category,
-      priority,
-      initialStatus,
-      initiatorUser.id,
-      property_id,
-      target_audience_type,
-      subject,
-      purpose,
-      operational_instructions,
-      expected_outcome,
-      responsibility_definition,
-      reporting_requirements,
-      deadline_at,
-      supervisor_user_id,
-      responsibleUserId,
-      responsibleGroup,
-      initialNextAction,
-    ]);
+    // 7. Insert Ticket Record into central_operations
+    let operationId;
+    if (pool.isPostgres()) {
+      const opRows = await pool.query(
+        `INSERT INTO central_operations (
+          operation_code, ticket_reference, title, category, priority, status,
+          initiated_by_user_id, property_id, target_audience_type,
+          subject, purpose, operational_instructions, expected_outcome,
+          responsibility_definition, reporting_requirements, deadline_at,
+          acknowledgment_sla_hours, acknowledgment_deadline_at,
+          supervisor_user_id, current_responsible_user_id, current_responsible_group, next_action
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING id`,
+        [
+          operationCode,
+          ticketReference,
+          title.trim(),
+          category,
+          priority,
+          initialStatus,
+          initiatorUser.id,
+          property_id || null,
+          target_audience_type,
+          cleanSubject,
+          purpose.trim(),
+          operational_instructions.trim(),
+          expected_outcome,
+          responsibility_definition,
+          reporting_requirements,
+          parsedExecDeadline,
+          ackSlaHours,
+          ackDeadlineAt,
+          effectiveSupervisorId,
+          responsibleUserId,
+          responsibleGroup,
+          initialNextAction,
+        ]
+      );
+      operationId = extractInsertId(opRows);
+    } else {
+      const opRes = await pool.query(
+        `INSERT INTO central_operations (
+          operation_code, ticket_reference, title, category, priority, status,
+          initiated_by_user_id, property_id, target_audience_type,
+          subject, purpose, operational_instructions, expected_outcome,
+          responsibility_definition, reporting_requirements, deadline_at,
+          acknowledgment_sla_hours, acknowledgment_deadline_at,
+          supervisor_user_id, current_responsible_user_id, current_responsible_group, next_action
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          operationCode,
+          ticketReference,
+          title.trim(),
+          category,
+          priority,
+          initialStatus,
+          initiatorUser.id,
+          property_id || null,
+          target_audience_type,
+          cleanSubject,
+          purpose.trim(),
+          operational_instructions.trim(),
+          expected_outcome,
+          responsibility_definition,
+          reporting_requirements,
+          parsedExecDeadline,
+          ackSlaHours,
+          ackDeadlineAt,
+          effectiveSupervisorId,
+          responsibleUserId,
+          responsibleGroup,
+          initialNextAction,
+        ]
+      );
+      operationId = extractInsertId(opRes);
+    }
 
-    const createdOp = opRows.rows?.[0] || (Array.isArray(opRows) ? opRows[0] : opRows);
-    const operationId = createdOp.id;
+    // 8. Record Initial Deadline History if deadline_at provided
+    if (parsedExecDeadline) {
+      await pool.query(
+        `INSERT INTO ticket_deadline_history (operation_id, previous_deadline_at, new_deadline_at, change_type, reason, requested_by_id, approved_by_id)
+         VALUES (?, NULL, ?, 'INITIAL', 'Initial ticket issuance deadline', ?, ?)`,
+        [operationId, parsedExecDeadline, initiatorUser.id, initiatorUser.id]
+      );
+    }
 
-    // 5b. For Personal Operations, automatically create primary linked task
-    if (isPersonal && responsibleUserId) {
+    // 9. Insert Recipients (Single-source ownership: NO auto-task duplication on group tickets!)
+    for (const r of recipients) {
+      if (pool.isPostgres()) {
+        await pool.query(
+          `INSERT INTO central_operation_recipients (operation_id, user_id, role_at_time, status, assigned_at)
+           VALUES (?, ?, ?, 'DELIVERED', ?)
+           ON CONFLICT (operation_id, user_id) DO NOTHING`,
+          [operationId, r.id, r.role, issuedAt]
+        );
+      } else {
+        await pool.query(
+          `INSERT IGNORE INTO central_operation_recipients (operation_id, user_id, role_at_time, status, assigned_at)
+           VALUES (?, ?, ?, 'DELIVERED', ?)`,
+          [operationId, r.id, r.role, issuedAt]
+        );
+      }
+    }
+
+    // Personal 1-to-1 ticket keeps ONE synchronized view row in operational_tasks (Group waits for Claim/Assign!)
+    if (isSinglePersonal && responsibleUserId) {
       try {
         const taskCode = `TSK-${operationCode.replace('OPS-', '')}-01`;
         await pool.query(
@@ -949,361 +603,348 @@ class CentralOperationsService {
             task_code, property_id, assigned_to_id, assigned_by_id,
             title, description, expected_outcome, task_category,
             priority, due_date, status, central_operation_id
-          ) VALUES (
-            $1, $2, $3, $4,
-            $5, $6, $7, $8,
-            $9, $10, 'PENDING', $11
-          );`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)`,
           [
             taskCode,
-            property_id || (recipients[0]?.property_id || 1),
+            property_id || recipients[0]?.property_id || 1,
             responsibleUserId,
             initiatorUser.id,
-            title,
-            operational_instructions,
+            title.trim(),
+            operational_instructions.trim(),
             expected_outcome,
             category === 'MAINTENANCE_INSPECTION' ? 'MAINTENANCE' : 'GENERAL',
             priority,
-            deadline_at || new Date(Date.now() + 86400000 * 3),
+            parsedExecDeadline || addHoursDate(issuedAt, 72),
             operationId,
           ]
         );
       } catch (taskErr) {
-        logger.warn(`Could not auto-create primary operational task: ${taskErr.message}`);
+        logger.warn(`Could not sync primary task projection for ${ticketReference}: ${taskErr.message}`);
       }
     }
 
-    // 6. Insert Recipients
-    for (const r of recipients) {
-      await pool.query(
-        `INSERT INTO central_operation_recipients (operation_id, user_id, role_at_time, status)
-         VALUES ($1, $2, $3, 'DELIVERED')
-         ON CONFLICT (operation_id, user_id) DO NOTHING;`,
-        [operationId, r.id, r.role]
-      );
-    }
+    // 10. Generate Aligned Official Memo PDF & Store Persistently in DB Binary Table
+    const resolvedTemplate =
+      template_type || (isSinglePersonal ? 'DIRECTIVE_PERSONAL' : recipients.length > 1 ? 'MULTI_RECIPIENT_TEAM' : 'GROUP_BROADCAST');
 
-    // 7. Insert Operations Memo Record (Version 1)
-    const insertMemoSql = `
-      INSERT INTO operations_memos (
-        operation_id, memo_reference, version_number,
-        issuer_user_id, issuer_designation, recipient_summary,
-        property_scope_summary, title, category, priority,
-        subject, purpose, operational_instructions, expected_outcome,
-        responsibility_definition, reporting_requirements,
-        deadline_text, effective_date_text
-      ) VALUES (
-        $1, $2, 1,
-        $3, $4, $5,
-        $6, $7, $8, $9,
-        $10, $11, $12, $13,
-        $14, $15,
-        $16, $17
-      ) RETURNING *;
-    `;
-
-    const memoRows = await pool.query(insertMemoSql, [
-      operationId,
-      memoReference,
-      initiatorUser.id,
-      issuerDesignation,
-      recipientSummary,
-      propertyScopeSummary,
-      title,
+    const opSnapshotForPdf = {
+      id: operationId,
+      operation_code: operationCode,
+      ticket_reference: ticketReference,
+      title: title.trim(),
       category,
       priority,
-      subject,
-      purpose,
-      operational_instructions,
+      status: initialStatus,
+      target_audience_type,
+      subject: cleanSubject,
+      purpose: purpose.trim(),
+      operational_instructions: operational_instructions.trim(),
       expected_outcome,
       responsibility_definition,
       reporting_requirements,
-      deadlineText,
-      effectiveDateText,
-    ]);
+      deadline_at: parsedExecDeadline,
+      acknowledgment_sla_hours: ackSlaHours,
+      acknowledgment_deadline_at: ackDeadlineAt,
+      created_at: issuedAt,
+      responsible_name: isSinglePersonal ? recipients[0].name : null,
+      responsible_role: isSinglePersonal ? recipients[0].role : null,
+      current_responsible_group: responsibleGroup,
+    };
 
-    const createdMemo = memoRows.rows?.[0] || (Array.isArray(memoRows) ? memoRows[0] : memoRows);
-    const memoId = createdMemo.id;
+    const memoSnapshotForPdf = {
+      memo_reference: memoReference,
+      version_number: 1,
+      issuer_designation: issuerDesignation,
+      recipient_summary: recipientSummary,
+      property_scope_summary: propertyScopeSummary,
+      title: title.trim(),
+      subject: cleanSubject,
+      purpose: purpose.trim(),
+      operational_instructions: operational_instructions.trim(),
+      expected_outcome,
+      responsibility_definition,
+      reporting_requirements,
+      deadline_text: deadlineText,
+      effective_date_text: effectiveDateText,
+      created_at: issuedAt,
+    };
 
-    // 8. Generate and store PDF in operational_documents_storage
-    let storageId = null;
+    const pdfBuffer = await MemoPdfGenerator.generateOperationsMemoPdfBuffer({
+      operation: opSnapshotForPdf,
+      memo: memoSnapshotForPdf,
+      initiator: initiatorUser,
+      recipients: recipients.map((r) => ({ user_name: r.name, role_at_time: r.role, acceptance_status: 'PENDING' })),
+      property: propertyDetails,
+      templateType: resolvedTemplate,
+    });
+
+    let docStorageId = null;
     try {
-      const memoPdfBuffer = await this.generateOperationsMemoPdfBuffer({
-        operation: createdOp,
-        memo: createdMemo,
-        initiator: initiatorUser,
-        recipients,
-        property: propertyDetails,
-      });
-
-      const storeSql = `
-        INSERT INTO operational_documents_storage (
-          entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by
-        ) VALUES (
-          'OPERATIONS_MEMO', $1, $2, 'application/pdf', $3, $4, $5
-        ) RETURNING id;
-      `;
-      const storeRes = await pool.query(storeSql, [
-        memoId,
-        `${memoReference}.pdf`,
-        memoPdfBuffer.length,
-        memoPdfBuffer,
-        initiatorUser.id,
-      ]);
-      storageId = storeRes.rows?.[0]?.id || (Array.isArray(storeRes) ? storeRes[0]?.id : null);
-
-      await pool.query('UPDATE operations_memos SET document_storage_id = $1 WHERE id = $2;', [storageId, memoId]);
-      await pool.query('UPDATE central_operations SET latest_memo_id = $1 WHERE id = $2;', [memoId, operationId]);
-    } catch (pdfErr) {
-      logger.error(`Error generating or saving memo PDF: ${pdfErr.message}`);
+      const storeRes = await pool.query(
+        pool.isPostgres()
+          ? `INSERT INTO operational_documents_storage (entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by)
+             VALUES ('OPERATIONS_MEMO', ?, ?, 'application/pdf', ?, ?, ?) RETURNING id`
+          : `INSERT INTO operational_documents_storage (entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by)
+             VALUES ('OPERATIONS_MEMO', ?, ?, 'application/pdf', ?, ?, ?)`,
+        [operationId, `${memoReference}.pdf`, pdfBuffer.length, pdfBuffer, initiatorUser.id]
+      );
+      docStorageId = extractInsertId(storeRes);
+    } catch (docErr) {
+      logger.warn(`Failed storing initial memo PDF bytes: ${docErr.message}`);
     }
 
-    // 9. Dispatch via Existing Internal Staff Chat
+    let memoId = null;
+    const memoRes = await pool.query(
+      pool.isPostgres()
+        ? `INSERT INTO operations_memos (
+            operation_id, memo_reference, version_number, issuer_user_id, issuer_designation,
+            recipient_summary, property_scope_summary, title, category, priority, subject,
+            purpose, operational_instructions, expected_outcome, responsibility_definition,
+            reporting_requirements, deadline_text, effective_date_text, document_storage_id
+          ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
+        : `INSERT INTO operations_memos (
+            operation_id, memo_reference, version_number, issuer_user_id, issuer_designation,
+            recipient_summary, property_scope_summary, title, category, priority, subject,
+            purpose, operational_instructions, expected_outcome, responsibility_definition,
+            reporting_requirements, deadline_text, effective_date_text, document_storage_id
+          ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        operationId,
+        memoReference,
+        initiatorUser.id,
+        issuerDesignation,
+        recipientSummary,
+        propertyScopeSummary,
+        title.trim(),
+        category,
+        priority,
+        cleanSubject,
+        purpose.trim(),
+        operational_instructions.trim(),
+        expected_outcome,
+        responsibility_definition,
+        reporting_requirements,
+        deadlineText,
+        effectiveDateText,
+        docStorageId,
+      ]
+    );
+    memoId = extractInsertId(memoRes);
+
+    // 11. Route Ticket Card Into Direct Conversation (Personal) or Authorized Group Thread (Owner Group)
     let chatThreadId = null;
     let chatMessageId = null;
     try {
-      if (recipients.length === 1 && target_audience_type === 'SPECIFIC_USER') {
-        // Personal operation: routed straight to recipient's private 1-on-1 DM thread
+      if (isSinglePersonal) {
         const directThread = await ChatService.findOrCreateDirectThread(initiatorUser, recipients[0].id);
         chatThreadId = directThread.id;
       } else if (property_id) {
-        // Shared Team Channel for the property
-        const propChannelRes = await pool.query(
-          `SELECT id FROM chat_threads WHERE thread_type = 'PROPERTY_CHANNEL' AND property_id = $1 AND status = 'ACTIVE' LIMIT 1;`,
-          [property_id]
+        const propChannels = extractRows(
+          await pool.query(
+            "SELECT id FROM chat_threads WHERE thread_type = 'PROPERTY_CHANNEL' AND property_id = ? AND status = 'ACTIVE' LIMIT 1",
+            [property_id]
+          )
         );
-        const propChannels = propChannelRes.rows || (Array.isArray(propChannelRes) ? propChannelRes : []);
         if (propChannels.length > 0) {
           chatThreadId = propChannels[0].id;
         } else {
           const pName = propertyDetails?.name || `Property #${property_id}`;
-          const createdChannel = await ChatRepository.createPropertyChannel(initiatorUser, property_id, `${pName} Team Channel`);
-          chatThreadId = createdChannel.id;
+          const createdCh = await ChatRepository.createPropertyChannel(initiatorUser, property_id, `${pName} Team Channel`);
+          chatThreadId = createdCh.id;
         }
-      } else if (recipients.length > 1) {
-        // Multi-recipient operational group: Use canonical management thread
-        const groupThread = await ChatRepository.findOrCreateManagementGroupThread(
-          initiatorUser,
-          recipients.map(r => r.id)
-        );
-        chatThreadId = groupThread.id;
-      } else {
-        // General company-wide group
+      } else if (target_audience_type === 'ALL_STAFF') {
         const genGroup = await ChatRepository.getOrCreateGeneralGroupThread();
         chatThreadId = genGroup.id;
+      } else {
+        const groupThread = await ChatRepository.findOrCreateManagementGroupThread(
+          initiatorUser,
+          recipients.map((r) => r.id)
+        );
+        chatThreadId = groupThread.id;
       }
 
       if (chatThreadId) {
-        const priorityIcon = priority === 'CRITICAL' ? '🚨' : priority === 'URGENT' ? '⚡' : '📋';
-        const isPersonalOp = recipients.length === 1 && target_audience_type === 'SPECIFIC_USER';
-        const msgContent = `${priorityIcon} [OFFICIAL OPERATIONS MEMO — ${memoReference}]\n` +
-          `Ref: ${operationCode}\n` +
-          `Title: ${title}\n` +
-          `Category: ${category.replace(/_/g, ' ')}\n` +
-          `Priority: ${priority}\n` +
-          `Property Scope: ${propertyScopeSummary}\n` +
-          `Deadline: ${deadlineText}\n` +
-          `Current Owner: ${isPersonalOp ? recipients[0].name : `Open to Group [${target_audience_type}]`}\n` +
-          `Next Action: ${initialNextAction}\n\n` +
-          `Subject: ${subject}\n\n` +
-          `Instructions: ${operational_instructions.substring(0, 300)}${operational_instructions.length > 300 ? '...' : ''}\n\n` +
-          `⚠️ Official Directive: Review details, acknowledge receipt, or accept responsibility directly from this operation card.`;
+        const icon = priority === 'CRITICAL' ? '🚨' : ['URGENT', 'HIGH'].includes(priority) ? '⚡' : '🎫';
+        const msgContent =
+          `${icon} [OPERATIONAL TICKET — ${ticketReference} / ${memoReference}]\n` +
+          `Title: ${title.trim()}\n` +
+          `Priority: ${priority} (Ack SLA: ${ackSlaHours}h — Due ${formatLagosTime(ackDeadlineAt)})\n` +
+          `Exec Deadline: ${deadlineText}\n` +
+          `Recipients: ${recipientSummary}\n` +
+          `Action Required: Open ticket card to Acknowledge Receipt${isSinglePersonal ? ' & begin execution' : ' or Accept Responsibility'}.`;
 
         const sentMsg = await ChatService.sendMessage(initiatorUser, {
           threadId: chatThreadId,
-          messageType: 'TEXT',
+          messageType: 'CONTEXT_LINK',
           content: msgContent,
-          priority: priority === 'CRITICAL' ? 'CRITICAL' : priority === 'URGENT' ? 'URGENT' : 'IMPORTANT',
+          priority,
           contextEntityType: 'OPERATION',
           contextEntityId: operationId,
         });
-
-        chatMessageId = sentMsg.id;
-
-        // Populate chat_message_acknowledgements for each recipient
-        for (const r of recipients) {
-          await pool.query(
-            `INSERT INTO chat_message_acknowledgements (message_id, user_id)
-             VALUES ($1, $2)
-             ON CONFLICT (message_id, user_id) DO NOTHING;`,
-            [chatMessageId, r.id]
-          );
-        }
-
-        // Link chat IDs back to central_operations
-        await pool.query(
-          `UPDATE central_operations 
-           SET chat_thread_id = $1, chat_message_id = $2 
-           WHERE id = $3;`,
-          [chatThreadId, chatMessageId, operationId]
-        );
+        chatMessageId = sentMsg?.id || null;
       }
     } catch (chatErr) {
-      logger.warn(`Failed to auto-dispatch operation to chat: ${chatErr.message}`);
+      logger.warn(`Ticket #${ticketReference} chat dispatch notice: ${chatErr.message}`);
     }
 
-    // 10. Record Audit Event
+    await pool.query(
+      'UPDATE central_operations SET latest_memo_id = ?, chat_thread_id = ?, chat_message_id = ? WHERE id = ?',
+      [memoId, chatThreadId, chatMessageId, operationId]
+    );
+
+    // 12. Audit Event & Individual In-App Notifications
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'INITIATED', $3, $4);`,
+       VALUES (?, ?, 'ISSUED', ?, ?)`,
       [
         operationId,
         initiatorUser.id,
-        `Operation ${operationCode} initiated by ${initiatorUser.name} (${initiatorUser.role})`,
+        `Ticket ${ticketReference} (${operationCode}) issued to ${recipientSummary} (${priority}, ${ackSlaHours}h Ack SLA).`,
         JSON.stringify({
+          ticketReference,
           operationCode,
           memoReference,
           priority,
-          category,
-          recipientCount: recipients.length,
-          chatThreadId,
+          ackSlaHours,
+          ackDeadlineAt: ackDeadlineAt.toISOString(),
+          recipientIds: recipients.map((r) => r.id),
         }),
       ]
     );
 
-    await AuditService.record({
-      actorId: initiatorUser.id,
-      actorEmail: initiatorUser.email,
-      actorRole: initiatorUser.role,
-      action: 'CENTRAL_OPERATION_INITIATED',
-      entityType: 'central_operation',
-      entityId: String(operationId),
-      newValues: {
-        operationCode,
-        memoReference,
-        title,
-        priority,
-        category,
-        recipients: recipients.map(r => r.id),
-      },
-    });
+    for (const r of recipients) {
+      try {
+        await NotificationsService.dispatchNotification({
+          recipientId: r.id,
+          recipientRole: r.role,
+          propertyId: property_id || null,
+          title: `New Ticket (${priority}): ${ticketReference}`,
+          message: `"${title.trim()}" issued by ${initiatorUser.name}. Acknowledge within ${ackSlaHours}h (${formatLagosTime(ackDeadlineAt)}).`,
+          category: 'TICKET',
+          priority: priority === 'CRITICAL' ? 'CRITICAL' : ['URGENT', 'HIGH', 'IMPORTANT'].includes(priority) ? 'HIGH' : 'MEDIUM',
+          sourceEntityType: 'CENTRAL_OPERATION',
+          sourceEntityId: operationId,
+          linkUrl: `/portal/operations?op=${operationId}`,
+        });
+      } catch (nErr) {
+        logger.warn(`Failed dispatching ticket notification to user #${r.id}: ${nErr.message}`);
+      }
+    }
 
     return this.getOperationById(initiatorUser, operationId);
   }
 
-  /**
-   * LIST OPERATIONS ACROSS 5 OPERATIONAL VIEWS WITH FILTERS
-   * Views:
-   * 1. initiatedByMe
-   * 2. assignedToMe
-   * 3. supervising
-   * 4. actionRequired
-   * 5. archived
-   */
+  // ─── 2. List Operations / Tickets Across Role-Scoped Views ─────────────
   static async listOperations(user, filters = {}) {
-    const role = (user.role || '').toUpperCase();
-    const userId = user.id;
-    const view = filters.view || 'assignedToMe';
+    const role = String(user?.role || '').toUpperCase();
+    const userId = Number(user.id);
+    const view = filters.view || (['STAFF', 'RECEPTIONIST'].includes(role) ? 'myTickets' : 'assignedToMe');
 
     const conditions = [];
     const params = [];
 
-    // Core View Branching
+    // Role isolation baseline so Managers only see their property scope and Staff only see theirs
+    const isGlobalLeader = ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(role);
+    const isManager = ['MANAGER', 'OPERATIONS_MANAGER'].includes(role);
+
+    if (isManager && !isGlobalLeader) {
+      params.push(userId, userId, userId, userId);
+      conditions.push(`(
+        co.initiated_by_user_id = ?
+        OR co.supervisor_user_id = ?
+        OR co.current_responsible_user_id = ?
+        OR co.property_id IN (SELECT property_id FROM user_property_assignments WHERE user_id = ?)
+        OR co.property_id = (SELECT property_id FROM users WHERE id = ${userId})
+        OR EXISTS (SELECT 1 FROM central_operation_recipients cor_s WHERE cor_s.operation_id = co.id AND cor_s.user_id = ${userId})
+      )`);
+    } else if (!isGlobalLeader) {
+      params.push(userId, userId);
+      conditions.push(`(
+        co.current_responsible_user_id = ?
+        OR EXISTS (SELECT 1 FROM central_operation_recipients cor_s WHERE cor_s.operation_id = co.id AND cor_s.user_id = ? AND COALESCE(cor_s.reassigned_out, FALSE) = FALSE)
+      )`);
+    }
+
+    // View filter branching
     if (view === 'initiatedByMe') {
       params.push(userId);
-      conditions.push(`co.initiated_by_user_id = $${params.length}`);
-    } else if (view === 'assignedToMe') {
-      params.push(userId);
-      conditions.push(`EXISTS (
-        SELECT 1 FROM central_operation_recipients cor 
-        WHERE cor.operation_id = co.id AND cor.user_id = $${params.length}
+      conditions.push('co.initiated_by_user_id = ?');
+    } else if (view === 'assignedToMe' || view === 'myTickets') {
+      params.push(userId, userId);
+      conditions.push(`(
+        co.current_responsible_user_id = ?
+        OR EXISTS (
+          SELECT 1 FROM central_operation_recipients cor
+          WHERE cor.operation_id = co.id AND cor.user_id = ? AND COALESCE(cor.reassigned_out, FALSE) = FALSE
+        )
       )`);
     } else if (view === 'supervising') {
-      if (['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(role)) {
-        // Global leadership sees company-wide oversight
-      } else {
-        params.push(userId);
-        conditions.push(`(
-          co.supervisor_user_id = $${params.length}
-          OR co.initiated_by_user_id = $${params.length}
-          OR (co.property_id IN (
-            SELECT property_id FROM user_property_assignments WHERE user_id = $${params.length}
-          ) AND '${role}' IN ('MANAGER', 'OPERATIONS_MANAGER'))
-        )`);
+      if (!isGlobalLeader) {
+        params.push(userId, userId);
+        conditions.push('(co.initiated_by_user_id = ? OR co.supervisor_user_id = ? OR co.property_id IS NOT NULL)');
       }
     } else if (view === 'actionRequired') {
-      params.push(userId);
+      params.push(userId, userId);
+      conditions.push(`co.status NOT IN ('COMPLETED', 'CANCELLED', 'CLOSED', 'REJECTED')`);
       conditions.push(`(
         EXISTS (
-          SELECT 1 FROM central_operation_recipients cor 
-          WHERE cor.operation_id = co.id 
-            AND cor.user_id = $${params.length}
-            AND cor.acknowledged_at IS NULL
-            AND co.status NOT IN ('COMPLETED', 'CANCELLED', 'CLOSED')
+          SELECT 1 FROM central_operation_recipients cor
+          WHERE cor.operation_id = co.id AND cor.user_id = ? AND cor.acknowledged_at IS NULL AND COALESCE(cor.reassigned_out, FALSE) = FALSE
         )
-        OR (
-          co.initiated_by_user_id = $${params.length} 
-          AND co.status IN ('AWAITING_REVIEW', 'AWAITING_CLARIFICATION', 'BLOCKED')
-        )
+        OR co.current_responsible_user_id = ?
+        OR (co.status IN ('SUBMITTED_FOR_REVIEW', 'AWAITING_REVIEW', 'BLOCKED') AND ${isGlobalLeader || isManager ? '1=1' : '1=0'})
       )`);
-    } else if (view === 'awaitingOwnership') {
-      conditions.push(`(co.current_responsible_user_id IS NULL AND co.status IN ('ISSUED', 'ACKNOWLEDGED', 'AWAITING_OWNERSHIP'))`);
-    } else if (view === 'archived') {
-      conditions.push(`co.status IN ('COMPLETED', 'CANCELLED', 'CLOSED')`);
-      if (!['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(role)) {
-        params.push(userId);
-        conditions.push(`(
-          co.initiated_by_user_id = ${params.length}
-          OR co.supervisor_user_id = ${params.length}
-          OR EXISTS (
-            SELECT 1 FROM central_operation_recipients cor 
-            WHERE cor.operation_id = co.id AND cor.user_id = ${params.length}
-          )
-        )`);
-      }
-    } else if (view === 'all') {
-      // Global management oversight
-    }
-
-    // Role Security Boundary (Staff/Receptionist cannot snoop on unauthorized operations)
-    if (['STAFF', 'RECEPTIONIST'].includes(role)) {
-      params.push(userId);
-      conditions.push(`(
-        co.initiated_by_user_id = $${params.length}
-        OR EXISTS (
-          SELECT 1 FROM central_operation_recipients cor 
-          WHERE cor.operation_id = co.id AND cor.user_id = $${params.length}
-        )
-      )`);
-    }
-
-    // General Filters
-    if (filters.category && filters.category !== 'all') {
-      params.push(filters.category);
-      conditions.push(`co.category = $${params.length}`);
-    }
-
-    if (filters.priority && filters.priority !== 'all') {
-      params.push(filters.priority);
-      conditions.push(`co.priority = $${params.length}`);
+    } else if (view === 'overdue') {
+      conditions.push(`(co.status = 'OVERDUE' OR (co.deadline_at IS NOT NULL AND co.deadline_at < CURRENT_TIMESTAMP AND co.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED')))`);
+    } else if (view === 'escalated') {
+      conditions.push(`(co.status = 'ESCALATED' OR co.escalated_at IS NOT NULL)`);
+      conditions.push(`co.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED')`);
+    } else if (view === 'pendingReview') {
+      conditions.push(`co.status IN ('SUBMITTED_FOR_REVIEW', 'AWAITING_REVIEW', 'PENDING_APPROVAL')`);
+    } else if (view === 'reassigned') {
+      conditions.push('co.reassignment_count > 0');
+    } else if (view === 'archived' || view === 'closed' || view === 'completed') {
+      conditions.push(`co.status IN ('COMPLETED', 'CANCELLED', 'CLOSED', 'REJECTED')`);
     }
 
     if (filters.status && filters.status !== 'all') {
-      params.push(filters.status);
-      conditions.push(`co.status = $${params.length}`);
+      const st = String(filters.status).toUpperCase();
+      if (st === 'OVERDUE') {
+        conditions.push(`(co.status = 'OVERDUE' OR (co.deadline_at IS NOT NULL AND co.deadline_at < CURRENT_TIMESTAMP AND co.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED')))`);
+      } else {
+        params.push(st);
+        conditions.push('co.status = ?');
+      }
+    }
+
+    if (filters.priority && filters.priority !== 'all') {
+      params.push(String(filters.priority).toUpperCase());
+      conditions.push('co.priority = ?');
     }
 
     if (filters.property_id && filters.property_id !== 'all') {
-      params.push(parseInt(filters.property_id, 10));
-      conditions.push(`co.property_id = $${params.length}`);
+      const propIdNum = parseInt(filters.property_id, 10);
+      if (isManager && !isGlobalLeader) {
+        const hasAccess = await this.checkUserPropertyAccess(user, propIdNum);
+        if (!hasAccess) {
+          throw new ForbiddenError('Access Denied: You cannot view operations outside your assigned property.');
+        }
+      }
+      params.push(propIdNum);
+      conditions.push('co.property_id = ?');
     }
 
     if (filters.search && filters.search.trim()) {
-      params.push(`%${filters.search.trim()}%`);
-      conditions.push(`(
-        co.operation_code ILIKE $${params.length}
-        OR co.title ILIKE $${params.length}
-        OR co.subject ILIKE $${params.length}
-      )`);
+      const term = `%${filters.search.trim()}%`;
+      params.push(term, term, term, term);
+      conditions.push('(co.title LIKE ? OR co.operation_code LIKE ? OR COALESCE(co.ticket_reference, \'\') LIKE ? OR co.subject LIKE ?)');
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    const query = `
-      SELECT 
+    const sql = `
+      SELECT
         co.*,
         u_init.name AS initiator_name,
-        u_init.email AS initiator_email,
         u_init.role AS initiator_role,
         u_resp.name AS responsible_name,
         u_resp.role AS responsible_role,
@@ -1311,326 +952,336 @@ class CentralOperationsService {
         p.code AS property_code,
         om.memo_reference,
         om.version_number AS memo_version,
-        om.document_storage_id,
-        (
-          SELECT COUNT(*) 
-          FROM central_operation_recipients cor 
-          WHERE cor.operation_id = co.id
-        ) AS total_recipients_count,
-        (
-          SELECT COUNT(*) 
-          FROM central_operation_recipients cor 
-          WHERE cor.operation_id = co.id AND cor.acknowledged_at IS NOT NULL
-        ) AS acknowledged_recipients_count,
-        (
-          SELECT COUNT(*) 
-          FROM operational_tasks ot 
-          WHERE ot.central_operation_id = co.id
-        ) AS linked_tasks_count,
-        (
-          SELECT COUNT(*) 
-          FROM operational_tasks ot 
-          WHERE ot.central_operation_id = co.id AND ot.status = 'COMPLETED'
-        ) AS completed_tasks_count,
-        (
-          SELECT cor.acknowledged_at 
-          FROM central_operation_recipients cor 
-          WHERE cor.operation_id = co.id AND cor.user_id = ${parseInt(userId, 10)}
-          LIMIT 1
-        ) AS user_acknowledged_at
+        (SELECT COUNT(*) FROM central_operation_recipients cor WHERE cor.operation_id = co.id AND COALESCE(cor.reassigned_out, FALSE) = FALSE) AS total_recipients,
+        (SELECT COUNT(*) FROM central_operation_recipients cor WHERE cor.operation_id = co.id AND cor.acknowledged_at IS NOT NULL AND COALESCE(cor.reassigned_out, FALSE) = FALSE) AS acknowledged_count,
+        (SELECT cor_self.acknowledged_at FROM central_operation_recipients cor_self WHERE cor_self.operation_id = co.id AND cor_self.user_id = ${userId} LIMIT 1) AS my_acknowledged_at,
+        (SELECT COUNT(*) FROM operational_tasks ot WHERE ot.central_operation_id = co.id) AS linked_tasks_count
       FROM central_operations co
       JOIN users u_init ON co.initiated_by_user_id = u_init.id
       LEFT JOIN users u_resp ON co.current_responsible_user_id = u_resp.id
       LEFT JOIN properties p ON co.property_id = p.id
       LEFT JOIN operations_memos om ON co.latest_memo_id = om.id
       ${whereClause}
-      ORDER BY 
-        CASE 
-          WHEN co.priority = 'CRITICAL' THEN 1
-          WHEN co.priority = 'URGENT' THEN 2
-          WHEN co.priority = 'IMPORTANT' THEN 3
-          ELSE 4
-        END,
-        co.created_at DESC
-      LIMIT 100;
+      ORDER BY co.created_at DESC, co.id DESC
     `;
 
-    const res = await pool.query(query, params);
-    const rows = res.rows || (Array.isArray(res) ? res : []);
+    const rows = extractRows(await pool.query(sql, params));
     return rows.map((r) => ({
       ...r,
+      ticket_reference: r.ticket_reference || r.operation_code,
       viewer_next_action: this.deriveNextAction(r, user),
     }));
   }
 
-  /**
-   * Helper to resolve an operationId which may be numeric (ID) or string (reference_number).
-   * Returns the numeric ID.
-   */
+  // ─── 3. Resolve Numeric Operation ID & Fetch Detailed Ticket View ──────
   static async resolveOperationId(operationId) {
-    if (operationId === null || operationId === undefined) {
-      throw new NotFoundError('Operation ID is required.');
+    const raw = String(operationId).trim();
+    if (/^\d+$/.test(raw)) {
+      return parseInt(raw, 10);
     }
-    const str = String(operationId).trim();
-    if (!str || str === 'undefined' || str === 'null') {
-      throw new NotFoundError('Valid Operation ID is required.');
-    }
-    if (/^\d+$/.test(str)) {
-      return parseInt(str, 10);
-    }
-    const res = await pool.query(
-      'SELECT id FROM central_operations WHERE operation_code = $1 LIMIT 1;',
-      [str]
+    const rows = extractRows(
+      await pool.query(
+        'SELECT id FROM central_operations WHERE operation_code = ? OR ticket_reference = ? LIMIT 1',
+        [raw, raw]
+      )
     );
-    if (!res || res.length === 0) {
-      throw new NotFoundError(`Central Operation '${str}' does not exist.`);
+    if (rows.length === 0) {
+      throw new NotFoundError(`Operational ticket '${operationId}' not found.`);
     }
-    return res[0].id;
+    return rows[0].id;
   }
 
-  /**
-   * GET FULL OPERATION DETAILS BY ID
-   * Includes memo history, recipient acknowledgement status, linked tasks, and audit events.
-   */
   static async getOperationById(user, operationId) {
     const opIdNum = await this.resolveOperationId(operationId);
-    const role = (user.role || '').toUpperCase();
 
-    const opRes = await pool.query(
-      `SELECT 
-        co.*,
-        u_init.name AS initiator_name,
-        u_init.email AS initiator_email,
-        u_init.role AS initiator_role,
-        u_sup.name AS supervisor_name,
-        u_sup.email AS supervisor_email,
-        u_resp.name AS responsible_name,
-        u_resp.email AS responsible_email,
-        u_resp.role AS responsible_role,
-        p.name AS property_name,
-        p.code AS property_code,
-        p.address AS property_address,
-        p.city AS property_city,
-        om.memo_reference,
-        om.version_number AS memo_version,
-        om.document_storage_id,
-        om.issuer_designation,
-        om.recipient_summary,
-        om.property_scope_summary,
-        om.deadline_text,
-        om.effective_date_text,
-        om.amendment_reason
-       FROM central_operations co
-       JOIN users u_init ON co.initiated_by_user_id = u_init.id
-       LEFT JOIN users u_sup ON co.supervisor_user_id = u_sup.id
-       LEFT JOIN users u_resp ON co.current_responsible_user_id = u_resp.id
-       LEFT JOIN properties p ON co.property_id = p.id
-       LEFT JOIN operations_memos om ON co.latest_memo_id = om.id
-       WHERE co.id = $1
-       LIMIT 1;`,
-      [opIdNum]
+    const opRows = extractRows(
+      await pool.query(
+        `SELECT
+          co.*,
+          u_init.name AS initiator_name, u_init.email AS initiator_email, u_init.role AS initiator_role,
+          u_sup.name AS supervisor_name, u_sup.email AS supervisor_email,
+          u_resp.name AS responsible_name, u_resp.email AS responsible_email, u_resp.role AS responsible_role,
+          u_rev.name AS reviewer_name, u_rev.role AS reviewer_role,
+          u_cls.name AS closed_by_name, u_rej.name AS rejected_by_name,
+          p.name AS property_name, p.code AS property_code, p.address AS property_address, p.city AS property_city,
+          om.memo_reference, om.version_number AS memo_version, om.document_storage_id,
+          om.issuer_designation, om.recipient_summary, om.property_scope_summary,
+          om.deadline_text, om.effective_date_text, om.amendment_reason
+         FROM central_operations co
+         JOIN users u_init ON co.initiated_by_user_id = u_init.id
+         LEFT JOIN users u_sup ON co.supervisor_user_id = u_sup.id
+         LEFT JOIN users u_resp ON co.current_responsible_user_id = u_resp.id
+         LEFT JOIN users u_rev ON co.reviewed_by_user_id = u_rev.id
+         LEFT JOIN users u_cls ON co.closed_by_user_id = u_cls.id
+         LEFT JOIN users u_rej ON co.rejected_by_user_id = u_rej.id
+         LEFT JOIN properties p ON co.property_id = p.id
+         LEFT JOIN operations_memos om ON co.latest_memo_id = om.id
+         WHERE co.id = ? LIMIT 1`,
+        [opIdNum]
+      )
     );
 
-    if (!opRes || opRes.length === 0) {
-      throw new NotFoundError(`Central Operation #${operationId} does not exist.`);
+    if (opRows.length === 0) {
+      throw new NotFoundError(`Operational ticket #${operationId} not found.`);
     }
 
-    const op = opRes[0];
-
-    // Access authorization check
-    if (['STAFF', 'RECEPTIONIST'].includes(role)) {
-      const recipientCheck = await pool.query(
-        'SELECT 1 FROM central_operation_recipients WHERE operation_id = $1 AND user_id = $2 LIMIT 1;',
-        [opIdNum, user.id]
-      );
-      if (op.initiated_by_user_id !== user.id && (!recipientCheck || recipientCheck.length === 0)) {
-        throw new ForbiddenError('You are not authorized to view this operational record.');
-      }
-    }
-
-    // Fetch Recipients with acknowledgement status
-    const recipients = await pool.query(
-      `SELECT 
-        cor.*,
-        u.name,
-        u.email,
-        u.role
-       FROM central_operation_recipients cor
-       JOIN users u ON cor.user_id = u.id
-       WHERE cor.operation_id = $1
-       ORDER BY cor.id ASC;`,
-      [opIdNum]
+    const op = opRows[0];
+    const recipients = extractRows(
+      await pool.query(
+        `SELECT cor.*, u.name AS user_name, u.email AS user_email, u.role AS current_role
+         FROM central_operation_recipients cor
+         JOIN users u ON cor.user_id = u.id
+         WHERE cor.operation_id = ?
+         ORDER BY cor.id ASC`,
+        [opIdNum]
+      )
     );
 
-    // Fetch Memo Versions History
-    const memos = await pool.query(
-      `SELECT 
-        id, memo_reference, version_number, issuer_designation,
-        recipient_summary, property_scope_summary, deadline_text,
-        effective_date_text, amendment_reason, document_storage_id, created_at
-       FROM operations_memos
-       WHERE operation_id = $1
-       ORDER BY version_number DESC;`,
-      [opIdNum]
+    await this.assertUserCanViewOperation(user, op, recipients);
+
+    const tasks = extractRows(
+      await pool.query(
+        `SELECT ot.*, u.name AS assigned_to_name, u.role AS assigned_to_role
+         FROM operational_tasks ot
+         LEFT JOIN users u ON ot.assigned_to_id = u.id
+         WHERE ot.central_operation_id = ?
+         ORDER BY ot.id ASC`,
+        [opIdNum]
+      )
     );
 
-    // Fetch Linked Operational Tasks
-    const linkedTasks = await pool.query(
-      `SELECT 
-        ot.id, ot.task_code, ot.title, ot.status, ot.priority, ot.due_date,
-        u_assign.name AS assigned_to_name,
-        u_assign.email AS assigned_to_email
-       FROM operational_tasks ot
-       LEFT JOIN users u_assign ON ot.assigned_to_id = u_assign.id
-       WHERE ot.central_operation_id = $1
-       ORDER BY ot.id DESC;`,
-      [opIdNum]
+    const events = extractRows(
+      await pool.query(
+        `SELECT coe.*, u.name AS actor_name, u.role AS actor_role
+         FROM central_operation_events coe
+         JOIN users u ON coe.actor_user_id = u.id
+         WHERE coe.operation_id = ?
+         ORDER BY coe.created_at DESC, coe.id DESC`,
+        [opIdNum]
+      )
     );
 
-    // Fetch Audit Trail Events
-    const events = await pool.query(
-      `SELECT 
-        coe.*,
-        u.name AS actor_name,
-        u.email AS actor_email,
-        u.role AS actor_role
-       FROM central_operation_events coe
-       JOIN users u ON coe.actor_user_id = u.id
-       WHERE coe.operation_id = $1
-       ORDER BY coe.created_at DESC;`,
-      [opIdNum]
+    const memoHistory = extractRows(
+      await pool.query(
+        'SELECT * FROM operations_memos WHERE operation_id = ? ORDER BY version_number DESC',
+        [opIdNum]
+      )
     );
 
-    const viewerNextAction = this.deriveNextAction({ ...op, recipients: recipients || [] }, user);
+    const reassignmentHistory = extractRows(
+      await pool.query(
+        `SELECT trh.*,
+                u_prev.name AS previous_user_name, u_prev.role AS previous_user_role,
+                u_new.name AS new_user_name, u_new.role AS new_user_role,
+                u_by.name AS reassigned_by_name, u_by.role AS reassigned_by_role
+         FROM ticket_reassignment_history trh
+         LEFT JOIN users u_prev ON trh.previous_user_id = u_prev.id
+         JOIN users u_new ON trh.new_user_id = u_new.id
+         JOIN users u_by ON trh.reassigned_by_id = u_by.id
+         WHERE trh.operation_id = ?
+         ORDER BY trh.reassigned_at DESC, trh.id DESC`,
+        [opIdNum]
+      )
+    );
+
+    const deadlineHistory = extractRows(
+      await pool.query(
+        `SELECT tdh.*, u_req.name AS requested_by_name, u_app.name AS approved_by_name
+         FROM ticket_deadline_history tdh
+         LEFT JOIN users u_req ON tdh.requested_by_id = u_req.id
+         LEFT JOIN users u_app ON tdh.approved_by_id = u_app.id
+         WHERE tdh.operation_id = ?
+         ORDER BY tdh.created_at DESC, tdh.id DESC`,
+        [opIdNum]
+      )
+    );
+
+    const evidenceFiles = extractRows(
+      await pool.query(
+        `SELECT ods.id, ods.file_name, ods.mime_type, ods.file_size_bytes, ods.uploaded_by, ods.created_at,
+                u.name AS uploaded_by_name
+         FROM operational_documents_storage ods
+         LEFT JOIN users u ON ods.uploaded_by = u.id
+         WHERE ods.entity_type = 'TICKET_EVIDENCE' AND ods.entity_id = ?
+         ORDER BY ods.created_at DESC`,
+        [opIdNum]
+      )
+    ).map((ev) => ({
+      ...ev,
+      downloadUrl: `/api/v1/workforce/operations/${opIdNum}/evidence/${ev.id}`,
+    }));
+
+    const viewerNextAction = this.deriveNextAction({ ...op, recipients }, user);
+
     return {
       ...op,
-      recipients: recipients || [],
-      memos: memos || [],
-      linkedTasks: linkedTasks || [],
-      events: events || [],
+      ticket_reference: op.ticket_reference || op.operation_code,
+      recipients,
+      tasks,
+      events,
+      memo_history: memoHistory,
+      reassignment_history: reassignmentHistory,
+      deadline_history: deadlineHistory,
+      evidence_files: evidenceFiles,
       viewer_next_action: viewerNextAction,
+      next_action: op.next_action || viewerNextAction.text,
     };
   }
 
-  /**
-   * ACKNOWLEDGE OPERATION RECEIPT
-   */
+  // ─── 4. Acknowledge Receipt (Stops Unack SLA Reminders) ────────────────
   static async acknowledgeOperation(user, operationId, note = null) {
     const opIdNum = await this.resolveOperationId(operationId);
-
-    const checkRes = await pool.query(
-      'SELECT id, acknowledged_at FROM central_operation_recipients WHERE operation_id = $1 AND user_id = $2 LIMIT 1;',
-      [opIdNum, user.id]
+    const checkRows = extractRows(
+      await pool.query(
+        'SELECT id, acknowledged_at FROM central_operation_recipients WHERE operation_id = ? AND user_id = ? LIMIT 1',
+        [opIdNum, user.id]
+      )
     );
-
-    if (!checkRes || checkRes.length === 0) {
-      throw new ForbiddenError('You are not a registered recipient of this operational memo.');
+    if (checkRows.length === 0) {
+      throw new ForbiddenError('You are not a registered recipient of this ticket.');
     }
 
     const now = new Date();
     await pool.query(
-      `UPDATE central_operation_recipients 
-       SET acknowledged_at = $1, acknowledgement_note = $2, acceptance_status = 'ACCEPTED' 
-       WHERE operation_id = $3 AND user_id = $4;`,
-      [now, note, opIdNum, user.id]
+      `UPDATE central_operation_recipients
+       SET acknowledged_at = COALESCE(acknowledged_at, ?),
+           acknowledgement_note = COALESCE(?, acknowledgement_note),
+           acceptance_status = CASE WHEN acceptance_status = 'PENDING' THEN 'ACKNOWLEDGED' ELSE acceptance_status END,
+           requires_reacknowledgement = FALSE
+       WHERE operation_id = ? AND user_id = ?`,
+      [now, note || null, opIdNum, user.id]
     );
 
-    // Also update chat_message_acknowledgements if message exists
-    const [op] = await pool.query('SELECT chat_message_id, operation_code, title FROM central_operations WHERE id = $1;', [opIdNum]);
+    // Mark reassigned ticket acknowledgment flag if this recipient received a reassignment
+    await pool.query(
+      `UPDATE ticket_reassignment_history
+       SET new_recipient_acknowledged = TRUE,
+           new_recipient_acknowledged_at = COALESCE(new_recipient_acknowledged_at, ?)
+       WHERE operation_id = ? AND new_user_id = ? AND new_recipient_acknowledged = FALSE`,
+      [now, opIdNum, user.id]
+    );
+
+    const [op] = extractRows(
+      await pool.query(
+        'SELECT chat_message_id, operation_code, ticket_reference, status, current_responsible_user_id, first_acknowledged_at FROM central_operations WHERE id = ?',
+        [opIdNum]
+      )
+    );
+
     if (op?.chat_message_id) {
       await pool.query(
-        `UPDATE chat_message_acknowledgements 
-         SET acknowledged_at = $1 
-         WHERE message_id = $2 AND user_id = $3;`,
+        'UPDATE chat_message_acknowledgements SET acknowledged_at = COALESCE(acknowledged_at, ?) WHERE message_id = ? AND user_id = ?',
         [now, op.chat_message_id, user.id]
       );
     }
 
-    // Check if all recipients have acknowledged to transition status to ACKNOWLEDGED / IN_PROGRESS
-    const unacknowledged = await pool.query(
-      'SELECT COUNT(*) AS pending FROM central_operation_recipients WHERE operation_id = $1 AND acknowledged_at IS NULL;',
-      [opIdNum]
-    );
-    const isFullyAcknowledged = parseInt(unacknowledged[0]?.pending || 0, 10) === 0;
+    const advanceToAck = ['OPEN', 'ISSUED', 'PENDING_DELIVERY', 'DELIVERED', 'AWAITING_ACKNOWLEDGEMENT', 'REASSIGNED', 'ESCALATED'].includes(op?.status);
+    const nextActionText = op?.current_responsible_user_id
+      ? `Acknowledged by recipient. Responsible person should Accept Responsibility or Start Execution.`
+      : 'Receipt acknowledged. Awaiting group member to Accept Responsibility or supervisor to assign an owner.';
 
-    const nextAct = isFullyAcknowledged
-      ? (op?.current_responsible_user_id ? 'Responsibility accepted. Review directives and begin operational execution.' : 'Awaiting ownership: an eligible member must accept responsibility or supervisor must assign.')
-      : 'Awaiting remaining recipient acknowledgements.';
     await pool.query(
-      `UPDATE central_operations 
-       SET status = CASE WHEN status = 'ISSUED' THEN 'ACKNOWLEDGED' ELSE status END,
-           next_action = $1,
+      `UPDATE central_operations
+       SET first_acknowledged_at = COALESCE(first_acknowledged_at, ?),
+           status = CASE WHEN ? THEN 'ACKNOWLEDGED' ELSE status END,
+           next_action = CASE WHEN ? THEN ? ELSE next_action END,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2;`,
-      [nextAct, opIdNum]
+       WHERE id = ?`,
+      [now, advanceToAck ? 1 : 0, advanceToAck ? 1 : 0, nextActionText, opIdNum]
     );
 
-    // Record Audit Event
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'ACKNOWLEDGED', $3, $4);`,
+       VALUES (?, ?, 'ACKNOWLEDGED', ?, ?)`,
       [
         opIdNum,
         user.id,
-        `Receipt acknowledged by ${user.name} (${user.role})`,
-        JSON.stringify({ note, fullyAcknowledged: isFullyAcknowledged }),
+        `Ticket receipt acknowledged by ${user.name} (${user.role})`,
+        JSON.stringify({ note: note || null, acknowledgedAt: now.toISOString() }),
       ]
     );
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * CLAIM / ACCEPT RESPONSIBILITY FOR A GROUP OPERATION
-   * Allows an eligible recipient to accept primary ownership.
-   */
+  // ─── 5. Accept Responsibility / Claim Ownership ────────────────────────
   static async claimOperation(user, operationId) {
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
-    if (['COMPLETED', 'CANCELLED', 'CLOSED'].includes(op.status)) {
-      throw new BadRequestError(`Cannot claim operation #${operationId} because it is already ${op.status}.`);
+    if (['COMPLETED', 'CANCELLED', 'CLOSED', 'REJECTED'].includes(op.status)) {
+      throw new BadRequestError(`Cannot accept ownership for ticket ${op.ticket_reference} in status ${op.status}.`);
     }
 
-    if (op.current_responsible_user_id && op.current_responsible_user_id !== user.id) {
-      throw new ConflictError(`Operation #${operationId} has already been claimed by ${op.responsible_name || 'another team member'}.`);
+    if (op.current_responsible_user_id && Number(op.current_responsible_user_id) !== Number(user.id)) {
+      throw new ConflictError(`Ticket ${op.ticket_reference} already has assigned owner ${op.responsible_name || 'another staff member'}.`);
     }
 
-    const nextAction = 'Responsibility accepted. Review directives and begin operational execution.';
-    const newStatus = op.status === 'ISSUED' || op.status === 'ACKNOWLEDGED' || op.status === 'AWAITING_OWNERSHIP' 
-      ? 'ACCEPTED' 
+    const now = new Date();
+    const newStatus = ['OPEN', 'ISSUED', 'AWAITING_ACKNOWLEDGEMENT', 'AWAITING_OWNERSHIP', 'ACKNOWLEDGED', 'REASSIGNED', 'ESCALATED'].includes(op.status)
+      ? 'ACCEPTED'
       : op.status;
+    const nextAction = `Responsibility accepted by ${user.name}. Click Start Execution to begin work.`;
 
     await pool.query(
-      `UPDATE central_operations 
-       SET current_responsible_user_id = $1,
+      `UPDATE central_operations
+       SET current_responsible_user_id = ?,
            current_responsible_group = NULL,
-           status = $2,
-           next_action = $3,
+           first_acknowledged_at = COALESCE(first_acknowledged_at, ?),
+           accepted_at = COALESCE(accepted_at, ?),
+           status = ?,
+           next_action = ?,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4;`,
-      [user.id, newStatus, nextAction, opIdNum]
+       WHERE id = ?`,
+      [user.id, now, now, newStatus, nextAction, opIdNum]
     );
 
-    // Create or update linked primary task for the claiming user
-    const existingTask = await pool.query(
-      'SELECT id FROM operational_tasks WHERE central_operation_id = $1 AND assigned_to_id = $2 LIMIT 1;',
-      [opIdNum, user.id]
+    // Ensure claiming user is registered & marked ACCEPTED/acknowledged
+    if (pool.isPostgres()) {
+      await pool.query(
+        `INSERT INTO central_operation_recipients (operation_id, user_id, role_at_time, status, acknowledged_at, acceptance_status, requires_reacknowledgement, assigned_at)
+         VALUES (?, ?, ?, 'DELIVERED', ?, 'ACCEPTED', FALSE, ?)
+         ON CONFLICT (operation_id, user_id) DO UPDATE
+           SET acknowledged_at = COALESCE(central_operation_recipients.acknowledged_at, EXCLUDED.acknowledged_at),
+               acceptance_status = 'ACCEPTED',
+               requires_reacknowledgement = FALSE,
+               reassigned_out = FALSE`,
+        [opIdNum, user.id, user.role, now, now]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO central_operation_recipients (operation_id, user_id, role_at_time, status, acknowledged_at, acceptance_status, requires_reacknowledgement, assigned_at)
+         VALUES (?, ?, ?, 'DELIVERED', ?, 'ACCEPTED', FALSE, ?)
+         ON DUPLICATE KEY UPDATE
+           acknowledged_at = COALESCE(acknowledged_at, VALUES(acknowledged_at)),
+           acceptance_status = 'ACCEPTED',
+           requires_reacknowledgement = FALSE,
+           reassigned_out = FALSE`,
+        [opIdNum, user.id, user.role, now, now]
+      );
+    }
+
+    await pool.query(
+      `UPDATE ticket_reassignment_history
+       SET new_recipient_acknowledged = TRUE,
+           new_recipient_acknowledged_at = COALESCE(new_recipient_acknowledged_at, ?)
+       WHERE operation_id = ? AND new_user_id = ? AND new_recipient_acknowledged = FALSE`,
+      [now, opIdNum, user.id]
     );
-    const existingRows = existingTask.rows || (Array.isArray(existingTask) ? existingTask : []);
-    if (existingRows.length === 0) {
-      const taskCode = `TSK-${op.operation_code.replace('OPS-', '')}-${String(Date.now()).slice(-4)}`;
+
+    // Create ONE linked execution task lazily upon ownership acceptance
+    const existingTasks = extractRows(
+      await pool.query('SELECT id FROM operational_tasks WHERE central_operation_id = ? LIMIT 1', [opIdNum])
+    );
+    if (existingTasks.length === 0) {
       try {
+        const taskCode = `TSK-${op.operation_code.replace('OPS-', '')}-01`;
         await pool.query(
           `INSERT INTO operational_tasks (
             task_code, property_id, assigned_to_id, assigned_by_id,
             title, description, expected_outcome, task_category,
             priority, due_date, status, central_operation_id
-          ) VALUES (
-            $1, $2, $3, $4,
-            $5, $6, $7, $8,
-            $9, $10, 'IN_PROGRESS', $11
-          );`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)`,
           [
             taskCode,
             op.property_id || 1,
@@ -1641,125 +1292,166 @@ class CentralOperationsService {
             op.expected_outcome,
             op.category === 'MAINTENANCE_INSPECTION' ? 'MAINTENANCE' : 'GENERAL',
             op.priority,
-            op.deadline_at || new Date(Date.now() + 86400000 * 3),
+            op.deadline_at || addHoursDate(now, 72),
             opIdNum,
           ]
         );
       } catch (taskErr) {
-        logger.warn(`Could not create operational task on claim: ${taskErr.message}`);
+        logger.warn(`Task projection sync notice on claim: ${taskErr.message}`);
       }
     }
 
-    // Auto-acknowledge for claiming user if not yet acknowledged
-    await pool.query(
-      `UPDATE central_operation_recipients 
-       SET acknowledged_at = COALESCE(acknowledged_at, CURRENT_TIMESTAMP), acceptance_status = 'ACCEPTED' 
-       WHERE operation_id = $1 AND user_id = $2;`,
-      [opIdNum, user.id]
-    );
-
-    // Audit Event
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'TASK_LINKED', $3, $4);`,
+       VALUES (?, ?, 'ACCEPTED', ?, ?)`,
       [
         opIdNum,
         user.id,
-        `Task responsibility accepted by ${user.name} (${user.role})`,
-        JSON.stringify({ claimed_by_name: user.name, role: user.role, action: 'CLAIMED_RESPONSIBILITY' }),
+        `Ownership & responsibility accepted by ${user.name} (${user.role}).`,
+        JSON.stringify({ acceptedBy: user.id, acceptedAt: now.toISOString() }),
       ]
     );
 
-    // Post to chat thread
     if (op.chat_thread_id) {
       try {
         await ChatService.sendMessage(user, {
           threadId: op.chat_thread_id,
           messageType: 'TEXT',
-          content: `👤 [TASK OWNERSHIP ACCEPTED] ${user.name} (${user.role.replace(/_/g, ' ')}) has accepted primary responsibility for Operation ${op.operation_code}.\n👉 Next Action: ${nextAction}`,
+          content: `👤 [RESPONSIBILITY ACCEPTED — ${op.ticket_reference}]\n${user.name} (${user.role}) has accepted primary responsibility for this ticket.`,
           priority: 'NORMAL',
           contextEntityType: 'OPERATION',
           contextEntityId: opIdNum,
         });
-      } catch (chatErr) {
-        logger.warn(`Failed to post claim message to chat: ${chatErr.message}`);
+      } catch (err) {
+        logger.warn(`Chat notice on claim: ${err.message}`);
       }
     }
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * ASSIGN / DELEGATE OPERATION RESPONSIBILITY TO A SPECIFIC USER
-   * Allows initiator, supervisor, or management to assign responsibility.
-   */
-  static async assignOperation(user, operationId, targetUserId, notes = null) {
+  // ─── 6. Delegate / Reassign Ownership (With Mandatory Reason & Fresh Ack) ─
+  static async assignOperation(user, operationId, targetUserId, notes = null, extra = {}) {
     const opIdNum = await this.resolveOperationId(operationId);
     const targetIdNum = parseInt(targetUserId, 10);
-    const op = await this.getOperationById(user, opIdNum);
-
-    const userRole = (user.role || '').toUpperCase();
-    const isInitiator = op.initiated_by_user_id === user.id;
-    const isSupervisor = op.supervisor_user_id === user.id;
-    const isManagement = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(userRole);
-
-    if (!isInitiator && !isSupervisor && !isManagement) {
-      throw new ForbiddenError('You do not have authority to assign or delegate this operation.');
+    if (!Number.isFinite(targetIdNum) || targetIdNum <= 0) {
+      throw new BadRequestError('Valid target assignee user ID is required.');
     }
 
-    const targetUserRes = await pool.query('SELECT id, name, email, role FROM users WHERE id = $1 LIMIT 1;', [targetIdNum]);
-    const targetRows = targetUserRes.rows || (Array.isArray(targetUserRes) ? targetUserRes : []);
+    const op = await this.getOperationById(user, opIdNum);
+    const userRole = String(user.role || '').toUpperCase();
+    const isAllowed =
+      Number(op.initiated_by_user_id) === Number(user.id) ||
+      Number(op.supervisor_user_id) === Number(user.id) ||
+      ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(userRole);
+
+    if (!isAllowed) {
+      throw new ForbiddenError('You do not have authority to assign or reassign this ticket.');
+    }
+
+    const targetRows = extractRows(
+      await pool.query("SELECT id, name, email, role, property_id FROM users WHERE id = ? AND status = 'ACTIVE' LIMIT 1", [targetIdNum])
+    );
     if (targetRows.length === 0) {
-      throw new NotFoundError(`Target user #${targetUserId} does not exist.`);
+      throw new NotFoundError(`Active target staff member #${targetUserId} does not exist.`);
     }
     const targetUser = targetRows[0];
 
-    const nextAction = `Assigned to ${targetUser.name}. Review directives and begin operational execution.`;
-    const newStatus = op.status === 'ISSUED' || op.status === 'ACKNOWLEDGED' || op.status === 'AWAITING_OWNERSHIP' 
-      ? 'ACCEPTED' 
-      : op.status;
+    const previousUserId = op.current_responsible_user_id ? Number(op.current_responsible_user_id) : null;
+    const isReassignment = Boolean(previousUserId && previousUserId !== targetIdNum);
+    const reasonText = String(extra?.reason || notes || '').trim();
+
+    if (isReassignment && reasonText.length < 3) {
+      throw new BadRequestError('A clear reason is strictly required when reassigning a ticket from another owner.');
+    }
+
+    const now = new Date();
+    const slaHours = op.acknowledgment_sla_hours || getSlaHoursForPriority(op.priority);
+    const newAckDeadline = addHoursDate(now, slaHours);
+    const nextAction = isReassignment
+      ? `Reassigned to ${targetUser.name}. Awaiting fresh acknowledgement & execution.`
+      : `Assigned to ${targetUser.name}. Awaiting acknowledgement & responsibility confirmation.`;
+
+    const newStatus = isReassignment
+      ? 'REASSIGNED'
+      : ['OPEN', 'ISSUED', 'AWAITING_ACKNOWLEDGEMENT', 'AWAITING_OWNERSHIP', 'ACKNOWLEDGED', 'ESCALATED', 'REJECTED'].includes(op.status)
+        ? 'AWAITING_ACKNOWLEDGEMENT'
+        : op.status;
 
     await pool.query(
-      `UPDATE central_operations 
-       SET current_responsible_user_id = $1,
+      `UPDATE central_operations
+       SET current_responsible_user_id = ?,
            current_responsible_group = NULL,
-           status = $2,
-           next_action = $3,
+           status = ?,
+           next_action = ?,
+           reassignment_count = reassignment_count + ?,
+           acknowledgment_deadline_at = ?,
+           sla_first_reminder_sent_at = NULL,
+           sla_final_reminder_sent_at = NULL,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4;`,
-      [targetIdNum, newStatus, nextAction, opIdNum]
+       WHERE id = ?`,
+      [targetIdNum, newStatus, nextAction, isReassignment ? 1 : 0, newAckDeadline, opIdNum]
     );
 
-    // Ensure target user is recorded in central_operation_recipients
-    await pool.query(
-      `INSERT INTO central_operation_recipients (operation_id, user_id, role_at_time, status)
-       VALUES ($1, $2, $3, 'DELIVERED')
-       ON CONFLICT (operation_id, user_id) DO NOTHING;`,
-      [opIdNum, targetIdNum, targetUser.role]
-    );
+    if (previousUserId && previousUserId !== targetIdNum) {
+      await pool.query(
+        `UPDATE central_operation_recipients
+         SET reassigned_out = TRUE, acceptance_status = 'REASSIGNED_OUT'
+         WHERE operation_id = ? AND user_id = ?`,
+        [opIdNum, previousUserId]
+      );
+    }
 
-    // Create or update linked primary task for target user
-    const existingTask = await pool.query(
-      'SELECT id FROM operational_tasks WHERE central_operation_id = $1 AND assigned_to_id = $2 LIMIT 1;',
-      [opIdNum, targetIdNum]
+    // Ensure target user has a fresh recipient entry requiring new acknowledgement
+    if (pool.isPostgres()) {
+      await pool.query(
+        `INSERT INTO central_operation_recipients (
+          operation_id, user_id, role_at_time, status, acknowledged_at, acceptance_status, requires_reacknowledgement, reassigned_out, assigned_at
+        ) VALUES (?, ?, ?, 'DELIVERED', NULL, 'PENDING', TRUE, FALSE, ?)
+        ON CONFLICT (operation_id, user_id) DO UPDATE
+          SET acknowledged_at = NULL,
+              acceptance_status = 'PENDING',
+              requires_reacknowledgement = TRUE,
+              reassigned_out = FALSE,
+              assigned_at = EXCLUDED.assigned_at`,
+        [opIdNum, targetIdNum, targetUser.role, now]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO central_operation_recipients (
+          operation_id, user_id, role_at_time, status, acknowledged_at, acceptance_status, requires_reacknowledgement, reassigned_out, assigned_at
+        ) VALUES (?, ?, ?, 'DELIVERED', NULL, 'PENDING', TRUE, FALSE, ?)
+        ON DUPLICATE KEY UPDATE
+          acknowledged_at = NULL,
+          acceptance_status = 'PENDING',
+          requires_reacknowledgement = TRUE,
+          reassigned_out = FALSE,
+          assigned_at = VALUES(assigned_at)`,
+        [opIdNum, targetIdNum, targetUser.role, now]
+      );
+    }
+
+    // Update or create linked single primary task so assignee always sees the ticket in tasks too
+    const existingTasks = extractRows(
+      await pool.query('SELECT id FROM operational_tasks WHERE central_operation_id = ? ORDER BY id ASC LIMIT 1', [opIdNum])
     );
-    const existingRows = existingTask.rows || (Array.isArray(existingTask) ? existingTask : []);
-    if (existingRows.length === 0) {
-      const taskCode = `TSK-${op.operation_code.replace('OPS-', '')}-${String(Date.now()).slice(-4)}`;
+    if (existingTasks.length > 0) {
+      await pool.query(
+        "UPDATE operational_tasks SET assigned_to_id = ?, assigned_by_id = ?, status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [targetIdNum, user.id, existingTasks[0].id]
+      );
+    } else {
       try {
+        const taskCode = `TSK-${op.operation_code.replace('OPS-', '')}-${String(Date.now()).slice(-4)}`;
         await pool.query(
           `INSERT INTO operational_tasks (
             task_code, property_id, assigned_to_id, assigned_by_id,
             title, description, expected_outcome, task_category,
             priority, due_date, status, central_operation_id
-          ) VALUES (
-            $1, $2, $3, $4,
-            $5, $6, $7, $8,
-            $9, $10, 'PENDING', $11
-          );`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)`,
           [
             taskCode,
-            op.property_id || 1,
+            op.property_id || targetUser.property_id || 1,
             targetIdNum,
             user.id,
             op.title,
@@ -1767,119 +1459,236 @@ class CentralOperationsService {
             op.expected_outcome,
             op.category === 'MAINTENANCE_INSPECTION' ? 'MAINTENANCE' : 'GENERAL',
             op.priority,
-            op.deadline_at || new Date(Date.now() + 86400000 * 3),
+            op.deadline_at || addHoursDate(now, 72),
             opIdNum,
           ]
         );
       } catch (taskErr) {
-        logger.warn(`Could not create operational task on assignment: ${taskErr.message}`);
+        logger.warn(`Task projection sync notice on assign: ${taskErr.message}`);
       }
     }
 
-    // Audit Event
+    // Dispatch DM ticket notification directly to new assignee
+    let dmThreadId = null;
+    let dmMessageId = null;
+    try {
+      if (Number(user.id) !== targetIdNum) {
+        const dm = await ChatService.findOrCreateDirectThread(user, targetIdNum);
+        dmThreadId = dm?.id || null;
+        if (dmThreadId) {
+          const msg = await ChatService.sendMessage(user, {
+            threadId: dmThreadId,
+            messageType: 'CONTEXT_LINK',
+            content:
+              `🔄 [${isReassignment ? 'TICKET REASSIGNED TO YOU' : 'TICKET ASSIGNED TO YOU'} — ${op.ticket_reference}]\n` +
+              `Title: ${op.title}\n` +
+              `${isReassignment ? `Previous Owner: ${op.responsible_name || 'N/A'}\nReason: ${reasonText}\n` : ''}` +
+              `Assigned By: ${user.name} (${user.role})\n` +
+              `Ack SLA: ${slaHours}h (Due ${formatLagosTime(newAckDeadline)})\n` +
+              `Open the ticket to Acknowledge Receipt.`,
+            priority: op.priority || 'IMPORTANT',
+            contextEntityType: 'OPERATION',
+            contextEntityId: opIdNum,
+          });
+          dmMessageId = msg?.id || null;
+        }
+      }
+    } catch (dmErr) {
+      logger.warn(`Direct assignment DM notify warning: ${dmErr.message}`);
+    }
+
+    // Persist Reassignment History Record
     await pool.query(
-      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'TASK_LINKED', $3, $4);`,
+      `INSERT INTO ticket_reassignment_history (
+        operation_id, previous_user_id, new_user_id, reassigned_by_id,
+        reason, reassigned_at, new_recipient_acknowledged, notification_thread_id, notification_message_id
+      ) VALUES (?, ?, ?, ?, ?, ?, FALSE, ?, ?)`,
       [
         opIdNum,
+        previousUserId,
+        targetIdNum,
         user.id,
-        `Responsibility delegated to ${targetUser.name} by ${user.name}`,
-        JSON.stringify({ assigned_by: user.name, assigned_to: targetUser.name, notes, action: 'DELEGATED_RESPONSIBILITY' }),
+        reasonText || `Delegated to ${targetUser.name} by ${user.name}`,
+        now,
+        dmThreadId,
+        dmMessageId,
       ]
     );
 
-    // Post to chat thread
-    if (op.chat_thread_id) {
-      try {
-        await ChatService.sendMessage(user, {
-          threadId: op.chat_thread_id,
-          messageType: 'TEXT',
-          content: `📌 [RESPONSIBILITY DELEGATED] Operation ${op.operation_code} has been assigned to ${targetUser.name} (${targetUser.role.replace(/_/g, ' ')}) by ${user.name}.${notes ? `\nInstructions: ${notes}` : ''}\n👉 Next Action: ${nextAction}`,
-          priority: 'NORMAL',
-          contextEntityType: 'OPERATION',
-          contextEntityId: opIdNum,
-        });
-      } catch (chatErr) {
-        logger.warn(`Failed to post delegation message to chat: ${chatErr.message}`);
-      }
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        opIdNum,
+        user.id,
+        isReassignment ? 'REASSIGNED' : 'ASSIGNED',
+        `${isReassignment ? 'Reassigned' : 'Assigned'} to ${targetUser.name} by ${user.name}${reasonText ? ` — Reason: ${reasonText}` : ''}`,
+        JSON.stringify({ previousUserId, newUserId: targetIdNum, targetName: targetUser.name, reason: reasonText }),
+      ]
+    );
+
+    try {
+      await NotificationsService.dispatchNotification({
+        recipientId: targetIdNum,
+        recipientRole: targetUser.role,
+        propertyId: op.property_id || null,
+        title: `${isReassignment ? 'Ticket Reassigned' : 'Ticket Assigned'}: ${op.ticket_reference}`,
+        message: `${user.name} assigned "${op.title}" to you. Acknowledge within ${slaHours}h (${formatLagosTime(newAckDeadline)}).`,
+        category: 'TICKET',
+        priority: op.priority === 'CRITICAL' ? 'CRITICAL' : 'HIGH',
+        sourceEntityType: 'CENTRAL_OPERATION',
+        sourceEntityId: opIdNum,
+        linkUrl: `/portal/operations?op=${opIdNum}`,
+      });
+    } catch (nErr) {
+      logger.warn(`Assign notification warning: ${nErr.message}`);
     }
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * SUBMIT CLARIFICATION REQUEST OR FEEDBACK
-   */
+  // ─── 7. Start Execution (Distinct From Ack & Accept) ───────────────────
+  static async startExecution(user, operationId, notes = null) {
+    const opIdNum = await this.resolveOperationId(operationId);
+    const op = await this.getOperationById(user, opIdNum);
+
+    if (['COMPLETED', 'CANCELLED', 'CLOSED', 'REJECTED'].includes(op.status)) {
+      throw new BadRequestError(`Cannot start execution for ticket in status ${op.status}.`);
+    }
+    if (!op.current_responsible_user_id) {
+      throw new BadRequestError('A responsible owner must Accept Responsibility or be assigned before execution begins.');
+    }
+
+    const role = String(user.role || '').toUpperCase();
+    const isMgmt = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(role);
+    if (Number(op.current_responsible_user_id) !== Number(user.id) && !isMgmt) {
+      throw new ForbiddenError('Only the assigned owner or supervising management can mark execution started.');
+    }
+
+    const now = new Date();
+    const nextAction = `Execution started by ${user.name}. Log progress updates, evidence, or submit completion when done.`;
+
+    await pool.query(
+      `UPDATE central_operations
+       SET status = 'IN_PROGRESS',
+           first_acknowledged_at = COALESCE(first_acknowledged_at, ?),
+           accepted_at = COALESCE(accepted_at, ?),
+           started_at = COALESCE(started_at, ?),
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [now, now, now, nextAction, opIdNum]
+    );
+
+    await pool.query(
+      `UPDATE central_operation_recipients
+       SET acknowledged_at = COALESCE(acknowledged_at, ?),
+           acceptance_status = 'ACCEPTED',
+           requires_reacknowledgement = FALSE
+       WHERE operation_id = ? AND user_id = ?`,
+      [now, opIdNum, op.current_responsible_user_id]
+    );
+
+    await pool.query(
+      "UPDATE operational_tasks SET status = 'IN_PROGRESS', updated_at = CURRENT_TIMESTAMP WHERE central_operation_id = ? AND status = 'PENDING'",
+      [opIdNum]
+    );
+
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, 'STARTED', ?, ?)`,
+      [
+        opIdNum,
+        user.id,
+        `Execution started by ${user.name}${notes ? `: ${notes}` : ''}`,
+        JSON.stringify({ startedAt: now.toISOString(), notes: notes || null }),
+      ]
+    );
+
+    return this.getOperationById(user, opIdNum);
+  }
+
+  // ─── 8. Clarification Workflow ─────────────────────────────────────────
   static async requestClarification(user, operationId, { questionText }) {
     if (!questionText || questionText.trim().length < 5) {
       throw new BadRequestError('Detailed clarification inquiry text is required.');
     }
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
+    const now = new Date();
 
     await pool.query(
-      `UPDATE central_operations 
-       SET status = 'AWAITING_CLARIFICATION', updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $1;`,
-      [opIdNum]
+      `UPDATE central_operations
+       SET status = 'AWAITING_CLARIFICATION',
+           clarification_question = ?,
+           clarification_requested_by_id = ?,
+           clarification_requested_at = ?,
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        questionText.trim(),
+        user.id,
+        now,
+        `Clarification requested by ${user.name}. Issuer must respond to resume execution.`,
+        opIdNum,
+      ]
     );
 
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'CLARIFICATION_REQUESTED', $3, $4);`,
-      [
-        opIdNum,
-        user.id,
-        `Clarification requested by ${user.name}: "${questionText.substring(0, 100)}"`,
-        JSON.stringify({ questionText }),
-      ]
+       VALUES (?, ?, 'CLARIFICATION_REQUESTED', ?, ?)`,
+      [opIdNum, user.id, `Clarification requested by ${user.name}: "${questionText.trim().slice(0, 90)}"`, JSON.stringify({ questionText })]
     );
 
-    // If chat thread exists, dispatch notification message
     if (op.chat_thread_id) {
       try {
         await ChatService.sendMessage(user, {
           threadId: op.chat_thread_id,
           messageType: 'TEXT',
-          content: `❓ [CLARIFICATION INQUIRY - ${op.operation_code}]\n${user.name} (${user.role}): ${questionText}`,
+          content: `❓ [CLARIFICATION INQUIRY — ${op.ticket_reference}]\n${user.name} (${user.role}): ${questionText.trim()}`,
           priority: 'IMPORTANT',
           contextEntityType: 'OPERATION',
           contextEntityId: opIdNum,
         });
       } catch (err) {
-        logger.warn(`Could not post clarification to chat: ${err.message}`);
+        logger.warn(`Clarification chat post error: ${err.message}`);
       }
     }
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * RESPOND TO CLARIFICATION INQUIRY
-   */
   static async respondClarification(user, operationId, { responseText }) {
     if (!responseText || responseText.trim().length < 5) {
       throw new BadRequestError('Detailed clarification response text is required.');
     }
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
+    const now = new Date();
+    const resumedStatus = op.started_at ? 'IN_PROGRESS' : op.accepted_at ? 'ACCEPTED' : 'ACKNOWLEDGED';
 
     await pool.query(
-      `UPDATE central_operations 
-       SET status = 'IN_PROGRESS', updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $1;`,
-      [opIdNum]
+      `UPDATE central_operations
+       SET status = ?,
+           clarification_response = ?,
+           clarification_responded_at = ?,
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        resumedStatus,
+        responseText.trim(),
+        now,
+        `Clarification answered by ${user.name}. Assignee may resume execution.`,
+        opIdNum,
+      ]
     );
 
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'CLARIFICATION_RESPONDED', $3, $4);`,
-      [
-        opIdNum,
-        user.id,
-        `Clarification provided by ${user.name}: "${responseText.substring(0, 100)}"`,
-        JSON.stringify({ responseText }),
-      ]
+       VALUES (?, ?, 'CLARIFICATION_RESPONDED', ?, ?)`,
+      [opIdNum, user.id, `Clarification answered by ${user.name}: "${responseText.trim().slice(0, 90)}"`, JSON.stringify({ responseText })]
     );
 
     if (op.chat_thread_id) {
@@ -1887,45 +1696,42 @@ class CentralOperationsService {
         await ChatService.sendMessage(user, {
           threadId: op.chat_thread_id,
           messageType: 'TEXT',
-          content: `💡 [CLARIFICATION RESPONSE - ${op.operation_code}]\n${user.name} (${user.role}): ${responseText}`,
+          content: `💡 [CLARIFICATION RESPONSE — ${op.ticket_reference}]\n${user.name} (${user.role}): ${responseText.trim()}`,
           priority: 'NORMAL',
           contextEntityType: 'OPERATION',
           contextEntityId: opIdNum,
         });
       } catch (err) {
-        logger.warn(`Could not post clarification response to chat: ${err.message}`);
+        logger.warn(`Clarification response chat error: ${err.message}`);
       }
     }
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * REPORT OPERATIONAL BLOCKER
-   */
-  static async reportBlocker(user, operationId, { category = 'ACCESS', details }) {
-    if (!details || details.trim().length < 5) {
+  // ─── 9. Blocker Report & Unblock Resolution ────────────────────────────
+  static async reportBlocker(user, operationId, { category = 'ACCESS', details, blockerCategory, description }) {
+    const cleanCategory = blockerCategory || category || 'OTHER';
+    const cleanDetails = String(description || details || '').trim();
+    if (cleanDetails.length < 5) {
       throw new BadRequestError('Blocker description details are required.');
     }
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
     await pool.query(
-      `UPDATE central_operations 
-       SET status = 'BLOCKED', updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $1;`,
-      [opIdNum]
+      `UPDATE central_operations
+       SET status = 'BLOCKED',
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [`Blocker reported (${cleanCategory}) by ${user.name}. Supervisor intervention required to unblock.`, opIdNum]
     );
 
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'BLOCKER_REPORTED', $3, $4);`,
-      [
-        opIdNum,
-        user.id,
-        `Operational blocker reported (${category}) by ${user.name}: "${details.substring(0, 100)}"`,
-        JSON.stringify({ category, details }),
-      ]
+       VALUES (?, ?, 'BLOCKER_REPORTED', ?, ?)`,
+      [opIdNum, user.id, `Blocker reported (${cleanCategory}) by ${user.name}: "${cleanDetails.slice(0, 90)}"`, JSON.stringify({ category: cleanCategory, details: cleanDetails })]
     );
 
     if (op.chat_thread_id) {
@@ -1933,45 +1739,237 @@ class CentralOperationsService {
         await ChatService.sendMessage(user, {
           threadId: op.chat_thread_id,
           messageType: 'TEXT',
-          content: `🚨 [OPERATIONAL BLOCKER - ${op.operation_code}]\nCategory: ${category}\nReported By: ${user.name} (${user.role})\nDetails: ${details}\n\nImmediate managerial intervention requested.`,
+          content: `🚨 [TICKET BLOCKED — ${op.ticket_reference}]\nCategory: ${cleanCategory}\nReported By: ${user.name} (${user.role})\nDetails: ${cleanDetails}\n\nSupervisor action required to unblock.`,
           priority: 'URGENT',
           contextEntityType: 'OPERATION',
           contextEntityId: opIdNum,
         });
       } catch (err) {
-        logger.warn(`Could not post blocker alert to chat: ${err.message}`);
+        logger.warn(`Blocker chat error: ${err.message}`);
       }
     }
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * UPDATE OPERATIONAL PROGRESS
-   */
-  static async updateProgress(user, operationId, { progressNotes, status = 'IN_PROGRESS' }) {
-    if (!progressNotes || progressNotes.trim().length < 5) {
+  static async resolveBlocker(user, operationId, { resolutionNotes = 'Blocker resolved by management.' } = {}) {
+    const role = String(user.role || '').toUpperCase();
+    if (!['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(role)) {
+      throw new ForbiddenError('Only supervising management may formally resolve and unblock a ticket.');
+    }
+    const opIdNum = await this.resolveOperationId(operationId);
+    const op = await this.getOperationById(user, opIdNum);
+    const resumedStatus = op.started_at ? 'IN_PROGRESS' : 'ACCEPTED';
+
+    await pool.query(
+      `UPDATE central_operations
+       SET status = ?,
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [resumedStatus, `Blocker resolved by ${user.name}. Execution resumed.`, opIdNum]
+    );
+
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, 'BLOCKER_RESOLVED', ?, ?)`,
+      [opIdNum, user.id, `Blocker resolved by ${user.name}: ${resolutionNotes}`, JSON.stringify({ resolutionNotes })]
+    );
+
+    return this.getOperationById(user, opIdNum);
+  }
+
+  // ─── 10. Deadline Extension Request & Supervisory Approval ─────────────
+  static async requestExtension(user, operationId, { requestedDeadlineAt, reason }) {
+    if (!requestedDeadlineAt || !reason || String(reason).trim().length < 5) {
+      throw new BadRequestError('A proposed new deadline and clear justification are required.');
+    }
+    const newDt = new Date(requestedDeadlineAt);
+    if (Number.isNaN(newDt.getTime())) {
+      throw new BadRequestError('Invalid requested deadline timestamp.');
+    }
+    const opIdNum = await this.resolveOperationId(operationId);
+    const op = await this.getOperationById(user, opIdNum);
+
+    if (['COMPLETED', 'CLOSED', 'CANCELLED'].includes(op.status)) {
+      throw new BadRequestError(`Cannot request deadline extension for ticket in status ${op.status}.`);
+    }
+
+    const now = new Date();
+    await pool.query(
+      `UPDATE central_operations
+       SET extension_status = 'PENDING',
+           requested_deadline_at = ?,
+           extension_reason = ?,
+           extension_requested_by_id = ?,
+           extension_requested_at = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [newDt, String(reason).trim(), user.id, now, opIdNum]
+    );
+
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, 'EXTENSION_REQUESTED', ?, ?)`,
+      [
+        opIdNum,
+        user.id,
+        `Deadline extension requested to ${formatLagosTime(newDt)} by ${user.name}.`,
+        JSON.stringify({ currentDeadline: op.deadline_at, requestedDeadlineAt: newDt.toISOString(), reason }),
+      ]
+    );
+
+    // Notify issuer / supervisor
+    const reviewerId = Number(op.supervisor_user_id || op.initiated_by_user_id);
+    if (reviewerId && reviewerId !== Number(user.id)) {
+      try {
+        await NotificationsService.dispatchNotification({
+          recipientId: reviewerId,
+          propertyId: op.property_id || null,
+          title: `Extension Requested: ${op.ticket_reference}`,
+          message: `${user.name} requested deadline extension to ${formatLagosTime(newDt)} — "${String(reason).trim().slice(0, 120)}"`,
+          category: 'TICKET',
+          priority: 'HIGH',
+          sourceEntityType: 'CENTRAL_OPERATION',
+          sourceEntityId: opIdNum,
+          linkUrl: `/portal/operations?op=${opIdNum}`,
+        });
+      } catch (e) {
+        logger.warn(`Extension notify warning: ${e.message}`);
+      }
+    }
+
+    return this.getOperationById(user, opIdNum);
+  }
+
+  static async reviewExtension(user, operationId, { decision, notes = null }) {
+    const role = String(user.role || '').toUpperCase();
+    const opIdNum = await this.resolveOperationId(operationId);
+    const op = await this.getOperationById(user, opIdNum);
+
+    const canApprove =
+      Number(op.initiated_by_user_id) === Number(user.id) ||
+      Number(op.supervisor_user_id) === Number(user.id) ||
+      ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(role);
+
+    if (!canApprove) {
+      throw new ForbiddenError('Only supervising management or the ticket issuer can review deadline extension requests.');
+    }
+    if (op.extension_status !== 'PENDING' || !op.requested_deadline_at) {
+      throw new BadRequestError('There is no pending deadline extension request for this ticket.');
+    }
+
+    const approved = String(decision || '').toUpperCase() === 'APPROVED';
+    const now = new Date();
+    const approvedDeadline = new Date(op.requested_deadline_at);
+
+    if (approved) {
+      await pool.query(
+        `INSERT INTO ticket_deadline_history (operation_id, previous_deadline_at, new_deadline_at, change_type, reason, requested_by_id, approved_by_id)
+         VALUES (?, ?, ?, 'EXTENSION_APPROVED', ?, ?, ?)`,
+        [opIdNum, op.deadline_at, approvedDeadline, op.extension_reason || notes, op.extension_requested_by_id, user.id]
+      );
+
+      await pool.query(
+        `UPDATE central_operations
+         SET deadline_at = ?,
+             extension_status = 'APPROVED',
+             extension_reviewed_by_id = ?,
+             extension_reviewed_at = ?,
+             extension_review_notes = ?,
+             status = CASE WHEN status = 'OVERDUE' AND ? > CURRENT_TIMESTAMP THEN 'IN_PROGRESS' ELSE status END,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [approvedDeadline, user.id, now, notes || null, approvedDeadline, opIdNum]
+      );
+
+      await pool.query(
+        'UPDATE operational_tasks SET due_date = ?, updated_at = CURRENT_TIMESTAMP WHERE central_operation_id = ?',
+        [approvedDeadline, opIdNum]
+      );
+    } else {
+      await pool.query(
+        `UPDATE central_operations
+         SET extension_status = 'REJECTED',
+             extension_reviewed_by_id = ?,
+             extension_reviewed_at = ?,
+             extension_review_notes = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [user.id, now, notes || 'Extension request declined.', opIdNum]
+      );
+    }
+
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        opIdNum,
+        user.id,
+        approved ? 'EXTENSION_APPROVED' : 'EXTENSION_REJECTED',
+        `Extension ${approved ? `APPROVED to ${formatLagosTime(approvedDeadline)}` : 'REJECTED'} by ${user.name}`,
+        JSON.stringify({ decision: approved ? 'APPROVED' : 'REJECTED', notes }),
+      ]
+    );
+
+    if (op.extension_requested_by_id && Number(op.extension_requested_by_id) !== Number(user.id)) {
+      try {
+        await NotificationsService.dispatchNotification({
+          recipientId: op.extension_requested_by_id,
+          propertyId: op.property_id || null,
+          title: `Extension ${approved ? 'Approved' : 'Declined'}: ${op.ticket_reference}`,
+          message: `Your deadline extension request was ${approved ? `approved to ${formatLagosTime(approvedDeadline)}` : 'declined'} by ${user.name}.`,
+          category: 'TICKET',
+          priority: 'MEDIUM',
+          sourceEntityType: 'CENTRAL_OPERATION',
+          sourceEntityId: opIdNum,
+          linkUrl: `/portal/operations?op=${opIdNum}`,
+        });
+      } catch (e) {
+        logger.warn(`Extension decision notify error: ${e.message}`);
+      }
+    }
+
+    return this.getOperationById(user, opIdNum);
+  }
+
+  // ─── 11. Progress Updates & Linked Tasks ───────────────────────────────
+  static async updateProgress(user, operationId, { progressNotes, note, status = 'IN_PROGRESS', progressPercent = null }) {
+    const cleanNote = String(progressNotes || note || '').trim();
+    if (cleanNote.length < 3) {
       throw new BadRequestError('Progress update notes are required.');
     }
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
+    if (!op.current_responsible_user_id && op.current_responsible_group) {
+      throw new BadRequestError('Accept Responsibility (claim ownership) or assign an owner before submitting execution progress.');
+    }
+
+    const pct = progressPercent !== null && progressPercent !== undefined
+      ? Math.max(0, Math.min(100, parseInt(progressPercent, 10) || 0))
+      : op.last_progress_percent || 0;
+
     await pool.query(
-      `UPDATE central_operations 
-       SET status = $1, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $2;`,
-      [status, opIdNum]
+      `UPDATE central_operations
+       SET status = ?,
+           started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+           last_progress_percent = ?,
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [status, pct, `Progress at ${pct}% logged by ${user.name}. Continue execution or submit completion.`, opIdNum]
+    );
+
+    await pool.query(
+      "UPDATE operational_tasks SET status = 'IN_PROGRESS', updated_at = CURRENT_TIMESTAMP WHERE central_operation_id = ? AND status = 'PENDING'",
+      [opIdNum]
     );
 
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'PROGRESS_UPDATE', $3, $4);`,
-      [
-        opIdNum,
-        user.id,
-        `Progress logged by ${user.name}: "${progressNotes.substring(0, 100)}"`,
-        JSON.stringify({ progressNotes, status }),
-      ]
+       VALUES (?, ?, 'PROGRESS_UPDATED', ?, ?)`,
+      [opIdNum, user.id, `Progress (${pct}%) logged by ${user.name}: "${cleanNote.slice(0, 90)}"`, JSON.stringify({ progressNotes: cleanNote, progressPercent: pct, status })]
     );
 
     if (op.chat_thread_id) {
@@ -1979,22 +1977,19 @@ class CentralOperationsService {
         await ChatService.sendMessage(user, {
           threadId: op.chat_thread_id,
           messageType: 'TEXT',
-          content: `📈 [PROGRESS UPDATE - ${op.operation_code}]\nStatus: ${status}\nLogged By: ${user.name} (${user.role})\nNotes: ${progressNotes}`,
+          content: `📈 [PROGRESS UPDATE — ${op.ticket_reference} (${pct}%)]\nLogged By: ${user.name}\nNotes: ${cleanNote}`,
           priority: 'NORMAL',
           contextEntityType: 'OPERATION',
           contextEntityId: opIdNum,
         });
       } catch (err) {
-        logger.warn(`Could not post progress to chat: ${err.message}`);
+        logger.warn(`Progress chat post error: ${err.message}`);
       }
     }
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * SPAWN OR LINK OPERATIONAL TASK FROM AN OPERATION
-   */
   static async createLinkedTask(user, operationId, taskData) {
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
@@ -2005,37 +2000,23 @@ class CentralOperationsService {
       description,
       task_category = 'GENERAL',
       priority = op.priority || 'NORMAL',
-      due_date = op.deadline_at || new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+      due_date = op.deadline_at || addHoursDate(new Date(), 48).toISOString(),
       apartment_id = null,
     } = taskData;
 
     if (!assigned_to_id || !title || !description) {
-      throw new BadRequestError('Assigned user, title, and description are required for linked task creation.');
+      throw new BadRequestError('Assigned user, title, and description are required for sub-task creation.');
     }
 
-    // Generate task code
-    const now = new Date();
-    const prefix = `TSK-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-`;
-    const countRes = await pool.query(
-      "SELECT COUNT(*) AS total FROM operational_tasks WHERE task_code LIKE $1;",
-      [`${prefix}%`]
-    );
-    const count = parseInt(countRes[0]?.total || 0, 10) + 1;
-    const taskCode = `${prefix}${String(count).padStart(4, '0')}`;
+    const taskCode = await this.generateNextSequence('operational_tasks', 'task_code', 'TSK');
+    const normPriority = normalizePriority(priority);
+    const sql = pool.isPostgres()
+      ? `INSERT INTO operational_tasks (task_code, property_id, apartment_id, central_operation_id, assigned_to_id, assigned_by_id, title, description, task_category, priority, due_date, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING') RETURNING *`
+      : `INSERT INTO operational_tasks (task_code, property_id, apartment_id, central_operation_id, assigned_to_id, assigned_by_id, title, description, task_category, priority, due_date, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`;
 
-    const insertTaskSql = `
-      INSERT INTO operational_tasks (
-        task_code, property_id, apartment_id, central_operation_id,
-        assigned_to_id, assigned_by_id, title, description,
-        task_category, priority, due_date, status
-      ) VALUES (
-        $1, $2, $3, $4,
-        $5, $6, $7, $8,
-        $9, $10, $11, 'PENDING'
-      ) RETURNING *;
-    `;
-
-    const taskRows = await pool.query(insertTaskSql, [
+    const res = await pool.query(sql, [
       taskCode,
       op.property_id || (user.propertyId ? parseInt(user.propertyId, 10) : 1),
       apartment_id,
@@ -2045,59 +2026,107 @@ class CentralOperationsService {
       title,
       description,
       task_category,
-      priority,
+      normPriority,
       due_date,
     ]);
 
-    const createdTask = taskRows.rows?.[0] || (Array.isArray(taskRows) ? taskRows[0] : taskRows);
-
-    // Record event
+    const createdId = extractInsertId(res);
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'TASK_LINKED', $3, $4);`,
-      [
-        opIdNum,
-        user.id,
-        `Task ${taskCode} created and linked to operation by ${user.name}`,
-        JSON.stringify({ taskId: createdTask.id, taskCode, title }),
-      ]
+       VALUES (?, ?, 'TASK_LINKED', ?, ?)`,
+      [opIdNum, user.id, `Milestone task ${taskCode} linked to ticket by ${user.name}`, JSON.stringify({ taskId: createdId, taskCode, title })]
     );
 
-    return createdTask;
+    return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * SUBMIT COMPLETION FOR REVIEW
-   */
-  static async submitCompletion(user, operationId, { completionNotes, evidenceUrl }) {
+  // ─── 12. DB-Persisted Evidence Attachments (No Ephemeral Render Disk!) ─
+  static async uploadEvidence(user, operationId, { fileData, fileName, mimeType, caption = null }) {
+    if (!fileData || !fileName) {
+      throw new BadRequestError('Evidence fileData (base64) and fileName are required.');
+    }
+    const opIdNum = await this.resolveOperationId(operationId);
+    await this.getOperationById(user, opIdNum);
+
+    const b64Clean = String(fileData).includes('base64,') ? String(fileData).split('base64,')[1] : String(fileData);
+    const buffer = Buffer.from(b64Clean, 'base64');
+    if (buffer.length === 0 || buffer.length > 6 * 1024 * 1024) {
+      throw new BadRequestError('Evidence attachment must be between 1 byte and 6 MB.');
+    }
+
+    const safeMime = String(mimeType || 'application/octet-stream').slice(0, 90);
+    const safeName = String(fileName).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200);
+
+    const res = await pool.query(
+      pool.isPostgres()
+        ? `INSERT INTO operational_documents_storage (entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by)
+           VALUES ('TICKET_EVIDENCE', ?, ?, ?, ?, ?, ?) RETURNING id`
+        : `INSERT INTO operational_documents_storage (entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by)
+           VALUES ('TICKET_EVIDENCE', ?, ?, ?, ?, ?, ?)`,
+      [opIdNum, safeName, safeMime, buffer.length, buffer, user.id]
+    );
+
+    const docId = extractInsertId(res);
+    const downloadUrl = `/api/v1/workforce/operations/${opIdNum}/evidence/${docId}`;
+
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, 'EVIDENCE_UPLOADED', ?, ?)`,
+      [opIdNum, user.id, `Evidence "${safeName}" uploaded to database storage by ${user.name}`, JSON.stringify({ docId, fileName: safeName, caption, sizeBytes: buffer.length })]
+    );
+
+    return { id: docId, fileName: safeName, mimeType: safeMime, sizeBytes: buffer.length, downloadUrl };
+  }
+
+  static async getEvidenceFile(user, operationId, docId) {
+    const opIdNum = await this.resolveOperationId(operationId);
+    await this.getOperationById(user, opIdNum);
+    const rows = extractRows(
+      await pool.query(
+        "SELECT id, file_name, mime_type, file_data FROM operational_documents_storage WHERE id = ? AND entity_type = 'TICKET_EVIDENCE' AND entity_id = ? LIMIT 1",
+        [parseInt(docId, 10), opIdNum]
+      )
+    );
+    if (rows.length === 0) {
+      throw new NotFoundError('Ticket evidence attachment not found.');
+    }
+    return rows[0];
+  }
+
+  // ─── 13. Completion, Supervisory Review, Rejection, Close & Reopen ─────
+  static async submitCompletion(user, operationId, { completionNotes, evidenceUrl, completionEvidenceUrl }) {
     if (!completionNotes || completionNotes.trim().length < 5) {
-      throw new BadRequestError('Detailed completion summary notes are required.');
+      throw new BadRequestError('Completion summary and verification notes are required.');
     }
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
-    const nextAction = 'Deliverables completed and submitted for review. Awaiting supervisory verification and sign-off.';
+
+    if (!op.current_responsible_user_id) {
+      throw new BadRequestError('Ticket must have an assigned owner before completion can be submitted.');
+    }
+
+    const now = new Date();
+    const finalEvidenceUrl = completionEvidenceUrl || evidenceUrl || op.completion_evidence_url || null;
+    const nextAction = 'Completion submitted. Supervisor must Review and Approve, Request Revision, or Reject.';
 
     await pool.query(
-      `UPDATE central_operations 
+      `UPDATE central_operations
        SET status = 'SUBMITTED_FOR_REVIEW',
-           completion_notes = $1,
-           completion_evidence_url = $2,
-           next_action = $3,
-           completed_at = CURRENT_TIMESTAMP,
-           updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $4;`,
-      [completionNotes.trim(), evidenceUrl || null, nextAction, opIdNum]
+           completion_notes = ?,
+           completion_evidence_url = ?,
+           last_progress_percent = 100,
+           completed_at = ?,
+           started_at = COALESCE(started_at, ?),
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [completionNotes.trim(), finalEvidenceUrl, now, now, nextAction, opIdNum]
     );
 
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'COMPLETION_SUBMITTED', $3, $4);`,
-      [
-        opIdNum,
-        user.id,
-        `Operational completion submitted for managerial review by ${user.name}`,
-        JSON.stringify({ completionNotes }),
-      ]
+       VALUES (?, ?, 'COMPLETION_SUBMITTED', ?, ?)`,
+      [opIdNum, user.id, `Completion submitted for review by ${user.name}`, JSON.stringify({ completionNotes, evidenceUrl: finalEvidenceUrl })]
     );
 
     if (op.chat_thread_id) {
@@ -2105,13 +2134,112 @@ class CentralOperationsService {
         await ChatService.sendMessage(user, {
           threadId: op.chat_thread_id,
           messageType: 'TEXT',
-          content: `🏁 [COMPLETION SUBMITTED - ${op.operation_code}]\nSubmitted By: ${user.name} (${user.role})\nNotes: ${completionNotes}\n\nAwaiting managerial sign-off and closure review.`,
+          content: `🏁 [COMPLETION SUBMITTED — ${op.ticket_reference}]\nSubmitted By: ${user.name}\nNotes: ${completionNotes.trim()}\nAwaiting supervisory verification & closure.`,
           priority: 'IMPORTANT',
           contextEntityType: 'OPERATION',
           contextEntityId: opIdNum,
         });
       } catch (err) {
-        logger.warn(`Could not post completion alert to chat: ${err.message}`);
+        logger.warn(`Completion chat error: ${err.message}`);
+      }
+    }
+
+    return this.getOperationById(user, opIdNum);
+  }
+
+  static async reviewOperation(user, operationId, { decision, reviewNotes, closeImmediately = true }) {
+    const role = String(user.role || '').toUpperCase();
+    if (!['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(role)) {
+      throw new ForbiddenError('Only managerial and administrative personnel can review completed tickets.');
+    }
+
+    const opIdNum = await this.resolveOperationId(operationId);
+    const op = await this.getOperationById(user, opIdNum);
+
+    const upperDecision = String(decision || 'APPROVED').toUpperCase();
+    const isApproved = ['APPROVED', 'COMPLETED'].includes(upperDecision);
+    const isRevise = ['REVISE', 'REVISION_REQUIRED'].includes(upperDecision);
+    const now = new Date();
+
+    const newStatus = isApproved
+      ? (closeImmediately ? 'CLOSED' : 'COMPLETED')
+      : isRevise
+        ? 'REVISION_REQUIRED'
+        : 'REJECTED';
+
+    const rejectionCategory = !isApproved ? 'SUPERVISOR_QUALITY_REJECTED' : op.rejection_category;
+    const closureOutcome = isApproved && closeImmediately ? 'APPROVED_COMPLETED' : !isApproved && !isRevise ? 'REJECTED_QUALITY' : null;
+    const nextAction = isApproved
+      ? closeImmediately
+        ? 'Ticket approved and formally closed.'
+        : 'Work approved. Formally close ticket to archive.'
+      : isRevise
+        ? `Revisions requested: ${reviewNotes || 'Address reviewer feedback'}. Update work and resubmit.`
+        : `Work rejected by supervisor: ${reviewNotes || 'Did not meet quality standards'}.`;
+
+    await pool.query(
+      `UPDATE central_operations
+       SET status = ?,
+           completed_at = COALESCE(completed_at, ?),
+           closed_at = ?,
+           closed_by_user_id = ?,
+           closure_outcome = ?,
+           closure_reason = ?,
+           review_notes = ?,
+           reviewed_by_user_id = ?,
+           reviewed_at = ?,
+           rejection_category = ?,
+           rejected_by_user_id = ?,
+           rejected_at = ?,
+           rejection_reason = ?,
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        newStatus,
+        isApproved ? now : op.completed_at,
+        newStatus === 'CLOSED' || newStatus === 'REJECTED' ? now : null,
+        newStatus === 'CLOSED' ? user.id : op.closed_by_user_id,
+        closureOutcome || op.closure_outcome,
+        newStatus === 'CLOSED' ? (reviewNotes || 'Approved and closed by supervisor.') : op.closure_reason,
+        reviewNotes || null,
+        user.id,
+        now,
+        rejectionCategory || null,
+        !isApproved && !isRevise ? user.id : op.rejected_by_user_id,
+        !isApproved && !isRevise ? now : op.rejected_at,
+        !isApproved && !isRevise ? (reviewNotes || 'Supervisor quality rejection') : op.rejection_reason,
+        nextAction,
+        opIdNum,
+      ]
+    );
+
+    if (isApproved) {
+      await pool.query(
+        "UPDATE operational_tasks SET status = 'COMPLETED', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE central_operation_id = ?",
+        [opIdNum]
+      );
+    }
+
+    const evtType = isApproved ? (newStatus === 'CLOSED' ? 'CLOSED' : 'APPROVED') : isRevise ? 'REVISION_REQUESTED' : 'REJECTED';
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, ?, ?, ?)`,
+      [opIdNum, user.id, evtType, `Review concluded as ${newStatus} by ${user.name}`, JSON.stringify({ decision: upperDecision, reviewNotes, newStatus })]
+    );
+
+    if (op.chat_thread_id) {
+      try {
+        await ChatService.sendMessage(user, {
+          threadId: op.chat_thread_id,
+          messageType: 'TEXT',
+          content: `${isApproved ? '✅' : '⚠️'} [TICKET ${newStatus} — ${op.ticket_reference}]\nReviewed By: ${user.name}\nNotes: ${reviewNotes || 'N/A'}`,
+          priority: isApproved ? 'NORMAL' : 'IMPORTANT',
+          contextEntityType: 'OPERATION',
+          contextEntityId: opIdNum,
+        });
+      } catch (e) {
+        logger.warn(`Review chat notify error: ${e.message}`);
       }
     }
 
@@ -2119,352 +2247,383 @@ class CentralOperationsService {
   }
 
   /**
-   * REVIEW OPERATION (APPROVE / COMPLETE OR REVISE / REJECT)
+   * Assignee Decline (Misassigned / Impossible — no quality penalty) OR Management Reject
    */
-  static async reviewOperation(user, operationId, { decision, reviewNotes }) {
-    const role = (user.role || '').toUpperCase();
-    if (!['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'MANAGER'].includes(role)) {
-      throw new ForbiddenError('Only managerial and administrative personnel can conduct operational reviews.');
+  static async rejectOrDeclineTicket(user, operationId, { reason, category = null }) {
+    if (!reason || String(reason).trim().length < 5) {
+      throw new BadRequestError('A clear reason (at least 5 characters) is required when rejecting or declining a ticket.');
     }
-
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
+    const role = String(user.role || '').toUpperCase();
+    const isMgmt = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(role);
+    const isAssignee = Number(op.current_responsible_user_id) === Number(user.id);
 
-    const isApproved = decision === 'APPROVED' || decision === 'COMPLETED';
-    const isRevise = decision === 'REVISE' || decision === 'REVISION_REQUIRED';
-    const newStatus = isApproved ? 'COMPLETED' : (isRevise ? 'REVISION_REQUIRED' : 'REJECTED');
+    const rejCategory = category || (isAssignee && !isMgmt ? 'ASSIGNEE_INVALID_DECLINED' : 'SUPERVISOR_QUALITY_REJECTED');
     const now = new Date();
-    const completedAt = isApproved ? now : null;
-    const closedAt = isApproved || newStatus === 'REJECTED' ? now : null;
-    const nextAction = isApproved 
-      ? 'Operation completed and verified. No further action required.'
-      : (isRevise ? `Revisions requested by reviewer: ${reviewNotes || 'Implement corrections'}. Update work and resubmit.` : 'Operation rejected and closed.');
+    const nextAction = rejCategory === 'ASSIGNEE_INVALID_DECLINED'
+      ? `Declined by ${user.name} (${reason.trim()}). Supervisor must reassign or cancel.`
+      : `Rejected by ${user.name}: ${reason.trim()}.`;
 
     await pool.query(
-      `UPDATE central_operations 
-       SET status = $1,
-           completed_at = $2,
-           closed_at = $3,
-           review_notes = $4,
-           reviewed_by_user_id = $5,
-           reviewed_at = $6,
-           next_action = $7,
-           updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $8;`,
-      [newStatus, completedAt, closedAt, reviewNotes || null, user.id, now, nextAction, opIdNum]
+      `UPDATE central_operations
+       SET status = 'REJECTED',
+           rejected_by_user_id = ?,
+           rejected_at = ?,
+           rejection_reason = ?,
+           rejection_category = ?,
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [user.id, now, String(reason).trim(), rejCategory, nextAction, opIdNum]
     );
-    if (isApproved) {
+
+    if (rejCategory === 'ASSIGNEE_INVALID_DECLINED') {
       await pool.query(
-        `UPDATE operational_tasks SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE central_operation_id = $1;`,
-        [opIdNum]
+        "UPDATE central_operation_recipients SET acceptance_status = 'DECLINED' WHERE operation_id = ? AND user_id = ?",
+        [opIdNum, user.id]
       );
     }
 
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, $3, $4, $5);`,
+       VALUES (?, ?, 'REJECTED', ?, ?)`,
+      [opIdNum, user.id, `Ticket ${rejCategory === 'ASSIGNEE_INVALID_DECLINED' ? 'declined' : 'rejected'} by ${user.name}: ${reason.trim().slice(0, 90)}`, JSON.stringify({ reason, rejectionCategory: rejCategory })]
+    );
+
+    return this.getOperationById(user, opIdNum);
+  }
+
+  static async closeTicket(user, operationId, { outcome = 'CLOSED_RESOLVED', closureReason = 'Formally closed.' } = {}) {
+    const opIdNum = await this.resolveOperationId(operationId);
+    const op = await this.getOperationById(user, opIdNum);
+    const role = String(user.role || '').toUpperCase();
+    const canClose =
+      Number(op.initiated_by_user_id) === Number(user.id) ||
+      Number(op.supervisor_user_id) === Number(user.id) ||
+      ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(role);
+
+    if (!canClose) {
+      throw new ForbiddenError('Only issuing or managerial personnel may formally close a ticket.');
+    }
+
+    const now = new Date();
+    await pool.query(
+      `UPDATE central_operations
+       SET status = 'CLOSED',
+           closed_at = COALESCE(closed_at, ?),
+           closed_by_user_id = ?,
+           closure_outcome = ?,
+           closure_reason = ?,
+           completed_at = COALESCE(completed_at, ?),
+           next_action = 'Ticket formally closed and archived.',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [now, user.id, outcome, closureReason, outcome === 'APPROVED_COMPLETED' || outcome === 'CLOSED_RESOLVED' ? now : null, opIdNum]
+    );
+
+    await pool.query(
+      "UPDATE operational_tasks SET status = 'COMPLETED', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE central_operation_id = ? AND status NOT IN ('COMPLETED', 'CANCELLED')",
+      [opIdNum]
+    );
+
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, 'CLOSED', ?, ?)`,
+      [opIdNum, user.id, `Ticket formally closed (${outcome}) by ${user.name}.`, JSON.stringify({ outcome, closureReason })]
+    );
+
+    return this.getOperationById(user, opIdNum);
+  }
+
+  static async reopenTicket(user, operationId, { reason }) {
+    if (!reason || String(reason).trim().length < 5) {
+      throw new BadRequestError('A clear reason is required to reopen a closed, completed, or rejected ticket.');
+    }
+    const opIdNum = await this.resolveOperationId(operationId);
+    const op = await this.getOperationById(user, opIdNum);
+    const role = String(user.role || '').toUpperCase();
+    const canReopen =
+      Number(op.initiated_by_user_id) === Number(user.id) ||
+      Number(op.supervisor_user_id) === Number(user.id) ||
+      ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(role);
+
+    if (!canReopen) {
+      throw new ForbiddenError('Only supervising management or the ticket issuer may reopen a ticket.');
+    }
+    if (!['COMPLETED', 'CLOSED', 'REJECTED', 'CANCELLED'].includes(op.status)) {
+      throw new BadRequestError(`Ticket is currently ${op.status} and does not need reopening.`);
+    }
+
+    const reopenedStatus = op.current_responsible_user_id ? 'IN_PROGRESS' : 'OPEN';
+    const nextAction = `Ticket reopened by ${user.name}: ${reason.trim()}. Prior closure history preserved.`;
+
+    await pool.query(
+      `UPDATE central_operations
+       SET status = ?,
+           reopen_count = reopen_count + 1,
+           closed_at = NULL,
+           next_action = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [reopenedStatus, nextAction, opIdNum]
+    );
+
+    await pool.query(
+      "UPDATE operational_tasks SET status = 'IN_PROGRESS', updated_at = CURRENT_TIMESTAMP WHERE central_operation_id = ?",
+      [opIdNum]
+    );
+
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, 'REOPENED', ?, ?)`,
       [
         opIdNum,
         user.id,
-        isApproved ? 'APPROVED' : 'REJECTED',
-        `Operation marked as ${newStatus} by ${user.name} (${user.role}): "${(reviewNotes || '').substring(0, 100)}"`,
-        JSON.stringify({ decision, reviewNotes }),
+        `Ticket reopened (#${(op.reopen_count || 0) + 1}) by ${user.name}: ${reason.trim().slice(0, 90)}`,
+        JSON.stringify({
+          reason: reason.trim(),
+          previousStatus: op.status,
+          previousClosedAt: op.closed_at,
+          previousClosureOutcome: op.closure_outcome,
+        }),
       ]
     );
 
-    if (op.chat_thread_id) {
+    if (op.current_responsible_user_id && Number(op.current_responsible_user_id) !== Number(user.id)) {
       try {
-        const badge = isApproved ? '✅ [OPERATION OFFICIALLY COMPLETED]' : '❌ [OPERATION RETURNED FOR REVISION]';
-        await ChatService.sendMessage(user, {
-          threadId: op.chat_thread_id,
-          messageType: 'TEXT',
-          content: `${badge}\nRef: ${op.operation_code}\nReviewed By: ${user.name} (${user.role})\nReview Notes: ${reviewNotes || 'Sign-off complete.'}`,
-          priority: isApproved ? 'NORMAL' : 'URGENT',
-          contextEntityType: 'OPERATION',
-          contextEntityId: opIdNum,
+        await NotificationsService.dispatchNotification({
+          recipientId: op.current_responsible_user_id,
+          propertyId: op.property_id || null,
+          title: `Ticket Reopened: ${op.ticket_reference}`,
+          message: `${user.name} reopened "${op.title}" — ${reason.trim()}`,
+          category: 'TICKET',
+          priority: 'HIGH',
+          sourceEntityType: 'CENTRAL_OPERATION',
+          sourceEntityId: opIdNum,
+          linkUrl: `/portal/operations?op=${opIdNum}`,
         });
-      } catch (err) {
-        logger.warn(`Could not post review decision to chat: ${err.message}`);
+      } catch (e) {
+        logger.warn(`Reopen notify error: ${e.message}`);
       }
     }
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * AMEND OPERATION & ISSUE NEW MEMO VERSION
-   */
+  // ─── 14. Amend & Cancel ────────────────────────────────────────────────
   static async amendOperation(user, operationId, amendmentData) {
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
+    const role = String(user.role || '').toUpperCase();
 
-    const role = (user.role || '').toUpperCase();
-    if (op.initiated_by_user_id !== user.id && !['SUPER_ADMIN', 'ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only the initiating officer or an Administrator may amend an active operation.');
+    if (Number(op.initiated_by_user_id) !== Number(user.id) && !['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(role)) {
+      throw new ForbiddenError('Only the initiating officer, Owner, or Administrator may amend an operation.');
     }
 
     const {
       amendment_reason,
       operational_instructions = op.operational_instructions,
       deadline_at = op.deadline_at,
-      priority = op.priority,
+      priority: rawPriority = op.priority,
     } = amendmentData;
 
     if (!amendment_reason || amendment_reason.trim().length < 5) {
       throw new BadRequestError('A clear audit reason is required for operational amendments.');
     }
 
+    const priority = normalizePriority(rawPriority);
     const newVersion = (op.memo_version || 1) + 1;
     const memoReference = await this.generateMemoReference();
-    const deadlineText = deadline_at ? new Date(deadline_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : op.deadline_text;
-    const effectiveDateText = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const parsedDeadline = deadline_at ? new Date(deadline_at) : null;
+    const deadlineText = parsedDeadline ? formatLagosTime(parsedDeadline) : op.deadline_text;
+    const effectiveDateText = formatLagosTime(new Date());
 
-    // 1. Update central_operations
-    await pool.query(
-      `UPDATE central_operations 
-       SET operational_instructions = $1, deadline_at = $2, priority = $3, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $4;`,
-      [operational_instructions, deadline_at, priority, opIdNum]
-    );
-
-    // 2. Insert new memo version
-    const insertMemoSql = `
-      INSERT INTO operations_memos (
-        operation_id, memo_reference, version_number,
-        issuer_user_id, issuer_designation, recipient_summary,
-        property_scope_summary, title, category, priority,
-        subject, purpose, operational_instructions, expected_outcome,
-        responsibility_definition, reporting_requirements,
-        deadline_text, effective_date_text, amendment_reason
-      ) VALUES (
-        $1, $2, $3,
-        $4, $5, $6,
-        $7, $8, $9, $10,
-        $11, $12, $13, $14,
-        $15, $16,
-        $17, $18, $19
-      ) RETURNING *;
-    `;
-
-    const newMemoRows = await pool.query(insertMemoSql, [
-      opIdNum,
-      memoReference,
-      newVersion,
-      user.id,
-      op.issuer_designation || `${role} Executive`,
-      op.recipient_summary || 'Authorized Operational Recipients',
-      op.property_scope_summary || 'Corporate Scope',
-      op.title,
-      op.category,
-      priority,
-      op.subject,
-      op.purpose,
-      operational_instructions,
-      op.expected_outcome,
-      op.responsibility_definition,
-      op.reporting_requirements,
-      deadlineText,
-      effectiveDateText,
-      amendment_reason,
-    ]);
-
-    const createdNewMemo = newMemoRows.rows?.[0] || (Array.isArray(newMemoRows) ? newMemoRows[0] : newMemoRows);
-    const newMemoId = createdNewMemo.id;
-
-    // Generate & store revised PDF
-    try {
-      const memoPdfBuffer = await this.generateOperationsMemoPdfBuffer({
-        operation: { ...op, operational_instructions, deadline_at, priority },
-        memo: createdNewMemo,
-        initiator: user,
-        recipients: op.recipients,
-        property: { name: op.property_name, code: op.property_code, city: op.property_city },
-      });
-
-      const storeSql = `
-        INSERT INTO operational_documents_storage (
-          entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by
-        ) VALUES (
-          'OPERATIONS_MEMO', $1, $2, 'application/pdf', $3, $4, $5
-        ) RETURNING id;
-      `;
-      const storeRes = await pool.query(storeSql, [
-        newMemoId,
-        `${memoReference}_v${newVersion}.pdf`,
-        memoPdfBuffer.length,
-        memoPdfBuffer,
-        user.id,
-      ]);
-      const newStorageId = storeRes.rows?.[0]?.id || (Array.isArray(storeRes) ? storeRes[0]?.id : null);
-
-      await pool.query('UPDATE operations_memos SET document_storage_id = $1 WHERE id = $2;', [newStorageId, newMemoId]);
-      await pool.query('UPDATE central_operations SET latest_memo_id = $1 WHERE id = $2;', [newMemoId, opIdNum]);
-    } catch (pdfErr) {
-      logger.error(`Error saving revised memo PDF: ${pdfErr.message}`);
+    if (parsedDeadline && String(parsedDeadline.toISOString()) !== String(op.deadline_at ? new Date(op.deadline_at).toISOString() : '')) {
+      await pool.query(
+        `INSERT INTO ticket_deadline_history (operation_id, previous_deadline_at, new_deadline_at, change_type, reason, requested_by_id, approved_by_id)
+         VALUES (?, ?, ?, 'AMENDMENT', ?, ?, ?)`,
+        [opIdNum, op.deadline_at, parsedDeadline, amendment_reason.trim(), user.id, user.id]
+      );
     }
 
-    // 3. Reset recipient acknowledgements for the amendment
     await pool.query(
-      `UPDATE central_operation_recipients 
-       SET acknowledged_at = NULL, acceptance_status = 'PENDING' 
-       WHERE operation_id = $1;`,
-      [opIdNum]
+      'UPDATE central_operations SET operational_instructions = ?, deadline_at = ?, priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [operational_instructions, parsedDeadline, priority, opIdNum]
     );
 
-    // 4. Log event
-    await pool.query(
-      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'AMENDED', $3, $4);`,
+    const memoSnapshot = {
+      memo_reference: memoReference,
+      version_number: newVersion,
+      issuer_designation: op.issuer_designation || user.name,
+      recipient_summary: op.recipient_summary || op.target_audience_type,
+      property_scope_summary: op.property_scope_summary || op.property_name || 'All Properties',
+      title: op.title,
+      subject: op.subject,
+      purpose: op.purpose,
+      operational_instructions,
+      expected_outcome: op.expected_outcome,
+      responsibility_definition: op.responsibility_definition,
+      reporting_requirements: op.reporting_requirements,
+      deadline_text: deadlineText,
+      effective_date_text: effectiveDateText,
+      amendment_reason: amendment_reason.trim(),
+      created_at: new Date(),
+    };
+
+    const pdfBuffer = await MemoPdfGenerator.generateOperationsMemoPdfBuffer({
+      operation: { ...op, operational_instructions, deadline_at: parsedDeadline, priority },
+      memo: memoSnapshot,
+      initiator: { name: op.initiator_name, role: op.initiator_role },
+      recipients: op.recipients || [],
+      property: op.property_id ? { name: op.property_name, code: op.property_code, city: op.property_city } : null,
+      templateType: 'OFFICIAL_AMENDMENT',
+    });
+
+    let storageId = null;
+    try {
+      const storeRes = await pool.query(
+        pool.isPostgres()
+          ? `INSERT INTO operational_documents_storage (entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by)
+             VALUES ('OPERATIONS_MEMO', ?, ?, 'application/pdf', ?, ?, ?) RETURNING id`
+          : `INSERT INTO operational_documents_storage (entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by)
+             VALUES ('OPERATIONS_MEMO', ?, ?, 'application/pdf', ?, ?, ?)`,
+        [opIdNum, `${memoReference}.pdf`, pdfBuffer.length, pdfBuffer, user.id]
+      );
+      storageId = extractInsertId(storeRes);
+    } catch (e) {
+      logger.warn(`Failed caching amended PDF: ${e.message}`);
+    }
+
+    const memoInsert = await pool.query(
+      pool.isPostgres()
+        ? `INSERT INTO operations_memos (
+            operation_id, memo_reference, version_number, issuer_user_id, issuer_designation,
+            recipient_summary, property_scope_summary, title, category, priority, subject,
+            purpose, operational_instructions, expected_outcome, responsibility_definition,
+            reporting_requirements, deadline_text, effective_date_text, document_storage_id, amendment_reason
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
+        : `INSERT INTO operations_memos (
+            operation_id, memo_reference, version_number, issuer_user_id, issuer_designation,
+            recipient_summary, property_scope_summary, title, category, priority, subject,
+            purpose, operational_instructions, expected_outcome, responsibility_definition,
+            reporting_requirements, deadline_text, effective_date_text, document_storage_id, amendment_reason
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         opIdNum,
+        memoReference,
+        newVersion,
         user.id,
-        `Operation amended by ${user.name} (Issued revised Memo ${memoReference} v${newVersion})`,
-        JSON.stringify({ amendment_reason, newVersion, memoReference }),
+        memoSnapshot.issuer_designation,
+        memoSnapshot.recipient_summary,
+        memoSnapshot.property_scope_summary,
+        op.title,
+        op.category,
+        priority,
+        op.subject,
+        op.purpose,
+        operational_instructions,
+        op.expected_outcome,
+        op.responsibility_definition,
+        op.reporting_requirements,
+        deadlineText,
+        effectiveDateText,
+        storageId,
+        amendment_reason.trim(),
       ]
     );
+    const newMemoId = extractInsertId(memoInsert);
 
-    // 5. Post notification in chat
-    if (op.chat_thread_id) {
-      try {
-        await ChatService.sendMessage(user, {
-          threadId: op.chat_thread_id,
-          messageType: 'TEXT',
-          content: `📝 [OFFICIAL MEMO AMENDMENT — ${memoReference} (v${newVersion})]\n` +
-            `Ref: ${op.operation_code}\n` +
-            `Amended By: ${user.name} (${user.role})\n` +
-            `Reason for Revision: ${amendment_reason}\n\n` +
-            `Updated Instructions: ${operational_instructions.substring(0, 250)}...\n\n` +
-            `⚠️ Please review the revised memo in the Operations Centre and re-acknowledge.`,
-          priority: 'URGENT',
-          contextEntityType: 'OPERATION',
-          contextEntityId: opIdNum,
-        });
-      } catch (err) {
-        logger.warn(`Could not post amendment to chat: ${err.message}`);
-      }
-    }
+    await pool.query('UPDATE central_operations SET latest_memo_id = ? WHERE id = ?', [newMemoId, opIdNum]);
+    await pool.query(
+      `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
+       VALUES (?, ?, 'AMENDED', ?, ?)`,
+      [opIdNum, user.id, `Amended (v${newVersion} / ${memoReference}) by ${user.name}: ${amendment_reason.trim()}`, JSON.stringify({ newVersion, memoReference, amendment_reason })]
+    );
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * CANCEL OPERATION & DISPATCH FORMAL NOTICE
-   */
   static async cancelOperation(user, operationId, { cancellation_reason }) {
     if (!cancellation_reason || cancellation_reason.trim().length < 5) {
-      throw new BadRequestError('A comprehensive justification is required to cancel an active operation.');
+      throw new BadRequestError('A comprehensive justification is required to cancel a ticket.');
     }
-
     const opIdNum = await this.resolveOperationId(operationId);
     const op = await this.getOperationById(user, opIdNum);
 
-    const role = (user.role || '').toUpperCase();
-    if (op.initiated_by_user_id !== user.id && !['SUPER_ADMIN', 'ADMIN'].includes(role)) {
-      throw new ForbiddenError('Only the initiating officer or an Administrator may cancel an active operation.');
+    const role = String(user.role || '').toUpperCase();
+    if (Number(op.initiated_by_user_id) !== Number(user.id) && !['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(role)) {
+      throw new ForbiddenError('Only the initiating officer, Owner, or Administrator may cancel a ticket.');
     }
 
     const now = new Date();
     await pool.query(
-      `UPDATE central_operations 
+      `UPDATE central_operations
        SET status = 'CANCELLED',
-           cancelled_at = $1,
-           cancellation_reason = $2,
-           updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $3;`,
-      [now, cancellation_reason, opIdNum]
+           cancelled_at = ?,
+           cancellation_reason = ?,
+           closure_outcome = 'CANCELLED_BY_MANAGEMENT',
+           next_action = 'Ticket cancelled by management. Excluded from staff execution penalties.',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [now, cancellation_reason.trim(), opIdNum]
+    );
+
+    await pool.query(
+      "UPDATE operational_tasks SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP WHERE central_operation_id = ? AND status NOT IN ('COMPLETED', 'CANCELLED')",
+      [opIdNum]
     );
 
     await pool.query(
       `INSERT INTO central_operation_events (operation_id, actor_user_id, event_type, event_summary, event_details)
-       VALUES ($1, $2, 'CANCELLED', $3, $4);`,
-      [
-        opIdNum,
-        user.id,
-        `Operation formally cancelled by ${user.name} (${user.role}): "${cancellation_reason.substring(0, 100)}"`,
-        JSON.stringify({ cancellation_reason }),
-      ]
+       VALUES (?, ?, 'CANCELLED', ?, ?)`,
+      [opIdNum, user.id, `Ticket cancelled by ${user.name}: "${cancellation_reason.trim().slice(0, 90)}"`, JSON.stringify({ cancellation_reason })]
     );
-
-    if (op.chat_thread_id) {
-      try {
-        await ChatService.sendMessage(user, {
-          threadId: op.chat_thread_id,
-          messageType: 'TEXT',
-          content: `🛑 [OFFICIAL CANCELLATION NOTICE — ${op.operation_code}]\n` +
-            `Title: ${op.title}\n` +
-            `Cancelled By: ${user.name} (${user.role})\n` +
-            `Reason: ${cancellation_reason}\n\n` +
-            `All associated directives and linked pending actions under this operation are officially revoked.`,
-          priority: 'URGENT',
-          contextEntityType: 'OPERATION',
-          contextEntityId: opIdNum,
-        });
-      } catch (err) {
-        logger.warn(`Could not post cancellation to chat: ${err.message}`);
-      }
-    }
 
     return this.getOperationById(user, opIdNum);
   }
 
-  /**
-   * RETRIEVE MEMO PDF BINARY BUFFER
-   * Robust retrieval with automatic on-the-fly generation and binary integrity checks.
-   */
-  static async getMemoPdfBuffer(user, memoId, operationId) {
-    let memoRes;
-    const memoIdStr = (memoId && memoId !== 'undefined' && memoId !== 'null') ? String(memoId).trim() : null;
+  // ─── 15. PDF Memo Retrieval & Regeneration ─────────────────────────────
+  static async getMemoPdfBuffer(user, memoId, operationId, { regenerate = false } = {}) {
+    let memo = null;
+    const memoIdStr = memoId && memoId !== 'undefined' && memoId !== 'null' ? String(memoId).trim() : null;
     let cleanOpId = null;
 
     if (operationId && operationId !== 'undefined' && operationId !== 'null') {
       try {
         cleanOpId = await this.resolveOperationId(operationId);
-      } catch (err) {
-        // quiet fallback if reference cannot be resolved
+      } catch {
+        // Optional fallback to memoId
       }
     }
 
     if (memoIdStr) {
       const isNum = /^\d+$/.test(memoIdStr);
-      memoRes = await pool.query(
-        `SELECT om.*, co.initiated_by_user_id 
-         FROM operations_memos om 
-         JOIN central_operations co ON om.operation_id = co.id 
-         WHERE ${isNum ? 'om.id = $1' : 'om.memo_reference = $1'} LIMIT 1;`,
-        [isNum ? parseInt(memoIdStr, 10) : memoIdStr]
+      const rows = extractRows(
+        await pool.query(
+          `SELECT om.* FROM operations_memos om WHERE ${isNum ? 'om.id = ?' : 'om.memo_reference = ?'} LIMIT 1`,
+          [isNum ? parseInt(memoIdStr, 10) : memoIdStr]
+        )
       );
+      memo = rows[0] || null;
     }
 
-    if ((!memoRes || memoRes.length === 0) && cleanOpId) {
-      memoRes = await pool.query(
-        `SELECT om.*, co.initiated_by_user_id 
-         FROM operations_memos om 
-         JOIN central_operations co ON om.operation_id = co.id 
-         WHERE om.operation_id = $1 
-         ORDER BY om.version_number DESC LIMIT 1;`,
-        [cleanOpId]
+    if (!memo && cleanOpId) {
+      const rows = extractRows(
+        await pool.query('SELECT * FROM operations_memos WHERE operation_id = ? ORDER BY version_number DESC LIMIT 1', [cleanOpId])
       );
+      memo = rows[0] || null;
     }
 
-    let memo = memoRes && memoRes.length > 0 ? memoRes[0] : null;
-    const targetOpId = memo ? memo.operation_id : cleanOpId;
-
-    // If memo row does not exist yet for this operation, fetch the operation to synthesize
-    let op = null;
-    if (targetOpId) {
-      try {
-        op = await this.getOperationById(user, targetOpId);
-      } catch (err) {
-        logger.warn(`Could not load operation #${targetOpId} for memo generation: ${err.message}`);
-      }
+    const targetOpId = memo?.operation_id || cleanOpId;
+    if (!targetOpId) {
+      throw new NotFoundError('Operations Memorandum not found.');
     }
 
-    if (!memo && !op) {
-      throw new NotFoundError(`Operations Memo not found.`);
-    }
+    // Strict Authorization Check via getOperationById (covers Admin/Owner, Recipients, Initiator, Property Managers!)
+    const op = await this.getOperationById(user, targetOpId);
 
-    if (!memo && op) {
-      // Synthesize memo from operation record
+    if (!memo) {
       memo = {
         operation_id: op.id,
         memo_reference: op.memo_reference || `MEMO-${op.operation_code || op.id}`,
@@ -2475,508 +2634,116 @@ class CentralOperationsService {
         expected_outcome: op.expected_outcome,
         responsibility_definition: op.responsibility_definition,
         reporting_requirements: op.reporting_requirements,
-        issuer_designation: op.initiator_role || 'Operations Directorate',
-        recipient_summary: op.target_audience_type || 'Operational Personnel',
-        property_scope_summary: op.property_name || 'Corporate / Multi-Property',
-        deadline_text: op.deadline_at ? new Date(op.deadline_at).toLocaleDateString() : 'Standard Timeline',
-        effective_date_text: new Date().toLocaleDateString(),
+        issuer_designation: op.issuer_designation || op.initiator_name,
+        recipient_summary: op.recipient_summary || op.target_audience_type,
+        property_scope_summary: op.property_scope_summary || op.property_name || 'Corporate / Multi-Property',
+        deadline_text: op.deadline_at ? formatLagosTime(op.deadline_at) : 'As Directed / Ongoing',
+        effective_date_text: formatLagosTime(op.created_at),
+        created_at: op.created_at,
       };
     }
 
-    // Access authorization check for non-admin
-    const role = (user.role || '').toUpperCase();
-    if (['STAFF', 'RECEPTIONIST'].includes(role)) {
-      const recipientCheck = await pool.query(
-        'SELECT 1 FROM central_operation_recipients WHERE operation_id = $1 AND user_id = $2 LIMIT 1;',
-        [memo.operation_id, user.id]
-      );
-      if (memo.initiated_by_user_id !== user.id && (!recipientCheck || recipientCheck.length === 0)) {
-        throw new ForbiddenError('You do not have authorization to download this Operations Memo.');
-      }
-    }
-
-    // Check if stored in operational_documents_storage
-    if (memo.document_storage_id) {
-      try {
-        const docRes = await pool.query(
-          'SELECT file_data, file_name, mime_type FROM operational_documents_storage WHERE id = $1 LIMIT 1;',
-          [memo.document_storage_id]
-        );
-        if (docRes && docRes.length > 0 && docRes[0].file_data) {
-          let raw = docRes[0].file_data;
-          if (typeof raw === 'string') {
-            if (raw.startsWith('\\x')) {
-              raw = Buffer.from(raw.slice(2), 'hex');
-            } else if (raw.startsWith('%PDF')) {
-              raw = Buffer.from(raw, 'binary');
-            }
-          }
-          if (Buffer.isBuffer(raw) && raw.length > 100 && raw.slice(0, 4).toString('ascii') === '%PDF') {
-            return {
-              buffer: raw,
-              fileName: docRes[0].file_name || `${memo.memo_reference}.pdf`,
-              mimeType: 'application/pdf',
-            };
-          }
-        }
-      } catch (docErr) {
-        logger.warn(`Failed reading memo document storage #${memo.document_storage_id}: ${docErr.message}`);
-      }
-    }
-
-    // If binary not found or corrupted, regenerate on-the-fly
-    if (!op) {
-      op = await this.getOperationById(user, memo.operation_id);
-    }
-    const pdfBuffer = await this.generateOperationsMemoPdfBuffer({
+    // Generate clean cursor-safe PDF using MemoPdfGenerator (always up-to-date if recipients acknowledged or regenerate=true)
+    const pdfBuffer = await MemoPdfGenerator.generateOperationsMemoPdfBuffer({
       operation: op,
       memo,
       initiator: { name: op.initiator_name, role: op.initiator_role, email: op.initiator_email },
       recipients: op.recipients || [],
-      property: { name: op.property_name, code: op.property_code, city: op.property_city },
+      property: op.property_id ? { name: op.property_name, code: op.property_code, city: op.property_city } : null,
+      templateType: (memo.version_number || 1) > 1 ? 'OFFICIAL_AMENDMENT' : null,
     });
 
-    // Cache regenerated binary to storage
-    try {
-      const storeRes = await pool.query(
-        `INSERT INTO operational_documents_storage (
-           entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by
-         ) VALUES (
-           'OPERATIONS_MEMO', $1, $2, 'application/pdf', $3, $4, $5
-         ) RETURNING id;`,
-        [
-          memo.id || memo.operation_id,
-          `${memo.memo_reference}.pdf`,
-          pdfBuffer.length,
-          pdfBuffer,
-          user.id || op.initiated_by_user_id || 1,
-        ]
-      );
-      const newStorageId = storeRes.rows?.[0]?.id || (Array.isArray(storeRes) ? storeRes[0]?.id : null);
-      if (newStorageId && memo.id) {
-        await pool.query('UPDATE operations_memos SET document_storage_id = $1 WHERE id = $2;', [newStorageId, memo.id]);
+    if (regenerate || !memo.document_storage_id) {
+      try {
+        const res = await pool.query(
+          pool.isPostgres()
+            ? `INSERT INTO operational_documents_storage (entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by)
+               VALUES ('OPERATIONS_MEMO', ?, ?, 'application/pdf', ?, ?, ?) RETURNING id`
+            : `INSERT INTO operational_documents_storage (entity_type, entity_id, file_name, mime_type, file_size_bytes, file_data, uploaded_by)
+               VALUES ('OPERATIONS_MEMO', ?, ?, 'application/pdf', ?, ?, ?)`,
+          [op.id, `${memo.memo_reference}.pdf`, pdfBuffer.length, pdfBuffer, user.id]
+        );
+        const newId = extractInsertId(res);
+        if (newId && memo.id) {
+          await pool.query('UPDATE operations_memos SET document_storage_id = ? WHERE id = ?', [newId, memo.id]);
+        }
+      } catch (saveErr) {
+        logger.warn(`Memo PDF storage refresh warning: ${saveErr.message}`);
       }
-    } catch (saveErr) {
-      logger.warn(`Failed caching regenerated memo PDF: ${saveErr.message}`);
     }
 
     return {
       buffer: pdfBuffer,
-      fileName: `${memo.memo_reference}.pdf`,
+      fileName: `${memo.memo_reference || op.ticket_reference || 'Memorandum'}.pdf`,
       mimeType: 'application/pdf',
     };
   }
 
-  /**
-   * GET OPERATIONS SUMMARY METRICS FOR REPORTING & DASHBOARDS
-   * Consolidated real-time metrics respecting role boundaries.
-   */
-  static async getOperationsSummary(user, filters = {}) {
-    const role = (user.role || '').toUpperCase();
-    const userId = user.id;
-
-    let scopeSql = '';
+  // ─── 16. Role-Scoped Operations & Ticketing Summary KPIs ───────────────
+  static async getOperationsSummary(user, _filters = {}) {
+    const role = String(user?.role || '').toUpperCase();
+    const userId = Number(user.id);
     const params = [];
+    let scopeSql = '';
 
     if (['STAFF', 'RECEPTIONIST'].includes(role)) {
-      params.push(userId);
-      scopeSql = 'WHERE (co.current_responsible_user_id = $1 OR cor.user_id = $1)';
-    } else if (role === 'MANAGER') {
-      params.push(userId);
-      scopeSql = 'WHERE (co.property_id IN (SELECT property_id FROM user_property_assignments WHERE user_id = $1) OR co.initiated_by_user_id = $1)';
+      params.push(userId, userId);
+      scopeSql = `WHERE (co.current_responsible_user_id = ? OR EXISTS (SELECT 1 FROM central_operation_recipients c2 WHERE c2.operation_id = co.id AND c2.user_id = ? AND COALESCE(c2.reassigned_out, FALSE) = FALSE))`;
+    } else if (['MANAGER', 'OPERATIONS_MANAGER'].includes(role)) {
+      params.push(userId, userId, userId, userId);
+      scopeSql = `WHERE (
+        co.initiated_by_user_id = ?
+        OR co.supervisor_user_id = ?
+        OR co.current_responsible_user_id = ?
+        OR co.property_id IN (SELECT property_id FROM user_property_assignments WHERE user_id = ?)
+        OR co.property_id = (SELECT property_id FROM users WHERE id = ${userId})
+      )`;
     }
 
-    const sql = `
-      SELECT 
-        COUNT(DISTINCT co.id) AS total_operations,
-        COUNT(DISTINCT CASE WHEN co.status = 'ISSUED' THEN co.id END) AS awaiting_acknowledgement,
-        COUNT(DISTINCT CASE WHEN co.status IN ('ACKNOWLEDGED', 'AWAITING_OWNERSHIP') AND co.current_responsible_user_id IS NULL THEN co.id END) AS awaiting_ownership,
-        COUNT(DISTINCT CASE WHEN co.status IN ('ACCEPTED', 'IN_PROGRESS') THEN co.id END) AS in_progress,
-        COUNT(DISTINCT CASE WHEN co.status = 'BLOCKED' THEN co.id END) AS blocked,
-        COUNT(DISTINCT CASE WHEN co.status = 'AWAITING_CLARIFICATION' THEN co.id END) AS awaiting_clarification,
-        COUNT(DISTINCT CASE WHEN co.status IN ('SUBMITTED_FOR_REVIEW', 'AWAITING_REVIEW', 'AWAITING_APPROVAL') THEN co.id END) AS awaiting_review,
-        COUNT(DISTINCT CASE WHEN co.status = 'REVISION_REQUIRED' THEN co.id END) AS revision_required,
-        COUNT(DISTINCT CASE WHEN co.status = 'COMPLETED' THEN co.id END) AS completed,
-        COUNT(DISTINCT CASE WHEN co.status NOT IN ('COMPLETED', 'CANCELLED', 'CLOSED') AND co.deadline_at < CURRENT_TIMESTAMP THEN co.id END) AS overdue
-      FROM central_operations co
-      LEFT JOIN central_operation_recipients cor ON cor.operation_id = co.id
-      ${scopeSql};
-    `;
+    const summaryRows = extractRows(
+      await pool.query(
+        `SELECT
+          COUNT(DISTINCT co.id) AS total_operations,
+          COUNT(DISTINCT CASE WHEN co.status IN ('OPEN', 'ISSUED', 'AWAITING_ACKNOWLEDGEMENT', 'ACKNOWLEDGED', 'ACCEPTED', 'IN_PROGRESS', 'REASSIGNED', 'BLOCKED', 'AWAITING_CLARIFICATION', 'SUBMITTED_FOR_REVIEW', 'AWAITING_REVIEW', 'REVISION_REQUIRED', 'OVERDUE', 'ESCALATED') THEN co.id END) AS active_count,
+          COUNT(DISTINCT CASE WHEN co.status IN ('OPEN', 'ISSUED', 'AWAITING_ACKNOWLEDGEMENT', 'REASSIGNED') THEN co.id END) AS awaiting_ack_count,
+          COUNT(DISTINCT CASE WHEN co.status IN ('SUBMITTED_FOR_REVIEW', 'AWAITING_REVIEW', 'PENDING_APPROVAL') THEN co.id END) AS pending_review_count,
+          COUNT(DISTINCT CASE WHEN co.status = 'OVERDUE' OR (co.deadline_at IS NOT NULL AND co.deadline_at < CURRENT_TIMESTAMP AND co.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED')) THEN co.id END) AS overdue_count,
+          COUNT(DISTINCT CASE WHEN co.status = 'ESCALATED' OR (co.escalated_at IS NOT NULL AND co.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED')) THEN co.id END) AS escalated_count,
+          COUNT(DISTINCT CASE WHEN co.status IN ('COMPLETED', 'CLOSED') THEN co.id END) AS completed_count
+         FROM central_operations co
+         ${scopeSql}`,
+        params
+      )
+    );
 
-    const res = await pool.query(sql, params);
-    const row = res.rows?.[0] || (Array.isArray(res) ? res[0] : res) || {};
+    const pendingAckRes = extractRows(
+      await pool.query(
+        `SELECT COUNT(*) AS count
+         FROM central_operation_recipients cor
+         JOIN central_operations co ON co.id = cor.operation_id
+         WHERE cor.user_id = ?
+           AND cor.acknowledged_at IS NULL
+           AND COALESCE(cor.reassigned_out, FALSE) = FALSE
+           AND co.status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED')`,
+        [userId]
+      )
+    );
+
+    const row = summaryRows[0] || {};
     return {
-      total: parseInt(row.total_operations || 0, 10),
-      awaiting_acknowledgement: parseInt(row.awaiting_acknowledgement || 0, 10),
-      awaiting_ownership: parseInt(row.awaiting_ownership || 0, 10),
-      in_progress: parseInt(row.in_progress || 0, 10),
-      blocked: parseInt(row.blocked || 0, 10),
-      awaiting_clarification: parseInt(row.awaiting_clarification || 0, 10),
-      awaiting_review: parseInt(row.awaiting_review || 0, 10),
-      revision_required: parseInt(row.revision_required || 0, 10),
-      completed: parseInt(row.completed || 0, 10),
-      overdue: parseInt(row.overdue || 0, 10),
+      total_operations: parseInt(row.total_operations || 0, 10),
+      active_count: parseInt(row.active_count || 0, 10),
+      awaiting_ack_count: parseInt(row.awaiting_ack_count || 0, 10),
+      pending_review_count: parseInt(row.pending_review_count || 0, 10),
+      overdue_count: parseInt(row.overdue_count || 0, 10),
+      escalated_count: parseInt(row.escalated_count || 0, 10),
+      completed_count: parseInt(row.completed_count || 0, 10),
+      my_pending_acknowledgements: parseInt(pendingAckRes[0]?.count || 0, 10),
     };
   }
 
-  /**
-   * PDFKit GENERATOR FOR FORMAL OPERATIONS MEMORANDUM
-   * Beautiful executive styling matching BFA corporate standards.
-   * Full support for 4 official document templates:
-   * - Template A: Short Directive / Operational Memo (concise directive)
-   * - Template B: Multi-Section Long Directive (detailed technical & operational directives)
-   * - Template C: Multi-Recipient Team Directive (staff, receptionists, supervisors with delivery/ack matrix)
-   * - Template D: Multi-Page Revision / Amendment Directive (revision audit note, superseding directives)
-   */
-  static async generateOperationsMemoPdfBuffer({ operation, memo, initiator, recipients = [], property, templateType }) {
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({
-        margin: 40,
-        size: 'A4',
-        bufferPages: true,
-      });
-      const buffers = [];
-
-      doc.on('data', buffers.push.bind(buffers));
-      doc.on('end', () => resolve(Buffer.concat(buffers)));
-      doc.on('error', reject);
-
-      const primaryDark = '#0f172a'; // Slate 900
-      const secondaryMuted = '#475569'; // Slate 600
-      const borderLine = '#cbd5e1'; // Slate 300
-      const brandAccent = '#1d4ed8'; // Blue 700
-      const contentWidth = doc.page.width - 80; // 515.28 pt
-      const pageBottomSafe = doc.page.height - 50;
-
-      const ensureSpace = (requiredPoints) => {
-        if (doc.y + requiredPoints > pageBottomSafe) {
-          doc.addPage();
-          doc.y = 52; // Account for running header on subsequent pages
-        }
-      };
-
-      // Determine template type (auto-detect if not explicitly provided)
-      let resolvedTemplate = (templateType || memo.template_type || operation.memo_template || '').toUpperCase();
-      if (!resolvedTemplate) {
-        if (memo.version_number > 1 || memo.amendment_reason || (operation.version && operation.version > 1)) {
-          resolvedTemplate = 'REVISION_AMENDMENT'; // Template D
-        } else if ((recipients && recipients.length > 1) || ['ROLE_GROUP', 'PROPERTY_ALL', 'TEAM', 'ALL'].includes(operation.target_audience_type)) {
-          resolvedTemplate = 'MULTI_RECIPIENT_TEAM'; // Template C
-        } else if (
-          (memo.operational_instructions && memo.operational_instructions.length > 380) ||
-          (memo.expected_outcome && memo.responsibility_definition && memo.reporting_requirements)
-        ) {
-          resolvedTemplate = 'MULTI_SECTION_LONG'; // Template B
-        } else {
-          resolvedTemplate = 'SHORT_DIRECTIVE'; // Template A
-        }
-      }
-
-      // 1. Executive Header Branding
-      doc.fillColor(primaryDark).fontSize(15).font('Helvetica-Bold').text('BFA APARTMENTS MANAGEMENT SYSTEM', 40, 40, { align: 'center', width: contentWidth });
-      doc.fontSize(8.5).font('Helvetica').fillColor(secondaryMuted).text('Central Operations & Executive Directives Directorate', { align: 'center', width: contentWidth });
-      doc.moveDown(0.3);
-      doc.strokeColor(borderLine).lineWidth(1).moveTo(40, doc.y).lineTo(40 + contentWidth, doc.y).stroke();
-      doc.moveDown(0.4);
-
-      // Template Specific Title Banner
-      let docTitle = 'OFFICIAL OPERATIONS MEMORANDUM';
-      let titleColor = brandAccent;
-      if (resolvedTemplate === 'SHORT_DIRECTIVE') {
-        docTitle = 'EXECUTIVE OPERATIONAL DIRECTIVE';
-        titleColor = '#1e3a8a';
-      } else if (resolvedTemplate === 'MULTI_SECTION_LONG') {
-        docTitle = 'MULTI-SECTION TECHNICAL DIRECTIVE & OPERATIONAL FRAMEWORK';
-        titleColor = '#1e3a8a';
-      } else if (resolvedTemplate === 'MULTI_RECIPIENT_TEAM') {
-        docTitle = 'TEAM OPERATIONAL DIRECTIVE & MULTI-RECIPIENT MANDATE';
-        titleColor = '#0f766e'; // Teal 700
-      } else if (resolvedTemplate === 'REVISION_AMENDMENT') {
-        docTitle = 'OFFICIAL DIRECTIVE REVISION & AMENDMENT MEMORANDUM';
-        titleColor = '#b45309'; // Amber 700
-      }
-
-      doc.fillColor(titleColor).fontSize(12).font('Helvetica-Bold').text(docTitle, { align: 'center', width: contentWidth });
-      doc.moveDown(0.5);
-
-      // Template D: Revision Audit Banner
-      if (resolvedTemplate === 'REVISION_AMENDMENT' || memo.amendment_reason) {
-        const amendText = memo.amendment_reason || 'Administrative modification superseding previous operational instructions.';
-        doc.font('Helvetica').fontSize(8);
-        const amendTextH = doc.heightOfString(amendText, { width: contentWidth - 20 });
-        const bannerH = amendTextH + 20;
-        ensureSpace(bannerH + 6);
-        const banY = doc.y;
-        doc.rect(40, banY, contentWidth, bannerH).fillAndStroke('#fef3c7', '#f59e0b');
-        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#b45309').text(`REVISION AUDIT NOTICE (v${memo.version_number || 2}.0 — SUPERSEDES PRIOR VERSION):`, 50, banY + 5);
-        doc.font('Helvetica').fontSize(8).fillColor('#78350f').text(amendText, 50, banY + 16, { width: contentWidth - 20 });
-        doc.y = banY + bannerH + 8;
-      }
-
-      // 2. Structured Two-Column Metadata Table
-      const leftColX = 40;
-      const rightColX = 300;
-      const labelW = 90;
-      const leftValW = 160;
-      const rightValW = 165;
-
-      const priorityColor = operation.priority === 'CRITICAL' ? '#dc2626' : operation.priority === 'URGENT' ? '#d97706' : '#2563eb';
-
-      const rowsData = [
-        {
-          leftLabel: 'MEMO REF:',
-          leftVal: memo.memo_reference || 'REF-MEMO',
-          leftBold: true,
-          rightLabel: 'ISSUE DATE:',
-          rightVal: memo.effective_date_text || new Date().toLocaleDateString('en-GB'),
-        },
-        {
-          leftLabel: 'OPS CODE:',
-          leftVal: operation.operation_code || 'OPS-PENDING',
-          leftBold: true,
-          leftColor: brandAccent,
-          rightLabel: 'VERSION:',
-          rightVal: `v${memo.version_number || 1}.0 ${memo.version_number > 1 ? '(Revised)' : '(Original)'}`,
-        },
-        {
-          leftLabel: 'ISSUED BY:',
-          leftVal: `${initiator?.name || 'Authorised Officer'} (${memo.issuer_designation || initiator?.role || 'Executive'})`,
-          rightLabel: 'PRIORITY:',
-          rightVal: operation.priority || 'NORMAL',
-          rightBold: true,
-          rightColor: priorityColor,
-        },
-        {
-          leftLabel: 'TARGET AUDIENCE:',
-          leftVal: memo.recipient_summary || (recipients.length > 1 ? `Multi-Recipient Team (${recipients.length} Personnel)` : 'Operational Personnel'),
-          rightLabel: 'PROPERTY SCOPE:',
-          rightVal: memo.property_scope_summary || property?.name || 'Corporate Multi-Property',
-        },
-        {
-          leftLabel: 'RESPONSIBLE:',
-          leftVal: operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group ? `[Group: ${operation.current_responsible_group}]` : 'Open to Group / Collective'),
-          leftBold: Boolean(operation.responsible_name),
-          rightLabel: 'DEADLINE:',
-          rightVal: memo.deadline_text || 'Standard Operating Timeline',
-          rightBold: true,
-        },
-      ];
-
-      doc.font('Helvetica').fontSize(8);
-      let measuredTableHeight = 12;
-      const measuredRowHeights = rowsData.map(r => {
-        const leftH = doc.heightOfString(r.leftVal, { width: leftValW });
-        const rightH = doc.heightOfString(r.rightVal, { width: rightValW });
-        const rowH = Math.max(leftH, rightH, 12) + 5;
-        measuredTableHeight += rowH;
-        return rowH;
-      });
-
-      ensureSpace(measuredTableHeight + 10);
-      const actualTableY = doc.y;
-
-      doc.rect(40, actualTableY, contentWidth, measuredTableHeight)
-        .fillAndStroke('#f8fafc', borderLine);
-
-      doc.strokeColor(borderLine).lineWidth(0.8)
-        .moveTo(295, actualTableY).lineTo(295, actualTableY + measuredTableHeight).stroke();
-
-      let currentY = actualTableY + 6;
-      rowsData.forEach((row, idx) => {
-        const rowH = measuredRowHeights[idx];
-
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(secondaryMuted).text(row.leftLabel, leftColX + 8, currentY);
-        doc.font(row.leftBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8)
-          .fillColor(row.leftColor || primaryDark)
-          .text(row.leftVal, leftColX + 8 + labelW, currentY, { width: leftValW });
-
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(secondaryMuted).text(row.rightLabel, rightColX + 8, currentY);
-        doc.font(row.rightBold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8)
-          .fillColor(row.rightColor || primaryDark)
-          .text(row.rightVal, rightColX + 8 + labelW, currentY, { width: rightValW });
-
-        currentY += rowH;
-
-        if (idx < rowsData.length - 1) {
-          doc.strokeColor('#e2e8f0').lineWidth(0.5)
-            .moveTo(40, currentY - 2).lineTo(40 + contentWidth, currentY - 2).stroke();
-        }
-      });
-
-      doc.y = actualTableY + measuredTableHeight + 10;
-
-      // 3. Subject Banner
-      const subjText = `SUBJECT: ${(memo.subject || operation.subject || '').toUpperCase()}`;
-      doc.font('Helvetica-Bold').fontSize(9);
-      const subjHeight = doc.heightOfString(subjText, { width: contentWidth - 16 }) + 10;
-      ensureSpace(subjHeight + 8);
-      const subjY = doc.y;
-      doc.rect(40, subjY, contentWidth, subjHeight).fill('#e2e8f0');
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(primaryDark).text(subjText, 48, subjY + 5, { width: contentWidth - 16 });
-      doc.y = subjY + subjHeight + 10;
-
-      // Section Renderer Helper
-      const renderSection = (num, secTitle, secBody, options = {}) => {
-        if (!secBody || !secBody.trim()) return;
-        const heading = `${num}. ${secTitle.toUpperCase()}`;
-        doc.font('Helvetica-Bold').fontSize(9.5);
-        const headingH = doc.heightOfString(heading, { width: contentWidth });
-        
-        ensureSpace(headingH + 35);
-
-        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(options.headingColor || brandAccent).text(heading);
-        doc.moveDown(0.2);
-        doc.font('Helvetica').fontSize(8.5).fillColor(primaryDark).text(secBody.trim(), {
-          align: 'justify',
-          lineGap: 2.5,
-          width: contentWidth,
-        });
-        doc.moveDown(0.6);
-      };
-
-      // 4. Render Body Based on Template Type
-      if (resolvedTemplate === 'SHORT_DIRECTIVE') {
-        // Template A: Concise Single/Short Page
-        renderSection('1', 'Executive Directive & Operational Objective', memo.purpose || operation.purpose);
-        renderSection('2', 'Specific Action Items & Operational Instructions', memo.operational_instructions || operation.operational_instructions);
-        renderSection('3', 'Accountability, Next Action & Deadlines', 
-          `Assigned Ownership: ${operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group || 'Unassigned / Open to Group')}\n` +
-          `Mandated Deadline: ${memo.deadline_text || 'Standard Operating Timeline'}\n` +
-          `Immediate Next Required Action: ${operation.next_action || 'Review directive mandates and acknowledge receipt via portal.'}`
-        );
-      } else if (resolvedTemplate === 'MULTI_SECTION_LONG') {
-        // Template B: Detailed Long Directive
-        renderSection('1', 'Purpose & Strategic Operational Rationale', memo.purpose || operation.purpose);
-        renderSection('2', 'Detailed Technical & Operational Instructions', memo.operational_instructions || operation.operational_instructions);
-        renderSection('3', 'Expected Outcome & Key Acceptance Standards', memo.expected_outcome || operation.expected_outcome || 'Full operational readiness with verified log submission and zero defects.');
-        renderSection('4', 'Execution Timeline, Milestones & Deadlines', 
-          `Operational Cutover / Effective Date: ${memo.effective_date_text || 'Immediate'}\n` +
-          `Mandated Completion Deadline: ${memo.deadline_text || 'Standard Operating Timeline'}\n` +
-          `Milestones: Phase 1 execution -> Intermediate logging -> Supervisory sign-off.`
-        );
-        renderSection('5', 'Responsibility, Accountability & Supervisory Escalation Matrix', memo.responsibility_definition || operation.responsibility_definition || 'Designated operational personnel bear primary execution accountability.');
-        renderSection('6', 'Reporting Requirements & Verification Procedures', memo.reporting_requirements || operation.reporting_requirements || 'Progress updates to be submitted upon milestone completion.');
-        renderSection('7', 'Current Operational Status & Next Required Action',
-          `Current System Status: ${(operation.status || 'ISSUED').replace(/_/g, ' ')}\n` +
-          `Immediate Next Required Action: ${operation.next_action || 'Review directive and begin implementation.'}`
-        );
-      } else if (resolvedTemplate === 'MULTI_RECIPIENT_TEAM') {
-        // Template C: Multi-Recipient Team Directive with Roster Table
-        renderSection('1', 'Collective Purpose & Operational Rationale', memo.purpose || operation.purpose);
-        renderSection('2', 'Team Execution Protocols & General Directives', memo.operational_instructions || operation.operational_instructions);
-
-        // Recipient Distribution & Acknowledgment Roster Table
-        ensureSpace(80);
-        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(brandAccent).text('3. FORMAL RECIPIENT DISTRIBUTION & ACKNOWLEDGMENT ROSTER');
-        doc.moveDown(0.2);
-
-        const recTableY = doc.y;
-        const colW = [24, 150, 130, 110, 101]; // sum = 515
-        const recList = recipients && recipients.length > 0 ? recipients : [
-          { name: 'Marcus Vance', role: 'OPERATIONS_MANAGER', status: 'DELIVERED', acknowledged_at: null },
-          { name: 'Sarah Jenkins', role: 'ADMIN', status: 'DELIVERED', acknowledged_at: new Date() },
-        ];
-
-        // Table Header
-        doc.rect(40, recTableY, contentWidth, 16).fill('#e2e8f0');
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(primaryDark);
-        doc.text('#', 44, recTableY + 4, { width: colW[0] });
-        doc.text('RECIPIENT NAME', 44 + colW[0], recTableY + 4, { width: colW[1] });
-        doc.text('DESIGNATED ROLE', 44 + colW[0] + colW[1], recTableY + 4, { width: colW[2] });
-        doc.text('DELIVERY STATUS', 44 + colW[0] + colW[1] + colW[2], recTableY + 4, { width: colW[3] });
-        doc.text('ACKNOWLEDGMENT', 44 + colW[0] + colW[1] + colW[2] + colW[3], recTableY + 4, { width: colW[4] });
-
-        let recRowY = recTableY + 16;
-        recList.forEach((r, idx) => {
-          ensureSpace(18);
-          if (doc.y > pageBottomSafe - 20) {
-            doc.addPage();
-            doc.y = 52;
-            recRowY = doc.y;
-          }
-          const rowBg = idx % 2 === 0 ? '#f8fafc' : '#ffffff';
-          doc.rect(40, recRowY, contentWidth, 16).fillAndStroke(rowBg, '#e2e8f0');
-          doc.font('Helvetica').fontSize(7.5).fillColor(primaryDark);
-          doc.text(String(idx + 1), 44, recRowY + 4, { width: colW[0] });
-          doc.font('Helvetica-Bold').text(r.name || 'Staff Member', 44 + colW[0], recRowY + 4, { width: colW[1] });
-          doc.font('Helvetica').text((r.role || 'Personnel').replace(/_/g, ' '), 44 + colW[0] + colW[1], recRowY + 4, { width: colW[2] });
-          doc.text(r.status || 'DELIVERED', 44 + colW[0] + colW[1] + colW[2], recRowY + 4, { width: colW[3] });
-          const ackText = r.acknowledged_at ? `ACK (${new Date(r.acknowledged_at).toLocaleDateString('en-GB')})` : 'PENDING ACK';
-          doc.font(r.acknowledged_at ? 'Helvetica-Bold' : 'Helvetica-Oblique')
-            .fillColor(r.acknowledged_at ? '#15803d' : '#d97706')
-            .text(ackText, 44 + colW[0] + colW[1] + colW[2] + colW[3], recRowY + 4, { width: colW[4] });
-
-          recRowY += 16;
-        });
-
-        doc.y = recRowY + 10;
-        renderSection('4', 'Inter-Departmental Handoff & Escalation Protocols', memo.reporting_requirements || operation.reporting_requirements || 'Any blocker encountered during execution must be escalated immediately to the designated supervisor.');
-      } else if (resolvedTemplate === 'REVISION_AMENDMENT') {
-        // Template D: Revision / Amendment Directive
-        renderSection('1', 'Scope of Operational Amendment & Revision Delta', 
-          `This operational memorandum formally amends, updates, and supersedes prior directives under reference ${memo.memo_reference}.\n\n` +
-          `Amendment Summary: ${memo.amendment_reason || 'Administrative update to operational procedures and task specifications.'}`
-        );
-        renderSection('2', 'Superseding Operational Directives & Instructions', memo.operational_instructions || operation.operational_instructions);
-        renderSection('3', 'Cutover, Transition & Deprecation of Prior Instructions', 
-          'Effective immediately upon release of this revision, all previously issued directives conflicting with the operational mandates stated herein are officially deprecated and nullified. All assigned teams must adjust standard operating procedures in accordance with this revision.'
-        );
-        renderSection('4', 'Updated Timeline, Deliverables & Accountability Matrix', 
-          `Effective Cutover Date: ${memo.effective_date_text || 'Immediate'}\n` +
-          `Updated Mandated Deadline: ${memo.deadline_text || 'Standard Operating Timeline'}\n` +
-          `Primary Responsible Officer: ${operation.responsible_name ? `${operation.responsible_name} (${operation.responsible_role || 'Assigned'})` : (operation.current_responsible_group || 'Unassigned / Collective')}`
-        );
-        renderSection('5', 'Reporting Requirements & Verification Audit Lineage', memo.reporting_requirements || operation.reporting_requirements || 'Updated logs and milestone submissions must reflect v2.0 parameters.');
-      }
-
-      // 5. Formal Compliance & Acknowledgement Mandate
-      ensureSpace(55);
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(brandAccent).text('FORMAL COMPLIANCE & ACKNOWLEDGEMENT MANDATE');
-      doc.moveDown(0.2);
-      doc.font('Helvetica-Oblique').fontSize(7.5).fillColor(secondaryMuted).text(
-        'All designated recipients are required by company standard operating procedures to formally acknowledge receipt of this memorandum via the BFA Staff Portal / Staff Chat within the stipulated timeframe. Failure to acknowledge or carry out directed operational mandates constitutes a procedural breach.',
-        { align: 'justify', width: contentWidth, lineGap: 1.5 }
-      );
-      doc.moveDown(0.6);
-
-      // 6. Sign-off & Signature Section
-      ensureSpace(70);
-      const signY = doc.y;
-      doc.strokeColor(borderLine).lineWidth(1).moveTo(40, signY).lineTo(240, signY).stroke();
-      doc.font('Helvetica-Bold').fontSize(8).fillColor(primaryDark).text(initiator?.name || 'Authorised Signatory', 40, signY + 4);
-      doc.font('Helvetica').fontSize(7.5).fillColor(secondaryMuted).text(memo.issuer_designation || initiator?.role || 'Executive Authority', 40, signY + 15);
-      doc.text(`Digital Verification Timestamp: ${new Date().toISOString()}`, 40, signY + 25);
-      doc.text(`Doc Ref: ${memo.memo_reference || 'BFA-MEMO'} | Template: ${resolvedTemplate} | Audit Hash: VERIFIED-AUTHENTIC`, 40, signY + 35);
-
-      // 7. Dynamic Header and Footer on All Buffered Pages
-      const pages = doc.bufferedPageRange();
-      for (let i = 0; i < pages.count; i++) {
-        doc.switchToPage(i);
-        doc.page.margins.bottom = 0;
-
-        // Running Confidential Header (Page > 0)
-        if (i > 0) {
-          doc.fontSize(7).font('Helvetica').fillColor(secondaryMuted).text(
-            `BFA APARTMENTS — OPERATIONS MEMORANDUM (${memo.memo_reference || 'REF'}) — [CONFIDENTIAL]`,
-            40,
-            24,
-            { width: contentWidth, align: 'center', lineBreak: false }
-          );
-          doc.strokeColor(borderLine).lineWidth(0.5).moveTo(40, 34).lineTo(40 + contentWidth, 34).stroke();
-        }
-
-        // Running Footer (All Pages)
-        doc.strokeColor(borderLine).lineWidth(0.5).moveTo(40, doc.page.height - 36).lineTo(40 + contentWidth, doc.page.height - 36).stroke();
-        doc.fontSize(7).font('Helvetica').fillColor('#94a3b8').text(
-          `BFA APARTMENTS MANAGEMENT SYSTEM • CONFIDENTIAL INTERNAL OPERATIONAL DOCUMENT • Page ${i + 1} of ${pages.count}`,
-          40,
-          doc.page.height - 28,
-          { align: 'center', width: contentWidth, lineBreak: false }
-        );
-      }
-
-      doc.end();
-    });
+  static async generateOperationsMemoPdfBuffer(opts) {
+    return MemoPdfGenerator.generateOperationsMemoPdfBuffer(opts);
   }
 }
 

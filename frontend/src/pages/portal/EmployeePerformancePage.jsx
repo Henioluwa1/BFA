@@ -7,6 +7,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import DisciplinaryAndPipWorkspace from '../../components/workforce/DisciplinaryAndPipWorkspace';
+import TicketPerformancePanel from '../../components/workforce/TicketPerformancePanel';
 import {
   LineChart,
   BarChart,
@@ -209,16 +210,17 @@ export default function EmployeePerformancePage() {
       {activeView === 'DISCIPLINARY' && !isOwner ? (
         <DisciplinaryAndPipWorkspace />
       ) : (
-        /* Main 2-Column Layout */
+        /* Main Responsive 2-Column Layout */
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(280px, 320px) minmax(0, 1fr)',
+            display: 'flex',
+            flexWrap: 'wrap',
             gap: '1.5rem',
-            alignItems: 'start',
+            alignItems: 'flex-start',
           }}
         >
         {/* Left Column: Staff Directory Selector */}
+        <div style={{ flex: '1 1 280px', minWidth: '260px', width: '100%' }}>
         <Card title="Staff Directory">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ position: 'relative' }}>
@@ -337,9 +339,10 @@ export default function EmployeePerformancePage() {
             </div>
           </div>
         </Card>
+        </div>
 
         {/* Right Column: Performance Analytics Dashboard */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div style={{ flex: '999 1 540px', minWidth: 0, width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {error && (
             <div
               style={{
@@ -531,6 +534,16 @@ export default function EmployeePerformancePage() {
                   </Card>
                 </div>
               </div>
+
+              {/* Ticket & Attendance Performance Engine (19 Metrics + Weights + Formula Breakdown) */}
+              {performanceData.ticketAttendancePerformance && (
+                <TicketPerformancePanel
+                  data={performanceData.ticketAttendancePerformance}
+                  canEditWeights={['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(userRole)}
+                  onWeightsSaved={() => selectedEmployeeId && fetchPerformance(selectedEmployeeId)}
+                  isOwner={isOwner}
+                />
+              )}
 
               {/* Analytical Charts Row 1: Individual Performance Trend & Operational Activity */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>

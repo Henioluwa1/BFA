@@ -48,9 +48,9 @@ async function seedDevData() {
       ON DUPLICATE KEY UPDATE unit_name=VALUES(unit_name), rate_per_night=VALUES(rate_per_night);
     `);
 
-    // 3. SYSTEM USERS (Password: Bfa2026!Secure)
+    // 3. SYSTEM USERS (Dev/Test Seed via SEED_DEFAULT_PASSWORD_HASH or bcrypt test hash)
     console.log('[DEVELOPMENT SEED]: Verifying authoritative users...');
-    const defaultPasswordHash = '$2b$10$GaII4sIWwHiOi1sCf149TOFCzwYPhwSNv7nAAUeSVs1FBC2A6.t3q';
+    const defaultPasswordHash = process.env.SEED_DEFAULT_PASSWORD_HASH || '$2b$10$GaII4sIWwHiOi1sCf149TOFCzwYPhwSNv7nAAUeSVs1FBC2A6.t3q';
     await conn.query(`
       INSERT INTO users (id, name, email, password_hash, role, property_id, status) VALUES
       (1, 'BFA Super Admin', 'superadmin@bfa.com', '${defaultPasswordHash}', 'SUPER_ADMIN', NULL, 'ACTIVE'),

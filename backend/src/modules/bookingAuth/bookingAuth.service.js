@@ -32,12 +32,25 @@ class BookingAuthService {
       }
     }
 
-    await executor.query(
-      `INSERT INTO booking_authentications (reservation_id, auth_code, guest_email, guest_phone, status, expires_at)
-       VALUES (?, ?, ?, ?, 'ACTIVE', ?)
-       ON DUPLICATE KEY UPDATE auth_code = VALUES(auth_code), guest_email = VALUES(guest_email), guest_phone = VALUES(guest_phone), status = 'ACTIVE'`,
-      [reservationId, authCode, guestEmail.toLowerCase().trim(), guestPhone.trim(), expiresAt]
-    );
+    if (pool.isPostgres()) {
+      await executor.query(
+        `INSERT INTO booking_authentications (reservation_id, auth_code, guest_email, guest_phone, status, expires_at)
+         VALUES (?, ?, ?, ?, 'ACTIVE', ?)
+         ON CONFLICT (reservation_id) DO UPDATE
+           SET auth_code = EXCLUDED.auth_code,
+               guest_email = EXCLUDED.guest_email,
+               guest_phone = EXCLUDED.guest_phone,
+               status = 'ACTIVE'`,
+        [reservationId, authCode, guestEmail.toLowerCase().trim(), guestPhone.trim(), expiresAt]
+      );
+    } else {
+      await executor.query(
+        `INSERT INTO booking_authentications (reservation_id, auth_code, guest_email, guest_phone, status, expires_at)
+         VALUES (?, ?, ?, ?, 'ACTIVE', ?)
+         ON DUPLICATE KEY UPDATE auth_code = VALUES(auth_code), guest_email = VALUES(guest_email), guest_phone = VALUES(guest_phone), status = 'ACTIVE'`,
+        [reservationId, authCode, guestEmail.toLowerCase().trim(), guestPhone.trim(), expiresAt]
+      );
+    }
 
     return authCode;
   }

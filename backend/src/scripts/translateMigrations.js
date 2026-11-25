@@ -53,7 +53,7 @@ function translateMySqlToPostgreSql(sql, filename) {
 
   // 8b. Ensure migration 004 has authoritative baseline users required for downstream FK references (011, 012, 013, 018)
   if (filename.includes('004_create_users_and_seed_auth') && !out.includes('INSERT INTO users')) {
-    out += `\n-- Seed Authoritative Accounts (Password: Bfa2026!Secure)
+    out += `\n-- Seed Authoritative Accounts (Non-Production Baseline Test Hash)
 INSERT INTO users (id, name, email, password_hash, role, property_id, agent_id, status) VALUES
 (1, 'BFA Super Admin', 'superadmin@bfa.com', '$2b$10$GaII4sIWwHiOi1sCf149TOFCzwYPhwSNv7nAAUeSVs1FBC2A6.t3q', 'SUPER_ADMIN', NULL, NULL, 'ACTIVE'),
 (2, 'Sarah Jenkins (Admin)', 'admin@bfa.com', '$2b$10$GaII4sIWwHiOi1sCf149TOFCzwYPhwSNv7nAAUeSVs1FBC2A6.t3q', 'ADMIN', NULL, NULL, 'ACTIVE'),

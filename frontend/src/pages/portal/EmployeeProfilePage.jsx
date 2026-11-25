@@ -5,7 +5,8 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
-import { employeeService, api } from '../../services/api';
+import TicketPerformancePanel from '../../components/workforce/TicketPerformancePanel';
+import { employeeService, operationsService, api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
@@ -23,6 +24,7 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
   // Data
   const [employee, setEmployee] = useState(null);
   const [performance, setPerformance] = useState(null);
+  const [personalTicketPerf, setPersonalTicketPerf] = useState(null);
   const [activities, setActivities] = useState([]);
   const [activeCard, setActiveCard] = useState(null);
 
@@ -168,6 +170,16 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
         } else {
           setActiveCard(null);
         }
+      }
+
+      if (effectiveIsSelf) {
+        const tpRes = await operationsService.getPersonalPerformance().catch(() => null);
+        const tpData = tpRes?.data?.data || tpRes?.data || null;
+        if (tpData) setPersonalTicketPerf(tpData);
+      } else if (emp?.user_id) {
+        const tpRes = await operationsService.getStaffPerformance(emp.user_id).catch(() => null);
+        const tpData = tpRes?.data?.data || tpRes?.data || null;
+        if (tpData) setPersonalTicketPerf(tpData);
       }
     } catch (err) {
       addToast(`Failed to load profile: ${err.message}`, 'error');
@@ -649,6 +661,15 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
               </div>
             </Card>
           </div>
+
+          {/* Ticket & Attendance Performance Engine (19 Metrics + 09:00 WAT Punctuality) */}
+          {(performance?.ticketAttendancePerformance || personalTicketPerf) && (
+            <TicketPerformancePanel
+              data={performance?.ticketAttendancePerformance || personalTicketPerf}
+              isOwner={String(user?.role || '').toUpperCase() === 'OWNER'}
+              canEditWeights={false}
+            />
+          )}
 
           {/* Dimension Breakdown if available */}
           {performance?.evaluationSummary?.dimensionBreakdown && Object.keys(performance.evaluationSummary.dimensionBreakdown).length > 0 && (

@@ -50,19 +50,30 @@ router.patch('/directives/:id/status', requireAuth, requireRoles('SUPER_ADMIN', 
 router.post('/operations', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.createOperation);
 router.get('/operations', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.listOperations);
 router.get('/operations/summary', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.getOperationsSummary);
+router.get('/operations/sla-config', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.getAckSlaConfig);
+router.put('/operations/sla-config', requireAuth, requireRoles('OWNER', 'SUPER_ADMIN'), CentralOperationsController.updateAckSlaConfig);
 router.get('/operations/memos/:memoId/pdf', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.downloadMemoPdf);
 router.get('/operations/:id/memo/pdf', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.downloadMemoPdf);
 router.get('/operations/:id', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.getOperationById);
 router.post('/operations/:id/claim', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.claimOperation);
 router.post('/operations/:id/assign', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.assignOperation);
 router.post('/operations/:id/acknowledge', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.acknowledgeOperation);
+router.post('/operations/:id/start', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.startExecution);
 router.post('/operations/:id/clarification', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.requestClarification);
 router.post('/operations/:id/clarification/respond', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.respondClarification);
 router.post('/operations/:id/blockers', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.reportBlocker);
+router.post('/operations/:id/blockers/resolve', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.resolveBlocker);
+router.post('/operations/:id/extension-request', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.requestExtension);
+router.post('/operations/:id/extension-review', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.reviewExtension);
 router.post('/operations/:id/progress', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.updateProgress);
+router.post('/operations/:id/evidence', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.uploadEvidence);
+router.get('/operations/:id/evidence/:docId', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.getEvidenceFile);
 router.post('/operations/:id/tasks', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.createLinkedTask);
 router.post('/operations/:id/completion', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.submitCompletion);
 router.post('/operations/:id/review', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.reviewOperation);
+router.post('/operations/:id/reject', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.rejectOrDeclineTicket);
+router.post('/operations/:id/close', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.closeTicket);
+router.post('/operations/:id/reopen', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), CentralOperationsController.reopenTicket);
 router.post('/operations/:id/amend', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.amendOperation);
 router.post('/operations/:id/cancel', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), CentralOperationsController.cancelOperation);
 
@@ -73,9 +84,11 @@ router.get('/staff-reports/:id', requireAuth, requireRoles(...ALL_STAFF_ROLES), 
 router.patch('/staff-reports/:id/review', requireAuth, requireRoles(...MANAGEMENT_ROLES), OperationsWorkforceController.reviewStaffReport);
 
 // ─── Evidence-Based Performance Engine ─────────────────────────────────
-router.get('/performance/personal', requireAuth, requireRoles(...ALL_STAFF_ROLES), OperationsWorkforceController.getPersonalPerformance);
-router.get('/performance/staff/:userId', requireAuth, requireRoles(...ALL_STAFF_ROLES), OperationsWorkforceController.getStaffPerformance);
-router.get('/performance/overview', requireAuth, requireRoles(...MANAGEMENT_ROLES), OperationsWorkforceController.getWorkforcePerformanceOverview);
+router.get('/performance/weights', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), OperationsWorkforceController.getPerformanceConfig);
+router.put('/performance/weights', requireAuth, requireRoles('OWNER', 'ADMIN', 'SUPER_ADMIN'), OperationsWorkforceController.updatePerformanceConfig);
+router.get('/performance/personal', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), OperationsWorkforceController.getPersonalPerformance);
+router.get('/performance/staff/:userId', requireAuth, requireRoles(...ALL_STAFF_ROLES, 'SUPER_ADMIN'), OperationsWorkforceController.getStaffPerformance);
+router.get('/performance/overview', requireAuth, requireRoles(...MANAGEMENT_ROLES, 'SUPER_ADMIN'), OperationsWorkforceController.getWorkforcePerformanceOverview);
 
 // ─── Existing Shift Templates ──────────────────────────────────────────
 router.get('/templates', requireAuth, requireRoles(...MANAGEMENT_ROLES), WorkforceController.listTemplates);

@@ -98,6 +98,7 @@ export default function ReportsPage() {
   // Central Operations & Directives Report State
   const [opsSummary, setOpsSummary] = useState(null);
   const [operationsList, setOperationsList] = useState([]);
+  const [teamPerfOverview, setTeamPerfOverview] = useState([]);
   const [loadingOps, setLoadingOps] = useState(false);
   const [opsStatusFilter, setOpsStatusFilter] = useState('all');
   const [opsPriorityFilter, setOpsPriorityFilter] = useState('all');
@@ -222,19 +223,25 @@ export default function ReportsPage() {
   const fetchOperationsReport = useCallback(async () => {
     setLoadingOps(true);
     try {
-      const [summaryRes, listRes] = await Promise.all([
-        centralOperationsService.getSummary(),
-        centralOperationsService.listOperations({ view: 'all' }),
+      const [summaryRes, listRes, overviewRes] = await Promise.all([
+        centralOperationsService.getSummary({ property_id: propertyFilter !== 'all' ? propertyFilter : undefined }),
+        centralOperationsService.listOperations({ view: 'all', property_id: propertyFilter !== 'all' ? propertyFilter : undefined }),
+        isManagement
+          ? operationsService.getPerformanceOverview({ propertyId: propertyFilter !== 'all' ? propertyFilter : undefined }).catch(() => null)
+          : Promise.resolve(null),
       ]);
       setOpsSummary(summaryRes?.data || summaryRes);
       setOperationsList(listRes?.data || listRes || []);
+      const perfData = overviewRes?.data?.data || overviewRes?.data || overviewRes;
+      const perfList = perfData?.staffEvaluations || perfData?.staff || [];
+      setTeamPerfOverview(Array.isArray(perfList) ? perfList : []);
     } catch (err) {
       console.error('[ReportsPage] Operations report fetch error:', err);
       addToast('Failed to load operational directives report data.', 'error');
     } finally {
       setLoadingOps(false);
     }
-  }, [addToast]);
+  }, [addToast, isManagement, propertyFilter]);
 
   const filteredOperations = useMemo(() => {
     return operationsList.filter((op) => {
@@ -1114,6 +1121,24 @@ export default function ReportsPage() {
               <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Fully audited and closed</span>
             </Card>
           </div>
+
+          {/* Team Ticket & Attendance Performance Overview (Africa/Lagos) */}
+          {isManagement && teamPerfOverview.length > 0 && (
+            <Card title={`Staff Ticket & Attendance Performance Leaderboard (${teamPerfOverview.length} Staff · Africa/Lagos)`}>
+              <Table
+                columns={[
+                  { header: 'Staff Member', key: 'user', render: (val, row) => <div><strong>{val?.name || row.name}</strong><div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{val?.role || row.role} · {val?.property_name || row.property_name || 'Company'}</div></div> },
+                  { header: 'Composite Score', key: 'overallCompositeScore', render: (val, row) => <strong style={{ color: val >= 80 ? '#10b981' : val >= 60 ? '#f59e0b' : '#ef4444' }}>{val}% ({row.rating})</strong> },
+                  { header: 'Attendance (09:00 WAT)', key: 'attendanceRatePct', render: (val, row) => `${row.attendanceMetrics?.attendanceRatePct ?? val ?? 100}% (Late: ${row.attendanceMetrics?.lateDays ?? 0})` },
+                  { header: 'Ack SLA %', key: 'slaAcknowledgmentRate', render: (val, row) => `${row.ticketMetrics?.slaAcknowledgmentRate ?? 100}%` },
+                  { header: 'On-Time Comp %', key: 'onTimeCompletionRate', render: (val, row) => `${row.ticketMetrics?.onTimeCompletionRate ?? 100}% (${row.ticketMetrics?.ticketsCompleted ?? 0}/${row.ticketMetrics?.ticketsAssigned ?? 0})` },
+                  { header: 'Quality / Workload', key: 'qualityScore', render: (val, row) => `${row.ticketMetrics?.qualityScore ?? 100}% / ${row.ticketMetrics?.weightedWorkloadPoints ?? 0} pts` },
+                  { header: 'Sample', key: 'insufficientData', render: (val, row) => val ? <Badge status="warning">Low Sample ({row.assessedTicketCount || 0})</Badge> : <Badge status="success">Verified ({row.assessedTicketCount || 0})</Badge> },
+                ]}
+                data={teamPerfOverview}
+              />
+            </Card>
+          )}
 
           {/* Directives Accountability & Execution Ledger Table */}
           <Card>

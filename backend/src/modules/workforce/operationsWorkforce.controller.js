@@ -432,6 +432,24 @@ class OperationsWorkforceController {
       next(err);
     }
   }
+
+  static async getPerformanceConfig(req, res, next) {
+    try {
+      const cfg = await PerformanceEngineService.getPerformanceConfig();
+      return ApiResponse.success(res, { message: 'Performance scoring configuration retrieved', data: cfg });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async updatePerformanceConfig(req, res, next) {
+    try {
+      const cfg = await PerformanceEngineService.updatePerformanceConfig(req.user, req.body || {});
+      return ApiResponse.success(res, { message: 'Performance scoring configuration updated', data: cfg });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = OperationsWorkforceController;

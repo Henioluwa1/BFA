@@ -5,7 +5,7 @@ import Badge from '../ui/Badge';
 import Table from '../ui/Table';
 import Modal from '../ui/Modal';
 import InChatOperationDetailsModal from '../chat/InChatOperationDetailsModal';
-import { operationsService, reportService } from '../../services/api';
+import { centralOperationsService, operationsService, reportService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useProperty } from '../../context/PropertyContext';
 import { useToast } from '../../context/ToastContext';
@@ -49,8 +49,10 @@ export default function StaffOperationsWorkspace() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-  // My Tasks State
+  // My Tasks & Tickets State
   const [myTasks, setMyTasks] = useState([]);
+  const [myTickets, setMyTickets] = useState([]);
+  const [ticketFilter, setTicketFilter] = useState('MY_TICKETS');
   const [viewingOperationId, setViewingOperationId] = useState(null);
   const [blockerModalTask, setBlockerModalTask] = useState(null);
   const [blockerForm, setBlockerForm] = useState({
@@ -87,9 +89,14 @@ export default function StaffOperationsWorkspace() {
         }));
       }
 
-      // 2. Fetch Tasks assigned to user
-      const resTasks = await operationsService.listTasks({ assignedToMe: true });
+      // 2. Fetch Tasks & Unified Tickets assigned to/visible by user
+      const [resTasks, resTickets] = await Promise.all([
+        operationsService.listTasks({ assignedToMe: true }),
+        centralOperationsService.listOperations({ view: 'myTickets' }).catch(() => ({ data: [] })),
+      ]);
       setMyTasks(resTasks.data?.data?.tasks || resTasks.data?.tasks || []);
+      const ticketRows = resTickets?.data?.data || resTickets?.data || (Array.isArray(resTickets) ? resTickets : []);
+      setMyTickets(Array.isArray(ticketRows) ? ticketRows : []);
 
       // 3. Fetch My Submitted Reports
       const resReports = await operationsService.listStaffReports({ myReportsOnly: true });
@@ -357,17 +364,105 @@ export default function StaffOperationsWorkspace() {
         </div>
       )}
 
-      {/* ─── SUB-TAB 2: MY OPERATIONAL TASKS ──────────────────────────────── */}
+      {/* ─── SUB-TAB 2: MY OPERATIONAL TICKETS & TASKS ────────────────────── */}
       {activeSubTab === 'TASKS' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>
-              Tasks Assigned to You ({myTasks.length})
+              My Operational Tickets ({myTickets.length}) & Tasks ({myTasks.length})
             </h3>
             <Button variant="outline" size="sm" onClick={fetchOperationalData} icon={<RefreshCw size={14} className={loading ? 'animate-spin' : ''} />}>
               Refresh
             </Button>
           </div>
+
+          {myTickets.length > 0 && (
+            <Card title="My Assigned & Received Tickets">
+              <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+                {[
+                  { id: 'MY_TICKETS', label: 'All My Tickets' },
+                  { id: 'AWAITING_ACK', label: 'Awaiting Acknowledgment' },
+                  { id: 'IN_PROGRESS', label: 'In Progress' },
+                  { id: 'PENDING_REVIEW', label: 'Pending Review' },
+                  { id: 'COMPLETED', label: 'Completed' },
+                ].map((pill) => (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => setTicketFilter(pill.id)}
+                    style={{
+                      padding: '0.3rem 0.65rem',
+                      borderRadius: '999px',
+                      fontSize: '0.74rem',
+                      fontWeight: ticketFilter === pill.id ? 700 : 500,
+                      border: ticketFilter === pill.id ? '1px solid #3b82f6' : '1px solid var(--border-default)',
+                      background: ticketFilter === pill.id ? 'rgba(59, 130, 246, 0.18)' : 'transparent',
+                      color: ticketFilter === pill.id ? '#60a5fa' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {pill.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                {myTickets
+                  .filter((tk) => {
+                    const st = String(tk.status || '').toUpperCase();
+                    const ackDone = Boolean(tk.first_acknowledged_at || tk.my_acknowledged_at);
+                    if (ticketFilter === 'AWAITING_ACK') return !ackDone && !['COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED'].includes(st);
+                    if (ticketFilter === 'IN_PROGRESS') return ['IN_PROGRESS', 'ACCEPTED', 'ACKNOWLEDGED', 'AWAITING_CLARIFICATION'].includes(st);
+                    if (ticketFilter === 'PENDING_REVIEW') return ['SUBMITTED_FOR_REVIEW', 'AWAITING_REVIEW'].includes(st);
+                    if (ticketFilter === 'COMPLETED') return ['COMPLETED', 'CLOSED'].includes(st);
+                    return true;
+                  })
+                  .map((tk) => {
+                    const ackDeadline = tk.acknowledgment_deadline_at || tk.ack_deadline_at;
+                    const ackDone = Boolean(tk.first_acknowledged_at || tk.my_acknowledged_at);
+                    return (
+                    <div
+                      key={tk.id}
+                      style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-surface-elevated, #1a202c)',
+                        border: '1px solid var(--border-default)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '0.75rem',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.75rem', color: '#60a5fa' }}>
+                            {tk.ticket_reference || tk.operation_code}
+                          </span>
+                          <strong>{tk.title}</strong>
+                          <Badge status={['CRITICAL', 'URGENT', 'HIGH'].includes(String(tk.priority).toUpperCase()) ? 'danger' : 'neutral'}>
+                            {tk.priority}
+                          </Badge>
+                          {renderStatus(tk.status)}
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                          {tk.viewer_next_action?.text || tk.next_action || 'Open ticket to inspect directive and update execution.'}
+                          {ackDeadline && !ackDone && (
+                            <span style={{ marginLeft: '8px', color: '#fbbf24' }}>
+                              · Ack SLA: {new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(ackDeadline))} WAT
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Button size="sm" variant="primary" onClick={() => setViewingOperationId(tk.id)}>
+                        Open Ticket Drawer
+                      </Button>
+                    </div>
+                  );
+                  })}
+              </div>
+            </Card>
+          )}
 
           <Card>
             {myTasks.length === 0 ? (

@@ -39,12 +39,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleTestAccountSelect = (testEmail) => {
-    setEmail(testEmail);
-    setPassword('Bfa2026!Secure');
-    setError('');
-  };
-
   const searchParams = new URLSearchParams(location.search);
   const isExpired = searchParams.get('expired') === '1';
 
@@ -175,44 +169,8 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Quick Test Accounts Helper */}
-        <div style={{ marginTop: '2rem', borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.65rem' }}>
-            ⚡ 1-Click Test Credentials (Evaluator Mode)
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '0.4rem' }}>
-            {[
-              { label: '👑 Super Admin', email: 'superadmin@bfa.com' },
-              { label: '🛡️ Admin', email: 'admin@bfa.com' },
-              { label: '💼 Manager', email: 'manager@bfa.com' },
-              { label: '🛎️ Receptionist', email: 'receptionist@bfa.com' },
-              { label: '🧹 Staff', email: 'staff@bfa.com' },
-              { label: '🤝 Agent', email: 'agent@bfa.com' },
-              { label: '🏛️ Owner', email: 'owner@bfa.com' },
-            ].map((acc) => (
-              <button
-                key={acc.email}
-                type="button"
-                onClick={() => handleTestAccountSelect(acc.email)}
-                style={{
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '6px',
-                  padding: '0.5rem 0.6rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  color: '#334155',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  minHeight: '38px',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                {acc.label}
-              </button>
-            ))}
-          </div>
+        <div style={{ marginTop: '1.75rem', borderTop: '1px solid #f1f5f9', paddingTop: '1rem', textAlign: 'center', fontSize: '0.75rem', color: '#64748b' }}>
+          Authorized BFA Personnel Portal • Session security enforced via JWT
         </div>
       </div>
 

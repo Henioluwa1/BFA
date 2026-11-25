@@ -226,9 +226,6 @@ class ReservationsService {
       if (!data.apartment_id) {
         missingFields.push('Valid apartment unit ID');
       }
-      if (!data.property_id) {
-        missingFields.push('Valid property ID');
-      }
       if (!data.check_in_date) {
         missingFields.push('Valid check-in date');
       }
@@ -253,12 +250,13 @@ class ReservationsService {
       }
       const apartment = aptRows[0];
 
-      // Validate that provided property_id matches apartment's actual property
+      // Validate that provided property_id matches apartment's actual property, or derive it cleanly
       if (data.property_id && parseInt(data.property_id, 10) !== parseInt(apartment.property_id, 10)) {
         throw new ValidationError(
           `Data Integrity Violation: Apartment unit #${data.apartment_id} does not belong to Property #${data.property_id}.`
         );
       }
+      data.property_id = data.property_id ? parseInt(data.property_id, 10) : parseInt(apartment.property_id, 10);
 
       // 3. Property scope authorization
       this.validatePropertyScope(req?.user, apartment.property_id);
@@ -756,7 +754,7 @@ class ReservationsService {
         }
         const reservation = resRows[0];
 
-        this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
+        this.validatePropertyScope(req?.user, reservation.property_id);
 
         if (reservation.status !== 'PENDING') {
           throw new ValidationError(
@@ -958,7 +956,7 @@ class ReservationsService {
         const reservation = resRows[0];
 
         // Validate Property Scope
-        this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
+        this.validatePropertyScope(req?.user, reservation.property_id);
 
         // Validate Reservation Status
         if (reservation.status === 'CHECKED_IN') {
@@ -1184,7 +1182,7 @@ class ReservationsService {
         }
         const reservation = resRows[0];
 
-        this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
+        this.validatePropertyScope(req?.user, reservation.property_id);
 
         if (reservation.status !== 'CHECKED_IN') {
           throw new ValidationError(
@@ -1344,7 +1342,7 @@ class ReservationsService {
       const reservation = resRows[0];
 
       // 2. Validate Property Scope
-      this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
+      this.validatePropertyScope(req?.user, reservation.property_id);
 
       // 3. Strict Concurrency Lock: One client cannot be assigned to two front desk staffs
       if (reservation.assigned_staff_id && reservation.assigned_staff_id !== userId) {
@@ -1628,7 +1626,7 @@ class ReservationsService {
       }
       const reservation = resRows[0];
 
-      this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
+      this.validatePropertyScope(req?.user, reservation.property_id);
 
       const [aptRows] = await conn.query('SELECT * FROM apartments WHERE id = ? FOR UPDATE', [reservation.apartment_id]);
       if (!aptRows || aptRows.length === 0) {
@@ -1751,7 +1749,7 @@ class ReservationsService {
       }
       const reservation = resRows[0];
 
-      this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
+      this.validatePropertyScope(req?.user, reservation.property_id);
 
       const fullDeclineReason = notes ? `${reason}: ${notes}` : reason;
 

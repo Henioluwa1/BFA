@@ -121,7 +121,7 @@ async function runQA() {
 
     if (!superAdminBtnClicked) {
       await page.type('#login-email', 'superadmin@bfa.com');
-      await page.type('#login-password', 'Bfa2026!Secure');
+      await page.type('#login-password', process.env.BFA_QA_PASSWORD || process.env.TEST_USER_PASSWORD || '');
     }
 
     await sleep(500);

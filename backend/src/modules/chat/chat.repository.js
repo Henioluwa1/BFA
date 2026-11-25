@@ -357,9 +357,21 @@ class ChatRepository {
       group = fetched && fetched.length > 0 ? fetched[0] : { id: insertedId, title: 'General Group', thread_type: 'GROUP', status: 'ACTIVE' };
     }
 
-    // Auto-enroll all active staff members
+    // Auto-enroll active eligible internal staff members (excludes AGENT and inactive users)
     try {
-      const activeUsers = await pool.query("SELECT id, role FROM users WHERE status = 'ACTIVE'");
+      const rolePlaceholders = ELIGIBLE_ROLES.map(() => '?').join(', ');
+      await pool.query(
+        `DELETE FROM chat_thread_participants
+         WHERE thread_id = ?
+           AND user_id IN (
+             SELECT id FROM users WHERE role NOT IN (${rolePlaceholders}) OR status != 'ACTIVE'
+           )`,
+        [group.id, ...ELIGIBLE_ROLES]
+      );
+      const activeUsers = await pool.query(
+        `SELECT id, role FROM users WHERE status = 'ACTIVE' AND role IN (${rolePlaceholders})`,
+        ELIGIBLE_ROLES
+      );
       if (activeUsers && activeUsers.length > 0) {
         for (const u of activeUsers) {
           await pool.query(
@@ -675,12 +687,12 @@ class ChatRepository {
           OR t.thread_type = 'SYSTEM_BROADCAST'
           OR (t.thread_type = 'PROPERTY_CHANNEL' AND t.property_id = ?)
           OR (t.thread_type = 'PROPERTY_CHANNEL' AND ? IN ('SUPER_ADMIN', 'ADMIN', 'OWNER'))
-          OR (t.title = 'General Group' AND t.thread_type = 'GROUP')
+          OR (t.title = 'General Group' AND t.thread_type = 'GROUP' AND ? IN (${ELIGIBLE_ROLES.map(() => '?').join(', ')}))
         )
       ORDER BY pin_order ASC, sort_key DESC
     `;
 
-    const threads = await pool.query(sql, [uId, propertyId || null, userRole]);
+    const threads = await pool.query(sql, [uId, propertyId || null, userRole, userRole, ...ELIGIBLE_ROLES]);
 
     const enriched = await Promise.all(
       threads.map(async (th) => {
@@ -872,9 +884,9 @@ class ChatRepository {
     }
 
     const canAutoJoin =
-      thread.title === 'General Group' ||
+      (thread.title === 'General Group' && ELIGIBLE_ROLES.includes(uRole)) ||
       (thread.thread_type === 'PROPERTY_CHANNEL' && ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(uRole)) ||
-      thread.thread_type === 'SYSTEM_BROADCAST';
+      (thread.thread_type === 'SYSTEM_BROADCAST' && ELIGIBLE_ROLES.includes(uRole));
 
     if (canAutoJoin) {
       const assignedRole = ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(uRole) ? 'ADMIN' : 'MEMBER';
@@ -966,9 +978,13 @@ class ChatRepository {
       const senderRole = msg.senderrole || msg.senderRole || msg.sender_role || 'STAFF';
       const senderId = Number(msg.sender_id || msg.senderid || msg.senderId || 0);
 
+      const ctxType = msg.context_entity_type || msg.contextEntityType || msg.contextentitytype || null;
+      const ctxId = msg.context_entity_id || msg.contextEntityId || msg.contextentityid || null;
+
       return {
         id: mId,
         threadId: Number(msg.thread_id || msg.threadid || msg.threadId || tId),
+        clientTempId: msg.client_temp_id || msg.clientTempId || msg.clienttempid || null,
         sender: {
           id: senderId,
           name: senderName,
@@ -977,12 +993,14 @@ class ChatRepository {
         messageType: msgType,
         content: isMsgDeleted ? 'This message was deleted' : msg.content,
         attachment: attachmentsMap[mId] || null,
-        contextEntity: msg.context_entity_type || msg.contextEntityType
+        contextEntity: ctxType
           ? {
-              type: msg.context_entity_type || msg.contextEntityType,
-              id: msg.context_entity_id || msg.contextEntityId,
+              type: ctxType,
+              id: ctxId,
             }
           : null,
+        contextEntityType: ctxType,
+        contextEntityId: ctxId,
         isEdited: isMsgEdited,
         isDeleted: isMsgDeleted,
         priority: msg.priority || 'NORMAL',

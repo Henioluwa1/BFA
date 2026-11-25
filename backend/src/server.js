@@ -10,6 +10,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { initializeChatSocket } = require('./modules/chat/chat.socket');
 const { setIO } = require('./core/socket/socketEmitter');
+const TicketSlaSchedulerService = require('./modules/workforce/ticketSlaScheduler.service');
 
 const PORT = config.app.port;
 
@@ -73,6 +74,7 @@ async function startServer() {
 
     setIO(io);
     initializeChatSocket(io);
+    TicketSlaSchedulerService.startScheduler();
 
     const server = httpServer.listen(PORT, () => {
       logger.info(`BFA Backend API server running on port ${PORT} [${config.app.env}]`);
@@ -98,6 +100,7 @@ async function startServer() {
 
       // Mark readiness probe as not ready so load balancers stop routing new traffic
       HealthController.setShuttingDown(true);
+      TicketSlaSchedulerService.stopScheduler();
 
       // Close active Socket.IO connections
       try {

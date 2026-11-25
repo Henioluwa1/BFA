@@ -363,7 +363,7 @@ async function getPublicRoomTypes(req, res, next) {
     }
 
     const propRows = await db.query(
-      'SELECT id, name, code, city, amenities FROM properties WHERE id = ? AND status = "ACTIVE"',
+      'SELECT id, name, code, city, amenities FROM properties WHERE id = ? AND status = \'ACTIVE\'',
       [propertyId]
     );
     if (propRows.length === 0) {
@@ -642,6 +642,8 @@ async function createPublicBooking(req, res, next) {
   try {
     const {
       apartmentId,
+      propertyId: requestedPropertyId,
+      property_id: requestedPropertySnakeId,
       guestName,
       guestEmail,
       guestPhone,
@@ -660,6 +662,29 @@ async function createPublicBooking(req, res, next) {
 
     if (!apartmentId || !guestName || !guestEmail || !guestPhone || !checkInDate) {
       throw new ValidationError('All booking fields are required (apartmentId, guestName, guestEmail, guestPhone, checkInDate).');
+    }
+
+    const parsedAptId = parseInt(apartmentId, 10);
+    if (!Number.isFinite(parsedAptId) || parsedAptId <= 0) {
+      throw new ValidationError('Invalid apartmentId supplied.');
+    }
+
+    const aptLookup = await db.query(
+      `SELECT a.id, a.property_id, a.status, p.status AS property_status
+       FROM apartments a
+       JOIN properties p ON p.id = a.property_id
+       WHERE a.id = ?
+       LIMIT 1`,
+      [parsedAptId]
+    );
+    if (!aptLookup || aptLookup.length === 0) {
+      throw new NotFoundError(`Apartment unit #${parsedAptId} not found.`);
+    }
+    const aptRow = aptLookup[0];
+    const resolvedPropertyId = parseInt(aptRow.property_id, 10);
+    const providedPropId = requestedPropertyId || requestedPropertySnakeId;
+    if (providedPropId && parseInt(providedPropId, 10) !== resolvedPropertyId) {
+      throw new ValidationError('Requested propertyId does not match the selected apartment unit.');
     }
 
     const finalMethod = (paymentOption === 'PAY_AT_PROPERTY' || paymentMethod === 'PAY_AT_PROPERTY')
@@ -720,7 +745,8 @@ async function createPublicBooking(req, res, next) {
 
     const reservation = await ReservationsService.createReservation(
       {
-        apartment_id: parseInt(apartmentId, 10),
+        apartment_id: parsedAptId,
+        property_id: resolvedPropertyId,
         tenant_name: guestName,
         tenant_email: guestEmail,
         tenant_phone: guestPhone,
@@ -803,7 +829,7 @@ async function createPublicBooking(req, res, next) {
     });
 
     if (isBankTransfer && hasProof) {
-      await db.query('UPDATE reservations SET payment_status = "PROOF_UPLOADED" WHERE id = ?', [reservation.id]);
+      await db.query("UPDATE reservations SET payment_status = 'PROOF_UPLOADED' WHERE id = ?", [reservation.id]);
     }
 
     return res.status(201).json({
@@ -902,7 +928,7 @@ async function trackBooking(req, res, next) {
     let authCode = null;
     if (isApproved) {
       const authRows = await db.query(
-        'SELECT auth_code FROM booking_authentications WHERE reservation_id = ? AND status = "ACTIVE" LIMIT 1',
+        "SELECT auth_code FROM booking_authentications WHERE reservation_id = ? AND status = 'ACTIVE' LIMIT 1",
         [r.id]
       );
       authCode = authRows[0]?.auth_code || null;

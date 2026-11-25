@@ -65,62 +65,111 @@ export default function OperationChatCard({
   const activePriority = opData?.priority || priority || 'NORMAL';
   const prioBadge = {
     CRITICAL: {
-      text: '🚨 CRITICAL DIRECTIVE',
+      text: 'CRITICAL TICKET',
       bg: 'rgba(239, 68, 68, 0.25)',
       color: '#f87171',
       border: '#ef4444',
     },
     URGENT: {
-      text: '⚡ URGENT DIRECTIVE',
+      text: 'URGENT TICKET',
       bg: 'rgba(245, 158, 11, 0.25)',
       color: '#fbbf24',
       border: '#f59e0b',
     },
+    HIGH: {
+      text: 'HIGH PRIORITY',
+      bg: 'rgba(245, 158, 11, 0.22)',
+      color: '#fbbf24',
+      border: '#f59e0b',
+    },
     IMPORTANT: {
-      text: '⚠️ IMPORTANT DIRECTIVE',
+      text: 'IMPORTANT TICKET',
       bg: 'rgba(245, 158, 11, 0.20)',
       color: '#fbbf24',
       border: '#f59e0b',
     },
     NORMAL: {
-      text: '📋 OFFICIAL DIRECTIVE',
+      text: 'STANDARD TICKET',
       bg: 'rgba(59, 130, 246, 0.20)',
       color: '#60a5fa',
       border: '#3b82f6',
     },
+    LOW: {
+      text: 'LOW PRIORITY',
+      bg: 'rgba(148, 163, 184, 0.20)',
+      color: '#cbd5e1',
+      border: '#94a3b8',
+    },
   }[activePriority] || {
-    text: '📋 OFFICIAL DIRECTIVE',
+    text: 'STANDARD TICKET',
     bg: 'rgba(59, 130, 246, 0.20)',
     color: '#60a5fa',
     border: '#3b82f6',
   };
 
   // Status Badge
-  const status = opData?.status || 'ISSUED';
+  const status = opData?.status || 'OPEN';
   const statusMeta = {
+    OPEN: { label: 'OPEN', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.2)' },
+    ISSUED: { label: 'OPEN / ISSUED', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.2)' },
+    ASSIGNED: { label: 'ASSIGNED', color: '#60a5fa', bg: 'rgba(59, 130, 246, 0.2)' },
     AWAITING_OWNERSHIP: { label: 'AWAITING OWNER', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.2)' },
     AWAITING_ACKNOWLEDGEMENT: { label: 'AWAITING ACK', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.2)' },
-    IN_PROGRESS: { label: 'IN PROGRESS', color: '#60a5fa', bg: 'rgba(59, 130, 246, 0.2)' },
+    ACKNOWLEDGED: { label: 'ACKNOWLEDGED', color: '#34d399', bg: 'rgba(52, 211, 153, 0.2)' },
     ACCEPTED: { label: 'ACCEPTED', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.2)' },
+    IN_PROGRESS: { label: 'IN PROGRESS', color: '#60a5fa', bg: 'rgba(59, 130, 246, 0.2)' },
+    PENDING_CLARIFICATION: { label: 'CLARIFICATION', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.2)' },
+    EXTENSION_REQUESTED: { label: 'EXTENSION REQ.', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.2)' },
+    ESCALATED: { label: 'ESCALATED', color: '#f87171', bg: 'rgba(248, 113, 113, 0.24)' },
     SUBMITTED_FOR_REVIEW: { label: 'UNDER REVIEW', color: '#c084fc', bg: 'rgba(192, 132, 252, 0.2)' },
     AWAITING_REVIEW: { label: 'AWAITING REVIEW', color: '#c084fc', bg: 'rgba(192, 132, 252, 0.2)' },
-    COMPLETED: { label: 'COMPLETED', color: '#34d399', bg: 'rgba(52, 211, 153, 0.2)' },
-    BLOCKED: { label: 'BLOCKED', color: '#f87171', bg: 'rgba(248, 113, 113, 0.2)' },
     REVISION_REQUIRED: { label: 'REVISION REQ.', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.2)' },
+    COMPLETED: { label: 'COMPLETED', color: '#34d399', bg: 'rgba(52, 211, 153, 0.2)' },
+    CLOSED: { label: 'CLOSED', color: '#10b981', bg: 'rgba(16, 185, 129, 0.22)' },
+    REOPENED: { label: 'REOPENED', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.22)' },
+    REJECTED: { label: 'REJECTED', color: '#f87171', bg: 'rgba(248, 113, 113, 0.2)' },
+    DECLINED: { label: 'DECLINED', color: '#f87171', bg: 'rgba(248, 113, 113, 0.2)' },
+    CANCELLED: { label: 'CANCELLED', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.2)' },
+    BLOCKED: { label: 'BLOCKED', color: '#f87171', bg: 'rgba(248, 113, 113, 0.2)' },
   }[status] || { label: status, color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.2)' };
 
-  // Recipient check
+  const formatWat = (iso) => {
+    if (!iso) return null;
+    try {
+      return `${new Intl.DateTimeFormat('en-NG', {
+        timeZone: 'Africa/Lagos',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(iso))} WAT`;
+    } catch {
+      return null;
+    }
+  };
+
+  // Recipient & SLA check
   const currentUserId = Number(currentUser?.id);
   const myRecipient = opData?.recipients?.find((r) => Number(r.user_id) === currentUserId);
-  const isAcknowledged = Boolean(myRecipient?.acknowledged_at);
-  const canAcknowledge = myRecipient && !isAcknowledged;
+  const isViewerResponsible = Number(opData?.current_responsible_user_id) === currentUserId;
+  const isTerminal = ['COMPLETED', 'CLOSED', 'CANCELLED', 'REJECTED'].includes(status);
+  const isAcknowledged = Boolean(myRecipient?.acknowledged_at || (isViewerResponsible && opData?.first_acknowledged_at));
+  const canAcknowledge = !isTerminal && !isAcknowledged && (Boolean(myRecipient) || isViewerResponsible);
+
+  const rawAckDeadline = opData?.acknowledgment_deadline_at || opData?.ack_deadline_at;
+  const ackDeadlineLabel = formatWat(rawAckDeadline);
+  const executionDueLabel = formatWat(opData?.deadline_at || opData?.due_at);
+  const isAckPending = !isTerminal && !opData?.first_acknowledged_at && !isAcknowledged && Boolean(rawAckDeadline);
+  const isAckOverdue = Boolean(
+    isAckPending && rawAckDeadline && new Date(rawAckDeadline).getTime() < Date.now()
+  );
 
   // Claim eligibility:
-  // If operation has no assigned user or is in AWAITING_OWNERSHIP, and user is in the recipient group or target role
+  // If operation has no assigned user or is in AWAITING_OWNERSHIP/OPEN, and user is in the recipient group or target role
   const isAssigned = Boolean(opData?.current_responsible_user_id);
-  const isViewerResponsible = Number(opData?.current_responsible_user_id) === currentUserId;
-  const canClaim = !isAssigned && (
+  const canClaim = !isAssigned && !isTerminal && (
     status === 'AWAITING_OWNERSHIP' ||
+    status === 'OPEN' ||
     status === 'ISSUED' ||
     status === 'AWAITING_ACKNOWLEDGEMENT'
   ) && (
@@ -129,8 +178,9 @@ export default function OperationChatCard({
   );
 
   // Next action display
-  const viewerNextAction = opData?.viewer_next_action?.text || opData?.next_action || 'Review directive mandates and acknowledge receipt.';
-  const displayTitle = opData?.title || initialTitle || 'Central Operational Directive';
+  const viewerNextAction = opData?.viewer_next_action?.text || opData?.next_action || 'Review ticket directive and acknowledge receipt.';
+  const displayTitle = opData?.title || initialTitle || 'Operational Ticket';
+  const displayTicketRef = opData?.ticket_reference || opData?.operation_code;
   const displayMemoRef = opData?.memo_reference || (opData?.memos?.[0]?.memo_reference) || memoRef;
   const targetOpId = opData?.id || cleanOpId;
 
@@ -225,7 +275,7 @@ export default function OperationChatCard({
     >
       {/* Top Meta Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <span
             style={{
               fontSize: '0.68rem',
@@ -253,12 +303,27 @@ export default function OperationChatCard({
           >
             {statusMeta.label}
           </span>
+          {isAckOverdue && (
+            <span
+              style={{
+                fontSize: '0.66rem',
+                fontWeight: 800,
+                padding: '2px 7px',
+                borderRadius: '4px',
+                background: 'rgba(239, 68, 68, 0.28)',
+                color: '#fca5a5',
+                border: '1px solid #ef4444',
+              }}
+            >
+              ACK SLA OVERDUE
+            </span>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.75)' }}>
-          {opData?.operation_code && (
-            <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-              {opData.operation_code}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.75)' }}>
+          {displayTicketRef && (
+            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#93c5fd' }}>
+              {displayTicketRef}
             </span>
           )}
           {displayMemoRef && (
@@ -268,6 +333,24 @@ export default function OperationChatCard({
           )}
         </div>
       </div>
+
+      {/* SLA & Deadline Strip */}
+      {(ackDeadlineLabel || executionDueLabel) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.75)' }}>
+          {ackDeadlineLabel && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: isAcknowledged ? '#34d399' : isAckOverdue ? '#f87171' : '#fbbf24' }}>
+              <Clock size={12} />
+              {isAcknowledged ? 'Acknowledged' : `Ack SLA Due: ${ackDeadlineLabel}`}
+            </span>
+          )}
+          {executionDueLabel && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#cbd5e1' }}>
+              <Clock size={12} />
+              Target Due: {executionDueLabel}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Operation Title */}
       <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ffffff', lineHeight: 1.35 }}>

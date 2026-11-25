@@ -116,8 +116,8 @@ export function parseChatMessage(msg) {
 
   const content = msg.content || '';
   const messageType = msg.message_type || msg.messageType || 'TEXT';
-  const contextEntityType = msg.context_entity_type || msg.contextEntityType;
-  const contextEntityId = msg.context_entity_id || msg.contextEntityId;
+  const contextEntityType = msg.context_entity_type || msg.contextEntityType || msg.contextEntity?.type;
+  const contextEntityId = msg.context_entity_id || msg.contextEntityId || msg.contextEntity?.id;
 
   // 1. System Notice
   if (messageType === 'SYSTEM_NOTICE') {
@@ -129,37 +129,39 @@ export function parseChatMessage(msg) {
     };
   }
 
-  // 2. Official Operation Memo / Directive Card
+  // 2. Official Operation Memo / Ticket / Directive Card
   if (
+    content.includes('[OPERATIONAL TICKET') ||
     content.includes('[OFFICIAL OPERATIONS MEMO') ||
     content.includes('Official Directive:') ||
     ((contextEntityType === 'OPERATION' || contextEntityType === 'MEMO') && (content.includes('Ref: OPS-') || content.includes('Title:')))
   ) {
     const memoRef = content.match(/MEMO-[^\s\n\]]+/)?.[0] || '';
+    const ticketMatch = content.match(/((?:BFA-)?TKT-[^\s\n\]]+)/i);
     const refMatch = content.match(/Ref:\s*(OPS-[^\s\n]+)/i);
     const titleMatch = content.match(/Title:\s*([^\n]+)/i);
     const categoryMatch = content.match(/Category:\s*([^\n]+)/i);
-    const prioMatch = content.match(/Priority:\s*([^\n]+)/i);
+    const prioMatch = content.match(/Priority:\s*([^\s(\n]+)/i);
     const scopeMatch = content.match(/Property Scope:\s*([^\n]+)/i);
-    const deadlineMatch = content.match(/Deadline:\s*([^\n]+)/i);
+    const deadlineMatch = content.match(/(?:Exec )?Deadline:\s*([^\n]+)/i);
     const ownerMatch = content.match(/Current Owner:\s*([^\n]+)/i);
-    const nextMatch = content.match(/Next Action:\s*([^\n]+)/i);
+    const nextMatch = content.match(/(?:Next Action|Action Required):\s*([^\n]+)/i);
     const subjectMatch = content.match(/Subject:\s*([^\n]+)/i);
     const instructionsMatch = content.match(/Instructions:\s*([\s\S]*?)(?=\n\n⚠️|\n\nRef:|$)/i);
 
     return {
       type: 'OFFICIAL_OPERATION',
       data: {
-        operationId: contextEntityId || refMatch?.[1],
-        operationCode: refMatch?.[1] || (contextEntityId ? `OPS-${contextEntityId}` : ''),
+        operationId: contextEntityId || refMatch?.[1] || ticketMatch?.[1],
+        operationCode: ticketMatch?.[1] || refMatch?.[1] || (contextEntityId ? `OPS-${contextEntityId}` : ''),
         memoRef,
-        title: titleMatch?.[1]?.replace(/^TEST-SCENARIO-[A-Z]:\s*/i, '')?.trim() || 'Central Operational Directive',
+        title: titleMatch?.[1]?.replace(/^TEST-SCENARIO-[A-Z]:\s*/i, '')?.trim() || 'Operational Ticket Directive',
         category: categoryMatch?.[1]?.trim() || 'OPERATIONS',
         priority: prioMatch?.[1]?.trim() || msg.priority || 'NORMAL',
         propertyScope: scopeMatch?.[1]?.trim() || 'All Properties',
         deadline: deadlineMatch?.[1]?.trim() || '',
         currentOwner: ownerMatch?.[1]?.trim() || 'Awaiting Ownership',
-        nextAction: nextMatch?.[1]?.trim() || 'Review directive mandates and acknowledge receipt.',
+        nextAction: nextMatch?.[1]?.trim() || 'Open ticket card to acknowledge receipt and track execution.',
         subject: subjectMatch?.[1]?.trim() || '',
         instructions: instructionsMatch?.[1]?.trim() || '',
       },

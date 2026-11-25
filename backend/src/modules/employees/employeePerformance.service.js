@@ -2,6 +2,7 @@ const pool = require('../../db/pool');
 const EmployeesRepository = require('./employees.repository');
 const EmployeeActivitiesRepository = require('./employeeActivities.repository');
 const EmployeeEvaluationsRepository = require('./employeeEvaluations.repository');
+const PerformanceEngineService = require('../workforce/performanceEngine.service');
 
 class EmployeePerformanceService {
   /**
@@ -130,7 +131,7 @@ class EmployeePerformanceService {
    * 3. Historical evaluation scores and trends
    * 4. Dimension breakdown
    */
-  static async getEmployeePerformance(employeeId, { fromDate, toDate } = {}) {
+  static async getEmployeePerformance(employeeId, { fromDate, toDate, requestingUser = null } = {}) {
     const employee = await EmployeesRepository.findById(employeeId);
     if (!employee) return null;
 
@@ -203,6 +204,7 @@ class EmployeePerformanceService {
     };
 
     return {
+      ticketAttendancePerformance: employee.user_id ? await PerformanceEngineService.getStaffPerformance(requestingUser || { id: employee.user_id, role: 'STAFF', propertyId: employee.property_id }, employee.user_id, { startDate: fromDate, endDate: toDate }).catch(() => null) : null,
       period: systemMetrics?.period ? {
         start: systemMetrics.period.fromDate,
         end: systemMetrics.period.toDate,

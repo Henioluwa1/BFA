@@ -35,12 +35,13 @@ async function runVerification() {
     // ----------------------------------------------------
     console.log('[1/5] Authenticating user roles across hierarchy...');
 
+    const testPwd = process.env.BFA_QA_PASSWORD || process.env.TEST_USER_PASSWORD || '';
     const [saRes, adminRes, mgrRes, ownerRes, recRes] = await Promise.all([
-      request(app).post('/api/v1/auth/login').send({ email: 'superadmin@bfa.com', password: 'Bfa2026!Secure' }),
-      request(app).post('/api/v1/auth/login').send({ email: 'admin@bfa.com', password: 'Bfa2026!Secure' }),
-      request(app).post('/api/v1/auth/login').send({ email: 'manager@bfa.com', password: 'Bfa2026!Secure' }),
-      request(app).post('/api/v1/auth/login').send({ email: 'owner@bfa.com', password: 'Bfa2026!Secure' }),
-      request(app).post('/api/v1/auth/login').send({ email: 'receptionist@bfa.com', password: 'Bfa2026!Secure' }),
+      request(app).post('/api/v1/auth/login').send({ email: 'superadmin@bfa.com', password: testPwd }),
+      request(app).post('/api/v1/auth/login').send({ email: 'admin@bfa.com', password: testPwd }),
+      request(app).post('/api/v1/auth/login').send({ email: 'manager@bfa.com', password: testPwd }),
+      request(app).post('/api/v1/auth/login').send({ email: 'owner@bfa.com', password: testPwd }),
+      request(app).post('/api/v1/auth/login').send({ email: 'receptionist@bfa.com', password: testPwd }),
     ]);
 
     const saToken = saRes.body?.data?.token;

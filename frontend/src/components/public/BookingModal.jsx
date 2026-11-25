@@ -234,8 +234,28 @@ export default function BookingModal({
     e.preventDefault();
     setSubmitError('');
 
-    if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
+    const cleanName = guestName.trim();
+    const cleanEmail = guestEmail.trim();
+    const cleanPhone = guestPhone.trim();
+
+    if (!cleanName || !cleanEmail || !cleanPhone) {
       setSubmitError('Please provide your full name, email address, and phone number.');
+      return;
+    }
+    if (cleanName.split(/\s+/).length < 2) {
+      setSubmitError('Please enter your full first and last name.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setSubmitError('Please enter a valid email address.');
+      return;
+    }
+    if (cleanPhone.replace(/\D/g, '').length < 7) {
+      setSubmitError('Please enter a valid contact phone number (at least 7 digits).');
+      return;
+    }
+    if (!isAvailable) {
+      setSubmitError('This unit is currently unavailable for the selected date.');
       return;
     }
 
@@ -247,7 +267,7 @@ export default function BookingModal({
     setIsSubmitting(true);
 
     try {
-      // 1. Upload proof file via backend upload endpoint if bank transfer
+      // 1. Upload proof file via backend upload endpoint only after validation passes
       let serverProofUrl = null;
       let serverFilePath = null;
 
@@ -261,12 +281,13 @@ export default function BookingModal({
         serverFilePath = uploadRes.data?.filePath || uploadRes?.filePath;
       }
 
-      // 2. Submit reservation request
+      // 2. Submit reservation request with explicit propertyId derived from property/unit
       const res = await publicService.createBooking({
         apartmentId: unit.id,
-        guestName: guestName.trim(),
-        guestEmail: guestEmail.trim(),
-        guestPhone: guestPhone.trim(),
+        propertyId: property?.id || unit?.property_id || unit?.propertyId,
+        guestName: cleanName,
+        guestEmail: cleanEmail,
+        guestPhone: cleanPhone,
         checkInDate,
         paymentOption,
         paymentMethod: paymentOption,

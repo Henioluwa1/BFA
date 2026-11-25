@@ -12,7 +12,7 @@ import {
   CheckCircle2,
   HelpCircle,
 } from 'lucide-react';
-import api from '../../services/api';
+import api, { centralOperationsService } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
 /**
@@ -41,6 +41,17 @@ export default function InChatOperationModal({
   // Form State
   const isOwner = (currentUser?.role || '').toUpperCase() === 'OWNER';
   const [scope, setScope] = useState('PERSONAL'); // 'PERSONAL' (DM) | 'TEAM' (Property/Group Channel)
+  const [groupAudiencePreset, setGroupAudiencePreset] = useState('MANAGERS_ONLY');
+  const [ackSlaMap, setAckSlaMap] = useState({ CRITICAL: 3, URGENT: 6, HIGH: 6, NORMAL: 12, IMPORTANT: 12, LOW: 24 });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    centralOperationsService.getAckSlaConfig()
+      .then((res) => {
+        if (res?.data?.data) setAckSlaMap((prev) => ({ ...prev, ...res.data.data }));
+      })
+      .catch(() => {});
+  }, [isOpen]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState(currentUser?.propertyId || '');
@@ -78,9 +89,9 @@ export default function InChatOperationModal({
             Number(u.id) !== Number(currentUser?.id)
           );
         } else if (['ADMIN', 'SUPER_ADMIN'].includes(userRole)) {
-          // Admin initiates for Managers
+          // Admin initiates personal 1-to-1 tickets to Managers or Staff/Receptionists
           filtered = usersList.filter((u) =>
-            ['MANAGER', 'OPERATIONS_MANAGER'].includes((u.role || '').toUpperCase()) &&
+            ['MANAGER', 'OPERATIONS_MANAGER', 'STAFF', 'RECEPTIONIST'].includes((u.role || '').toUpperCase()) &&
             Number(u.id) !== Number(currentUser?.id)
           );
         } else if (['MANAGER', 'OPERATIONS_MANAGER'].includes(userRole)) {
@@ -148,7 +159,11 @@ export default function InChatOperationModal({
       const isPersonal = scope === 'PERSONAL' || !isOwner;
       const targetAudience = isPersonal
         ? 'SPECIFIC_USER'
-        : (selectedUserIds.length > 0 ? 'ROLE_GROUP' : (selectedPropertyId ? 'PROPERTY_ALL' : 'ALL'));
+        : selectedUserIds.length > 1
+          ? 'SPECIFIC_USERS'
+          : selectedUserIds.length === 1
+            ? 'SPECIFIC_USER'
+            : groupAudiencePreset;
 
       const recipientIds = isPersonal
         ? (selectedUserId ? [parseInt(selectedUserId, 10)] : [])
@@ -279,13 +294,13 @@ export default function InChatOperationModal({
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+        <form onSubmit={handleSubmit} style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box', padding: '16px 18px' }}>
           {/* Routing Scope Selection */}
           <div style={{ marginBottom: '18px' }}>
             <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#ffffff', marginBottom: '8px' }}>
               Routing Scope
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: '12px' }}>
               <button
                 type="button"
                 onClick={() => setScope('PERSONAL')}
@@ -353,12 +368,37 @@ export default function InChatOperationModal({
             </div>
           </div>
 
-          {/* Multi-Recipient Selector (When Team/Group & Owner) */}
+          {/* Multi-Recipient Selector & Group Preset (When Team/Group & Owner) */}
           {scope === 'TEAM' && isOwner && (
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#ffffff', marginBottom: '6px' }}>
-                Target Recipients (Select Management Personnel)
-              </label>
+            <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#ffffff', marginBottom: '6px' }}>
+                  Group Target Audience (When No Individual Checkboxes Selected)
+                </label>
+                <select
+                  value={groupAudiencePreset}
+                  onChange={(e) => setGroupAudiencePreset(e.target.value)}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '9px 12px',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.84rem',
+                  }}
+                >
+                  <option value="MANAGERS_ONLY" style={{ background: '#0a0a0e' }}>Management Team Only (Admin & Operations Managers)</option>
+                  <option value="ALL_MANAGEMENT" style={{ background: '#0a0a0e' }}>All Leadership & Management</option>
+                  <option value="PROPERTY_ALL" style={{ background: '#0a0a0e' }}>Selected Property Team</option>
+                  <option value="ALL_STAFF" style={{ background: '#0a0a0e' }}>General Company / All Active Staff</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#ffffff', marginBottom: '6px' }}>
+                  Or Select Specific Management Recipients (Optional Override)
+                </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '140px', overflowY: 'auto', padding: '10px', background: 'rgba(0, 0, 0, 0.4)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
                 {eligibleUsers.map((u) => {
                   const isChecked = selectedUserIds.includes(Number(u.id));
@@ -382,6 +422,7 @@ export default function InChatOperationModal({
               </div>
               <div style={{ fontSize: '0.72rem', color: 'rgba(255, 255, 255, 0.6)', marginTop: '4px' }}>
                 Leave unselected to address the entire property/corporate channel.
+              </div>
               </div>
             </div>
           )}
@@ -448,7 +489,7 @@ export default function InChatOperationModal({
           </div>
 
           {/* Title & Category Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '14px', marginBottom: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#ffffff', marginBottom: '6px' }}>
                 Operation Title <span style={{ color: '#f87171' }}>*</span>
@@ -501,16 +542,17 @@ export default function InChatOperationModal({
           </div>
 
           {/* Priority & Deadline Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '14px', marginBottom: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#ffffff', marginBottom: '6px' }}>
-                Priority Level
+                Priority Level (Ack SLA: {ackSlaMap[priority] || 12}h)
               </label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 style={{
                   width: '100%',
+                  boxSizing: 'border-box',
                   padding: '9px 12px',
                   background: 'rgba(0, 0, 0, 0.5)',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -520,10 +562,12 @@ export default function InChatOperationModal({
                   outline: 'none',
                 }}
               >
-                <option value="NORMAL" style={{ background: '#0a0a0e', color: '#fff' }}>📋 NORMAL (Routine Standard Ops)</option>
-                <option value="IMPORTANT" style={{ background: '#0a0a0e', color: '#fbbf24' }}>⚠️ IMPORTANT (Elevated Attention)</option>
-                <option value="URGENT" style={{ background: '#0a0a0e', color: '#f87171' }}>⚡ URGENT (Immediate Action Required)</option>
-                <option value="CRITICAL" style={{ background: '#0a0a0e', color: '#ef4444' }}>🚨 CRITICAL (Emergency / Mandatory)</option>
+                <option value="LOW" style={{ background: '#0a0a0e', color: '#38bdf8' }}>🔵 LOW ({ackSlaMap.LOW || 24}h Ack SLA)</option>
+                <option value="NORMAL" style={{ background: '#0a0a0e', color: '#fff' }}>📋 NORMAL ({ackSlaMap.NORMAL || 12}h Ack SLA)</option>
+                <option value="IMPORTANT" style={{ background: '#0a0a0e', color: '#fbbf24' }}>⚠️ IMPORTANT ({ackSlaMap.IMPORTANT || 12}h Ack SLA)</option>
+                <option value="HIGH" style={{ background: '#0a0a0e', color: '#fb923c' }}>🔥 HIGH ({ackSlaMap.HIGH || 6}h Ack SLA)</option>
+                <option value="URGENT" style={{ background: '#0a0a0e', color: '#f87171' }}>⚡ URGENT ({ackSlaMap.URGENT || 6}h Ack SLA)</option>
+                <option value="CRITICAL" style={{ background: '#0a0a0e', color: '#ef4444' }}>🚨 CRITICAL ({ackSlaMap.CRITICAL || 3}h Ack SLA)</option>
               </select>
             </div>
             <div>
@@ -652,7 +696,7 @@ export default function InChatOperationModal({
           </div>
 
           {/* Accountability Matrix */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '14px', marginBottom: '20px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#ffffff', marginBottom: '6px' }}>
                 Accountability Definition

@@ -130,7 +130,7 @@ async function runBrowserVerification() {
   console.log('\nLogging in via UI as OPERATIONS_MANAGER (manager@bfa.com)...');
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle0' });
   await page.type('#login-email, input[type="email"]', 'manager@bfa.com');
-  await page.type('#login-password, input[type="password"]', 'Bfa2026!Secure');
+  await page.type('#login-password, input[type="password"]', process.env.BFA_QA_PASSWORD || process.env.TEST_USER_PASSWORD || '');
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'networkidle0' }),
     page.click('button[type="submit"]'),

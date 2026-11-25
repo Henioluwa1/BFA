@@ -223,12 +223,146 @@ class CentralOperationsController {
    */
   static async assignOperation(req, res, next) {
     try {
-      const { targetUserId, notes } = req.body;
-      const operation = await CentralOperationsService.assignOperation(req.user, req.params.id, targetUserId, notes);
+      const { targetUserId, notes, reason } = req.body;
+      const operation = await CentralOperationsService.assignOperation(req.user, req.params.id, targetUserId, notes, { reason });
       return ApiResponse.success(res, {
-        message: 'Operation responsibility successfully assigned.',
+        message: 'Ticket ownership successfully assigned.',
         data: operation,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Retrieve priority-based Acknowledgment SLA configuration (hours)
+   */
+  static async getAckSlaConfig(req, res, next) {
+    try {
+      const data = await CentralOperationsService.getAckSlaConfig();
+      return ApiResponse.success(res, { message: 'Ticket SLA configuration retrieved.', data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Update priority-based Acknowledgment SLA configuration (Owner / Super Admin, 3-24h bounds)
+   */
+  static async updateAckSlaConfig(req, res, next) {
+    try {
+      const data = await CentralOperationsService.updateAckSlaConfig(req.user, req.body);
+      return ApiResponse.success(res, { message: 'Ticket Acknowledgment SLA settings updated.', data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Start execution explicitly (distinct from Acknowledge & Accept Responsibility)
+   */
+  static async startExecution(req, res, next) {
+    try {
+      const operation = await CentralOperationsService.startExecution(req.user, req.params.id, req.body?.notes);
+      return ApiResponse.success(res, { message: 'Ticket execution started.', data: operation });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Resolve blocker and resume execution
+   */
+  static async resolveBlocker(req, res, next) {
+    try {
+      const operation = await CentralOperationsService.resolveBlocker(req.user, req.params.id, req.body);
+      return ApiResponse.success(res, { message: 'Ticket blocker resolved.', data: operation });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Request deadline extension
+   */
+  static async requestExtension(req, res, next) {
+    try {
+      const operation = await CentralOperationsService.requestExtension(req.user, req.params.id, req.body);
+      return ApiResponse.success(res, { message: 'Deadline extension request submitted.', data: operation });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Approve or reject deadline extension
+   */
+  static async reviewExtension(req, res, next) {
+    try {
+      const operation = await CentralOperationsService.reviewExtension(req.user, req.params.id, req.body);
+      return ApiResponse.success(res, { message: 'Deadline extension request reviewed.', data: operation });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Upload binary evidence into database storage
+   */
+  static async uploadEvidence(req, res, next) {
+    try {
+      const evidence = await CentralOperationsService.uploadEvidence(req.user, req.params.id, req.body);
+      return ApiResponse.created(res, { message: 'Evidence attachment saved.', data: evidence });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Stream DB-stored evidence attachment cleanly
+   */
+  static async getEvidenceFile(req, res, next) {
+    try {
+      const doc = await CentralOperationsService.getEvidenceFile(req.user, req.params.id, req.params.docId);
+      res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${doc.file_name || 'evidence'}"`);
+      return res.end(doc.file_data);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Reject or decline invalid/misassigned ticket with reason
+   */
+  static async rejectOrDeclineTicket(req, res, next) {
+    try {
+      const operation = await CentralOperationsService.rejectOrDeclineTicket(req.user, req.params.id, req.body);
+      return ApiResponse.success(res, { message: 'Ticket rejection/decline recorded.', data: operation });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Formally close ticket
+   */
+  static async closeTicket(req, res, next) {
+    try {
+      const operation = await CentralOperationsService.closeTicket(req.user, req.params.id, req.body);
+      return ApiResponse.success(res, { message: 'Ticket formally closed.', data: operation });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Reopen closed/completed/rejected ticket with preserved history
+   */
+  static async reopenTicket(req, res, next) {
+    try {
+      const operation = await CentralOperationsService.reopenTicket(req.user, req.params.id, req.body);
+      return ApiResponse.success(res, { message: 'Ticket reopened cleanly.', data: operation });
     } catch (err) {
       next(err);
     }

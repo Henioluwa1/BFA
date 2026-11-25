@@ -608,9 +608,12 @@ export default function FloatingStaffChatModal() {
     return threads.filter((t) => {
       const parsed = parseConversationTitle(t);
       const tType = t.thread_type || t.threadType;
+      const hasOpContent =
+        parsed.isOperation ||
+        /BFA-TKT-|OPERATIONAL TICKET|OFFICIAL OPERATION|MEMO-\d+/i.test(String(t.last_message_preview || t.lastMessage?.content || ''));
       if (threadFilter === 'DIRECT' && tType !== 'DIRECT') return false;
       if (threadFilter === 'GROUP' && (tType === 'DIRECT' || parsed.isOperation)) return false;
-      if (threadFilter === 'OPERATIONS' && !parsed.isOperation) return false;
+      if (threadFilter === 'OPERATIONS' && !hasOpContent) return false;
 
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
