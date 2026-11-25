@@ -3,6 +3,7 @@ const config = require('./config');
 const logger = require('./utils/logger');
 const pool = require('./db/pool');
 const { testPgConnection, closePgPool } = require('./db/pgPool');
+const { runPgMigrations } = require('./db/pgMigrator');
 const { runMigrations, checkMigrationStatus } = require('./db/migrator');
 const { validateEnvironment } = require('./config/envValidator');
 const HealthController = require('./modules/health/health.controller');
@@ -27,6 +28,8 @@ async function startServer() {
     // 2. Database Migration & Schema Compatibility Check
     if (pool.isPostgres()) {
       logger.info('PostgreSQL (Aiven) active as target database engine.');
+      // Apply any pending forward-only PG migrations (advisory-locked & idempotent)
+      await runPgMigrations();
       // 3. Test PostgreSQL (Aiven) database connection
       const pgTest = await pool.testConnection();
       logger.info(`PostgreSQL (Aiven) database connected successfully. Database: ${pgTest.database} (Latency: ${pgTest.latencyMs}ms)`);
