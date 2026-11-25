@@ -371,11 +371,11 @@ export default function BookingModal({
                 /* Celebration State */
                 <div>
                   <div className="bfa-celebration-checkmark">✓</div>
-                  <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.4rem' }}>
+                  <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.4rem' }}>
                     Reservation Verified & Confirmed!
                   </h3>
-                  <p style={{ color: '#64748b', fontSize: '0.88rem', margin: '0 0 1.25rem' }}>
-                    Welcome to BFA Luxury Residences, <strong>{liveTracking.guestName || guestName}</strong>! Your 1-night stay has been confirmed in our official registry.
+                  <p style={{ color: '#334155', fontSize: '0.88rem', margin: '0 0 1.25rem' }}>
+                    Welcome to BFA Luxury Residences, <strong style={{ color: '#0f172a' }}>{liveTracking.guestName || guestName}</strong>! Your 1-night stay has been confirmed in our official registry.
                   </p>
 
                   {/* Check-In Passcode Box */}
@@ -401,20 +401,20 @@ export default function BookingModal({
 
                   <div className="bfa-modal-section-card" style={{ textAlign: 'left', marginBottom: '1.25rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                      <span style={{ color: '#64748b' }}>Reference Code:</span>
-                      <strong style={{ fontFamily: 'monospace', color: '#2563eb' }}>{liveTracking.reservationCode}</strong>
+                      <span style={{ color: '#475569', fontWeight: 600 }}>Reference Code:</span>
+                      <strong style={{ fontFamily: 'monospace', color: '#1d4ed8' }}>{liveTracking.reservationCode}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                      <span style={{ color: '#64748b' }}>Residence & Suite:</span>
-                      <strong>{liveTracking.propertyName} — Unit {liveTracking.unitNumber}</strong>
+                      <span style={{ color: '#475569', fontWeight: 600 }}>Residence & Suite:</span>
+                      <strong style={{ color: '#0f172a' }}>{liveTracking.propertyName} — Unit {liveTracking.unitNumber}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                      <span style={{ color: '#64748b' }}>Stay Period:</span>
-                      <strong>{liveTracking.checkInDate} ➔ {liveTracking.checkOutDate}</strong>
+                      <span style={{ color: '#475569', fontWeight: 600 }}>Stay Period:</span>
+                      <strong style={{ color: '#0f172a' }}>{liveTracking.checkInDate} ➔ {liveTracking.checkOutDate}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.45rem', marginTop: '0.45rem' }}>
-                      <span style={{ color: '#ffffff', fontWeight: 700 }}>Total Stay Valuation:</span>
-                      <strong style={{ color: '#059669', fontSize: '1.05rem' }}>{formatNaira(liveTracking.totalAmount)}</strong>
+                      <span style={{ color: '#0f172a', fontWeight: 700 }}>Total Stay Valuation:</span>
+                      <strong style={{ color: '#047857', fontSize: '1.05rem' }}>{formatNaira(liveTracking.totalAmount)}</strong>
                     </div>
                   </div>
 
@@ -457,12 +457,12 @@ export default function BookingModal({
                     {liveTracking?.assignedStaffName ? `Claimed by ${liveTracking.assignedStaffName}` : 'Pending Front Desk Verification'}
                   </div>
 
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', margin: '0 0 0.35rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem' }}>
                     {paymentOption === 'PAY_AT_PROPERTY'
                       ? 'Booking Request Registered — Pay on Arrival'
                       : 'Payment Proof Dispatched to Front Desk'}
                   </h3>
-                  <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '0 0 1.25rem' }}>
+                  <p style={{ color: '#334155', fontSize: '0.85rem', margin: '0 0 1.25rem' }}>
                     {paymentOption === 'PAY_AT_PROPERTY' ? (
                       <span>
                         Thank you, <strong>{guestName}</strong>. Your reservation request is in our official queue.
@@ -478,9 +478,9 @@ export default function BookingModal({
 
                   <div className="bfa-modal-section-card" style={{ textAlign: 'left', marginBottom: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
-                      <span style={{ color: '#64748b', fontWeight: 600 }}>Booking Reference:</span>
+                      <span style={{ color: '#475569', fontWeight: 600 }}>Booking Reference:</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#2563eb', fontSize: '0.95rem' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#1d4ed8', fontSize: '0.95rem' }}>
                           {submittedBooking.reservationCode}
                         </span>
                         <button
@@ -496,33 +496,33 @@ export default function BookingModal({
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#64748b' }}>Assigned Officer:</span>
-                      <strong style={{ color: liveTracking?.assignedStaffName ? '#ffffff' : '#fbbf24' }}>
+                      <span style={{ color: '#475569', fontWeight: 600 }}>Assigned Officer:</span>
+                      <strong style={{ color: liveTracking?.assignedStaffName ? '#0f172a' : '#b45309' }}>
                         {liveTracking?.assignedStaffName ? `👤 ${liveTracking.assignedStaffName}` : '⏳ Awaiting receptionist pickup...'}
                       </strong>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#64748b' }}>Estimated Review Window:</span>
-                      <strong style={{ color: '#2563eb' }}>2 – 5 Minutes</strong>
+                      <span style={{ color: '#475569', fontWeight: 600 }}>Estimated Review Window:</span>
+                      <strong style={{ color: '#1d4ed8' }}>2 – 5 Minutes</strong>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#64748b' }}>Residence & Suite:</span>
-                      <strong>{property?.name || 'BFA Residences'} — Unit {unit.unit_number} ({unit.unit_name})</strong>
+                      <span style={{ color: '#475569', fontWeight: 600 }}>Residence & Suite:</span>
+                      <strong style={{ color: '#0f172a' }}>{property?.name || 'BFA Residences'} — Unit {unit.unit_number} ({unit.unit_name})</strong>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#64748b' }}>Stay Period:</span>
-                      <strong>{checkInDate} (1 Night Stay)</strong>
+                      <span style={{ color: '#475569', fontWeight: 600 }}>Stay Period:</span>
+                      <strong style={{ color: '#0f172a' }}>{checkInDate} (1 Night Stay)</strong>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.45rem', marginTop: '0.45rem', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#ffffff', fontWeight: 700 }}>Total Quoted Stay Amount:</span>
-                      <strong style={{ color: '#059669', fontSize: '0.95rem' }}>{formatNaira(totalAmount)}</strong>
+                      <span style={{ color: '#0f172a', fontWeight: 700 }}>Total Quoted Stay Amount:</span>
+                      <strong style={{ color: '#047857', fontSize: '0.95rem' }}>{formatNaira(totalAmount)}</strong>
                     </div>
 
-                    <p style={{ margin: '0.5rem 0 0', fontSize: '0.76rem', color: '#64748b', background: '#f1f5f9', padding: '0.45rem 0.65rem', borderRadius: '6px' }}>
+                    <p style={{ margin: '0.5rem 0 0', fontSize: '0.76rem', color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.5rem 0.7rem', borderRadius: '6px' }}>
                       ℹ️ Live verification status refreshes automatically every 4 seconds. Your check-in passcode will unlock upon front desk confirmation.
                     </p>
                   </div>
@@ -750,7 +750,7 @@ export default function BookingModal({
 
                       <div className="bfa-modal-bank-acct-row">
                         <div>
-                          <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                          <div style={{ fontSize: '0.74rem', color: '#e2e8f0', fontWeight: 600 }}>
                             {paymentConfig?.bankName || 'ZENITH BANK PLC'}
                           </div>
                           <div className="bfa-modal-bank-acct-num">
@@ -827,7 +827,7 @@ export default function BookingModal({
               )}
 
               {/* Footer Actions */}
-              <div className="bfa-booking-modal-footer" style={{ padding: '0.75rem 0 0 0', border: 'none' }}>
+              <div className="bfa-booking-modal-footer" style={{ padding: '0.9rem 0 0 0', borderTop: '1px solid #cbd5e1', background: 'transparent' }}>
                 <button
                   type="button"
                   className="bfa-modal-cancel-btn"

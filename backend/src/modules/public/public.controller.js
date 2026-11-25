@@ -11,6 +11,7 @@ const PricingService = require('../pricing/pricing.service');
 const NotificationsService = require('../notifications/notifications.service');
 const ReservationsService = require('../reservations/reservations.service');
 const ReservationsRepository = require('../reservations/reservations.repository');
+const { validateImageUpload } = require('../../utils/fileSignatureValidator');
 
 // 1. Public Properties Showcase
 async function getPublicProperties(req, res, next) {
@@ -554,37 +555,18 @@ async function getPublicPaymentConfig(req, res, next) {
   }
 }
 
-// 3d. Public Payment Proof Uploader (Validates JPEG/PNG/WebP, <= 5MB)
+// 3d. Public Payment Proof Uploader (Validates JPEG/PNG/WebP magic bytes + blocks PostScript/SVG/executables, <= 5MB)
 async function uploadPaymentProof(req, res, next) {
   try {
     const { fileData, fileName, fileType } = req.body;
-    if (!fileData) {
-      throw new ValidationError('File data is required (base64 data URL).');
-    }
+    const { buffer, mimeType, ext } = validateImageUpload({
+      fileData,
+      fileType: fileType || 'image/jpeg',
+      fileName: fileName || '',
+      maxSizeBytes: 5 * 1024 * 1024,
+      label: 'Payment proof',
+    });
 
-    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    let mimeType = fileType || 'image/jpeg';
-    let base64Content = fileData;
-
-    if (fileData.startsWith('data:')) {
-      const match = fileData.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/);
-      if (match) {
-        mimeType = match[1].toLowerCase();
-        base64Content = match[2];
-      }
-    }
-
-    if (!allowedMimeTypes.includes(mimeType)) {
-      throw new ValidationError('Invalid file type. Only JPEG, PNG, and WebP payment receipts are supported.');
-    }
-
-    const buffer = Buffer.from(base64Content, 'base64');
-    const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
-    if (buffer.length > MAX_SIZE) {
-      throw new ValidationError(`Payment proof file exceeds 5MB size limit (${(buffer.length / (1024 * 1024)).toFixed(2)} MB).`);
-    }
-
-    const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
     const cleanFileName = `proof_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
     const uploadDir = path.resolve(__dirname, '../../../uploads/payment_proofs');
 
@@ -608,7 +590,7 @@ async function uploadPaymentProof(req, res, next) {
       meta: { timestamp: new Date().toISOString(), requestId: req.id },
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 }
 
@@ -708,32 +690,24 @@ async function createPublicBooking(req, res, next) {
     let finalProofBytes = proofFileSizeBytes || 1024;
 
     if (!finalProofPath && (req.body.proofBase64 || req.body.fileData)) {
-      try {
-        const rawData = req.body.proofBase64 || req.body.fileData;
-        let pMime = req.body.proofMimeType || req.body.fileType || 'image/jpeg';
-        let b64 = rawData;
-        if (rawData.startsWith('data:')) {
-          const match = rawData.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/);
-          if (match) {
-            pMime = match[1].toLowerCase();
-            b64 = match[2];
-          }
-        }
-        const buffer = Buffer.from(b64, 'base64');
-        const ext = pMime === 'image/png' ? 'png' : pMime === 'image/webp' ? 'webp' : 'jpg';
-        const cleanFileName = `proof_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
-        const uploadDir = path.resolve(__dirname, '../../../uploads/payment_proofs');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        finalProofPath = path.join(uploadDir, cleanFileName);
-        fs.writeFileSync(finalProofPath, buffer);
-        finalProofName = cleanFileName;
-        finalProofMime = pMime;
-        finalProofBytes = buffer.length;
-      } catch (proofErr) {
-        // Fallback
+      const rawData = req.body.proofBase64 || req.body.fileData;
+      const { buffer, mimeType: pMime, ext } = validateImageUpload({
+        fileData: rawData,
+        fileType: req.body.proofMimeType || req.body.fileType || 'image/jpeg',
+        fileName: proofFileName || '',
+        maxSizeBytes: 5 * 1024 * 1024,
+        label: 'Payment proof',
+      });
+      const cleanFileName = `proof_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
+      const uploadDir = path.resolve(__dirname, '../../../uploads/payment_proofs');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
       }
+      finalProofPath = path.join(uploadDir, cleanFileName);
+      fs.writeFileSync(finalProofPath, buffer);
+      finalProofName = cleanFileName;
+      finalProofMime = pMime;
+      finalProofBytes = buffer.length;
     }
 
     // Explicit manual verification status: never mark approved or paid at creation

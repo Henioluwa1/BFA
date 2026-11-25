@@ -7,6 +7,7 @@ const {
   NotFoundError,
 } = require('../../core/errors/apiError');
 const logger = require('../../utils/logger');
+const { validateDocumentOrImageUpload } = require('../../utils/fileSignatureValidator');
 
 const ELIGIBLE_ROLES = [
   'SUPER_ADMIN',
@@ -190,7 +191,8 @@ class ChatService {
       await this.verifyContextScope(user, contextEntityType, contextEntityId);
     }
 
-    // Validate attachment payload if provided
+    // Validate attachment payload & magic bytes if provided (blocks Upload2Shell PS/EPS/SVG/executables)
+    let sanitizedAttachment = attachment;
     if (attachment) {
       if (!attachment.originalName || !attachment.fileData) {
         throw new BadRequestError('Invalid attachment: originalName and fileData are required.');
@@ -199,6 +201,19 @@ class ChatService {
       if (attachment.fileSize && attachment.fileSize > MAX_SIZE) {
         throw new BadRequestError('Attachment exceeds maximum allowed size of 15MB.');
       }
+      const validated = validateDocumentOrImageUpload({
+        fileData: attachment.fileData,
+        fileType: attachment.fileType || 'application/octet-stream',
+        fileName: attachment.originalName,
+        maxSizeBytes: MAX_SIZE,
+        label: 'Chat attachment',
+      });
+      sanitizedAttachment = {
+        ...attachment,
+        fileData: validated.buffer,
+        fileType: validated.mimeType,
+        fileSize: validated.buffer.length,
+      };
     }
 
     const message = await ChatRepository.persistMessage({
@@ -211,7 +226,7 @@ class ChatService {
       priority,
       contextEntityType,
       contextEntityId,
-      attachment,
+      attachment: sanitizedAttachment,
     });
 
     return message;

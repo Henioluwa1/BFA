@@ -139,20 +139,20 @@ async function generateOperationsMemoPdfBuffer({
       };
 
       // Top Header Banner (First Page)
-      doc.rect(0, 0, pageWidth, 84).fill(primaryDark);
-      doc.rect(0, 84, pageWidth, 4).fill('#ca8a04');
+      doc.rect(0, 0, pageWidth, 108).fill(primaryDark);
+      doc.rect(0, 108, pageWidth, 4).fill('#ca8a04');
 
       doc
         .font('Helvetica-Bold')
-        .fontSize(17)
+        .fontSize(16)
         .fillColor('#ffffff')
-        .text('BFA APARTMENTS LIMITED', MARGIN_LEFT, 20, { width: 310 });
+        .text('BFA APARTMENTS LIMITED', MARGIN_LEFT, 16, { width: 255 });
 
       doc
         .font('Helvetica')
-        .fontSize(8.5)
+        .fontSize(8.2)
         .fillColor('#cbd5e1')
-        .text('Operations Ticketing & Executive Governance Memorandum', MARGIN_LEFT, 43, { width: 310 });
+        .text('Operations Ticketing & Executive Governance Memorandum', MARGIN_LEFT, 37, { width: 260 });
 
       const effectiveTemplate = templateType || (recipients.length > 1 ? 'MULTI_RECIPIENT_TEAM' : 'DIRECTIVE_PERSONAL');
       const bannerTitle = getTemplateLabel(effectiveTemplate, operation.target_audience_type);
@@ -163,77 +163,68 @@ async function generateOperationsMemoPdfBuffer({
         .font('Helvetica-Bold')
         .fontSize(9.5)
         .fillColor('#fbbf24')
-        .text(bannerTitle, 290, 15, { width: pageWidth - MARGIN_RIGHT - 290, align: 'right' });
+        .text(bannerTitle, 295, 18, { width: pageWidth - MARGIN_RIGHT - 295, align: 'right' });
+
+      // Subtle divider separating top identity row from centered Memo / Ticket reference row
+      doc
+        .moveTo(MARGIN_LEFT, 54)
+        .lineTo(pageWidth - MARGIN_RIGHT, 54)
+        .lineWidth(0.6)
+        .strokeColor('#334155')
+        .stroke();
 
       doc
         .font('Helvetica-Bold')
-        .fontSize(8)
+        .fontSize(13)
         .fillColor('#ffffff')
-        .text(`MEMO: ${memoRef}   |   TICKET: ${ticketRef}`, 260, 34, {
-          width: pageWidth - MARGIN_RIGHT - 260,
-          align: 'right',
+        .text(`MEMO: ${memoRef}   |   TICKET: ${ticketRef}`, MARGIN_LEFT, 62, {
+          width: contentWidth,
+          align: 'center',
         });
 
       const verNum = memo.version_number || 1;
       doc
         .font('Helvetica')
-        .fontSize(7.8)
+        .fontSize(10)
         .fillColor('#cbd5e1')
-        .text(`Version v${verNum}  |  Issued: ${formatLagosDateTime(memo.created_at || operation.created_at)}`, 260, 56, {
-          width: pageWidth - MARGIN_RIGHT - 260,
-          align: 'right',
+        .text(`Version v${verNum}   |   Issued: ${formatLagosDateTime(memo.created_at || operation.created_at)}`, MARGIN_LEFT, 82, {
+          width: contentWidth,
+          align: 'center',
         });
 
-      resetCursor(104);
+      resetCursor(124);
 
-      // Metadata Summary Box
+      // Metadata Summary Box — FROM & TO Only
       const issuerDisplay =
         memo.issuer_designation ||
         `${initiator?.name || 'Authorised Management'} (${initiator?.role || 'MANAGEMENT'})`;
-      const propertyDisplay =
-        memo.property_scope_summary ||
-        (property ? `${property.name}${property.code ? ` [${property.code}]` : ''}` : 'All Properties / Global Operations');
       const recipientSummary =
         memo.recipient_summary ||
         (recipients.length > 0
           ? recipients.map((r) => `${r.user_name || r.name} (${r.role_at_time || r.role || 'Staff'})`).join(', ')
           : operation.current_responsible_group || operation.target_audience_type || 'Designated Personnel');
-      const ownerDisplay = operation.responsible_name
-        ? `${operation.responsible_name}${operation.responsible_role ? ` (${operation.responsible_role})` : ''}`
-        : operation.current_responsible_group
-          ? `Open to Group (${operation.current_responsible_group})`
-          : 'Pending Acceptance / Assignment';
 
       const ackSlaDisplay = operation.acknowledgment_deadline_at
         ? `${formatLagosDateTime(operation.acknowledgment_deadline_at)} (${operation.acknowledgment_sla_hours || 12}h SLA)`
         : `${operation.acknowledgment_sla_hours || 12} hours from issuance`;
-      const execDeadlineDisplay = operation.deadline_at
-        ? formatLagosDateTime(operation.deadline_at)
-        : memo.deadline_text || 'Immediate / No Fixed Date';
 
       const metaRows = [
-        ['TICKET TITLE:', memo.title || operation.title || 'Operational Ticket Directive', 'PRIORITY:', (operation.priority || 'NORMAL').toUpperCase()],
-        ['ISSUED BY:', issuerDisplay, 'TICKET STATUS:', (operation.status || 'OPEN').replace(/_/g, ' ')],
-        ['TO / RECIPIENTS:', recipientSummary, 'ASSIGNED OWNER:', ownerDisplay],
-        ['PROPERTY SCOPE:', propertyDisplay, 'CATEGORY:', (operation.category || 'GENERAL').replace(/_/g, ' ')],
-        ['ACK SLA DEADLINE:', ackSlaDisplay, 'EXEC DEADLINE:', execDeadlineDisplay],
+        ['FROM:', issuerDisplay],
+        ['TO:', recipientSummary],
       ];
 
-      const colLeftLabel = MARGIN_LEFT + 10;
-      const colLeftVal = MARGIN_LEFT + 105;
-      const leftValWidth = 185;
-      const colRightLabel = MARGIN_LEFT + 300;
-      const colRightVal = MARGIN_LEFT + 388;
-      const rightValWidth = contentWidth - (colRightVal - MARGIN_LEFT) - 8;
+      const colLabelX = MARGIN_LEFT + 12;
+      const labelWidth = 46;
+      const colValX = MARGIN_LEFT + 60;
+      const valWidth = contentWidth - 72;
 
-      const measuredRows = metaRows.map(([lLabel, lVal, rLabel, rVal]) => {
-        doc.font('Helvetica-Bold').fontSize(8);
-        const lh = doc.heightOfString(String(lVal), { width: leftValWidth });
-        const rh = doc.heightOfString(String(rVal), { width: rightValWidth });
-        return { lLabel, lVal: String(lVal), rLabel, rVal: String(rVal), h: Math.max(18, lh + 6, rh + 6) };
+      const measuredRows = metaRows.map(([label, val]) => {
+        doc.font('Helvetica-Bold').fontSize(9.2);
+        const vh = doc.heightOfString(String(val), { width: valWidth });
+        return { label, val: String(val), h: Math.max(20, vh + 8) };
       });
 
-      const totalBoxHeight = measuredRows.reduce((s, r) => s + r.h, 16);
+      const totalBoxHeight = measuredRows.reduce((s, r) => s + r.h, 12);
       ensureSpace(totalBoxHeight + 12);
       const boxTop = doc.y;
 
@@ -242,14 +233,18 @@ async function generateOperationsMemoPdfBuffer({
       const priBadge = getPriorityColors(operation.priority);
       doc.rect(MARGIN_LEFT, boxTop, 4, totalBoxHeight).fill(priBadge.border);
 
-      let metaY = boxTop + 8;
-      measuredRows.forEach((row) => {
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(secondaryGray).text(row.lLabel, colLeftLabel, metaY + 2, { width: 92 });
-        doc.font('Helvetica-Bold').fontSize(8).fillColor(primaryDark).text(row.lVal, colLeftVal, metaY + 1, { width: leftValWidth });
-
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(secondaryGray).text(row.rLabel, colRightLabel, metaY + 2, { width: 85 });
-        const rColor = row.rLabel === 'PRIORITY:' ? priBadge.text : primaryDark;
-        doc.font('Helvetica-Bold').fontSize(8).fillColor(rColor).text(row.rVal, colRightVal, metaY + 1, { width: rightValWidth });
+      let metaY = boxTop + 7;
+      measuredRows.forEach((row, idx) => {
+        if (idx > 0) {
+          doc
+            .moveTo(MARGIN_LEFT + 10, metaY - 3)
+            .lineTo(MARGIN_LEFT + contentWidth - 10, metaY - 3)
+            .lineWidth(0.5)
+            .strokeColor('#e2e8f0')
+            .stroke();
+        }
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(secondaryGray).text(row.label, colLabelX, metaY + 1, { width: labelWidth });
+        doc.font('Helvetica-Bold').fontSize(9.2).fillColor(primaryDark).text(row.val, colValX, metaY, { width: valWidth });
         metaY += row.h;
       });
 

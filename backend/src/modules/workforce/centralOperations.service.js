@@ -20,6 +20,7 @@ const ChatRepository = require('../chat/chat.repository');
 const ChatService = require('../chat/chat.service');
 const NotificationsService = require('../notifications/notifications.service');
 const MemoPdfGenerator = require('./memoPdfGenerator');
+const { validateDocumentOrImageUpload } = require('../../utils/fileSignatureValidator');
 const {
   DEFAULT_ACK_SLA_HOURS,
   normalizePriority,
@@ -2048,13 +2049,15 @@ class CentralOperationsService {
     const opIdNum = await this.resolveOperationId(operationId);
     await this.getOperationById(user, opIdNum);
 
-    const b64Clean = String(fileData).includes('base64,') ? String(fileData).split('base64,')[1] : String(fileData);
-    const buffer = Buffer.from(b64Clean, 'base64');
-    if (buffer.length === 0 || buffer.length > 6 * 1024 * 1024) {
-      throw new BadRequestError('Evidence attachment must be between 1 byte and 6 MB.');
-    }
+    const { buffer, mimeType: validatedMime } = validateDocumentOrImageUpload({
+      fileData,
+      fileType: mimeType || 'application/octet-stream',
+      fileName,
+      maxSizeBytes: 6 * 1024 * 1024,
+      label: 'Ticket evidence',
+    });
 
-    const safeMime = String(mimeType || 'application/octet-stream').slice(0, 90);
+    const safeMime = String(validatedMime || 'application/octet-stream').slice(0, 90);
     const safeName = String(fileName).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200);
 
     const res = await pool.query(

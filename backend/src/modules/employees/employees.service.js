@@ -9,6 +9,7 @@ const EmployeeIdCardsService = require('./employeeIdCards.service');
 const AccessControlService = require('../../core/access/accessControl.service');
 const AuditService = require('../../core/audit/audit.service');
 const { ValidationError, ConflictError, NotFoundError, ForbiddenError, BadRequestError } = require('../../core/errors/apiError');
+const { validateImageUpload } = require('../../utils/fileSignatureValidator');
 const pool = require('../../db/pool');
 
 const ALLOWED_PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -405,35 +406,13 @@ class EmployeesService {
       throw new BadRequestError('Invalid image payload: photo_base64 or photoBase64 is required.');
     }
 
-    // Check if it has data URI prefix
-    const matches = rawPayload.match(/^data:([A-Za-z0-9\-+\/]+);base64,(.+)$/);
-    let mimeType = photoData?.mimeType;
-    let base64String = rawPayload;
-
-    if (matches) {
-      mimeType = matches[1].toLowerCase();
-      base64String = matches[2];
-    } else {
-      if (!/^[A-Za-z0-9+/=]+$/.test(rawPayload.trim())) {
-        throw new BadRequestError('Invalid image payload: malformed base64 image data format.');
-      }
-      mimeType = (mimeType || 'image/jpeg').toLowerCase();
-    }
-
-    if (!ALLOWED_PHOTO_MIMES.includes(mimeType)) {
-      throw new BadRequestError(`Unsupported image type '${mimeType}'. Allowed formats: JPEG, PNG, WebP.`);
-    }
-
-    let buffer;
-    try {
-      buffer = Buffer.from(base64String, 'base64');
-    } catch {
-      throw new BadRequestError('Invalid image payload: failed to decode base64 data.');
-    }
-
-    if (buffer.length > MAX_PHOTO_SIZE_BYTES) {
-      throw new BadRequestError(`Photo file size (${(buffer.length / (1024 * 1024)).toFixed(2)} MB) exceeds the 5 MB limit.`);
-    }
+    const { buffer, mimeType, ext } = validateImageUpload({
+      fileData: rawPayload,
+      fileType: photoData?.mimeType || 'image/jpeg',
+      fileName: photoData?.fileName || '',
+      maxSizeBytes: MAX_PHOTO_SIZE_BYTES,
+      label: 'Employee photo',
+    });
 
     // Ensure uploads directory exists
     const uploadsDir = path.resolve(__dirname, '../../../uploads/employees');
@@ -453,7 +432,6 @@ class EmployeesService {
       // Ignore
     }
 
-    const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
     const randomName = `emp_${employee.id}_${Date.now()}_${crypto.randomBytes(8).toString('hex')}.${ext}`;
     const filePath = path.join(uploadsDir, randomName);
     fs.writeFileSync(filePath, buffer);
