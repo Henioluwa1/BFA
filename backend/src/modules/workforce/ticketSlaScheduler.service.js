@@ -496,6 +496,121 @@ class TicketSlaSchedulerService {
     }
   }
 
+  /**
+   * Sweep Contact Desk Inquiries for 90-minute Response SLA & Idempotent Manager Escalation
+   */
+  static async runInquirySlaSweep() {
+    const summary = { reminders: 0, escalations: 0, errors: [] };
+    try {
+      const openInquiries = await pool.query(
+        `SELECT ci.*
+         FROM contact_inquiries ci
+         WHERE ci.status IN ('OPEN', 'ASSIGNED')
+           AND ci.first_response_at IS NULL
+           AND ci.response_sla_met IS NULL`
+      );
+      const ContactRepository = require('../contact/contact.repository');
+      const ContactService = require('../contact/contact.service');
+
+      const now = Date.now();
+      for (const inq of openInquiries || []) {
+        const deadlineMs = new Date(inq.response_sla_deadline_at).getTime();
+        if (Number.isNaN(deadlineMs)) continue;
+        const remainingMs = deadlineMs - now;
+
+        // 15-minute warning before breach
+        if (remainingMs > 0 && remainingMs <= 15 * 60 * 1000) {
+          const existingWarn = await pool.query(
+            "SELECT id FROM inquiry_sla_logs WHERE inquiry_id = ? AND assignee_id = ? AND sla_stage = 'REMINDER_15MIN' LIMIT 1",
+            [inq.id, inq.current_assignee_id]
+          );
+          if (!existingWarn || existingWarn.length === 0) {
+            await ContactRepository.upsertSlaLog({
+              inquiryId: inq.id,
+              assigneeId: inq.current_assignee_id,
+              slaStage: 'REMINDER_15MIN',
+              slaDeadlineAt: inq.response_sla_deadline_at,
+              notificationSent: true,
+              notificationSentAt: new Date(),
+            });
+            await NotificationsService.dispatchNotification({
+              recipientId: inq.current_assignee_id,
+              propertyId: inq.property_id,
+              title: `URGENT (<15m): Client Inquiry ${inq.inquiry_reference}`,
+              message: `Response SLA for ${inq.client_name} (${inq.inquiry_department}) expires in under 15 minutes.`,
+              category: 'COMMUNICATION',
+              priority: 'CRITICAL',
+              sourceEntityType: 'contact_inquiry',
+              sourceEntityId: String(inq.id),
+            });
+            summary.reminders += 1;
+          }
+          continue;
+        }
+
+        // Breached (> 90 minutes with no qualifying response)
+        if (remainingMs <= 0) {
+          const existingBreach = await pool.query(
+            "SELECT id FROM inquiry_sla_logs WHERE inquiry_id = ? AND assignee_id = ? AND sla_stage = 'BREACHED' LIMIT 1",
+            [inq.id, inq.current_assignee_id]
+          );
+          if (existingBreach && existingBreach.length > 0) continue;
+
+          await ContactRepository.upsertSlaLog({
+            inquiryId: inq.id,
+            assigneeId: inq.current_assignee_id,
+            slaStage: 'BREACHED',
+            slaDeadlineAt: inq.response_sla_deadline_at,
+            slaMet: false,
+            breachedAt: new Date(),
+            notificationSent: true,
+            notificationSentAt: new Date(),
+          });
+
+          const manager = await ContactRepository.resolveResponsibleManager(inq.property_id);
+          const managerId = manager?.id || inq.assigned_manager_id || 1;
+
+          await pool.query(
+            `UPDATE contact_inquiries
+             SET response_sla_met = 0, sla_breached_at = NOW(),
+                 status = 'ESCALATED', escalated_to_id = ?, escalated_at = NOW(),
+                 escalation_reason = '90-minute receptionist response SLA missed',
+                 updated_at = NOW()
+             WHERE id = ? AND response_sla_met IS NULL`,
+            [managerId, inq.id]
+          );
+
+          await NotificationsService.dispatchNotification({
+            recipientId: managerId,
+            propertyId: inq.property_id,
+            title: `SLA BREACH ESCALATION: ${inq.inquiry_reference}`,
+            message: `Assignee #${inq.current_assignee_id} missed the 90-minute response SLA for ${inq.client_name} (${inq.inquiry_department}).`,
+            category: 'COMMUNICATION',
+            priority: 'CRITICAL',
+            sourceEntityType: 'contact_inquiry',
+            sourceEntityId: String(inq.id),
+          });
+
+          await ContactService.dispatchStaffChatCard({
+            assigneeId: managerId,
+            propertyId: inq.property_id,
+            inquiryId: inq.id,
+            inquiryReference: inq.inquiry_reference,
+            clientName: inq.client_name,
+            department: `${inq.inquiry_department} [SLA BREACH ESCALATION]`,
+            message: inq.inquiry_message,
+            slaDeadline: inq.response_sla_deadline_at,
+          });
+
+          summary.escalations += 1;
+        }
+      }
+    } catch (err) {
+      summary.errors.push(err.message);
+    }
+    return summary;
+  }
+
   static startScheduler() {
     if (process.env.NODE_ENV === 'test' || intervalHandle) {
       return;
@@ -504,10 +619,12 @@ class TicketSlaSchedulerService {
     // Delay initial run slightly so HTTP/DB pools settle on boot
     setTimeout(() => {
       this.runSlaSweep().catch((err) => logger.warn(`[SLA-SCHEDULER] Initial sweep notice: ${err.message}`));
+      this.runInquirySlaSweep().catch((err) => logger.warn(`[SLA-SCHEDULER] Inquiry sweep notice: ${err.message}`));
     }, 10000).unref();
 
     intervalHandle = setInterval(() => {
       this.runSlaSweep().catch((err) => logger.warn(`[SLA-SCHEDULER] Sweep error: ${err.message}`));
+      this.runInquirySlaSweep().catch((err) => logger.warn(`[SLA-SCHEDULER] Inquiry sweep error: ${err.message}`));
     }, SWEEP_INTERVAL_MS);
     if (typeof intervalHandle.unref === 'function') {
       intervalHandle.unref();

@@ -85,6 +85,30 @@ class FrontOfficeController {
     }
   }
 
+  static async searchBookings(req, res, next) {
+    try {
+      const results = await FrontOfficeService.searchBookings(req.query, req);
+      res.status(200).json({
+        success: true,
+        data: results,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async reassignReservation(req, res, next) {
+    try {
+      const result = await FrontOfficeService.reassignReservation(req.params.id, req.body || {}, req);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async acceptReservation(req, res, next) {
     try {
       const reservationId = req.params.id || req.body?.reservationId || req.body?.reservation_id;

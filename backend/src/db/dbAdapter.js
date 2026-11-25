@@ -96,6 +96,20 @@ const BOOLEAN_COLUMNS = new Set([
   'allow_manager_assisted',
   'allow_mobile',
   'require_gps',
+  'is_required',
+  'requires_expiry',
+  'requires_id_number',
+  'client_acknowledged',
+  'is_latest',
+  'is_new_client',
+  'response_sla_met',
+  'client_marked_resolved',
+  'is_internal',
+  'is_client_response',
+  'sla_inherited',
+  'sla_met',
+  'notification_sent',
+  'is_duplicate',
 ]);
 
 /**

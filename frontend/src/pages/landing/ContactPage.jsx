@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import FloatingChatWidget from '../../components/public/FloatingChatWidget';
 import Icons8Icon from '../../components/public/Icons8Icon';
 import PublicTopNav from '../../components/public/PublicTopNav';
+import ClientInquiryPortal from '../../components/public/ClientInquiryPortal';
+import { contactService } from '../../services/api';
 
 // Curated Luxury Apartment Photography Assets
 import heroArchitecture from '../../assets/hero-architecture.jpg';
@@ -17,6 +19,9 @@ export default function ContactPage() {
   const [phone, setPhone] = useState('');
   const [propertyInterest, setPropertyInterest] = useState('ALL');
   const [stayType, setStayType] = useState('SHORT_STAY');
+  const [bookingReference, setBookingReference] = useState('');
+  const [attachment, setAttachment] = useState(null);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState(null);
@@ -47,7 +52,7 @@ export default function ContactPage() {
     };
   }, []);
 
-  const handleSubmitInquiry = (e) => {
+  const handleSubmitInquiry = async (e) => {
     e.preventDefault();
     setFormError('');
     if (!fullName.trim() || !email.trim() || !phone.trim() || !message.trim()) {
@@ -55,21 +60,36 @@ export default function ContactPage() {
       return;
     }
     setSubmitting(true);
-
-    setTimeout(() => {
-      const ticketId = `BFA-MSG-${Math.floor(100000 + Math.random() * 900000)}`;
+    try {
+      const res = await contactService.submitInquiry({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        propertyInterest,
+        inquiryDepartment: stayType,
+        stayType,
+        bookingReference: bookingReference.trim() || undefined,
+        message: message.trim(),
+        ...(attachment || {}),
+      });
+      const data = res.data || {};
       setSubmittedTicket({
-        id: ticketId,
-        fullName,
-        email,
-        phone,
+        id: data.inquiryReference,
+        accessCode: data.clientAccessCode,
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
         propertyInterest,
         stayType,
-        timestamp: new Date().toLocaleString(),
+        timestamp: new Date().toLocaleString('en-GB', { timeZone: 'Africa/Lagos' }) + ' WAT',
       });
-      setSubmitting(false);
       setMessage('');
-    }, 900);
+      setAttachment(null);
+    } catch (err) {
+      setFormError(err.message || 'Unable to submit inquiry. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const toggleFaq = (idx) => {
@@ -147,9 +167,25 @@ export default function ContactPage() {
                 <div className="bfa-reference-badge">
                   <span>REF: {submittedTicket.id}</span>
                 </div>
+                {submittedTicket.accessCode && (
+                  <div className="bfa-reference-badge" style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <span>ACCESS CODE: <strong>{submittedTicket.accessCode}</strong></span>
+                    <button
+                      type="button"
+                      className="bfa-new-msg-btn"
+                      style={{ padding: '0.25rem 0.65rem', fontSize: '0.78rem' }}
+                      onClick={() => {
+                        navigator.clipboard.writeText(submittedTicket.accessCode);
+                        setCopiedCode(true);
+                        setTimeout(() => setCopiedCode(false), 2500);
+                      }}
+                    >
+                      {copiedCode ? '✓ Copied!' : 'Copy Code'}
+                    </button>
+                  </div>
+                )}
                 <p className="bfa-dispatch-note">
-                  A concierge officer will respond directly via <strong>{submittedTicket.email}</strong> or{' '}
-                  <strong>{submittedTicket.phone}</strong>.
+                  Save your Inquiry Reference and Access Code to check staff responses or send follow-ups below.
                 </p>
 
                 <div className="bfa-success-actions">
@@ -244,15 +280,47 @@ export default function ContactPage() {
                   </div>
                 </div>
 
+                <div className="bfa-form-row">
+                  <div className="bfa-input-group">
+                    <label>Type of Stay / Inquiry</label>
+                    <select value={stayType} onChange={(e) => setStayType(e.target.value)}>
+                      <option value="SHORT_STAY">Short-Term Luxury Stay (1 - 14 Nights)</option>
+                      <option value="EXTENDED">Extended Executive Stay (1 - 6 Months)</option>
+                      <option value="ANNUAL">Corporate Annual Lease</option>
+                      <option value="WALKTHROUGH">Request Private Property Walkthrough</option>
+                      <option value="MEDIA">Photo / Video Shoot & Production</option>
+                    </select>
+                  </div>
+
+                  <div className="bfa-input-group">
+                    <label>Booking Reference (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. BFA-202611-0012"
+                      value={bookingReference}
+                      onChange={(e) => setBookingReference(e.target.value)}
+                    />
+                  </div>
+                </div>
+
                 <div className="bfa-input-group">
-                  <label>Type of Stay / Inquiry</label>
-                  <select value={stayType} onChange={(e) => setStayType(e.target.value)}>
-                    <option value="SHORT_STAY">Short-Term Luxury Stay (1 - 14 Nights)</option>
-                    <option value="EXTENDED">Extended Executive Stay (1 - 6 Months)</option>
-                    <option value="ANNUAL">Corporate Annual Lease</option>
-                    <option value="WALKTHROUGH">Request Private Property Walkthrough</option>
-                    <option value="MEDIA">Photo / Video Shoot & Production</option>
-                  </select>
+                  <label>Supporting Attachment (Optional: JPG, PNG, PDF ≤ 10MB)</label>
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) { setAttachment(null); return; }
+                      if (f.size > 10 * 1024 * 1024) { setFormError('Attachment exceeds 10 MB.'); return; }
+                      const r = new FileReader();
+                      r.onload = (ev) => setAttachment({
+                        attachmentBase64: ev.target.result,
+                        attachmentFilename: f.name,
+                        attachmentMime: f.type,
+                      });
+                      r.readAsDataURL(f);
+                    }}
+                  />
                 </div>
 
                 <div className="bfa-input-group">
@@ -364,6 +432,9 @@ export default function ContactPage() {
             </div>
           </div>
         </div>
+
+        {/* Client Access-Code Lookup & Two-Way Follow-Up Chat */}
+        <ClientInquiryPortal initialReference={submittedTicket?.id || ''} />
 
         {/* 4. Frequently Asked Questions Accordion */}
         <section className="bfa-faq-section">

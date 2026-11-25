@@ -38,6 +38,7 @@ const usersRoutes = require('./modules/users/users.routes');
 const automationRoutes = require('./modules/automation/automation.routes');
 const chatRoutes = require('./modules/chat/chat.routes');
 const workforceRoutes = require('./modules/workforce/workforce.routes');
+const contactRoutes = require('./modules/contact/contact.routes');
 
 const app = express();
 
@@ -99,6 +100,7 @@ apiV1Router.use('/users', usersRoutes);
 apiV1Router.use('/automation', automationRoutes);
 apiV1Router.use('/chat', chatRoutes);
 apiV1Router.use('/workforce', workforceRoutes);
+apiV1Router.use('/contact', contactRoutes);
 
 app.use('/api/v1', apiV1Router);
 

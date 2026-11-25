@@ -20,6 +20,8 @@ router.get('/pending-bookings', requireRoles(...frontOfficeViewRoles), FrontOffi
 // Unclaimed bookings alert queue: strictly restricted to authenticated RECEPTIONIST role only
 router.get('/unclaimed-bookings', requireRoles('RECEPTIONIST'), FrontOfficeController.getUnclaimedBookings);
 router.get('/stats', requireRoles(...frontOfficeViewRoles), FrontOfficeController.getStats);
+router.get('/search', requireRoles(...frontOfficeViewRoles), FrontOfficeController.searchBookings);
+router.post('/reservations/:id/reassign', requireRoles(...managementRoles), FrontOfficeController.reassignReservation);
 
 // Live operational feed (for Managers & Admins to observe operations in real time)
 router.get('/live-feed', requireRoles(...managementRoles), FrontOfficeController.getLiveOperationalFeed);
@@ -46,5 +48,17 @@ router.post('/reservations/:id/accept', requireRoles(...frontOfficeRoles), Front
 router.post('/reservations/:id/check-in', requireRoles(...frontOfficeRoles), FrontOfficeController.checkIn);
 router.post('/reservations/:id/check-out', requireRoles(...frontOfficeRoles), FrontOfficeController.checkOut);
 router.post('/reservations/:id/no-show', requireRoles(...frontOfficeRoles), FrontOfficeController.noShow);
+
+// Check-In Documentation, Readiness & Structured Payment References
+const CheckinDocsController = require('./checkinDocs.controller');
+router.get('/document-types', requireRoles(...frontOfficeViewRoles), CheckinDocsController.getDocumentTypes);
+router.get('/reservations/:id/readiness', requireRoles(...frontOfficeViewRoles), CheckinDocsController.evaluateReadiness);
+router.get('/reservations/:id/checkin-session', requireRoles(...frontOfficeRoles), CheckinDocsController.getCheckinSession);
+router.post('/reservations/:id/checkin-session', requireRoles(...frontOfficeRoles), CheckinDocsController.upsertCheckinSession);
+router.get('/reservations/:id/documents', requireRoles(...frontOfficeViewRoles), CheckinDocsController.listDocuments);
+router.post('/reservations/:id/documents', requireRoles(...frontOfficeRoles), CheckinDocsController.uploadDocument);
+router.get('/documents/:docId/file', requireRoles(...frontOfficeViewRoles), CheckinDocsController.serveDocument);
+router.get('/reservations/:id/payment-refs', requireRoles(...frontOfficeViewRoles), CheckinDocsController.getPaymentTransactionRefs);
+router.post('/reservations/:id/payment-refs', requireRoles(...frontOfficeRoles), CheckinDocsController.recordPaymentRef);
 
 module.exports = router;

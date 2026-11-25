@@ -138,46 +138,49 @@ async function generateOperationsMemoPdfBuffer({
         return false;
       };
 
-      // Top Header Banner (First Page)
-      doc.rect(0, 0, pageWidth, 108).fill(primaryDark);
-      doc.rect(0, 108, pageWidth, 4).fill('#ca8a04');
+      // Top Header Banner (First Page) — taller to accommodate centered reference row
+      doc.rect(0, 0, pageWidth, 130).fill(primaryDark);
+      doc.rect(0, 130, pageWidth, 4).fill('#ca8a04');
 
+      // Left: Organisation name + subtitle
       doc
         .font('Helvetica-Bold')
-        .fontSize(16)
+        .fontSize(15)
         .fillColor('#ffffff')
-        .text('BFA APARTMENTS LIMITED', MARGIN_LEFT, 16, { width: 255 });
+        .text('BFA APARTMENTS LIMITED', MARGIN_LEFT, 14, { width: 265 });
 
       doc
         .font('Helvetica')
-        .fontSize(8.2)
-        .fillColor('#cbd5e1')
-        .text('Operations Ticketing & Executive Governance Memorandum', MARGIN_LEFT, 37, { width: 260 });
+        .fontSize(8)
+        .fillColor('#94a3b8')
+        .text('Operations Ticketing & Executive Governance Memorandum', MARGIN_LEFT, 33, { width: 265 });
 
       const effectiveTemplate = templateType || (recipients.length > 1 ? 'MULTI_RECIPIENT_TEAM' : 'DIRECTIVE_PERSONAL');
       const bannerTitle = getTemplateLabel(effectiveTemplate, operation.target_audience_type);
       const memoRef = memo.memo_reference || operation.operation_code || 'MEMO-UNASSIGNED';
       const ticketRef = operation.ticket_reference || operation.operation_code || 'TKT-UNASSIGNED';
 
+      // Right: Template type label (amber, top-right)
       doc
         .font('Helvetica-Bold')
-        .fontSize(9.5)
+        .fontSize(9)
         .fillColor('#fbbf24')
-        .text(bannerTitle, 295, 18, { width: pageWidth - MARGIN_RIGHT - 295, align: 'right' });
+        .text(bannerTitle, pageWidth / 2, 14, { width: pageWidth / 2 - MARGIN_RIGHT, align: 'right' });
 
-      // Subtle divider separating top identity row from centered Memo / Ticket reference row
+      // Divider below the two identity rows
       doc
-        .moveTo(MARGIN_LEFT, 54)
-        .lineTo(pageWidth - MARGIN_RIGHT, 54)
+        .moveTo(MARGIN_LEFT, 50)
+        .lineTo(pageWidth - MARGIN_RIGHT, 50)
         .lineWidth(0.6)
         .strokeColor('#334155')
         .stroke();
 
+      // Centered MEMO / TICKET reference — prominent, full-width, centered under BOTH header blocks
       doc
         .font('Helvetica-Bold')
-        .fontSize(13)
+        .fontSize(15)
         .fillColor('#ffffff')
-        .text(`MEMO: ${memoRef}   |   TICKET: ${ticketRef}`, MARGIN_LEFT, 62, {
+        .text(`MEMO: ${memoRef}   |   TICKET: ${ticketRef}`, MARGIN_LEFT, 60, {
           width: contentWidth,
           align: 'center',
         });
@@ -185,14 +188,22 @@ async function generateOperationsMemoPdfBuffer({
       const verNum = memo.version_number || 1;
       doc
         .font('Helvetica')
-        .fontSize(10)
+        .fontSize(9.5)
         .fillColor('#cbd5e1')
-        .text(`Version v${verNum}   |   Issued: ${formatLagosDateTime(memo.created_at || operation.created_at)}`, MARGIN_LEFT, 82, {
+        .text(`Version v${verNum}   |   Issued: ${formatLagosDateTime(memo.created_at || operation.created_at)}`, MARGIN_LEFT, 83, {
           width: contentWidth,
           align: 'center',
         });
 
-      resetCursor(124);
+      // Second thin divider below reference row
+      doc
+        .moveTo(MARGIN_LEFT, 102)
+        .lineTo(pageWidth - MARGIN_RIGHT, 102)
+        .lineWidth(0.4)
+        .strokeColor('#1e3a5f')
+        .stroke();
+
+      resetCursor(142);
 
       // Metadata Summary Box — FROM & TO Only
       const issuerDisplay =

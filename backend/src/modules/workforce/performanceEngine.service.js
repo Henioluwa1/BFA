@@ -767,6 +767,50 @@ class PerformanceEngineService {
       };
     }
 
+    // ─── 6. Contact Desk Inquiry & 90-Min Response SLA Metrics (Fair Attribution) ──
+    let contactInquiryMetrics = {
+      inquiriesAssigned: 0,
+      inquiriesRespondedOnTime: 0,
+      inquiriesSlaBreached: 0,
+      inquiriesClosed: 0,
+      avgClientFeedbackRating: null,
+      clientFeedbackCount: 0,
+    };
+    try {
+      const [inqStats] = extractRows(
+        await pool.query(
+          `SELECT COUNT(*) AS assigned_count,
+                  SUM(CASE WHEN first_response_by_id = ? AND response_sla_met = 1 THEN 1 ELSE 0 END) AS responded_on_time,
+                  SUM(CASE WHEN status IN ('RESOLVED', 'CLOSED') THEN 1 ELSE 0 END) AS closed_count,
+                  AVG(client_feedback_rating) AS avg_rating,
+                  COUNT(client_feedback_rating) AS rating_count
+           FROM contact_inquiries
+           WHERE (current_assignee_id = ? OR assigned_receptionist_id = ?)
+             AND submitted_at BETWEEN ? AND ?`,
+          [tUserId, tUserId, tUserId, period.startTs, period.endTs]
+        )
+      );
+      const [breachStats] = extractRows(
+        await pool.query(
+          `SELECT COUNT(*) AS breach_count
+           FROM inquiry_sla_logs
+           WHERE assignee_id = ? AND sla_stage = 'BREACHED'
+             AND created_at BETWEEN ? AND ?`,
+          [tUserId, period.startTs, period.endTs]
+        )
+      );
+      contactInquiryMetrics = {
+        inquiriesAssigned: parseInt(inqStats?.assigned_count || 0, 10),
+        inquiriesRespondedOnTime: parseInt(inqStats?.responded_on_time || 0, 10),
+        inquiriesSlaBreached: parseInt(breachStats?.breach_count || 0, 10),
+        inquiriesClosed: parseInt(inqStats?.closed_count || 0, 10),
+        avgClientFeedbackRating: inqStats?.avg_rating ? roundNum(inqStats.avg_rating, 2) : null,
+        clientFeedbackCount: parseInt(inqStats?.rating_count || 0, 10),
+      };
+    } catch {
+      // Safe fallback if migration 040 has not yet run in an isolated test
+    }
+
     const ticketMetrics = {
       ticketsAssigned,
       ticketsAccepted,
@@ -827,6 +871,7 @@ class PerformanceEngineService {
       },
       attendanceMetrics,
       ticketMetrics,
+      contactInquiryMetrics,
       reassignmentContext: reassignRows.slice(0, 15),
       scoreBreakdown: weightedContributions,
       improvementRecommendations,

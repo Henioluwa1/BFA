@@ -129,6 +129,75 @@ class FrontOfficeService {
   static async quickNoShow(reservationId, data, req = null) {
     return ReservationsService.noShowReservation(reservationId, data, req);
   }
+
+  /**
+   * Scoped search by guest full name or booking number
+   */
+  static async searchBookings(query, req = null) {
+    return FrontOfficeRepository.searchBookings({
+      q: query.q || query.search || '',
+      propertyId: query.propertyId,
+      user: req?.user,
+    });
+  }
+
+  /**
+   * Manager/Admin: Reassign a booking to another active receptionist, preserving history
+   */
+  static async reassignReservation(reservationId, { newReceptionistId, reason }, req = null) {
+    const pool = require('../../db/pool');
+    const AuditService = require('../../core/audit/audit.service');
+    const { BadRequestError, NotFoundError } = require('../../core/errors/apiError');
+
+    if (!newReceptionistId) {
+      throw new BadRequestError('Target receptionist ID is required for reassignment.');
+    }
+
+    return pool.withTransaction(async (conn) => {
+      const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [reservationId]);
+      if (!resRows || resRows.length === 0) throw new NotFoundError(`Reservation #${reservationId} not found.`);
+      const reservation = resRows[0];
+
+      ReservationsService.validatePropertyScope(req?.user, reservation.property_id);
+
+      const [targetRows] = await conn.query(
+        "SELECT id, name, role, property_id, status FROM users WHERE id = ? AND status = 'ACTIVE' LIMIT 1",
+        [newReceptionistId]
+      );
+      if (!targetRows || targetRows.length === 0) {
+        throw new NotFoundError('Target receptionist not found or not active.');
+      }
+      const target = targetRows[0];
+
+      await conn.query(
+        'UPDATE reservations SET assigned_staff_id = ?, updated_by = ?, updated_at = NOW() WHERE id = ?',
+        [target.id, req?.user?.id || null, reservation.id]
+      );
+
+      await conn.query(
+        'UPDATE reservation_staff_assignments SET is_active = FALSE, ended_at = NOW() WHERE reservation_id = ? AND is_active = TRUE',
+        [reservation.id]
+      );
+      await conn.query(
+        `INSERT INTO reservation_staff_assignments (
+           reservation_id, property_id, assigned_receptionist_id, assigned_by_id,
+           assignment_type, service_status, is_active, claimed_at
+         ) VALUES (?, ?, ?, ?, 'MANAGER_REASSIGNMENT', 'CLAIMED', TRUE, NOW())`,
+        [reservation.id, reservation.property_id, target.id, req?.user?.id || target.id]
+      );
+
+      await AuditService.record({
+        req,
+        action: 'BOOKING_REASSIGNED',
+        entityType: 'reservation',
+        entityId: String(reservation.id),
+        oldValues: { assigned_staff_id: reservation.assigned_staff_id },
+        newValues: { assigned_staff_id: target.id, reason: reason || 'Manager reassignment' },
+      });
+
+      return { reservationId: reservation.id, assignedStaffId: target.id, assignedStaffName: target.name };
+    });
+  }
 }
 
 module.exports = FrontOfficeService;

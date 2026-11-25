@@ -1,0 +1,217 @@
+.bfa-client-portal-section {
+  max-width: 1120px;
+  margin: 2rem auto 0;
+}
+
+.bfa-client-portal-card {
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  border-radius: 16px;
+  padding: 1.5rem;
+  color: #f8fafc;
+}
+
+.bfa-client-portal-head h2 {
+  margin: 0.25rem 0 0.35rem;
+  font-size: 1.3rem;
+}
+
+.bfa-client-portal-head p {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  color: #94a3b8;
+}
+
+.bfa-cp-lookup-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.bfa-cp-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.bfa-cp-input-wrap label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.bfa-cp-input-wrap input,
+.bfa-cp-composer textarea,
+.bfa-cp-feedback input,
+.bfa-cp-feedback select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 9px;
+  padding: 0.55rem 0.75rem;
+  color: #ffffff;
+  font-size: 0.88rem;
+}
+
+.bfa-cp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: linear-gradient(135deg, #d4af37 0%, #b45309 100%);
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 0.86rem;
+  padding: 0.6rem 1.1rem;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.bfa-cp-btn-outline {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  color: #fbbf24;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.bfa-cp-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 9px;
+  margin-bottom: 0.85rem;
+  font-size: 0.84rem;
+}
+
+.bfa-cp-alert.error {
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: #fecaca;
+}
+
+.bfa-cp-alert.success {
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #6ee7b7;
+}
+
+.bfa-cp-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bfa-cp-summary strong { display: block; color: #fbbf24; }
+.bfa-cp-summary span { font-size: 0.82rem; color: #cbd5e1; }
+
+.bfa-cp-logout {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+  border-radius: 7px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.bfa-cp-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0.85rem 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.bfa-cp-msg {
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.86rem;
+}
+
+.bfa-cp-msg.client { background: rgba(59, 130, 246, 0.14); }
+.bfa-cp-msg.staff { background: rgba(16, 185, 129, 0.14); }
+.bfa-cp-msg small { font-weight: 700; color: #94a3b8; display: block; margin-bottom: 0.2rem; }
+.bfa-cp-msg p { margin: 0; white-space: pre-wrap; }
+.bfa-cp-att { display: inline-block; margin-top: 0.25rem; font-size: 0.75rem; color: #fbbf24; }
+
+.bfa-cp-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bfa-cp-compose-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bfa-cp-file-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.bfa-cp-file-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bfa-cp-feedback {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.bfa-cp-feedback h4 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #fbbf24;
+  font-size: 0.88rem;
+}
+
+.bfa-cp-feedback-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.bfa-cp-resolved {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 767px) {
+  .bfa-cp-lookup-form { grid-template-columns: 1fr; }
+}

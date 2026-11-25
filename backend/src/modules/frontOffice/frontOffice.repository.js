@@ -293,6 +293,42 @@ class FrontOfficeRepository {
     sql += ' ORDER BY r.created_at DESC LIMIT 20;';
     return pool.query(sql, params);
   }
+
+  /**
+   * Scoped client search by full name or booking number for check-in modal
+   */
+  static async searchBookings({ q, propertyId, user } = {}) {
+    const term = (q || '').trim();
+    if (!term) return [];
+    const like = `%${term}%`;
+
+    let sql = `
+      SELECT r.id, r.reservation_code, r.property_id, r.apartment_id,
+             r.tenant_name, r.tenant_email, r.tenant_phone,
+             r.check_in_date, r.check_out_date, r.nights, a.capacity AS guests_count,
+             r.status, r.payment_status, r.payment_method, r.total_amount, r.paid_amount,
+             r.assigned_staff_id, r.source, r.special_requests, r.notes,
+             r.created_at, r.checked_in_at, r.checked_out_at,
+             r.payment_proof_path, r.primary_transaction_ref,
+             r.emergency_contact_name, r.emergency_contact_phone,
+             p.name AS property_name, p.code AS property_code,
+             a.unit_number, a.unit_name, a.unit_type, a.status AS unit_status,
+             a.housekeeping_status, a.maintenance_status,
+             u_staff.name AS assigned_staff_name,
+             GREATEST(0, r.total_amount - r.paid_amount) AS outstanding_balance
+      FROM reservations r
+      JOIN properties p ON p.id = r.property_id
+      JOIN apartments a ON a.id = r.apartment_id
+      LEFT JOIN users u_staff ON u_staff.id = r.assigned_staff_id
+      WHERE (LOWER(r.tenant_name) LIKE LOWER(?) OR LOWER(r.reservation_code) LIKE LOWER(?))
+    `;
+    const params = [like, like];
+    const scope = this.resolvePropertyScopeConstraint(user, propertyId, 'r.property_id');
+    sql += ` ${scope.clause}`;
+    params.push(...scope.params);
+    sql += ' ORDER BY r.created_at DESC LIMIT 25;';
+    return pool.query(sql, params);
+  }
 }
 
 module.exports = FrontOfficeRepository;

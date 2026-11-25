@@ -1498,6 +1498,16 @@ class ReservationsService {
     const callerUser = req?.user || (typeof staffOrReq === 'object' && staffOrReq?.role ? staffOrReq : null);
 
     return pool.withTransaction(async (conn) => {
+      // Suspended / inactive receptionist guard
+      const [claimerRows] = await conn.query('SELECT id, status FROM users WHERE id = ? LIMIT 1', [userId]);
+      if (!claimerRows || claimerRows.length === 0 || String(claimerRows[0].status || '').toUpperCase() !== 'ACTIVE') {
+        throw new ForbiddenError('Your account is not active and cannot claim bookings.');
+      }
+      const [claimerEmp] = await conn.query('SELECT id, employment_status FROM employees WHERE user_id = ? LIMIT 1', [userId]);
+      if (claimerEmp && claimerEmp.length > 0 && ['SUSPENDED', 'TERMINATED', 'INACTIVE'].includes(String(claimerEmp[0].employment_status || '').toUpperCase())) {
+        throw new ForbiddenError(`Account status '${claimerEmp[0].employment_status}' cannot receive new booking assignments.`);
+      }
+
       const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
       if (!resRows || resRows.length === 0) {
         throw new NotFoundError(`Reservation #${id} not found.`);
@@ -1620,6 +1630,16 @@ class ReservationsService {
     }
 
     return pool.withTransaction(async (conn) => {
+      // Suspended / inactive receptionist guard
+      const [claimerRows] = await conn.query('SELECT id, status FROM users WHERE id = ? LIMIT 1', [userId]);
+      if (!claimerRows || claimerRows.length === 0 || String(claimerRows[0].status || '').toUpperCase() !== 'ACTIVE') {
+        throw new ForbiddenError('Your account is not active and cannot claim bookings.');
+      }
+      const [claimerEmp] = await conn.query('SELECT id, employment_status FROM employees WHERE user_id = ? LIMIT 1', [userId]);
+      if (claimerEmp && claimerEmp.length > 0 && ['SUSPENDED', 'TERMINATED', 'INACTIVE'].includes(String(claimerEmp[0].employment_status || '').toUpperCase())) {
+        throw new ForbiddenError(`Account status '${claimerEmp[0].employment_status}' cannot receive new booking assignments.`);
+      }
+
       const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
       if (!resRows || resRows.length === 0) {
         throw new NotFoundError(`Reservation #${id} not found.`);
@@ -1743,6 +1763,16 @@ class ReservationsService {
     }
 
     return pool.withTransaction(async (conn) => {
+      // Suspended / inactive receptionist guard
+      const [claimerRows] = await conn.query('SELECT id, status FROM users WHERE id = ? LIMIT 1', [userId]);
+      if (!claimerRows || claimerRows.length === 0 || String(claimerRows[0].status || '').toUpperCase() !== 'ACTIVE') {
+        throw new ForbiddenError('Your account is not active and cannot claim bookings.');
+      }
+      const [claimerEmp] = await conn.query('SELECT id, employment_status FROM employees WHERE user_id = ? LIMIT 1', [userId]);
+      if (claimerEmp && claimerEmp.length > 0 && ['SUSPENDED', 'TERMINATED', 'INACTIVE'].includes(String(claimerEmp[0].employment_status || '').toUpperCase())) {
+        throw new ForbiddenError(`Account status '${claimerEmp[0].employment_status}' cannot receive new booking assignments.`);
+      }
+
       const [resRows] = await conn.query('SELECT * FROM reservations WHERE id = ? FOR UPDATE', [id]);
       if (!resRows || resRows.length === 0) {
         throw new NotFoundError(`Reservation #${id} not found.`);

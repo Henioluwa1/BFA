@@ -170,6 +170,31 @@ export const frontOfficeService = {
   clockIn: (propertyId) => api.post('/front-office/shift/clock-in', { propertyId }),
   clockOut: () => api.post('/front-office/shift/clock-out'),
   updateAvailability: (availabilityStatus) => api.patch('/front-office/availability', { availabilityStatus }),
+  searchBookings: (params) => api.get('/front-office/search', { params }),
+  reassignBooking: (id, data) => api.post(`/front-office/reservations/${id}/reassign`, data),
+  getDocumentTypes: () => api.get('/front-office/document-types'),
+  getReadiness: (id) => api.get(`/front-office/reservations/${id}/readiness`),
+  getCheckinSession: (id) => api.get(`/front-office/reservations/${id}/checkin-session`),
+  upsertCheckinSession: (id, data) => api.post(`/front-office/reservations/${id}/checkin-session`, data),
+  listDocuments: (id) => api.get(`/front-office/reservations/${id}/documents`),
+  uploadDocument: (id, data) => api.post(`/front-office/reservations/${id}/documents`, data),
+  getDocumentFileUrl: (docId) => `/api/v1/front-office/documents/${docId}/file`,
+  getPaymentRefs: (id) => api.get(`/front-office/reservations/${id}/payment-refs`),
+  recordPaymentRef: (id, data) => api.post(`/front-office/reservations/${id}/payment-refs`, data),
+};
+
+export const contactService = {
+  submitInquiry: (data) => api.post('/contact/submit', data),
+  lookupByAccessCode: (data) => api.post('/contact/lookup', data),
+  getClientInquiryDetail: (token) => api.get(`/contact/inquiry/${encodeURIComponent(token)}/detail`),
+  addClientMessage: (token, data) => api.post(`/contact/inquiry/${encodeURIComponent(token)}/messages`, data),
+  submitClientFeedback: (token, data) => api.post(`/contact/inquiry/${encodeURIComponent(token)}/feedback`, data),
+  listInquiries: (params) => api.get('/contact/manage', { params }),
+  getInquiryById: (id) => api.get(`/contact/manage/${id}`),
+  assignInquiry: (id, data) => api.post(`/contact/manage/${id}/assign`, data),
+  addStaffMessage: (id, data) => api.post(`/contact/manage/${id}/messages`, data),
+  closeInquiry: (id, data) => api.post(`/contact/manage/${id}/close`, data),
+  reopenInquiry: (id, data) => api.post(`/contact/manage/${id}/reopen`, data),
 };
 
 export const receptionistMonitorService = {

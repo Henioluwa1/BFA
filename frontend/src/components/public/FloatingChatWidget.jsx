@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Icons8Icon from './Icons8Icon';
+import { contactService } from '../../services/api';
 import './FloatingChatWidget.css';
 
 export default function FloatingChatWidget() {
@@ -12,7 +13,7 @@ export default function FloatingChatWidget() {
   const [formError, setFormError] = useState('');
   const [submittedTicket, setSubmittedTicket] = useState(null);
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     setFormError('');
     if (!senderName.trim() || !senderContact.trim() || !message.trim()) {
@@ -20,19 +21,28 @@ export default function FloatingChatWidget() {
       return;
     }
     setSending(true);
-
-    // Simulate contact desk transmission
-    setTimeout(() => {
-      const ticketId = `BFA-CNT-${Math.floor(100000 + Math.random() * 900000)}`;
+    try {
+      const isEmail = senderContact.includes('@');
+      const res = await contactService.submitInquiry({
+        fullName: senderName.trim(),
+        email: isEmail ? senderContact.trim() : undefined,
+        phone: !isEmail ? senderContact.trim() : undefined,
+        inquiryDepartment: department,
+        message: message.trim(),
+      });
       setSubmittedTicket({
-        id: ticketId,
-        name: senderName,
+        id: res.data?.inquiryReference,
+        accessCode: res.data?.clientAccessCode,
+        name: senderName.trim(),
         department,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
-      setSending(false);
       setMessage('');
-    }, 900);
+    } catch (err) {
+      setFormError(err.message || 'Unable to send message to Contact Desk.');
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleReset = () => {

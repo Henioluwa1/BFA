@@ -11,6 +11,9 @@ import { useToast } from '../../context/ToastContext';
 import { formatNaira } from '../../utils/currency';
 import ApartmentReadinessModal from '../../components/portal/ApartmentReadinessModal';
 import PreCheckInReadinessModal from '../../components/portal/PreCheckInReadinessModal';
+import ClientSearchModal from '../../components/frontOffice/ClientSearchModal';
+import BookingDetailsModal from '../../components/frontOffice/BookingDetailsModal';
+import InquiriesWorkspaceTab from '../../components/frontOffice/InquiriesWorkspaceTab';
 
 export default function FrontOfficePage() {
   const navigate = useNavigate();
@@ -48,6 +51,8 @@ export default function FrontOfficePage() {
   const [loading, setLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [detailsBooking, setDetailsBooking] = useState(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(new Date());
 
   // Reservation detail modal
@@ -595,6 +600,9 @@ export default function FrontOfficePage() {
               fontSize: '0.85rem',
             }}
           />
+          <Button variant="primary" size="sm" onClick={() => setSearchModalOpen(true)}>
+            🔍 Client Search
+          </Button>
           <Button variant="outline" size="sm" onClick={() => loadFrontOfficeData(false)} loading={loading}>
             ↻ Refresh
           </Button>
@@ -835,6 +843,7 @@ export default function FrontOfficePage() {
           { key: 'IN_HOUSE', label: 'Current In-House Guests', count: stats.inHouseGuests },
           { key: 'DEPARTURES', label: "Today's Departures", count: stats.todaysDepartures },
           { key: 'HOUSEKEEPING', label: 'Housekeeping Queue (DIRTY)', count: stats.dirtyUnits },
+          { key: 'INQUIRIES', label: 'Contact Desk Inquiries', count: 'Desk', highlight: true },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -879,6 +888,8 @@ export default function FrontOfficePage() {
             <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               Loading authoritative front-office records...
             </div>
+          ) : activeTab === 'INQUIRIES' ? (
+            <InquiriesWorkspaceTab activePropertyId={propertyFilter} user={user} />
           ) : activeTab === 'HOUSEKEEPING' ? (
             /* Housekeeping Queue Table */
             dirtyApartments.length === 0 ? (
@@ -1015,6 +1026,9 @@ export default function FrontOfficePage() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <Button variant="outline" size="sm" onClick={() => setDetailsBooking(row)}>
+                      📋 Check-In Dossier
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => handleViewDetails(row)}>
                       View Details
                     </Button>
@@ -1359,6 +1373,27 @@ export default function FrontOfficePage() {
           apartment={readinessApartment}
           onUpdated={() => {
             setReadinessApartment(null);
+            loadFrontOfficeData(false);
+          }}
+        />
+      )}
+
+      {/* Client & Booking Search Modal */}
+      <ClientSearchModal
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        activePropertyId={propertyFilter}
+        onSelectBooking={(b) => setDetailsBooking(b)}
+      />
+
+      {/* Full Booking Details & Check-In Dossier Modal */}
+      {detailsBooking && (
+        <BookingDetailsModal
+          isOpen={!!detailsBooking}
+          onClose={() => setDetailsBooking(null)}
+          booking={detailsBooking}
+          onCheckInCompleted={() => {
+            setDetailsBooking(null);
             loadFrontOfficeData(false);
           }}
         />
