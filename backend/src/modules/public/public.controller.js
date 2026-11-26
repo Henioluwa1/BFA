@@ -38,24 +38,32 @@ async function getPublicProperties(req, res, next) {
         (SELECT file_url FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = p.id AND is_published = 1 ORDER BY is_primary DESC, display_order ASC, id ASC LIMIT 1) AS primary_photo_url,
         (SELECT COUNT(*) FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = p.id AND is_published = 1) AS photo_count,
         COUNT(a.id) AS total_units,
-        COUNT(CASE WHEN a.status = 'AVAILABLE' AND a.is_active = 1 THEN a.id END) AS available_units,
-        MIN(a.rate_per_night) AS starting_rate
+        COUNT(CASE WHEN a.status = 'AVAILABLE' AND a.is_active = 1 AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL) THEN a.id END) AS available_units,
+        MIN(CASE WHEN a.is_active = 1 AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL) THEN COALESCE(a.approved_rate_per_night, a.rate_per_night) END) AS starting_rate
       FROM properties p
       LEFT JOIN apartments a ON p.id = a.property_id
-      WHERE p.status IN ('ACTIVE', 'PUBLISHED') AND (p.is_archived IS NULL OR p.is_archived = FALSE)
+      WHERE p.status IN ('ACTIVE', 'PUBLISHED')
+        AND (p.approval_status IN ('APPROVED', 'PUBLISHED') OR p.approved_snapshot IS NOT NULL)
+        AND (p.is_archived IS NULL OR p.is_archived = FALSE)
       GROUP BY p.id
       ORDER BY p.id ASC
     `);
 
-    const scrubbedRows = rows.map((row) => ({
-      ...row,
-      amenities: typeof row.amenities === 'string' ? (() => {
-        try { return JSON.parse(row.amenities); } catch { return []; }
-      })() : (row.amenities || []),
-      technical_specs: typeof row.technical_specs === 'string' ? (() => {
-        try { return JSON.parse(row.technical_specs); } catch { return {}; }
-      })() : (row.technical_specs || {}),
-    }));
+    const scrubbedRows = rows.map((row) => {
+      const snap = row.approved_snapshot
+        ? (typeof row.approved_snapshot === 'string' ? (() => { try { return JSON.parse(row.approved_snapshot); } catch { return null; } })() : row.approved_snapshot)
+        : null;
+      const base = (snap && !['APPROVED', 'PUBLISHED'].includes(row.approval_status)) ? { ...row, ...snap } : row;
+      return {
+        ...base,
+        amenities: typeof base.amenities === 'string' ? (() => {
+          try { return JSON.parse(base.amenities); } catch { return []; }
+        })() : (base.amenities || []),
+        technical_specs: typeof base.technical_specs === 'string' ? (() => {
+          try { return JSON.parse(base.technical_specs); } catch { return {}; }
+        })() : (base.technical_specs || {}),
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -86,7 +94,7 @@ async function getPublicApartments(req, res, next) {
         a.unit_name, 
         a.unit_type, 
         a.description,
-        a.rate_per_night,
+        COALESCE(a.approved_rate_per_night, a.rate_per_night) AS rate_per_night,
         a.floor,
         a.capacity,
         a.bedroom_count,
@@ -97,7 +105,11 @@ async function getPublicApartments(req, res, next) {
         (SELECT file_url FROM media_assets WHERE entity_type = 'APARTMENT' AND entity_id = a.id AND is_published = 1 ORDER BY is_primary DESC, display_order ASC, id ASC LIMIT 1) AS primary_photo_url
       FROM apartments a
       JOIN properties p ON a.property_id = p.id
-      WHERE p.status IN ('ACTIVE', 'PUBLISHED') AND (p.is_archived IS NULL OR p.is_archived = FALSE) AND a.is_active = 1
+      WHERE p.status IN ('ACTIVE', 'PUBLISHED')
+        AND (p.approval_status IN ('APPROVED', 'PUBLISHED') OR p.approved_snapshot IS NOT NULL)
+        AND (p.is_archived IS NULL OR p.is_archived = FALSE)
+        AND a.is_active = 1
+        AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL)
     `;
     const params = [];
 
@@ -168,7 +180,7 @@ async function getPublicPropertyDetail(req, res, next) {
         p.check_out_time,
         p.status
       FROM properties p 
-      WHERE p.id = ? AND p.status IN ('ACTIVE', 'PUBLISHED') AND (p.is_archived IS NULL OR p.is_archived = FALSE)`,
+      WHERE p.id = ? AND p.status IN ('ACTIVE', 'PUBLISHED') AND (p.approval_status IN ('APPROVED', 'PUBLISHED') OR p.approved_snapshot IS NOT NULL) AND (p.is_archived IS NULL OR p.is_archived = FALSE)`,
       [propertyId]
     );
 
@@ -218,7 +230,7 @@ async function getPublicPropertyDetail(req, res, next) {
         a.unit_name, 
         a.unit_type, 
         a.description,
-        a.rate_per_night,
+        COALESCE(a.approved_rate_per_night, a.rate_per_night) AS rate_per_night,
         a.floor,
         a.capacity,
         a.bedroom_count,
@@ -227,8 +239,8 @@ async function getPublicPropertyDetail(req, res, next) {
         a.technical_specs,
         a.status
       FROM apartments a
-      WHERE a.property_id = ? AND a.is_active = 1
-      ORDER BY a.rate_per_night ASC, a.unit_number ASC`,
+      WHERE a.property_id = ? AND a.is_active = 1 AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL)
+      ORDER BY COALESCE(a.approved_rate_per_night, a.rate_per_night) ASC, a.unit_number ASC`,
       [propertyId]
     );
 

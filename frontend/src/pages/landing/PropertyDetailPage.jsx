@@ -489,7 +489,7 @@ export default function PropertyDetailPage() {
         {loading ? (
           <div className="bfa-property-loading-container">
             <div className="bfa-property-spinner" />
-            <h3 style={{ margin: '1rem 0 0.5rem', color: '#ffffff' }}>Loading Building Enclave...</h3>
+            <h3 style={{ margin: '1rem 0 0.5rem', color: '#ffffff' }}>Loading Property Details...</h3>
             <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
               Retrieving real-time room types, architectural gallery, and availability across Akure.
             </p>
@@ -497,7 +497,7 @@ export default function PropertyDetailPage() {
         ) : error || !property ? (
           <div className="bfa-property-error-container">
             <Icons8Icon name="info" variant="blue" size={42} />
-            <h3 style={{ color: '#ffffff', margin: '1rem 0 0.5rem' }}>Building Enclave Unavailable</h3>
+            <h3 style={{ color: '#ffffff', margin: '1rem 0 0.5rem' }}>Property Unavailable</h3>
             <p style={{ color: '#cbd5e1', maxWidth: '500px', margin: '0 auto 1.5rem' }}>
               {error || 'The requested property could not be found or is currently not active for public bookings.'}
             </p>
@@ -628,8 +628,8 @@ export default function PropertyDetailPage() {
               <div className="bfa-property-card-container">
                 <div className="bfa-section-header-compact">
                   <div>
-                    <span className="bfa-section-tag">Building Facilities & Standards</span>
-                    <h2 className="bfa-section-title">Enclave Amenities & Privileges</h2>
+                    <span className="bfa-section-tag">Building Facilities &amp; Standards</span>
+                    <h2 className="bfa-section-title">Property Amenities &amp; Privileges</h2>
                   </div>
                   <div className="bfa-house-rules-pill">
                     <span>🕒 Check-In: <strong>{property.check_in_time || '14:00'}</strong></span>

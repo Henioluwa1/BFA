@@ -1,4 +1,5 @@
 const PropertySubmissionsService = require('./propertySubmissions.service');
+const SubmissionPdfService = require('./submissionPdf.service');
 const ApiResponse = require('../../utils/apiResponse');
 
 class PropertySubmissionsController {
@@ -96,6 +97,35 @@ class PropertySubmissionsController {
         message: 'Submission successfully published.',
         data,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getDocument(req, res, next) {
+    try {
+      const data = await SubmissionPdfService.buildDocumentData(parseInt(req.params.id, 10), req.user);
+      const scrubbedMedia = (data.media || []).map(({ file_data, ...rest }) => rest);
+      return ApiResponse.success(res, {
+        message: 'Submission document retrieved.',
+        data: { ...data, media: scrubbedMedia },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async downloadPdf(req, res, next) {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const pdfBuffer = await SubmissionPdfService.generatePdfBuffer(id, req.user);
+      const inline = req.query.inline === '1' || req.query.inline === 'true';
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `${inline ? 'inline' : 'attachment'}; filename="BFA-Submission-${id}.pdf"`
+      );
+      return res.send(pdfBuffer);
     } catch (err) {
       next(err);
     }

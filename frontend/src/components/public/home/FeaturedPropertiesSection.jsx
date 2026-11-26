@@ -43,7 +43,7 @@ export default function FeaturedPropertiesSection({
   };
 
   return (
-    <section className="bfa-featured-section" id="residences" aria-label="Curated Serviced Enclaves">
+    <section className="bfa-featured-section" id="residences" aria-label="Featured Properties">
       <div className="bfa-featured-container">
         {/* Editorial Section Header */}
         <div className="bfa-featured-header">
@@ -54,7 +54,7 @@ export default function FeaturedPropertiesSection({
           <div className="bfa-featured-header-right">
             <Link to="/properties" className="bfa-view-all-link">
               <BfaButton variant="primary" size="md" iconRight={<ArrowRight size={14} />}>
-                View All Enclaves &amp; Suites
+                View All Properties &amp; Suites
               </BfaButton>
             </Link>
           </div>
@@ -104,7 +104,7 @@ export default function FeaturedPropertiesSection({
                     )}
                     <div className="bfa-card-media-overlay">
                       <BfaBadge variant="forest" size="sm" icon={<ShieldCheck size={12} />}>
-                        {prop.code || 'BFA'} • Verified Enclave
+                        {prop.code || 'BFA'} • Verified Property
                       </BfaBadge>
 
                       {hasAvailabilityData && availNum > 0 ? (
@@ -195,7 +195,7 @@ export default function FeaturedPropertiesSection({
                       <div className="bfa-card-buttons-group">
                         <Link to={`/property/${prop.id}`} className="bfa-card-explore-btn">
                           <BfaButton variant="primary" size="sm">
-                            View Enclave
+                            View Property
                           </BfaButton>
                         </Link>
                       </div>

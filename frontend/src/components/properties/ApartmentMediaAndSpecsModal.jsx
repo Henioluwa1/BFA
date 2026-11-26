@@ -28,6 +28,9 @@ export default function ApartmentMediaAndSpecsModal({ isOpen, onClose, apartment
     custom: [],
   });
   const [isActive, setIsActive] = useState(true);
+  const [enteredRate, setEnteredRate] = useState('');
+  const [rateType, setRateType] = useState('PER_NIGHT');
+  const [priceEffectiveDate, setPriceEffectiveDate] = useState('');
 
   const loadMedia = useCallback(async () => {
     if (!apartment?.id) return;
@@ -63,6 +66,9 @@ export default function ApartmentMediaAndSpecsModal({ isOpen, onClose, apartment
     if (isOpen && apartment?.id) {
       setActiveTab('MEDIA');
       setIsActive(apartment.is_active !== false && apartment.is_active !== 0);
+      setEnteredRate(String(apartment.entered_rate_per_night ?? apartment.rate_per_night ?? ''));
+      setRateType(apartment.rate_type || 'PER_NIGHT');
+      setPriceEffectiveDate(apartment.price_effective_date ? String(apartment.price_effective_date).slice(0, 10) : '');
       const rawSpecs = typeof apartment.technical_specs === 'string'
         ? (() => { try { return JSON.parse(apartment.technical_specs); } catch { return {}; } })()
         : (apartment.technical_specs || {});
@@ -176,14 +182,22 @@ export default function ApartmentMediaAndSpecsModal({ isOpen, onClose, apartment
     setSaving(true);
     try {
       const cleanedCustom = (techSpecs.custom || []).filter((c) => c.label?.trim() && c.value?.trim());
-      await apartmentService.update(apartment.id, {
-        is_active: isActive ? 1 : 0,
+      const payload = {
         technical_specs: { ...techSpecs, custom: cleanedCustom },
-      });
-      addToast('Apartment specifications & visibility saved!', 'success');
+        rate_type: rateType,
+        price_effective_date: priceEffectiveDate || null,
+      };
+      if (enteredRate !== '' && !isNaN(Number(enteredRate))) {
+        payload.entered_rate_per_night = Number(enteredRate);
+      }
+      if (['APPROVED', 'PUBLISHED'].includes(apartment.approval_status)) {
+        payload.is_active = isActive ? 1 : 0;
+      }
+      await apartmentService.update(apartment.id, payload);
+      addToast('Apartment pricing, specs & approval status saved!', 'success');
       onUpdated?.();
     } catch (err) {
-      addToast(err.message || 'Failed to save specifications.', 'error');
+      addToast(err.response?.data?.error?.message || err.message || 'Failed to save specifications.', 'error');
     } finally {
       setSaving(false);
     }
@@ -321,12 +335,72 @@ export default function ApartmentMediaAndSpecsModal({ isOpen, onClose, apartment
 
         {activeTab === 'SPECS' && (
           <form onSubmit={handleSaveSpecsAndVisibility} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-            <div style={{ padding: '1rem 1.1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ padding: '1rem 1.1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: 0 }}>
-                <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                <input
+                  type="checkbox"
+                  checked={isActive}
+                  disabled={!['APPROVED', 'PUBLISHED'].includes(apartment.approval_status)}
+                  onChange={(e) => setIsActive(e.target.checked)}
+                  style={{ width: '16px', height: '16px' }}
+                />
                 <span style={{ fontWeight: 600, color: '#f8fafc' }}>Published on Public Website</span>
                 <Badge variant={isActive ? 'success' : 'warning'}>{isActive ? 'PUBLISHED' : 'HIDDEN'}</Badge>
               </label>
+              <Badge variant={['APPROVED', 'PUBLISHED'].includes(apartment.approval_status) ? 'success' : 'warning'}>
+                Approval: {apartment.approval_status || 'PENDING_OWNER_APPROVAL'}
+              </Badge>
+            </div>
+
+            <div style={{ padding: '1.1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#d4af37' }}>
+                  Booking Price Management (NGN ₦ • 1-Night Rule)
+                </div>
+                <Badge variant={apartment.pricing_status === 'APPROVED' ? 'success' : 'warning'}>
+                  Pricing: {apartment.pricing_status || 'PENDING_APPROVAL'}
+                </Badge>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <label className="form-label">Manager-Entered Price (₦ NGN)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="input-field"
+                    value={enteredRate}
+                    onChange={(e) => setEnteredRate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Rate Type (1-Night Policy)</label>
+                  <select className="input-field" value={rateType} onChange={(e) => setRateType(e.target.value)}>
+                    <option value="PER_NIGHT">Per Night (Standard)</option>
+                    <option value="CORPORATE_NIGHTLY">Corporate Nightly</option>
+                    <option value="WEEKEND_NIGHTLY">Weekend Nightly</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Effective Date (Optional)</label>
+                  <input
+                    type="date"
+                    className="input-field"
+                    value={priceEffectiveDate}
+                    onChange={(e) => setPriceEffectiveDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Approved Public Price (₦)</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    disabled
+                    value={apartment.approved_rate_per_night != null ? `₦${Number(apartment.approved_rate_per_night).toLocaleString('en-NG')}` : 'Pending Approval'}
+                    style={{ opacity: 0.75, cursor: 'not-allowed' }}
+                  />
+                </div>
+              </div>
             </div>
 
             <div style={{ padding: '1.1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>

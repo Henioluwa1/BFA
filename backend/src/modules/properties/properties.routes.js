@@ -5,12 +5,14 @@ const { requireRoles } = require('../../core/middleware/authContext');
 
 const router = express.Router();
 
-// Dual-Review Property Governance & Submissions Routes
+// Dual-Review Property & Apartment Governance & Submissions Routes
 router.get('/submissions', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertySubmissionsController.list);
 router.post('/submissions', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertySubmissionsController.create);
 router.get('/submissions/:id', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertySubmissionsController.getById);
-router.post('/submissions/:id/review', requireRoles('ADMIN', 'OWNER', 'SUPER_ADMIN'), PropertySubmissionsController.review);
-router.post('/submissions/:id/publish', requireRoles('ADMIN', 'OWNER', 'SUPER_ADMIN'), PropertySubmissionsController.publish);
+router.get('/submissions/:id/document', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertySubmissionsController.getDocument);
+router.get('/submissions/:id/pdf', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertySubmissionsController.downloadPdf);
+router.post('/submissions/:id/review', requireRoles('OWNER', 'OPERATIONS_MANAGER', 'ADMIN', 'SUPER_ADMIN'), PropertySubmissionsController.review);
+router.post('/submissions/:id/publish', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'SUPER_ADMIN'), PropertySubmissionsController.publish);
 
 // Media Gallery Routes
 router.post('/:id/media', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.uploadMedia);

@@ -143,7 +143,7 @@ export default function ExplorePropertiesPage() {
 
   // Location filter options derived dynamically from loaded properties
   const locations = React.useMemo(() => {
-    const base = [{ id: 'ALL', label: 'All Enclaves' }];
+    const base = [{ id: 'ALL', label: 'All Properties' }];
     const seen = new Set(['all']);
     properties.forEach((p) => {
       const city = (p.city || '').trim();
@@ -228,7 +228,7 @@ export default function ExplorePropertiesPage() {
       <header className="bfa-explore-hero">
         <div className="bfa-explore-hero-inner">
           <h1 className="bfa-explore-hero-title">
-            Explore Serviced Residences &amp; Private Enclaves
+            Explore Serviced Residences &amp; Private Properties
           </h1>
 
           {/* Real-Time Search Bar */}
@@ -238,10 +238,10 @@ export default function ExplorePropertiesPage() {
               <input
                 type="text"
                 className="bfa-explore-search-input"
-                placeholder="Search residences by enclave, address, or amenity (e.g. Alagbaka, fiber, pool)..."
+                placeholder="Search properties by area, address, or amenity (e.g. Alagbaka, fiber, pool)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                aria-label="Search residences by enclave, address, or amenity"
+                aria-label="Search properties by area, address, or amenity"
               />
               {searchQuery && (
                 <button
@@ -363,7 +363,7 @@ export default function ExplorePropertiesPage() {
                       )}
                       <div className="bfa-property-card-overlay">
                         <BfaBadge variant="forest" size="sm" icon={<ShieldCheck size={12} />}>
-                          {prop.code || 'BFA'} • Verified Enclave
+                          {prop.code || 'BFA'} • Verified Property
                         </BfaBadge>
                         {hasAvailabilityData && availNum > 0 ? (
                           <BfaBadge variant="success" size="sm">
@@ -485,7 +485,7 @@ export default function ExplorePropertiesPage() {
           <div className="bfa-assurance-card">
             <Zap className="bfa-assurance-icon" size={24} />
             <h3>Uninterrupted Dual-Grid Power</h3>
-            <p>Heavy-duty Cummins diesel generation coupled to high-capacity solar inverters guarantees zero downtime across all enclaves.</p>
+            <p>Heavy-duty Cummins diesel generation coupled to high-capacity solar inverters guarantees zero downtime across all properties.</p>
           </div>
           <div className="bfa-assurance-card">
             <ShieldCheck className="bfa-assurance-icon" size={24} />

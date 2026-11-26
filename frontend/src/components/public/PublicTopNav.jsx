@@ -249,7 +249,7 @@ export default function PublicTopNav({
             <div className="bfa-mobile-drawer-inner">
               <div className="bfa-mobile-drawer-header">
                 <span className="bfa-drawer-brand">⠿ BFA APARTMENTS</span>
-                <span className="bfa-drawer-sub">Akure Enclaves</span>
+                <span className="bfa-drawer-sub">Akure Properties</span>
               </div>
 
               <nav className="bfa-mobile-drawer-nav" aria-label="Mobile Links">
@@ -296,16 +296,6 @@ export default function PublicTopNav({
               </nav>
 
               <div className="bfa-mobile-drawer-cta">
-                <BfaButton
-                  variant="primary"
-                  size="md"
-                  onClick={handleBookingClick}
-                  iconRight={<ArrowRight size={15} />}
-                  className="bfa-mobile-book-btn"
-                >
-                  Book a Residence
-                </BfaButton>
-
                 <div className="bfa-drawer-footer-info">
                   <div className="bfa-drawer-contact-line">
                     <Phone size={13} aria-hidden="true" />

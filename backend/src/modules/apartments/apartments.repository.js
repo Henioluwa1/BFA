@@ -102,9 +102,11 @@ class ApartmentsRepository {
       INSERT INTO apartments (
         property_id, unit_number, unit_name, unit_type, floor,
         capacity, bedroom_count, bathroom_count, rate_per_night,
-        status, amenities, technical_specs, notes, is_active, apartment_code, description, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        entered_rate_per_night, approved_rate_per_night, rate_type, price_effective_date, pricing_status,
+        approval_status, status, amenities, technical_specs, notes, is_active, apartment_code, description, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
+    const enteredRate = data.entered_rate_per_night ?? data.rate_per_night ?? 150000;
     const params = [
       data.property_id,
       String(data.unit_number || code).trim(),
@@ -114,12 +116,18 @@ class ApartmentsRepository {
       data.capacity || 2,
       data.bedroom_count || 1,
       data.bathroom_count || 1,
-      data.rate_per_night || 150.00,
+      data.rate_per_night ?? enteredRate,
+      enteredRate,
+      data.approved_rate_per_night ?? null,
+      data.rate_type || 'PER_NIGHT',
+      data.price_effective_date || null,
+      data.pricing_status || 'PENDING_APPROVAL',
+      data.approval_status || 'PENDING_OWNER_APPROVAL',
       data.status || 'AVAILABLE',
       data.amenities ? (typeof data.amenities === 'string' ? data.amenities : JSON.stringify(data.amenities)) : null,
       data.technical_specs ? (typeof data.technical_specs === 'string' ? data.technical_specs : JSON.stringify(data.technical_specs)) : '{}',
       data.notes || null,
-      data.is_active !== undefined ? (data.is_active ? 1 : 0) : 1,
+      data.is_active !== undefined ? (data.is_active ? 1 : 0) : 0,
       code,
       data.description ? String(data.description).trim() : null,
       data.created_by || null,
@@ -139,13 +147,15 @@ class ApartmentsRepository {
     const allowed = [
       'property_id', 'unit_number', 'unit_name', 'unit_type', 'floor',
       'capacity', 'bedroom_count', 'bathroom_count', 'rate_per_night',
+      'entered_rate_per_night', 'approved_rate_per_night', 'rate_type', 'price_effective_date', 'pricing_status',
+      'approval_status', 'approved_snapshot', 'published_at', 'published_by_id',
       'status', 'amenities', 'technical_specs', 'notes', 'is_active', 'apartment_code', 'description', 'updated_by'
     ];
 
     for (const key of allowed) {
       if (data[key] !== undefined) {
         fields.push(`${key} = ?`);
-        if ((key === 'amenities' || key === 'technical_specs') && data[key] !== null) {
+        if ((key === 'amenities' || key === 'technical_specs' || key === 'approved_snapshot') && data[key] !== null) {
           params.push(typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]));
         } else {
           params.push(data[key]);

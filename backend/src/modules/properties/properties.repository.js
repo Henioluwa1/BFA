@@ -78,22 +78,23 @@ class PropertiesRepository {
       const sql = `
       INSERT INTO properties (
         name, code, address, city, state, country, description,
-        contact_phone, contact_email, status, operational_status,
+        contact_phone, contact_email, status, approval_status, operational_status,
         check_in_time, check_out_time, amenities, technical_specs, notes, environment_description, category,
         location, district, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const params = [
       data.name.trim(),
       data.code.trim().toUpperCase(),
       data.address.trim(),
-      data.city || 'Lagos',
-      data.state || 'Lagos',
+      data.city || 'Akure',
+      data.state || 'Ondo State',
       data.country || 'Nigeria',
       data.description || null,
       data.contact_phone || null,
       data.contact_email || null,
-      data.status || 'DRAFT',
+      data.status || 'PENDING_APPROVAL',
+      data.approval_status || 'PENDING_OWNER_APPROVAL',
       data.operational_status || 'OPERATIONAL',
       data.check_in_time || '14:00',
       data.check_out_time || '11:00',
@@ -120,7 +121,7 @@ class PropertiesRepository {
 
     const allowed = [
       'name', 'address', 'city', 'state', 'country', 'description',
-      'contact_phone', 'contact_email', 'status', 'operational_status',
+      'contact_phone', 'contact_email', 'status', 'approval_status', 'approved_snapshot', 'operational_status',
       'check_in_time', 'check_out_time', 'amenities', 'technical_specs', 'notes', 'is_archived',
       'environment_description', 'category', 'location', 'district',
       'published_at', 'published_by_id',
@@ -131,7 +132,7 @@ class PropertiesRepository {
     for (const key of allowed) {
       if (data[key] !== undefined) {
         fields.push(`${key} = ?`);
-        if ((key === 'amenities' || key === 'technical_specs') && data[key] !== null) {
+        if ((key === 'amenities' || key === 'technical_specs' || key === 'approved_snapshot') && data[key] !== null) {
           params.push(typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]));
         } else {
           params.push(data[key]);

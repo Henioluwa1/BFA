@@ -123,8 +123,8 @@ export default function AboutPage() {
               </p>
               <div className="bfa-about-metrics-strip">
                 <div className="bfa-about-metric">
-                  <span className="bfa-about-metric-val">3</span>
-                  <span className="bfa-about-metric-lbl">Autonomous Enclaves</span>
+                  <span className="bfa-about-metric-val">{enclaves.length || 3}</span>
+                  <span className="bfa-about-metric-lbl">Autonomous Properties</span>
                 </div>
                 <div className="bfa-about-metric">
                   <span className="bfa-about-metric-val">100%</span>
@@ -192,7 +192,7 @@ export default function AboutPage() {
         <section className="bfa-about-portfolio-section">
           <div className="bfa-about-portfolio-header">
             <div>
-              <span className="bfa-about-section-tag">OUR THREE ENCLAVES</span>
+              <span className="bfa-about-section-tag">OUR PROPERTIES</span>
               <h2 className="bfa-about-section-title">The Akure Residences Portfolio</h2>
             </div>
             <Link to="/properties" className="bfa-about-view-all">

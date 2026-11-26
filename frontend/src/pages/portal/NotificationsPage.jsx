@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import { notificationService } from '../../services/api';
+import { notificationService, propertySubmissionService } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useNavigate } from 'react-router-dom';
@@ -127,7 +127,7 @@ export default function NotificationsPage() {
       <Card style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {['ALL', 'SECURITY', 'BOOKING', 'PAYMENT', 'COMMUNICATION', 'MAINTENANCE', 'SYSTEM'].map((cat) => (
+            {['ALL', 'APPROVAL', 'SECURITY', 'BOOKING', 'PAYMENT', 'COMMUNICATION', 'MAINTENANCE', 'SYSTEM'].map((cat) => (
               <button
                 key={cat}
                 className={`btn btn-sm ${categoryFilter === cat ? 'btn-primary' : 'btn-secondary'}`}
@@ -200,10 +200,42 @@ export default function NotificationsPage() {
                 <p style={{ margin: '0 0 0.35rem 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                   {notif.message}
                 </p>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {new Date(notif.created_at).toLocaleString()}
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+                  <span>{new Date(notif.created_at).toLocaleString()}</span>
+                  {notif.source_entity_type === 'property_submission' && notif.source_entity_id && (
+                    <span style={{ display: 'inline-flex', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => navigate(`/app/approvals?submission=${notif.source_entity_id}&viewDoc=1`)}
+                      >
+                        View Submission Document
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={async () => {
+                          try {
+                            const blob = await propertySubmissionService.downloadSubmissionPdf(notif.source_entity_id);
+                            const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `BFA-Submission-${notif.source_entity_id}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            window.URL.revokeObjectURL(url);
+                          } catch {
+                            addToast('Failed to download PDF.', 'error');
+                          }
+                        }}
+                      >
+                        Download PDF
+                      </button>
+                    </span>
+                  )}
                   {notif.link_url && (
-                    <span style={{ marginLeft: '1rem', color: 'var(--brand-accent)' }}>
+                    <span style={{ color: 'var(--brand-accent)' }}>
                       Click to view linked resource ➔
                     </span>
                   )}

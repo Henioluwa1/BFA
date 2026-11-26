@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const pool = require('../../db/pool');
 const PropertiesRepository = require('./properties.repository');
+const PropertySubmissionsService = require('./propertySubmissions.service');
 const AuditService = require('../../core/audit/audit.service');
 const { ValidationError, ConflictError, NotFoundError, ForbiddenError } = require('../../core/errors/apiError');
 
@@ -79,6 +80,11 @@ class PropertiesService {
 
     const newId = await PropertiesRepository.create({
       ...data,
+      city: data.city || 'Akure',
+      state: data.state || 'Ondo State',
+      country: data.country || 'Nigeria',
+      status: 'PENDING_APPROVAL',
+      approval_status: 'PENDING_OWNER_APPROVAL',
       created_by: user?.id || null,
     });
 
@@ -90,6 +96,18 @@ class PropertiesService {
     }
 
     const created = await PropertiesRepository.findById(newId);
+
+    // Automatically create submission & notify Owner + Operations Manager
+    if (user?.id) {
+      await PropertySubmissionsService.createSubmission({
+        propertyId: newId,
+        entityType: 'PROPERTY',
+        submissionType: 'NEW_PROPERTY',
+        contentSnapshot: created,
+        user,
+        req,
+      });
+    }
 
     await AuditService.record({
       req,
@@ -126,17 +144,39 @@ class PropertiesService {
       }
     }
 
-    // Material changes by non-publisher roles to an approved/published property reset its status to DRAFT
-    const isPublisher = ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(String(user?.role || '').toUpperCase());
-    if (!isPublisher && ['APPROVED', 'PUBLISHED'].includes(property.status) && !data.status) {
-      data.status = 'DRAFT';
-      data.admin_approved_at = null;
-      data.admin_approved_by_id = null;
-      data.owner_approved_at = null;
-      data.owner_approved_by_id = null;
-      data.published_at = null;
-      data.published_by_id = null;
-      data.rejection_reason = 'Approval invalidated: Content edited after approval.';
+    const materialFields = ['name', 'address', 'location', 'district', 'city', 'state', 'description', 'environment_description', 'amenities', 'technical_specs'];
+    const hasMaterialChange = materialFields.some((f) => data[f] !== undefined && JSON.stringify(data[f]) !== JSON.stringify(property[f]));
+    const wasApprovedOrPublished = ['APPROVED', 'PUBLISHED'].includes(property.approval_status) || ['ACTIVE', 'PUBLISHED'].includes(property.status);
+
+    if (wasApprovedOrPublished && hasMaterialChange && user?.id) {
+      // Preserve last approved public version in approved_snapshot and trigger reapproval without replacing public display
+      const snapshotToPreserve = property.approved_snapshot || {
+        name: property.name,
+        address: property.address,
+        location: property.location,
+        district: property.district,
+        city: property.city,
+        state: property.state,
+        country: property.country,
+        description: property.description,
+        environment_description: property.environment_description,
+        amenities: property.amenities,
+        technical_specs: property.technical_specs,
+      };
+      await PropertiesRepository.update(id, {
+        approved_snapshot: snapshotToPreserve,
+        approval_status: 'PENDING_OWNER_APPROVAL',
+        updated_by: user.id,
+      });
+      await PropertySubmissionsService.createSubmission({
+        propertyId: id,
+        entityType: 'PROPERTY',
+        submissionType: 'CONTENT_UPDATE',
+        contentSnapshot: { ...property, ...data },
+        user,
+        req,
+      });
+      return PropertiesRepository.findById(id);
     }
 
     await PropertiesRepository.update(id, {
@@ -175,6 +215,10 @@ class PropertiesService {
     ];
     if (!validStatuses.includes(status)) {
       throw new ValidationError(`Invalid property status. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    if (['ACTIVE', 'PUBLISHED'].includes(status) && !['APPROVED', 'PUBLISHED'].includes(property.approval_status)) {
+      throw new ForbiddenError('Cannot publish property before both Owner and Operations Manager approvals are recorded.');
     }
 
     // If deactivating or archiving, verify active reservations

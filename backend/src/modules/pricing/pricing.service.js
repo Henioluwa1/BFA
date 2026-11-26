@@ -62,7 +62,7 @@ class PricingService {
         a.unit_number,
         a.unit_name,
         a.unit_type,
-        a.rate_per_night,
+        COALESCE(a.approved_rate_per_night, a.rate_per_night) AS rate_per_night,
         a.capacity,
         a.status AS unit_status,
         a.is_active,

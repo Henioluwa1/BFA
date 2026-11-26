@@ -69,6 +69,7 @@ const ReservationsPage = lazy(() => import('./pages/portal/ReservationsPage'));
 const GuestsPage = lazy(() => import('./pages/portal/GuestsPage'));
 const ApartmentsPage = lazy(() => import('./pages/portal/ApartmentsPage'));
 const PropertiesPage = lazy(() => import('./pages/portal/PropertiesPage'));
+const ApprovalsPage = lazy(() => import('./pages/portal/ApprovalsPage'));
 const FinancialPage = lazy(() => import('./pages/portal/FinancialPage'));
 const ReportsPage = lazy(() => import('./pages/portal/ReportsPage'));
 const AnalyticsPage = lazy(() => import('./pages/portal/AnalyticsPage'));
@@ -123,6 +124,7 @@ function App() {
                       <Route index element={<Navigate to="/app/dashboard" replace />} />
                       <Route path="dashboard" element={<DashboardPage />} />
                       <Route path="properties" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><PropertiesPage /></ProtectedRoute>} />
+                      <Route path="approvals" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><ApprovalsPage /></ProtectedRoute>} />
                       <Route path="front-office" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST']}><FrontOfficePage /></ProtectedRoute>} />
                       <Route path="receptionist-monitor" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']}><ReceptionistLiveMonitorPage /></ProtectedRoute>} />
                       <Route path="calendar" element={<ProtectedRoute allowedRoles={['OWNER', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER', 'RECEPTIONIST', 'AGENT']}><CalendarPage /></ProtectedRoute>} />

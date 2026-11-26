@@ -64,8 +64,8 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
     location: '',
     district: '',
     address: '',
-    city: 'Lagos',
-    state: 'Lagos',
+    city: 'Akure',
+    state: 'Ondo State',
     country: 'Nigeria',
     environment_description: '',
     description: '',
@@ -98,8 +98,8 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
         location: property.location || '',
         district: property.district || '',
         address: property.address || '',
-        city: property.city || 'Lagos',
-        state: property.state || 'Lagos',
+        city: property.city || 'Akure',
+        state: property.state || 'Ondo State',
         country: property.country || 'Nigeria',
         environment_description: property.environment_description || '',
         description: property.description || '',
@@ -455,7 +455,7 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
                     <input
                       type="text"
                       className="input-field"
-                      placeholder="e.g. Victoria Island, Lekki Phase 1"
+                      placeholder="e.g. Alagbaka, Ijapo Estate, Oba-Ile"
                       value={infoForm.location}
                       onChange={(e) => setInfoForm({ ...infoForm, location: e.target.value })}
                     />
@@ -466,7 +466,7 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
                     <input
                       type="text"
                       className="input-field"
-                      placeholder="e.g. Waterfront Enclave, Diplomatic Zone"
+                      placeholder="e.g. Alagbaka GRA, Ondo Road Corridor"
                       value={infoForm.district}
                       onChange={(e) => setInfoForm({ ...infoForm, district: e.target.value })}
                     />

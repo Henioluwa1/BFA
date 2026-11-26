@@ -77,9 +77,10 @@
   --bfa-lux-status-error-text: #9e2323;
   --bfa-lux-status-error-border: #f7c3c3;
 
-  /* Typography Scale */
-  --bfa-lux-font-serif: 'Instrument Serif', 'Playfair Display', Georgia, serif;
-  --bfa-lux-font-display: 'Outfit', 'Playfair Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', serif;
+  /* Typography Scale — Single Primary Font Family */
+  --bfa-lux-font-hero: 'Instrument Serif', 'Playfair Display', Georgia, serif;
+  --bfa-lux-font-serif: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bfa-lux-font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --bfa-lux-font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --bfa-lux-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 

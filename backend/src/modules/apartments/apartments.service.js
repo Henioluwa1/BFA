@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const ApartmentsRepository = require('./apartments.repository');
 const PropertiesRepository = require('../properties/properties.repository');
 const PropertiesService = require('../properties/properties.service');
+const PropertySubmissionsService = require('../properties/propertySubmissions.service');
 const AuditService = require('../../core/audit/audit.service');
 const pool = require('../../db/pool');
 const { ValidationError, ConflictError, NotFoundError, ForbiddenError } = require('../../core/errors/apiError');
@@ -104,6 +105,11 @@ class ApartmentsService {
       unit_number: String(data.unit_number || aptCode).trim(),
       apartment_code: aptCode,
       description: data.description ? String(data.description).trim() : null,
+      entered_rate_per_night: data.entered_rate_per_night ?? data.rate_per_night ?? 150000,
+      approved_rate_per_night: null,
+      pricing_status: 'PENDING_APPROVAL',
+      approval_status: 'PENDING_OWNER_APPROVAL',
+      is_active: 0,
       created_by: user?.id || null,
     });
 
@@ -132,10 +138,21 @@ class ApartmentsService {
         propertyId: created.property_id,
         unitType: created.unit_type,
         ratePerNight: created.rate_per_night,
+        approvalStatus: 'PENDING_OWNER_APPROVAL',
       },
     });
 
-    await PropertiesService.invalidatePropertyApproval(created.property_id, 'New unit added');
+    if (user?.id) {
+      await PropertySubmissionsService.createSubmission({
+        propertyId: created.property_id,
+        apartmentId: newId,
+        entityType: 'APARTMENT',
+        submissionType: 'NEW_APARTMENT',
+        contentSnapshot: created,
+        user,
+        req,
+      });
+    }
 
     return created;
   }
@@ -443,6 +460,68 @@ class ApartmentsService {
       }
     }
 
+    // Block direct publication if not approved by both Owner & Operations Manager
+    if ((data.is_active === true || data.is_active === 1) && !['APPROVED', 'PUBLISHED'].includes(unit.approval_status)) {
+      throw new ForbiddenError('Cannot publish apartment before both Owner and Operations Manager approvals are recorded.');
+    }
+
+    const materialFields = [
+      'unit_name', 'unit_type', 'description', 'rate_per_night', 'entered_rate_per_night',
+      'rate_type', 'price_effective_date', 'amenities', 'technical_specs',
+      'bedroom_count', 'bathroom_count', 'capacity',
+    ];
+    const hasMaterialChange = materialFields.some((f) => {
+      if (data[f] === undefined) return false;
+      if (f === 'rate_per_night' || f === 'entered_rate_per_night') {
+        return Number(data[f]) !== Number(unit.approved_rate_per_night ?? unit.rate_per_night);
+      }
+      return JSON.stringify(data[f]) !== JSON.stringify(unit[f]);
+    });
+
+    const wasApprovedOrPublished = ['APPROVED', 'PUBLISHED'].includes(unit.approval_status) || unit.is_active === 1 || unit.is_active === true;
+
+    if (wasApprovedOrPublished && hasMaterialChange && user?.id) {
+      const priceChanged =
+        (data.entered_rate_per_night !== undefined && Number(data.entered_rate_per_night) !== Number(unit.approved_rate_per_night ?? unit.rate_per_night)) ||
+        (data.rate_per_night !== undefined && Number(data.rate_per_night) !== Number(unit.approved_rate_per_night ?? unit.rate_per_night));
+
+      const nextEnteredRate = data.entered_rate_per_night ?? data.rate_per_night ?? unit.entered_rate_per_night ?? unit.rate_per_night;
+      const snapshotToPreserve = unit.approved_snapshot || {
+        unit_name: unit.unit_name,
+        unit_type: unit.unit_type,
+        description: unit.description,
+        rate_per_night: unit.approved_rate_per_night ?? unit.rate_per_night,
+        bedroom_count: unit.bedroom_count,
+        bathroom_count: unit.bathroom_count,
+        capacity: unit.capacity,
+        amenities: unit.amenities,
+        technical_specs: unit.technical_specs,
+      };
+
+      // Keep approved_rate_per_night & rate_per_night at last approved price until reapproved
+      await ApartmentsRepository.update(id, {
+        approved_snapshot: snapshotToPreserve,
+        entered_rate_per_night: nextEnteredRate,
+        rate_type: data.rate_type || unit.rate_type || 'PER_NIGHT',
+        price_effective_date: data.price_effective_date || unit.price_effective_date || null,
+        pricing_status: priceChanged ? 'PENDING_APPROVAL' : (unit.pricing_status || 'APPROVED'),
+        approval_status: 'PENDING_OWNER_APPROVAL',
+        updated_by: user.id,
+      });
+
+      await PropertySubmissionsService.createSubmission({
+        propertyId: unit.property_id,
+        apartmentId: id,
+        entityType: 'APARTMENT',
+        submissionType: priceChanged ? 'PRICE_UPDATE' : 'CONTENT_UPDATE',
+        contentSnapshot: { ...unit, ...data, entered_rate_per_night: nextEnteredRate },
+        user,
+        req,
+      });
+
+      return ApartmentsRepository.findById(id);
+    }
+
     await ApartmentsRepository.update(id, {
       ...data,
       updated_by: user?.id || null,
@@ -461,8 +540,6 @@ class ApartmentsService {
       oldValues: { unitName: unit.unit_name, unitNumber: unit.unit_number, rate: unit.rate_per_night },
       newValues: { unitName: updated.unit_name, unitNumber: updated.unit_number, rate: updated.rate_per_night },
     });
-
-    await PropertiesService.invalidatePropertyApproval(unit.property_id, 'Unit configuration updated');
 
     return updated;
   }

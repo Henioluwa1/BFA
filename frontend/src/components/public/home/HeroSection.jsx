@@ -190,7 +190,7 @@ export default function HeroSection({
                 <input
                   type="text"
                   className="bfa-center-search-input"
-                  placeholder="Search suites, enclaves, or amenities..."
+                  placeholder="Search suites, properties, or amenities..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -213,8 +213,8 @@ export default function HeroSection({
                   type="button"
                   onClick={handleNextWallpaper}
                   className="bfa-nav-wallpaper-btn"
-                  title="Switch enclave photography"
-                  aria-label="Switch enclave photography"
+                  title="Switch property photography"
+                  aria-label="Switch property photography"
                 >
                   <ImageIcon size={17} aria-hidden="true" />
                 </button>
@@ -252,7 +252,7 @@ export default function HeroSection({
                   ) : (
                     <div className="bfa-search-suggestions">
                       <div className="bfa-search-dropdown-header">
-                        <span>Curated Enclaves in Akure</span>
+                        <span>Featured Properties in Akure</span>
                       </div>
                       {properties.map((prop) => (
                         <div
@@ -286,12 +286,12 @@ export default function HeroSection({
                 <ArrowRight size={15} aria-hidden="true" />
               </button>
               <Link to="/properties" className="bfa-hero-secondary-cta">
-                <span>Explore All Enclaves</span>
+                <span>Explore All Properties</span>
               </Link>
             </div>
           </div>
 
-          {/* Right Column: Layered Architectural Enclave Selector */}
+          {/* Right Column: Layered Architectural Property Selector */}
           <div className="bfa-hero-right">
             <div className="bfa-hero-inset-card">
               <div className="bfa-hero-inset-media">
@@ -311,7 +311,7 @@ export default function HeroSection({
               </div>
             </div>
 
-            <div className="bfa-hero-slide-nav" role="tablist" aria-label="Enclave photography slides">
+            <div className="bfa-hero-slide-nav" role="tablist" aria-label="Property photography slides">
               {heroSlides.map((slide, idx) => (
                 <button
                   key={slide.id}
