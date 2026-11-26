@@ -5,10 +5,10 @@
 
 .bfa-floating-chat-root {
   position: fixed;
-  bottom: 82px; /* Lifted up so it does not collide with the hero wallpaper pill */
-  right: 28px;
+  bottom: 20px;
+  right: 24px;
   z-index: 9999;
-  font-family: var(--font-body, 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif);
+  font-family: var(--bfa-lux-font-body, 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif);
   transition: bottom 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s ease;
 }
 
@@ -17,30 +17,30 @@
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.65rem 1.25rem;
-  background: rgba(15, 23, 42, 0.88);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  padding: 0.65rem 1.2rem;
+  background: rgba(16, 28, 28, 0.92);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid rgba(185, 154, 112, 0.45);
   border-radius: 9999px;
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 0.88rem;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: #f2eee5;
+  font-weight: 600;
+  font-size: 0.86rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.38);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .bfa-floating-chat-trigger:hover {
-  background: rgba(30, 58, 138, 0.95);
-  border-color: rgba(96, 165, 250, 0.6);
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 14px 40px rgba(37, 99, 235, 0.45);
+  background: #192a2a;
+  border-color: #b99a70;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px rgba(16, 28, 28, 0.48);
 }
 
 .bfa-floating-chat-trigger.active {
-  background: #2563eb;
-  border-color: #60a5fa;
+  background: #192a2a;
+  border-color: #b99a70;
 }
 
 .bfa-trigger-icon {

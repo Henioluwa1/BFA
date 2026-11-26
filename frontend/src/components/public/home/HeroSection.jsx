@@ -139,10 +139,19 @@ export default function HeroSection({
     e.preventDefault();
     if (searchResults.length > 0) {
       handleSelectUnit(searchResults[0]);
-    } else {
-      const el = document.getElementById('residences');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      return;
     }
+    if (q) {
+      const matchedProp = properties.find((p) =>
+        p.name?.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q)
+      );
+      if (matchedProp) {
+        handleSelectPropertySuggestion(matchedProp);
+        return;
+      }
+    }
+    const el = document.getElementById('residences');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -196,7 +205,10 @@ export default function HeroSection({
                   className="bfa-center-search-input"
                   placeholder="Search suites, enclaves, or amenities..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSearchFocused(true);
+                  }}
                   onFocus={() => setSearchFocused(true)}
                   aria-label="Search apartments, properties, or locations"
                 />

@@ -73,7 +73,7 @@
   margin: 0 auto;
   padding: 0 clamp(16px, 4vw, 40px);
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .bfa-hero-split {

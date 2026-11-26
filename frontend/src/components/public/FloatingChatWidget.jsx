@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Icons8Icon from './Icons8Icon';
 import { contactService } from '../../services/api';
 import './FloatingChatWidget.css';
 
 export default function FloatingChatWidget() {
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [senderName, setSenderName] = useState('');
   const [senderContact, setSenderContact] = useState('');
@@ -48,6 +50,11 @@ export default function FloatingChatWidget() {
   const handleReset = () => {
     setSubmittedTicket(null);
   };
+
+  // Hide floating launcher on /contact where full Contact Desk & Client Inquiry Portal are on-page
+  if (location.pathname.startsWith('/contact')) {
+    return null;
+  }
 
   return (
     <div className="bfa-floating-chat-root" aria-label="BFA Contact & Resident Desk">

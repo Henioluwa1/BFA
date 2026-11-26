@@ -25,6 +25,10 @@ export default function InquiriesWorkspaceTab({ activePropertyId, user }) {
   const [assignReason, setAssignReason] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
 
+  const canManageAssignments = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'MANAGER', 'OPERATIONS_MANAGER'].includes(
+    String(user?.role || '').toUpperCase()
+  );
+
   const fetchInquiries = useCallback(async () => {
     setLoading(true);
     try {
@@ -41,11 +45,13 @@ export default function InquiriesWorkspaceTab({ activePropertyId, user }) {
 
   useEffect(() => {
     fetchInquiries();
-    userService
-      .getAll?.()
-      .then((res) => setStaffList(res.data || []))
-      .catch(() => setStaffList([]));
-  }, [fetchInquiries]);
+    if (canManageAssignments) {
+      userService
+        .getAll?.()
+        .then((res) => setStaffList(res.data || []))
+        .catch(() => setStaffList([]));
+    }
+  }, [fetchInquiries, canManageAssignments]);
 
   const openDetail = async (inq) => {
     setSelected(inq);
@@ -164,7 +170,7 @@ export default function InquiriesWorkspaceTab({ activePropertyId, user }) {
                   {detail.inquiry.booking_reference && ` • Booking #${detail.inquiry.booking_reference}`}
                 </div>
               </div>
-              {detail.inquiry.status !== 'CLOSED' && (
+              {canManageAssignments && detail.inquiry.status !== 'CLOSED' && (
                 <button type="button" className="bfa-inq-close-btn" onClick={handleClose}>
                   <CheckCircle size={14} /> Close Ticket
                 </button>
@@ -175,23 +181,25 @@ export default function InquiriesWorkspaceTab({ activePropertyId, user }) {
               <div className="bfa-inq-banner"><AlertTriangle size={14} /> {statusMsg}</div>
             )}
 
-            <div className="bfa-inq-assign-bar">
-              <form onSubmit={handleAssign} className="bfa-inq-assign-form">
-                <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)} required>
-                  <option value="">Assign / Escalate to Staff...</option>
-                  {staffList.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  placeholder="Reason / instruction"
-                  value={assignReason}
-                  onChange={(e) => setAssignReason(e.target.value)}
-                />
-                <button type="submit"><UserPlus size={14} /> Route to DM</button>
-              </form>
-            </div>
+            {canManageAssignments && (
+              <div className="bfa-inq-assign-bar">
+                <form onSubmit={handleAssign} className="bfa-inq-assign-form">
+                  <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)} required>
+                    <option value="">Assign / Escalate to Staff...</option>
+                    {staffList.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Reason / instruction"
+                    value={assignReason}
+                    onChange={(e) => setAssignReason(e.target.value)}
+                  />
+                  <button type="submit"><UserPlus size={14} /> Route to DM</button>
+                </form>
+              </div>
+            )}
 
             <div className="bfa-inq-thread">
               <div className="bfa-inq-msg client">
