@@ -105,7 +105,14 @@ export default function NotificationsPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
               <strong style={{ color: '#f8fafc' }}>🖥️ Browser Desktop Notifications</strong>
-              <Badge status={permission === 'granted' ? 'success' : permission === 'denied' ? 'danger' : 'neutral'}>
+              <Badge
+                status={permission === 'granted' ? 'success' : permission === 'denied' ? 'danger' : 'neutral'}
+                style={{
+                  background: permission === 'granted' ? '#059669' : permission === 'denied' ? '#dc2626' : '#475569',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                }}
+              >
                 {permission === 'granted' ? 'ENABLED' : permission === 'denied' ? 'BLOCKED IN BROWSER' : 'NOT CONFIGURED'}
               </Badge>
             </div>
