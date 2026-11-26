@@ -38,8 +38,8 @@ async function getPublicProperties(req, res, next) {
         (SELECT file_url FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = p.id AND is_published = 1 ORDER BY is_primary DESC, display_order ASC, id ASC LIMIT 1) AS primary_photo_url,
         (SELECT COUNT(*) FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = p.id AND is_published = 1) AS photo_count,
         COUNT(a.id) AS total_units,
-        COUNT(CASE WHEN a.status = 'AVAILABLE' AND a.is_active = 1 AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL) THEN a.id END) AS available_units,
-        MIN(CASE WHEN a.is_active = 1 AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL) THEN COALESCE(a.approved_rate_per_night, a.rate_per_night) END) AS starting_rate
+        COUNT(CASE WHEN a.status = 'AVAILABLE' AND a.is_active = 1 AND a.approved_rate_per_night IS NOT NULL AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL) THEN a.id END) AS available_units,
+        MIN(CASE WHEN a.is_active = 1 AND a.approved_rate_per_night IS NOT NULL AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL) THEN a.approved_rate_per_night END) AS starting_rate
       FROM properties p
       LEFT JOIN apartments a ON p.id = a.property_id
       WHERE p.status IN ('ACTIVE', 'PUBLISHED')
@@ -94,7 +94,7 @@ async function getPublicApartments(req, res, next) {
         a.unit_name, 
         a.unit_type, 
         a.description,
-        COALESCE(a.approved_rate_per_night, a.rate_per_night) AS rate_per_night,
+        a.approved_rate_per_night AS rate_per_night,
         a.floor,
         a.capacity,
         a.bedroom_count,
@@ -109,6 +109,7 @@ async function getPublicApartments(req, res, next) {
         AND (p.approval_status IN ('APPROVED', 'PUBLISHED') OR p.approved_snapshot IS NOT NULL)
         AND (p.is_archived IS NULL OR p.is_archived = FALSE)
         AND a.is_active = 1
+        AND a.approved_rate_per_night IS NOT NULL
         AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL)
     `;
     const params = [];
@@ -230,7 +231,7 @@ async function getPublicPropertyDetail(req, res, next) {
         a.unit_name, 
         a.unit_type, 
         a.description,
-        COALESCE(a.approved_rate_per_night, a.rate_per_night) AS rate_per_night,
+        a.approved_rate_per_night AS rate_per_night,
         a.floor,
         a.capacity,
         a.bedroom_count,
@@ -239,8 +240,8 @@ async function getPublicPropertyDetail(req, res, next) {
         a.technical_specs,
         a.status
       FROM apartments a
-      WHERE a.property_id = ? AND a.is_active = 1 AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL)
-      ORDER BY COALESCE(a.approved_rate_per_night, a.rate_per_night) ASC, a.unit_number ASC`,
+      WHERE a.property_id = ? AND a.is_active = 1 AND a.approved_rate_per_night IS NOT NULL AND (a.approval_status IN ('APPROVED', 'PUBLISHED') OR a.approved_snapshot IS NOT NULL)
+      ORDER BY a.approved_rate_per_night ASC, a.unit_number ASC`,
       [propertyId]
     );
 

@@ -62,7 +62,11 @@ class PricingService {
         a.unit_number,
         a.unit_name,
         a.unit_type,
-        COALESCE(a.approved_rate_per_night, a.rate_per_night) AS rate_per_night,
+        a.approved_rate_per_night AS rate_per_night,
+        a.approved_rate_per_night,
+        a.pricing_status,
+        a.approval_status,
+        a.approved_snapshot,
         a.capacity,
         a.status AS unit_status,
         a.is_active,
@@ -92,6 +96,9 @@ class PricingService {
     }
     if (apartment.is_active === 0 || ['MAINTENANCE', 'OUT_OF_SERVICE', 'BLOCKED'].includes(apartment.unit_status)) {
       throw new ConflictError(`Unit '${apartment.unit_name}' (${apartment.unit_number}) is currently unavailable (${apartment.unit_status}).`);
+    }
+    if ((!['APPROVED', 'PUBLISHED'].includes(apartment.approval_status) && !apartment.approved_snapshot) || apartment.approved_rate_per_night == null) {
+      throw new ConflictError(`Unit '${apartment.unit_name}' (${apartment.unit_number}) does not have an approved public booking price.`);
     }
 
     // Check capacity if guests provided
