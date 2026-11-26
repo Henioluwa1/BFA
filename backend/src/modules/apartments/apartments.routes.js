@@ -23,6 +23,10 @@ router.get('/:id/availability', ApartmentsController.checkAvailability);
 // Apartment Media & Dynamic Amenities
 router.post('/:id/media', requireRoles(...MANAGER_ROLES), ApartmentsController.uploadMedia);
 router.get('/:id/media', ApartmentsController.getMedia);
+router.patch('/:id/media/:mediaId/cover', requireRoles(...MANAGER_ROLES), ApartmentsController.setCover);
+router.put('/:id/media/reorder', requireRoles(...MANAGER_ROLES), ApartmentsController.reorderMedia);
+router.patch('/:id/media/:mediaId/publish', requireRoles('ADMIN', 'OWNER', 'SUPER_ADMIN'), ApartmentsController.publishMedia);
+router.delete('/:id/media/:mediaId', requireRoles(...MANAGER_ROLES), ApartmentsController.deleteMedia);
 router.post('/:id/amenities', requireRoles(...MANAGER_ROLES), ApartmentsController.createAmenities);
 router.get('/:id/amenities', ApartmentsController.getAmenities);
 

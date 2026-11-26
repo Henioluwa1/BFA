@@ -1,7 +1,24 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+
+/**
+ * Resolves a backend media URL (e.g. /api/v1/public/media/42) against the configured API origin.
+ */
+export function resolveMediaUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  if (API_BASE_URL.startsWith('http') && url.startsWith('/api/v1')) {
+    const origin = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+    return `${origin}${url}`;
+  }
+  return url;
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -55,6 +72,7 @@ export const publicService = {
   getPropertyById: (id) => api.get(`/public/properties/${id}`),
   getRoomTypes: (propertyId) => api.get(`/public/properties/${propertyId}/room-types`),
   getApartments: (propertyId, params = {}) => api.get('/public/apartments', { params: { propertyId, ...params } }),
+  getApartmentById: (id) => api.get(`/public/apartments/${id}`),
   checkAvailability: (data) => api.post('/public/check-availability', data),
   getQuote: (data) => api.post('/public/quote', data),
   getPaymentConfig: () => api.get('/public/payment-config'),
@@ -129,6 +147,10 @@ export const apartmentService = {
   deleteBlockedPeriod: (id, blockId) => api.delete(`/apartments/${id}/blocked-periods/${blockId}`),
   uploadMedia: (id, media) => api.post(`/apartments/${id}/media`, { media }),
   getMedia: (id) => api.get(`/apartments/${id}/media`),
+  setCoverMedia: (id, mediaId) => api.patch(`/apartments/${id}/media/${mediaId}/cover`),
+  reorderMedia: (id, orderedIds) => api.put(`/apartments/${id}/media/reorder`, { orderedIds }),
+  publishMedia: (id, mediaId, isPublished = true) => api.patch(`/apartments/${id}/media/${mediaId}/publish`, { isPublished }),
+  deleteMedia: (id, mediaId) => api.delete(`/apartments/${id}/media/${mediaId}`),
   saveAmenities: (id, amenities) => api.post(`/apartments/${id}/amenities`, { amenities }),
   getAmenities: (id) => api.get(`/apartments/${id}/amenities`),
 };

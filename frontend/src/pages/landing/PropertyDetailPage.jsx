@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { publicService } from '../../services/api';
+import { publicService, resolveMediaUrl } from '../../services/api';
 import { formatNaira } from '../../utils/currency';
 import PublicTopNav from '../../components/public/PublicTopNav';
 import PublicFooter from '../../components/public/home/PublicFooter';
-import ApartmentDetailModal, {
-  getPropertyPhoto,
-  getRoomTypePhoto,
-  getRoomTypeGallery,
-  APARTMENTS_CATALOG,
-} from '../../components/public/ApartmentDetailModal';
+import ApartmentDetailModal from '../../components/public/ApartmentDetailModal';
 import FloatingChatWidget from '../../components/public/FloatingChatWidget';
 import Icons8Icon from '../../components/public/Icons8Icon';
 import BookingTrackingModal from '../../components/public/BookingTrackingModal';
@@ -261,15 +256,51 @@ export default function PropertyDetailPage() {
     setTimeout(() => setCopiedAcctNum(false), 3000);
   };
 
-  // Catalog fallback data for galleries and extended specs
-  const catalogData = property ? APARTMENTS_CATALOG[property.id] || APARTMENTS_CATALOG[1] : APARTMENTS_CATALOG[1];
-  const galleryItems = catalogData?.gallery || [];
+  // Gallery items built dynamically from portal-managed property & apartment photos
+  const galleryItems = React.useMemo(() => {
+    const items = [];
+    const seenUrls = new Set();
+    if (property?.photos && Array.isArray(property.photos)) {
+      property.photos.forEach((p, idx) => {
+        const url = resolveMediaUrl(p.file_url);
+        if (!url || seenUrls.has(url)) return;
+        seenUrls.add(url);
+        const cap = p.caption || `${property.name} View ${idx + 1}`;
+        const isOutdoor = /exterior|facade|pool|courtyard|ground|garden|terrace/i.test(cap);
+        items.push({
+          id: `prop-photo-${p.id || idx}`,
+          category: isOutdoor ? 'outdoor' : 'indoor',
+          badge: p.is_cover ? '★ Cover Photo' : (isOutdoor ? '🏛️ Property Grounds' : '🛋️ Residence Interior'),
+          title: cap,
+          desc: property.description || cap,
+          image: url,
+        });
+      });
+    }
+    units.forEach((u) => {
+      const unitPhotos = Array.isArray(u.photos) ? u.photos : [];
+      unitPhotos.forEach((p, idx) => {
+        const url = resolveMediaUrl(p.file_url);
+        if (!url || seenUrls.has(url)) return;
+        seenUrls.add(url);
+        items.push({
+          id: `unit-${u.id}-photo-${p.id || idx}`,
+          category: 'indoor',
+          badge: `🛏️ ${u.unit_name || u.unit_type || 'Suite'}`,
+          title: p.caption || u.unit_name || 'Suite Interior',
+          desc: u.description || `${u.unit_type || 'Serviced Suite'} — ${property?.name || ''}`,
+          image: url,
+        });
+      });
+    });
+    return items;
+  }, [property, units]);
 
   const filteredGallery = galleryCategory === 'all'
     ? galleryItems
     : galleryItems.filter((item) => item.category === galleryCategory);
 
-  const heroPhoto = property ? getPropertyPhoto(property.id, property.code) : '';
+  const heroPhoto = resolveMediaUrl(property?.main_photo || property?.primary_photo_url) || galleryItems[0]?.image || '';
 
   // Calculate cheapest currently available rate
   const availableUnits = units.filter((u) => u.status === 'AVAILABLE');
@@ -612,7 +643,7 @@ export default function PropertyDetailPage() {
                       <div key={idx} className="bfa-amenity-feature-card" style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
                         {amn.photo_url ? (
                           <img
-                            src={amn.photo_url}
+                            src={resolveMediaUrl(amn.photo_url)}
                             alt={amn.name}
                             style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '6px', border: '1px solid rgba(212, 175, 55, 0.3)', flexShrink: 0 }}
                           />
@@ -622,8 +653,8 @@ export default function PropertyDetailPage() {
                           </div>
                         )}
                         <div>
-                          <strong style={{ fontSize: '0.95rem', color: '#ffffff', display: 'block', marginBottom: '3px' }}>{amn.name}</strong>
-                          <span style={{ fontSize: '0.82rem', color: '#94a3b8', lineHeight: 1.4 }}>{amn.description || 'Verified building facility with high operational standard.'}</span>
+                          <strong style={{ display: 'block', marginBottom: '3px' }}>{amn.name}</strong>
+                          <span style={{ lineHeight: 1.4 }}>{amn.description || 'Verified building facility with high operational standard.'}</span>
                         </div>
                       </div>
                     ))
@@ -655,6 +686,49 @@ export default function PropertyDetailPage() {
                 </div>
               </div>
             </section>
+
+            {/* 4b. Technical Specifications & Infrastructure (Portal-Managed) */}
+            {property.technical_specs && typeof property.technical_specs === 'object' && (() => {
+              const ts = property.technical_specs;
+              const standardSpecs = [
+                { label: 'Power Backup', value: ts.power_backup },
+                { label: 'Water Supply', value: ts.water_supply },
+                { label: 'Security Systems', value: ts.security_systems },
+                { label: 'Internet & Connectivity', value: ts.internet_connectivity },
+                { label: 'Parking Capacity', value: ts.parking_capacity },
+                { label: 'Building Features', value: ts.building_features },
+              ].filter((s) => s.value && String(s.value).trim());
+              const customSpecs = Array.isArray(ts.custom)
+                ? ts.custom.filter((c) => c && c.label && c.value)
+                : [];
+              const allSpecs = [...standardSpecs, ...customSpecs];
+              if (allSpecs.length === 0) return null;
+              return (
+                <section className="bfa-property-section-wrap" id="technical-specs-section">
+                  <div className="bfa-property-card-container">
+                    <div className="bfa-section-header-compact">
+                      <div>
+                        <span className="bfa-section-tag">Infrastructure &amp; Engineering</span>
+                        <h2 className="bfa-section-title">Technical Specifications</h2>
+                      </div>
+                    </div>
+                    <div className="bfa-amenities-grid-columns">
+                      {allSpecs.map((spec, idx) => (
+                        <div key={idx} className="bfa-amenity-feature-card">
+                          <div className="bfa-amenity-feature-icon">
+                            <ShieldCheck size={18} />
+                          </div>
+                          <div>
+                            <strong>{spec.label}</strong>
+                            <span>{spec.value}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
 
             {/* 5. Architectural Photo Gallery (Outdoor & Indoor High-Res Visuals) */}
             <section className="bfa-property-section-wrap" id="gallery-section">

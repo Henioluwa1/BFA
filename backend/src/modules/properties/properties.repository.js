@@ -75,13 +75,13 @@ class PropertiesRepository {
    * Create a new property
    */
   static async create(data) {
-    const sql = `
+      const sql = `
       INSERT INTO properties (
         name, code, address, city, state, country, description,
         contact_phone, contact_email, status, operational_status,
-        check_in_time, check_out_time, amenities, notes, environment_description, category,
+        check_in_time, check_out_time, amenities, technical_specs, notes, environment_description, category,
         location, district, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const params = [
       data.name.trim(),
@@ -98,6 +98,7 @@ class PropertiesRepository {
       data.check_in_time || '14:00',
       data.check_out_time || '11:00',
       data.amenities ? (typeof data.amenities === 'string' ? data.amenities : JSON.stringify(data.amenities)) : null,
+      data.technical_specs ? (typeof data.technical_specs === 'string' ? data.technical_specs : JSON.stringify(data.technical_specs)) : '{}',
       data.notes || null,
       data.environment_description || null,
       data.category || 'RESIDENTIAL',
@@ -120,7 +121,7 @@ class PropertiesRepository {
     const allowed = [
       'name', 'address', 'city', 'state', 'country', 'description',
       'contact_phone', 'contact_email', 'status', 'operational_status',
-      'check_in_time', 'check_out_time', 'amenities', 'notes', 'is_archived',
+      'check_in_time', 'check_out_time', 'amenities', 'technical_specs', 'notes', 'is_archived',
       'environment_description', 'category', 'location', 'district',
       'published_at', 'published_by_id',
       'admin_approved_at', 'admin_approved_by_id', 'owner_approved_at', 'owner_approved_by_id',
@@ -130,7 +131,11 @@ class PropertiesRepository {
     for (const key of allowed) {
       if (data[key] !== undefined) {
         fields.push(`${key} = ?`);
-        params.push(key === 'amenities' && data[key] ? (typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key])) : data[key]);
+        if ((key === 'amenities' || key === 'technical_specs') && data[key] !== null) {
+          params.push(typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]));
+        } else {
+          params.push(data[key]);
+        }
       }
     }
 

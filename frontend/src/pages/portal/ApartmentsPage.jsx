@@ -10,6 +10,7 @@ import { useProperty } from '../../context/PropertyContext';
 import { useToast } from '../../context/ToastContext';
 import { formatNaira } from '../../utils/currency';
 import ApartmentReadinessModal from '../../components/portal/ApartmentReadinessModal';
+import ApartmentMediaAndSpecsModal from '../../components/properties/ApartmentMediaAndSpecsModal';
 
 export default function ApartmentsPage() {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ export default function ApartmentsPage() {
 
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
+  const [mediaSpecsUnit, setMediaSpecsUnit] = useState(null);
 
   // Form states
   const [propertyForm, setPropertyForm] = useState({
@@ -435,6 +437,9 @@ export default function ApartmentsPage() {
           </Button>
           <Button size="sm" variant="outline" onClick={() => handleOpenStatusModal(row)}>
             Readiness
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setMediaSpecsUnit(row)}>
+            Media &amp; Specs
           </Button>
           <Button size="sm" variant="ghost" onClick={() => handleOpenEditUnit(row)}>
             Edit
@@ -1445,6 +1450,13 @@ export default function ApartmentsPage() {
           </div>
         )}
       </Modal>
+
+      <ApartmentMediaAndSpecsModal
+        isOpen={Boolean(mediaSpecsUnit)}
+        onClose={() => setMediaSpecsUnit(null)}
+        apartment={mediaSpecsUnit}
+        onUpdated={fetchApartments}
+      />
     </div>
   );
 }

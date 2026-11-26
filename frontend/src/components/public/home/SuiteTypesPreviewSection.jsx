@@ -1,33 +1,38 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Building2 } from 'lucide-react';
 import { BfaButton } from '../primitives';
-import aptLivingLuxury from '../../../assets/apt-living-luxury.jpg';
-import aptBedroomMaster from '../../../assets/apt-bedroom-master.jpg';
-import aptPenthouseView from '../../../assets/apt-penthouse-view.jpg';
+import { resolveMediaUrl } from '../../../services/api';
 import './SuiteTypesPreviewSection.css';
 
 /**
  * SuiteTypesPreviewSection — Editorial Alternating Lookbook
+ * Dynamically populated from portal-managed apartments when available.
  */
-export default function SuiteTypesPreviewSection() {
+export default function SuiteTypesPreviewSection({ apartments = [] }) {
+  const findPhotoForTier = (matcher, fallbackIdx) => {
+    const match = apartments.find(matcher);
+    const candidate = match || apartments[fallbackIdx] || apartments[0];
+    return candidate ? resolveMediaUrl(candidate.primary_photo_url || candidate.main_photo) : '';
+  };
+
   const suiteTiers = [
     {
       num: '01',
       title: 'Presidential Penthouses & Grand Salons',
       category: 'Top-Tier Residences',
-      image: aptPenthouseView,
-      enclave: 'Grand Horizon & Royal Palms',
-      specs: '1–2 Master Bedrooms • Private Verandahs • Italian Finishes',
+      image: findPhotoForTier((a) => /penthouse|presidential/i.test(`${a.unit_type || ''} ${a.unit_name || ''}`), 0),
+      enclave: 'Flagship Residences',
+      specs: '1–2 Master Bedrooms • Private Verandahs • Bespoke Finishes',
       description:
-        'Expansive reception salons, panoramic terrace vistas across Akure, and bespoke furnishing designed for heads of mission and corporate executives.',
+        'Expansive reception salons, panoramic terrace vistas, and bespoke furnishing designed for heads of mission and corporate executives.',
     },
     {
       num: '02',
       title: 'Multi-Bedroom Serviced Apartments',
       category: 'Spacious Group Stays',
-      image: aptLivingLuxury,
-      enclave: 'Azure Bay & Grand Horizon',
+      image: findPhotoForTier((a) => /2-bedroom|3-bedroom|waterfront|luxury/i.test(`${a.unit_type || ''} ${a.unit_name || ''}`), 1),
+      enclave: 'Family & Delegation Suites',
       specs: '2–3 Bedrooms • All Ensuite • Fully Fitted Quartz Kitchen',
       description:
         'Ideal for diplomatic delegations, visiting executive teams, and families desiring privacy, separate living quarters, and dedicated dining salons.',
@@ -36,8 +41,8 @@ export default function SuiteTypesPreviewSection() {
       num: '03',
       title: 'Deluxe Executive Suites & Studios',
       category: 'Executive Stays',
-      image: aptBedroomMaster,
-      enclave: 'Available Across All 3 Enclaves',
+      image: findPhotoForTier((a) => /studio|deluxe|executive/i.test(`${a.unit_type || ''} ${a.unit_name || ''}`), 2),
+      enclave: 'Available Across Our Enclaves',
       specs: '1 King Bed • Dedicated Workspace • Spa Rain Shower',
       description:
         'Engineered for focused business travel, offering enterprise Wi-Fi 6, ergonomic work lounges, and restful king-size bedding.',
@@ -66,13 +71,28 @@ export default function SuiteTypesPreviewSection() {
               className={`bfa-lookbook-row ${idx % 2 === 1 ? 'bfa-lookbook-row--reversed' : ''}`}
             >
               <div className="bfa-lookbook-media">
-                <img
-                  src={tier.image}
-                  alt={tier.title}
-                  className="bfa-suite-img"
-                  loading="lazy"
-                  decoding="async"
-                />
+                {tier.image ? (
+                  <img
+                    src={tier.image}
+                    alt={tier.title}
+                    className="bfa-suite-img"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <div
+                    className="bfa-suite-img"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'linear-gradient(135deg, #0b1b15 0%, #163329 100%)',
+                      color: '#d4af37',
+                    }}
+                  >
+                    <Building2 size={44} />
+                  </div>
+                )}
                 <span className="bfa-suite-tag">{tier.category}</span>
               </div>
 

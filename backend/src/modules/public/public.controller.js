@@ -31,17 +31,18 @@ async function getPublicProperties(req, res, next) {
         p.location,
         p.district,
         p.amenities,
+        p.technical_specs,
         p.check_in_time,
         p.check_out_time,
         p.status,
-        (SELECT file_url FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = p.id AND is_published = 1 ORDER BY is_primary DESC, id ASC LIMIT 1) AS primary_photo_url,
+        (SELECT file_url FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = p.id AND is_published = 1 ORDER BY is_primary DESC, display_order ASC, id ASC LIMIT 1) AS primary_photo_url,
         (SELECT COUNT(*) FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = p.id AND is_published = 1) AS photo_count,
         COUNT(a.id) AS total_units,
         COUNT(CASE WHEN a.status = 'AVAILABLE' AND a.is_active = 1 THEN a.id END) AS available_units,
         MIN(a.rate_per_night) AS starting_rate
       FROM properties p
       LEFT JOIN apartments a ON p.id = a.property_id
-      WHERE p.status IN ('ACTIVE', 'PUBLISHED')
+      WHERE p.status IN ('ACTIVE', 'PUBLISHED') AND (p.is_archived IS NULL OR p.is_archived = FALSE)
       GROUP BY p.id
       ORDER BY p.id ASC
     `);
@@ -51,6 +52,9 @@ async function getPublicProperties(req, res, next) {
       amenities: typeof row.amenities === 'string' ? (() => {
         try { return JSON.parse(row.amenities); } catch { return []; }
       })() : (row.amenities || []),
+      technical_specs: typeof row.technical_specs === 'string' ? (() => {
+        try { return JSON.parse(row.technical_specs); } catch { return {}; }
+      })() : (row.technical_specs || {}),
     }));
 
     res.status(200).json({
@@ -88,10 +92,12 @@ async function getPublicApartments(req, res, next) {
         a.bedroom_count,
         a.bathroom_count,
         a.amenities,
-        a.status
+        a.technical_specs,
+        a.status,
+        (SELECT file_url FROM media_assets WHERE entity_type = 'APARTMENT' AND entity_id = a.id AND is_published = 1 ORDER BY is_primary DESC, display_order ASC, id ASC LIMIT 1) AS primary_photo_url
       FROM apartments a
       JOIN properties p ON a.property_id = p.id
-      WHERE p.status IN ('ACTIVE', 'PUBLISHED')
+      WHERE p.status IN ('ACTIVE', 'PUBLISHED') AND (p.is_archived IS NULL OR p.is_archived = FALSE) AND a.is_active = 1
     `;
     const params = [];
 
@@ -116,6 +122,9 @@ async function getPublicApartments(req, res, next) {
       amenities: typeof row.amenities === 'string' ? (() => {
         try { return JSON.parse(row.amenities); } catch { return []; }
       })() : (row.amenities || []),
+      technical_specs: typeof row.technical_specs === 'string' ? (() => {
+        try { return JSON.parse(row.technical_specs); } catch { return {}; }
+      })() : (row.technical_specs || {}),
     }));
 
     res.status(200).json({
@@ -154,11 +163,12 @@ async function getPublicPropertyDetail(req, res, next) {
         p.contact_phone,
         p.contact_email,
         p.amenities,
+        p.technical_specs,
         p.check_in_time,
         p.check_out_time,
         p.status
       FROM properties p 
-      WHERE p.id = ? AND p.status IN ('ACTIVE', 'PUBLISHED')`,
+      WHERE p.id = ? AND p.status IN ('ACTIVE', 'PUBLISHED') AND (p.is_archived IS NULL OR p.is_archived = FALSE)`,
       [propertyId]
     );
 
@@ -193,6 +203,9 @@ async function getPublicPropertyDetail(req, res, next) {
       amenities: typeof propRows[0].amenities === 'string' ? (() => {
         try { return JSON.parse(propRows[0].amenities); } catch { return []; }
       })() : (propRows[0].amenities || []),
+      technical_specs: typeof propRows[0].technical_specs === 'string' ? (() => {
+        try { return JSON.parse(propRows[0].technical_specs); } catch { return {}; }
+      })() : (propRows[0].technical_specs || {}),
       photos: propMedia || [],
     };
 
@@ -211,6 +224,7 @@ async function getPublicPropertyDetail(req, res, next) {
         a.bedroom_count,
         a.bathroom_count,
         a.amenities,
+        a.technical_specs,
         a.status
       FROM apartments a
       WHERE a.property_id = ? AND a.is_active = 1
@@ -299,6 +313,9 @@ async function getPublicPropertyDetail(req, res, next) {
         amenities: typeof u.amenities === 'string' ? (() => {
           try { return JSON.parse(u.amenities); } catch { return []; }
         })() : (u.amenities || []),
+        technical_specs: typeof u.technical_specs === 'string' ? (() => {
+          try { return JSON.parse(u.technical_specs); } catch { return {}; }
+        })() : (u.technical_specs || {}),
         photos: unitMediaMap[u.id] || [],
         internal_spaces: unitSpacesMap[u.id] || [],
       };
@@ -389,6 +406,7 @@ async function getPublicRoomTypes(req, res, next) {
         a.bedroom_count,
         a.bathroom_count,
         a.amenities,
+        a.technical_specs,
         a.status
       FROM apartments a
       WHERE a.property_id = ? AND a.is_active = 1
@@ -1158,11 +1176,113 @@ async function getPublicAnnouncements(req, res, next) {
   }
 }
 
+// 6. Persistent Public Media File Streamer (serves BYTEA from DB or disk fallback)
+async function getPublicMediaFile(req, res, next) {
+  try {
+    const mediaId = parseInt(req.params.mediaId, 10);
+    if (!mediaId || isNaN(mediaId)) {
+      throw new ValidationError('Invalid media ID.');
+    }
+
+    const rows = await db.query(
+      'SELECT id, file_data, file_path, mime_type, file_name, is_published FROM media_assets WHERE id = ?',
+      [mediaId]
+    );
+    if (rows.length === 0 || !rows[0].is_published) {
+      throw new NotFoundError('Media asset not found.');
+    }
+
+    const asset = rows[0];
+    res.setHeader('Content-Type', asset.mime_type || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    if (asset.file_data) {
+      const buf = Buffer.isBuffer(asset.file_data) ? asset.file_data : Buffer.from(asset.file_data);
+      return res.status(200).send(buf);
+    }
+
+    if (asset.file_path && fs.existsSync(asset.file_path)) {
+      return res.sendFile(path.resolve(asset.file_path));
+    }
+
+    throw new NotFoundError('Media binary is not available.');
+  } catch (err) {
+    next(err);
+  }
+}
+
+// 7. Public Single Apartment Detail
+async function getPublicApartmentDetail(req, res, next) {
+  try {
+    const apartmentId = parseInt(req.params.id, 10);
+    if (!apartmentId || isNaN(apartmentId)) {
+      throw new ValidationError('A valid numeric apartment ID is required.');
+    }
+
+    const rows = await db.query(
+      `SELECT
+        a.id, a.property_id, a.unit_number, a.apartment_code, a.unit_name, a.unit_type,
+        a.description, a.rate_per_night, a.floor, a.capacity, a.bedroom_count, a.bathroom_count,
+        a.amenities, a.technical_specs, a.status,
+        p.name AS property_name, p.code AS property_code, p.address AS property_address,
+        p.city AS property_city, p.state AS property_state
+       FROM apartments a
+       JOIN properties p ON a.property_id = p.id
+       WHERE a.id = ? AND a.is_active = 1 AND p.status IN ('ACTIVE', 'PUBLISHED') AND (p.is_archived IS NULL OR p.is_archived = FALSE)`,
+      [apartmentId]
+    );
+    if (rows.length === 0) {
+      throw new NotFoundError('Apartment not found or not currently published.');
+    }
+
+    const unit = rows[0];
+    const photos = await db.query(
+      `SELECT id, category, file_name, file_url, caption, display_order, is_primary
+       FROM media_assets
+       WHERE entity_type = 'APARTMENT' AND entity_id = ? AND is_published = 1
+       ORDER BY is_primary DESC, display_order ASC, id ASC`,
+      [apartmentId]
+    );
+    const apartmentAmenities = await db.query(
+      `SELECT id, name, description, photo_url, display_order
+       FROM apartment_amenities
+       WHERE apartment_id = ?
+       ORDER BY display_order ASC, id ASC`,
+      [apartmentId]
+    );
+
+    const primaryPhoto = photos.find((p) => p.is_primary) || photos[0] || null;
+
+    res.status(200).json({
+      success: true,
+      message: 'Apartment detail retrieved.',
+      data: {
+        ...unit,
+        apartment_code: unit.apartment_code || unit.unit_number,
+        main_photo: primaryPhoto ? primaryPhoto.file_url : null,
+        photos,
+        apartment_amenities: apartmentAmenities,
+        amenities: typeof unit.amenities === 'string' ? (() => {
+          try { return JSON.parse(unit.amenities); } catch { return []; }
+        })() : (unit.amenities || []),
+        technical_specs: typeof unit.technical_specs === 'string' ? (() => {
+          try { return JSON.parse(unit.technical_specs); } catch { return {}; }
+        })() : (unit.technical_specs || {}),
+      },
+      meta: { timestamp: new Date().toISOString(), requestId: req.id },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getPublicProperties,
   getPublicApartments,
   getPublicPropertyDetail,
   getPublicRoomTypes,
+  getPublicApartmentDetail,
+  getPublicMediaFile,
   checkAvailability,
   getPublicQuote,
   getPublicPaymentConfig,

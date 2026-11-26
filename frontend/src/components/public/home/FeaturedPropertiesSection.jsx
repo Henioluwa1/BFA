@@ -12,25 +12,18 @@ import {
 } from 'lucide-react';
 import { BfaButton, BfaBadge, BfaCard } from '../primitives';
 import { formatNaira } from '../../../utils/currency';
-import ghtExterior from '../../../assets/ght-exterior.jpg';
-import azureBayExterior from '../../../assets/azure-bay-exterior.jpg';
-import royalPalmsExterior from '../../../assets/royal-palms-exterior.jpg';
+import { resolveMediaUrl } from '../../../services/api';
 import './FeaturedPropertiesSection.css';
 
 /**
- * FeaturedPropertiesSection — Editorial presentation of the 3 BFA enclaves
- * Uses authoritative database records, dynamic starting rates, and verified amenities.
+ * FeaturedPropertiesSection — Editorial presentation of portal-managed BFA properties
+ * Uses authoritative database records, dynamic cover photos, starting rates, and verified amenities.
  */
 export default function FeaturedPropertiesSection({
   properties = [],
   loading = false,
   onOpenBooking,
 }) {
-  const getPropertyPhoto = (id) => {
-    if (id === 1) return ghtExterior;
-    if (id === 2) return azureBayExterior;
-    return royalPalmsExterior;
-  };
 
   const renderAmenityIcon = (label) => {
     const l = (label || '').toLowerCase();
@@ -84,7 +77,7 @@ export default function FeaturedPropertiesSection({
               </div>
             ))
           ) : properties.map((prop, idx) => {
-            const photo = getPropertyPhoto(prop.id);
+            const photo = resolveMediaUrl(prop.primary_photo_url || prop.main_photo);
             const parsedRate = prop.starting_rate != null ? parseFloat(prop.starting_rate) : null;
             const hasAuthoritativeRate = parsedRate !== null && !isNaN(parsedRate) && parsedRate > 0;
             const rawAvail = prop.available_units;
@@ -97,12 +90,18 @@ export default function FeaturedPropertiesSection({
                 <BfaCard variant="default" elevation="sm" interactive className="bfa-featured-card">
                   {/* Card Media Header */}
                   <div className="bfa-card-media-box">
-                    <img
-                      src={photo}
-                      alt={`${prop.name} architectural exterior`}
-                      className="bfa-card-media-img"
-                      loading="lazy"
-                    />
+                    {photo ? (
+                      <img
+                        src={photo}
+                        alt={`${prop.name} architectural exterior`}
+                        className="bfa-card-media-img"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(242,238,229,0.5)', fontSize: '0.85rem' }}>
+                        {prop.name}
+                      </div>
+                    )}
                     <div className="bfa-card-media-overlay">
                       <BfaBadge variant="forest" size="sm" icon={<ShieldCheck size={12} />}>
                         {prop.code || 'BFA'} • Verified Enclave

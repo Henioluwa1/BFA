@@ -179,6 +179,61 @@ class ApartmentsController {
     }
   }
 
+  static async setCover(req, res, next) {
+    try {
+      const result = await ApartmentsService.setCoverImage(
+        parseInt(req.params.id, 10),
+        parseInt(req.params.mediaId, 10),
+        req.user
+      );
+      return ApiResponse.success(res, { message: result.message, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async reorderMedia(req, res, next) {
+    try {
+      const orderedIds = req.body.orderedIds || req.body;
+      const result = await ApartmentsService.reorderMedia(
+        parseInt(req.params.id, 10),
+        orderedIds,
+        req.user
+      );
+      return ApiResponse.success(res, { message: result.message, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async publishMedia(req, res, next) {
+    try {
+      const isPublished = req.body.isPublished !== undefined ? req.body.isPublished : true;
+      const result = await ApartmentsService.publishMedia(
+        parseInt(req.params.id, 10),
+        parseInt(req.params.mediaId, 10),
+        isPublished,
+        req.user
+      );
+      return ApiResponse.success(res, { message: result.message, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async deleteMedia(req, res, next) {
+    try {
+      const result = await ApartmentsService.deleteMedia(
+        parseInt(req.params.id, 10),
+        parseInt(req.params.mediaId, 10),
+        req.user
+      );
+      return ApiResponse.success(res, { message: result.message, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async createAmenities(req, res, next) {
     try {
       const amenitiesList = req.body.amenities || req.body;

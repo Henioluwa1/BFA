@@ -126,8 +126,9 @@ class PropertiesService {
       }
     }
 
-    // Material changes to an approved/published property reset its status to DRAFT
-    if (['APPROVED', 'PUBLISHED'].includes(property.status) && !data.status) {
+    // Material changes by non-publisher roles to an approved/published property reset its status to DRAFT
+    const isPublisher = ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(String(user?.role || '').toUpperCase());
+    if (!isPublisher && ['APPROVED', 'PUBLISHED'].includes(property.status) && !data.status) {
       data.status = 'DRAFT';
       data.admin_approved_at = null;
       data.admin_approved_by_id = null;
@@ -290,9 +291,9 @@ class PropertiesService {
 
       const sql = `
         INSERT INTO media_assets 
-          (entity_type, entity_id, category, file_path, file_name, file_url, mime_type, file_size_bytes, 
+          (entity_type, entity_id, category, file_path, file_name, file_url, file_data, mime_type, file_size_bytes, 
            caption, display_order, is_primary, is_published, uploaded_by)
-        VALUES ('PROPERTY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES ('PROPERTY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       const params = [
         propertyId,
@@ -300,6 +301,7 @@ class PropertiesService {
         filePath,
         cleanFileName,
         `/uploads/properties/${cleanFileName}`,
+        buffer,
         mimeType,
         buffer.length,
         item.caption || null,
@@ -310,7 +312,12 @@ class PropertiesService {
       ];
 
       const res = await pool.query(sql, params);
-      const inserted = await pool.query('SELECT * FROM media_assets WHERE id = ?', [res.insertId]);
+      const persistentUrl = `/api/v1/public/media/${res.insertId}`;
+      await pool.query('UPDATE media_assets SET file_url = ? WHERE id = ?', [persistentUrl, res.insertId]);
+      const inserted = await pool.query(
+        'SELECT id, entity_type, entity_id, category, file_path, file_name, file_url, mime_type, file_size_bytes, caption, display_order, is_primary, is_representative, is_published, submission_id, uploaded_by, created_at, updated_at FROM media_assets WHERE id = ?',
+        [res.insertId]
+      );
       createdAssets.push(inserted[0]);
     }
 
@@ -326,7 +333,7 @@ class PropertiesService {
   }
 
   static async getPropertyMedia(propertyId, user = null) {
-    let sql = "SELECT * FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = ?";
+    let sql = "SELECT id, entity_type, entity_id, category, file_path, file_name, file_url, mime_type, file_size_bytes, caption, display_order, is_primary, is_representative, is_published, submission_id, uploaded_by, created_at, updated_at FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = ?";
     const params = [propertyId];
 
     // Public / unauthenticated visitors only see published images

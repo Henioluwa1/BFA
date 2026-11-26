@@ -38,9 +38,21 @@ const PROPERTY_CATEGORIES = [
 export default function EditPropertyModal({ isOpen, onClose, property, onPropertyUpdated }) {
   const { addToast } = useToast();
 
-  // Active Navigation Tab: 'INFO' | 'AMENITIES' | 'MEDIA' | 'UNITS'
+  // Active Navigation Tab: 'INFO' | 'TECH_SPECS' | 'AMENITIES' | 'MEDIA' | 'UNITS'
   const [activeTab, setActiveTab] = useState('INFO');
   const [saving, setSaving] = useState(false);
+
+  // Technical Specifications State (stored as JSONB in properties.technical_specs)
+  const [techSpecs, setTechSpecs] = useState({
+    power_backup: '',
+    water_supply: '',
+    security_systems: '',
+    internet_connectivity: '',
+    parking_capacity: '',
+    building_features: '',
+    custom: [],
+  });
+  const [pubStatus, setPubStatus] = useState('ACTIVE');
 
   // ───────────────────────────────────────────────────────────────────────────
   // 1. PROPERTY INFORMATION STATE (Prepopulated from saved backend property)
@@ -96,6 +108,19 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
         contact_phone: property.contact_phone || '',
         contact_email: property.contact_email || '',
       });
+      const rawSpecs = typeof property.technical_specs === 'string'
+        ? (() => { try { return JSON.parse(property.technical_specs); } catch { return {}; } })()
+        : (property.technical_specs || {});
+      setTechSpecs({
+        power_backup: rawSpecs.power_backup || '',
+        water_supply: rawSpecs.water_supply || '',
+        security_systems: rawSpecs.security_systems || '',
+        internet_connectivity: rawSpecs.internet_connectivity || '',
+        parking_capacity: rawSpecs.parking_capacity || '',
+        building_features: rawSpecs.building_features || '',
+        custom: Array.isArray(rawSpecs.custom) ? rawSpecs.custom : [],
+      });
+      setPubStatus(property.status || 'ACTIVE');
       setActiveTab('INFO');
       fetchAmenities();
       fetchUnits();
@@ -223,6 +248,40 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
     }
   };
 
+  const handleSaveTechSpecs = async (e) => {
+    e?.preventDefault();
+    setSaving(true);
+    try {
+      const cleanedCustom = (techSpecs.custom || []).filter((c) => c.label?.trim() && c.value?.trim());
+      await propertyService.update(property.id, {
+        technical_specs: {
+          ...techSpecs,
+          custom: cleanedCustom,
+        },
+      });
+      addToast('Technical specifications saved!', 'success');
+      onPropertyUpdated?.();
+    } catch (err) {
+      addToast(err.message || 'Failed to save technical specifications.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateVisibility = async (nextStatus) => {
+    setSaving(true);
+    try {
+      await propertyService.updateStatus(property.id, { status: nextStatus });
+      setPubStatus(nextStatus);
+      addToast(`Property visibility set to ${nextStatus}`, 'success');
+      onPropertyUpdated?.();
+    } catch (err) {
+      addToast(err.message || 'Failed to update publication status.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ───────────────────────────────────────────────────────────────────────────
   // Save Tab 2: Building Amenities
   // ───────────────────────────────────────────────────────────────────────────
@@ -306,6 +365,7 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
           >
             {[
               { id: 'INFO', label: 'Property Information', icon: <Building size={16} /> },
+              { id: 'TECH_SPECS', label: 'Technical Specs', icon: <ShieldCheck size={16} /> },
               { id: 'AMENITIES', label: `Amenities & Features (${buildingAmenities.length}/7)`, icon: <Layers size={16} /> },
               { id: 'MEDIA', label: 'Media Gallery', icon: <ImageIcon size={16} /> },
               { id: 'UNITS', label: `Units (${units.length})`, icon: <Home size={16} /> },
@@ -518,22 +578,128 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <Button type="button" variant="ghost" onClick={onClose}>
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={saving}
-                  style={{
-                    background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
-                    color: '#000000',
-                    fontWeight: 800,
-                  }}
-                >
-                  <ShieldCheck size={16} />
-                  {saving ? 'Saving...' : 'Save Property Information'}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginTop: '10px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#cbd5e1', fontWeight: 600 }}>Public Visibility:</span>
+                  <Badge variant={['ACTIVE', 'PUBLISHED'].includes(pubStatus) ? 'success' : 'warning'}>
+                    {pubStatus}
+                  </Badge>
+                  {['ACTIVE', 'PUBLISHED'].includes(pubStatus) ? (
+                    <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={() => handleUpdateVisibility('UNPUBLISHED')}>
+                      Unpublish
+                    </Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="primary" disabled={saving} onClick={() => handleUpdateVisibility('PUBLISHED')}>
+                      Publish to Website
+                    </Button>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <Button type="button" variant="ghost" onClick={onClose}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={saving}
+                    style={{
+                      background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)',
+                      color: '#000000',
+                      fontWeight: 800,
+                    }}
+                  >
+                    <ShieldCheck size={16} />
+                    {saving ? 'Saving...' : 'Save Property Information'}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          )}
+
+          {/* ───────────────────────────────────────────────────────────────── */}
+          {/* TAB 1b: TECHNICAL SPECIFICATIONS */}
+          {/* ───────────────────────────────────────────────────────────────── */}
+          {activeTab === 'TECH_SPECS' && (
+            <form onSubmit={handleSaveTechSpecs} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <label className="form-label">Power &amp; Backup Systems</label>
+                  <input type="text" className="input-field" placeholder="e.g. Dual 500kVA Generators + Solar Hybrid" value={techSpecs.power_backup} onChange={(e) => setTechSpecs({ ...techSpecs, power_backup: e.target.value })} />
+                </div>
+                <div>
+                  <label className="form-label">Water Supply &amp; Treatment</label>
+                  <input type="text" className="input-field" placeholder="e.g. Industrial Borehole + UV Filtration" value={techSpecs.water_supply} onChange={(e) => setTechSpecs({ ...techSpecs, water_supply: e.target.value })} />
+                </div>
+                <div>
+                  <label className="form-label">Security Arrangements</label>
+                  <input type="text" className="input-field" placeholder="e.g. 24/7 Armed Guards, Biometric Gate, CCTV" value={techSpecs.security_systems} onChange={(e) => setTechSpecs({ ...techSpecs, security_systems: e.target.value })} />
+                </div>
+                <div>
+                  <label className="form-label">Internet &amp; Connectivity</label>
+                  <input type="text" className="input-field" placeholder="e.g. 500 Mbps Dedicated Fiber Wi-Fi 6" value={techSpecs.internet_connectivity} onChange={(e) => setTechSpecs({ ...techSpecs, internet_connectivity: e.target.value })} />
+                </div>
+                <div>
+                  <label className="form-label">Parking Capacity</label>
+                  <input type="text" className="input-field" placeholder="e.g. 24 Subterranean Guarded Bays" value={techSpecs.parking_capacity} onChange={(e) => setTechSpecs({ ...techSpecs, parking_capacity: e.target.value })} />
+                </div>
+                <div>
+                  <label className="form-label">Building Features</label>
+                  <input type="text" className="input-field" placeholder="e.g. Acoustic Double Glazing, Elevator Access" value={techSpecs.building_features} onChange={(e) => setTechSpecs({ ...techSpecs, building_features: e.target.value })} />
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0' }}>Additional Technical Specifications</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setTechSpecs({ ...techSpecs, custom: [...(techSpecs.custom || []), { label: '', value: '' }] })}
+                  >
+                    <Plus size={14} /> Add Specification
+                  </Button>
+                </div>
+                {(techSpecs.custom || []).map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Label (e.g. Fire Suppression)"
+                      value={item.label}
+                      onChange={(e) => {
+                        const next = [...techSpecs.custom];
+                        next[idx] = { ...next[idx], label: e.target.value };
+                        setTechSpecs({ ...techSpecs, custom: next });
+                      }}
+                    />
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Value (e.g. Automated Smoke & Sprinkler System)"
+                      value={item.value}
+                      onChange={(e) => {
+                        const next = [...techSpecs.custom];
+                        next[idx] = { ...next[idx], value: e.target.value };
+                        setTechSpecs({ ...techSpecs, custom: next });
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setTechSpecs({ ...techSpecs, custom: techSpecs.custom.filter((_, i) => i !== idx) })}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+                <Button type="submit" variant="primary" disabled={saving} style={{ background: 'linear-gradient(135deg, #d4af37 0%, #b8972e 100%)', color: '#000', fontWeight: 800 }}>
+                  {saving ? 'Saving...' : 'Save Technical Specifications'}
                 </Button>
               </div>
             </form>

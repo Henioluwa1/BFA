@@ -10,17 +10,12 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { formatNaira } from '../../../utils/currency';
-import ghtExterior from '../../../assets/ght-exterior.jpg';
-import azureBayExterior from '../../../assets/azure-bay-exterior.jpg';
-import royalPalmsExterior from '../../../assets/royal-palms-exterior.jpg';
-import aptPenthouseView from '../../../assets/apt-penthouse-view.jpg';
-import azureBayPool from '../../../assets/azure-bay-pool.jpg';
-import royalPalmsCourtyard from '../../../assets/royal-palms-courtyard.jpg';
+import { resolveMediaUrl } from '../../../services/api';
 import './HeroSection.css';
 
 /**
  * HeroSection — Full-Viewport Bottom-Anchored Editorial Stage
- * Inspired by MotionSites editorial architecture, built with BFA assets & CSS.
+ * Driven dynamically by portal-managed properties & media.
  */
 export default function HeroSection({
   properties = [],
@@ -34,37 +29,30 @@ export default function HeroSection({
   const searchWrapRef = useRef(null);
   const heroRef = useRef(null);
 
-  const heroSlides = [
-    {
-      id: 1,
-      image: ghtExterior,
-      insetImage: aptPenthouseView,
-      insetLabel: 'Skyline Penthouse Salon',
-      name: 'Grand Horizon Tower',
-      location: 'Alagbaka GRA, Akure',
-      tag: 'Executive High-Rise',
-    },
-    {
-      id: 2,
-      image: azureBayExterior,
-      insetImage: azureBayPool,
-      insetLabel: 'Private Lagoon & Poolside',
-      name: 'Azure Bay Residences',
-      location: 'Ijapo Estate, Akure',
-      tag: 'Waterfront Enclave',
-    },
-    {
-      id: 3,
-      image: royalPalmsExterior,
-      insetImage: royalPalmsCourtyard,
-      insetLabel: 'Neoclassical Courtyard',
-      name: 'The Royal Palms Suites',
-      location: 'Oba-Ile Corridor, Akure',
-      tag: 'Presidential Suites',
-    },
-  ];
+  const heroSlides = properties.map((prop) => {
+    const primaryUrl = resolveMediaUrl(prop.primary_photo_url || prop.main_photo);
+    const matchingApt = apartments.find((a) => String(a.property_id) === String(prop.id) && (a.primary_photo_url || a.main_photo));
+    const insetUrl = resolveMediaUrl(matchingApt?.primary_photo_url || matchingApt?.main_photo) || primaryUrl;
+    return {
+      id: prop.id,
+      image: primaryUrl,
+      insetImage: insetUrl,
+      insetLabel: matchingApt ? matchingApt.unit_name : (prop.district || prop.city || 'Serviced Residence'),
+      name: prop.name,
+      location: prop.address || `${prop.city || ''}${prop.state ? `, ${prop.state}` : ''}`,
+      tag: prop.category ? String(prop.category).replace(/_/g, ' ') : 'Serviced Residence',
+    };
+  });
 
-  const currentSlide = heroSlides[activeSlide] || heroSlides[0];
+  const currentSlide = heroSlides[activeSlide] || heroSlides[0] || {
+    id: 'empty',
+    image: '',
+    insetImage: '',
+    insetLabel: 'Serviced Residences',
+    name: 'BFA Apartments',
+    location: 'Nigeria',
+    tag: 'Luxury Hospitality',
+  };
 
   const handleNextWallpaper = () => {
     setActiveSlide((prev) => (prev + 1) % heroSlides.length);

@@ -20,68 +20,39 @@ import PublicFooter from '../../components/public/home/PublicFooter';
 import FloatingChatWidget from '../../components/public/FloatingChatWidget';
 import BookingModal from '../../components/public/BookingModal';
 import { BfaButton, BfaBadge, BfaCard } from '../../components/public/primitives';
-
-// Enclave Exterior Assets
-import ghtExterior from '../../assets/ght-exterior.jpg';
-import azureBayExterior from '../../assets/azure-bay-exterior.jpg';
-import royalPalmsExterior from '../../assets/royal-palms-exterior.jpg';
-import heroArchitecture from '../../assets/hero-architecture.jpg';
-import aptLivingLuxury from '../../assets/apt-living-luxury.jpg';
+import { publicService, resolveMediaUrl } from '../../services/api';
 
 import '../../styles/about.css';
 
 /**
  * AboutPage — The BFA Story & Hospitality Standards
  * Authentic editorial About Us experience celebrating architectural distinction,
- * complete infrastructural independence, and executive service across Akure.
+ * complete infrastructural independence, and executive service.
  */
 export default function AboutPage() {
   const navigate = useNavigate();
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [bookingModalProperty, setBookingModalProperty] = useState(null);
+  const [enclaves, setEnclaves] = useState([]);
 
-  // Natural scrolling behavior
+  // Natural scrolling behavior & load portal-managed enclaves
   useEffect(() => {
     document.documentElement.style.height = 'auto';
     document.body.style.height = 'auto';
+    let mounted = true;
+    publicService.getProperties()
+      .then((res) => {
+        if (mounted && Array.isArray(res.data)) {
+          setEnclaves(res.data);
+        }
+      })
+      .catch(() => {});
     return () => {
+      mounted = false;
       document.documentElement.style.height = '';
       document.body.style.height = '';
     };
   }, []);
-
-  const enclaves = [
-    {
-      id: 1,
-      name: 'Grand Horizon Tower',
-      location: 'Plot 14, Alagbaka GRA Extension, Akure',
-      tag: 'Executive Corporate High-Rise',
-      image: ghtExterior,
-      highlights: '14 Storeys • Soundproof Acoustic Glazing • Subterranean Guarded Parking',
-      description:
-        'Engineered for heads of corporate mission, visiting diplomatic delegations, and executive travelers demanding swift access to government secretariats, high-speed fiber internet, and uncompromising quiet.',
-    },
-    {
-      id: 2,
-      name: 'Azure Bay Residences',
-      location: 'Block 7, Ijapo Central Estate, Akure',
-      tag: 'Waterfront Lagoon & Villa Suites',
-      image: azureBayExterior,
-      highlights: 'Lush Gardens • Resident Swimming Pool • Private Alfresco Terraces',
-      description:
-        'A peaceful residential enclave tucked within the verdant canopy of Ijapo Central Estate. Combines expansive multi-bedroom living salons, private balconies, and restorative waterfront vistas.',
-    },
-    {
-      id: 3,
-      name: 'The Royal Palms Suites',
-      location: 'Presidential Boulevard, Oba-Ile Corridor, Akure',
-      tag: 'Neoclassical Serviced Living',
-      image: royalPalmsExterior,
-      highlights: 'Skyline Penthouse Terraces • Plunge Spa Jacuzzi • 12-Minute Airport Access',
-      description:
-        'Positioned along the prestige corridor connecting Akure Airport to the central district. Characterized by classical columns, high ceilings, bespoke furnishings, and sunset hill panoramas.',
-    },
-  ];
 
   const pillars = [
     {
@@ -167,14 +138,30 @@ export default function AboutPage() {
             </div>
 
             <div className="bfa-about-story-media">
-              <img
-                src={heroArchitecture}
-                alt="BFA Apartments architectural exterior and entrance"
-                className="bfa-about-story-img"
-              />
+              {enclaves[0] && resolveMediaUrl(enclaves[0].primary_photo_url || enclaves[0].main_photo) ? (
+                <img
+                  src={resolveMediaUrl(enclaves[0].primary_photo_url || enclaves[0].main_photo)}
+                  alt={`${enclaves[0].name} exterior architecture`}
+                  className="bfa-about-story-img"
+                />
+              ) : (
+                <div
+                  className="bfa-about-story-img"
+                  style={{
+                    minHeight: '320px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'linear-gradient(135deg, #0b1b15 0%, #163329 100%)',
+                    color: '#d4af37',
+                  }}
+                >
+                  <Building2 size={48} />
+                </div>
+              )}
               <div className="bfa-about-story-caption">
-                <strong>Alagbaka GRA • Ijapo Estate • Oba-Ile Corridor</strong>
-                <span>Purpose-built serviced properties across Akure</span>
+                <strong>Portal-Managed Luxury Residences</strong>
+                <span>Purpose-built serviced properties</span>
               </div>
             </div>
           </div>
@@ -216,26 +203,48 @@ export default function AboutPage() {
           </div>
 
           <div className="bfa-about-enclave-grid">
-            {enclaves.map((enc) => (
-              <article key={enc.id} className="bfa-about-enclave-card">
-                <div className="bfa-about-enclave-img-box">
-                  <img src={enc.image} alt={enc.name} className="bfa-about-enclave-img" loading="lazy" />
-                  <span className="bfa-about-enclave-tag">{enc.tag}</span>
-                </div>
-                <div className="bfa-about-enclave-content">
-                  <span className="bfa-about-enclave-loc">
-                    <MapPin size={13} aria-hidden="true" /> {enc.location}
-                  </span>
-                  <h3 className="bfa-about-enclave-name">{enc.name}</h3>
-                  <span className="bfa-about-enclave-highlights">{enc.highlights}</span>
-                  <p className="bfa-about-enclave-desc">{enc.description}</p>
-                  <Link to={`/property/${enc.id}`} className="bfa-about-enclave-link">
-                    <span>Explore Suites &amp; Facilities</span>
-                    <ArrowRight size={14} aria-hidden="true" />
-                  </Link>
-                </div>
-              </article>
-            ))}
+            {enclaves.map((enc) => {
+              const photo = resolveMediaUrl(enc.primary_photo_url || enc.main_photo);
+              const locationText = [enc.address, enc.district, enc.city, enc.state].filter(Boolean).join(', ');
+              const highlightsText = Array.isArray(enc.amenities)
+                ? enc.amenities.slice(0, 3).join(' • ')
+                : 'Verified Serviced Enclave • 24/7 Power • High-Speed Fiber';
+              return (
+                <article key={enc.id} className="bfa-about-enclave-card">
+                  <div className="bfa-about-enclave-img-box">
+                    {photo ? (
+                      <img src={photo} alt={enc.name} className="bfa-about-enclave-img" loading="lazy" />
+                    ) : (
+                      <div
+                        className="bfa-about-enclave-img"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: 'linear-gradient(135deg, #0b1b15 0%, #163329 100%)',
+                          color: '#d4af37',
+                        }}
+                      >
+                        <Building2 size={36} />
+                      </div>
+                    )}
+                    <span className="bfa-about-enclave-tag">{enc.code || 'BFA Residence'}</span>
+                  </div>
+                  <div className="bfa-about-enclave-content">
+                    <span className="bfa-about-enclave-loc">
+                      <MapPin size={13} aria-hidden="true" /> {locationText || enc.city || 'Verified Location'}
+                    </span>
+                    <h3 className="bfa-about-enclave-name">{enc.name}</h3>
+                    <span className="bfa-about-enclave-highlights">{highlightsText}</span>
+                    <p className="bfa-about-enclave-desc">{enc.description || 'Managed serviced luxury residence.'}</p>
+                    <Link to={`/property/${enc.id}`} className="bfa-about-enclave-link">
+                      <span>Explore Suites &amp; Facilities</span>
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
 

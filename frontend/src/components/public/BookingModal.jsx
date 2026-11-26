@@ -20,8 +20,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { formatNaira } from '../../utils/currency';
-import { publicService } from '../../services/api';
-import { getRoomTypePhoto, getPropertyPhoto } from './ApartmentDetailModal';
+import { publicService, resolveMediaUrl } from '../../services/api';
 import './BookingModal.css';
 
 export default function BookingModal({
@@ -311,7 +310,12 @@ export default function BookingModal({
 
   if (!isOpen || !unit) return null;
 
-  const unitPhoto = getRoomTypePhoto(unit.unit_type, property?.id || unit.property_id);
+  const unitPhoto = resolveMediaUrl(
+    unit.main_photo ||
+    unit.primary_photo_url ||
+    property?.main_photo ||
+    property?.primary_photo_url
+  );
   const nightlyRate = quoteData?.quote?.ratePerNight || unit.rate_per_night || '160000';
   const cautionDeposit = quoteData?.quote?.cautionDeposit || 0;
   const totalAmount = quoteData?.quote?.totalAmount || nightlyRate;

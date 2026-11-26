@@ -102,8 +102,8 @@ class ApartmentsRepository {
       INSERT INTO apartments (
         property_id, unit_number, unit_name, unit_type, floor,
         capacity, bedroom_count, bathroom_count, rate_per_night,
-        status, amenities, notes, is_active, apartment_code, description, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        status, amenities, technical_specs, notes, is_active, apartment_code, description, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const params = [
       data.property_id,
@@ -116,7 +116,8 @@ class ApartmentsRepository {
       data.bathroom_count || 1,
       data.rate_per_night || 150.00,
       data.status || 'AVAILABLE',
-      data.amenities ? JSON.stringify(data.amenities) : null,
+      data.amenities ? (typeof data.amenities === 'string' ? data.amenities : JSON.stringify(data.amenities)) : null,
+      data.technical_specs ? (typeof data.technical_specs === 'string' ? data.technical_specs : JSON.stringify(data.technical_specs)) : '{}',
       data.notes || null,
       data.is_active !== undefined ? (data.is_active ? 1 : 0) : 1,
       code,
@@ -138,13 +139,17 @@ class ApartmentsRepository {
     const allowed = [
       'property_id', 'unit_number', 'unit_name', 'unit_type', 'floor',
       'capacity', 'bedroom_count', 'bathroom_count', 'rate_per_night',
-      'status', 'amenities', 'notes', 'is_active', 'apartment_code', 'description', 'updated_by'
+      'status', 'amenities', 'technical_specs', 'notes', 'is_active', 'apartment_code', 'description', 'updated_by'
     ];
 
     for (const key of allowed) {
       if (data[key] !== undefined) {
         fields.push(`${key} = ?`);
-        params.push(key === 'amenities' && data[key] ? JSON.stringify(data[key]) : data[key]);
+        if ((key === 'amenities' || key === 'technical_specs') && data[key] !== null) {
+          params.push(typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]));
+        } else {
+          params.push(data[key]);
+        }
       }
     }
 

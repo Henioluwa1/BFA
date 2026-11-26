@@ -214,10 +214,10 @@ class ApartmentsService {
 
       const sql = `
         INSERT INTO media_assets 
-          (entity_type, entity_id, category, file_path, file_name, file_url, mime_type, file_size_bytes, 
+          (entity_type, entity_id, category, file_path, file_name, file_url, file_data, mime_type, file_size_bytes, 
            caption, display_order, is_primary, is_published, uploaded_by)
         VALUES 
-          ('APARTMENT', ?, 'INTERIOR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ('APARTMENT', ?, 'INTERIOR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       const fileUrl = `/uploads/apartments/${cleanFileName}`;
       const caption = (item.caption || `${unit.unit_name} Main Photo`).trim();
@@ -228,6 +228,7 @@ class ApartmentsService {
         filePath,
         cleanFileName,
         fileUrl,
+        buffer,
         mimeType,
         buffer.length,
         caption,
@@ -237,11 +238,18 @@ class ApartmentsService {
         user?.id || null,
       ]);
 
-      const inserted = await pool.query('SELECT * FROM media_assets WHERE id = ?', [result.insertId]);
+      const persistentUrl = `/api/v1/public/media/${result.insertId}`;
+      await pool.query('UPDATE media_assets SET file_url = ? WHERE id = ?', [persistentUrl, result.insertId]);
+      const inserted = await pool.query(
+        'SELECT id, entity_type, entity_id, category, file_path, file_name, file_url, mime_type, file_size_bytes, caption, display_order, is_primary, is_representative, is_published, submission_id, uploaded_by, created_at, updated_at FROM media_assets WHERE id = ?',
+        [result.insertId]
+      );
       createdAssets.push(inserted[0]);
     }
 
-    await PropertiesService.invalidatePropertyApproval(unit.property_id, 'Apartment media updated');
+    if (!isPublisher) {
+      await PropertiesService.invalidatePropertyApproval(unit.property_id, 'Apartment media updated');
+    }
     return createdAssets;
   }
 
@@ -337,9 +345,69 @@ class ApartmentsService {
 
   static async getApartmentMedia(apartmentId) {
     return pool.query(
-      "SELECT * FROM media_assets WHERE entity_type = 'APARTMENT' AND entity_id = ? ORDER BY is_primary DESC, display_order ASC, id ASC",
+      "SELECT id, entity_type, entity_id, category, file_path, file_name, file_url, mime_type, file_size_bytes, caption, display_order, is_primary, is_representative, is_published, submission_id, uploaded_by, created_at, updated_at FROM media_assets WHERE entity_type = 'APARTMENT' AND entity_id = ? ORDER BY is_primary DESC, display_order ASC, id ASC",
       [apartmentId]
     );
+  }
+
+  static async setCoverImage(apartmentId, mediaId, user) {
+    const unit = await ApartmentsRepository.findById(apartmentId);
+    if (!unit) throw new NotFoundError(`Apartment unit #${apartmentId} not found.`);
+    this.validatePropertyScope(user, unit.property_id);
+
+    const media = await pool.query(
+      "SELECT id FROM media_assets WHERE id = ? AND entity_type = 'APARTMENT' AND entity_id = ?",
+      [mediaId, apartmentId]
+    );
+    if (media.length === 0) throw new NotFoundError(`Media asset #${mediaId} not found on Apartment #${apartmentId}.`);
+
+    await pool.query("UPDATE media_assets SET is_primary = 0 WHERE entity_type = 'APARTMENT' AND entity_id = ?", [apartmentId]);
+    await pool.query('UPDATE media_assets SET is_primary = 1 WHERE id = ?', [mediaId]);
+    return { message: 'Apartment cover image updated.' };
+  }
+
+  static async reorderMedia(apartmentId, orderedIds, user) {
+    const unit = await ApartmentsRepository.findById(apartmentId);
+    if (!unit) throw new NotFoundError(`Apartment unit #${apartmentId} not found.`);
+    this.validatePropertyScope(user, unit.property_id);
+    if (!Array.isArray(orderedIds)) throw new ValidationError('orderedIds must be an array.');
+
+    for (let i = 0; i < orderedIds.length; i++) {
+      await pool.query(
+        "UPDATE media_assets SET display_order = ? WHERE id = ? AND entity_type = 'APARTMENT' AND entity_id = ?",
+        [i, parseInt(orderedIds[i], 10), apartmentId]
+      );
+    }
+    return { message: 'Apartment media order updated.' };
+  }
+
+  static async publishMedia(apartmentId, mediaId, isPublished, user) {
+    const unit = await ApartmentsRepository.findById(apartmentId);
+    if (!unit) throw new NotFoundError(`Apartment unit #${apartmentId} not found.`);
+    this.validatePropertyScope(user, unit.property_id);
+    await pool.query(
+      "UPDATE media_assets SET is_published = ? WHERE id = ? AND entity_type = 'APARTMENT' AND entity_id = ?",
+      [isPublished ? 1 : 0, mediaId, apartmentId]
+    );
+    return { message: isPublished ? 'Apartment image published.' : 'Apartment image unpublished.' };
+  }
+
+  static async deleteMedia(apartmentId, mediaId, user) {
+    const unit = await ApartmentsRepository.findById(apartmentId);
+    if (!unit) throw new NotFoundError(`Apartment unit #${apartmentId} not found.`);
+    this.validatePropertyScope(user, unit.property_id);
+
+    const rows = await pool.query(
+      "SELECT id, file_path FROM media_assets WHERE id = ? AND entity_type = 'APARTMENT' AND entity_id = ?",
+      [mediaId, apartmentId]
+    );
+    if (rows.length === 0) throw new NotFoundError(`Media asset #${mediaId} not found.`);
+
+    await pool.query('DELETE FROM media_assets WHERE id = ?', [mediaId]);
+    if (rows[0].file_path && fs.existsSync(rows[0].file_path)) {
+      try { fs.unlinkSync(rows[0].file_path); } catch {}
+    }
+    return { message: 'Apartment image deleted.' };
   }
 
   /**

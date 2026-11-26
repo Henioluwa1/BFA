@@ -18,26 +18,19 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { publicService } from '../../services/api';
+import { publicService, resolveMediaUrl } from '../../services/api';
 import { formatNaira } from '../../utils/currency';
 import PublicTopNav from '../../components/public/PublicTopNav';
 import PublicFooter from '../../components/public/home/PublicFooter';
 import FloatingChatWidget from '../../components/public/FloatingChatWidget';
 import BookingModal from '../../components/public/BookingModal';
 import BookingTrackingModal from '../../components/public/BookingTrackingModal';
-import ApartmentDetailModal, {
-  getPropertyPhoto,
-  getRoomTypePhoto,
-} from '../../components/public/ApartmentDetailModal';
+import ApartmentDetailModal from '../../components/public/ApartmentDetailModal';
 import {
   BfaButton,
   BfaBadge,
   BfaCard,
 } from '../../components/public/primitives';
-
-import ghtExterior from '../../assets/ght-exterior.jpg';
-import azureBayExterior from '../../assets/azure-bay-exterior.jpg';
-import royalPalmsExterior from '../../assets/royal-palms-exterior.jpg';
 
 import '../../styles/hospitalityTokens.css';
 import '../../styles/exploreProperties.css';
@@ -148,17 +141,25 @@ export default function ExplorePropertiesPage() {
     setDetailModalOpen(true);
   };
 
-  // Location filter options
-  const locations = [
-    { id: 'ALL', label: 'All Enclaves' },
-    { id: 'Alagbaka', label: 'Alagbaka GRA' },
-    { id: 'Ijapo', label: 'Ijapo Estate' },
-    { id: 'Oba-Ile', label: 'Oba-Ile / Airport Corridor' },
-  ];
+  // Location filter options derived dynamically from loaded properties
+  const locations = React.useMemo(() => {
+    const base = [{ id: 'ALL', label: 'All Enclaves' }];
+    const seen = new Set(['all']);
+    properties.forEach((p) => {
+      const city = (p.city || '').trim();
+      const district = (p.district || '').trim();
+      const key = city || district;
+      if (key && !seen.has(key.toLowerCase())) {
+        seen.add(key.toLowerCase());
+        base.push({ id: key, label: district && city && district !== city ? `${district}, ${city}` : key });
+      }
+    });
+    return base;
+  }, [properties]);
 
   const filteredProperties = properties.filter((p) => {
     if (selectedLocation !== 'ALL') {
-      const addr = `${p.address || ''} ${p.city || ''} ${p.state || ''}`.toLowerCase();
+      const addr = `${p.address || ''} ${p.city || ''} ${p.district || ''} ${p.state || ''}`.toLowerCase();
       if (!addr.includes(selectedLocation.toLowerCase())) return false;
     }
     if (searchQuery.trim()) {
@@ -326,7 +327,7 @@ export default function ExplorePropertiesPage() {
         ) : (
           <div className="bfa-explore-grid">
             {filteredProperties.map((prop) => {
-              const photo = getPropertyFallbackPhoto(prop.id);
+              const photo = resolveMediaUrl(prop.primary_photo_url || prop.main_photo);
               const parsedRate = prop.starting_rate != null ? parseFloat(prop.starting_rate) : null;
               const hasAuthoritativeRate = parsedRate !== null && !isNaN(parsedRate) && parsedRate > 0;
               const verifiedAmenities = getVerifiedAmenities(prop.amenities);
@@ -339,12 +340,27 @@ export default function ExplorePropertiesPage() {
                   <BfaCard variant="default" elevation="sm" interactive className="bfa-property-card">
                     {/* Media Header */}
                     <div className="bfa-property-card-media">
-                      <img
-                        src={photo}
-                        alt={`${prop.name} exterior architecture`}
-                        className="bfa-property-card-img"
-                        loading="lazy"
-                      />
+                      {photo ? (
+                        <img
+                          src={photo}
+                          alt={`${prop.name} exterior architecture`}
+                          className="bfa-property-card-img"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div
+                          className="bfa-property-card-img"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'linear-gradient(135deg, #0b1b15 0%, #163329 100%)',
+                            color: '#d4af37',
+                          }}
+                        >
+                          <Building2 size={44} />
+                        </div>
+                      )}
                       <div className="bfa-property-card-overlay">
                         <BfaBadge variant="forest" size="sm" icon={<ShieldCheck size={12} />}>
                           {prop.code || 'BFA'} • Verified Enclave

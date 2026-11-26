@@ -225,6 +225,41 @@ export default function LandingPage() {
 
       {/* Main Landmark */}
       <main id="main-content" tabIndex="-1" className="bfa-main-flow">
+        {dataError && (
+          <div
+            role="alert"
+            style={{
+              background: '#fef2f2',
+              borderBottom: '1px solid #fecaca',
+              color: '#991b1b',
+              padding: '0.85rem 1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1rem',
+              flexWrap: 'wrap',
+              fontSize: '0.9rem',
+            }}
+          >
+            <span>{dataError}</span>
+            <button
+              type="button"
+              onClick={loadData}
+              style={{
+                background: '#991b1b',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '0.35rem 0.85rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Hero Section with Integrated Search */}
         <HeroSection
           properties={properties}
@@ -246,7 +281,7 @@ export default function LandingPage() {
         <HospitalityIntroSection />
 
         {/* Suite Types & Accommodations Showcase */}
-        <SuiteTypesPreviewSection />
+        <SuiteTypesPreviewSection apartments={apartments} />
 
         {/* Guest Convenience & Stay Self-Service Hub */}
         <GuestConvenienceSection

@@ -4,6 +4,8 @@ const {
   getPublicPropertyDetail,
   getPublicRoomTypes,
   getPublicApartments,
+  getPublicApartmentDetail,
+  getPublicMediaFile,
   checkAvailability,
   getPublicQuote,
   getPublicPaymentConfig,
@@ -19,10 +21,12 @@ const { bookingLimiter } = require('../../core/security/security');
 
 const router = express.Router();
 
+router.get('/media/:mediaId', getPublicMediaFile);
 router.get('/properties', getPublicProperties);
 router.get('/properties/:id', getPublicPropertyDetail);
 router.get('/properties/:id/room-types', getPublicRoomTypes);
 router.get('/apartments', getPublicApartments);
+router.get('/apartments/:id', getPublicApartmentDetail);
 router.post('/check-availability', checkAvailability);
 router.post('/quote', bookingLimiter, getPublicQuote);
 router.get('/payment-config', getPublicPaymentConfig);

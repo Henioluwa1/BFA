@@ -19,7 +19,7 @@ import {
   AlertCircle,
   ExternalLink,
 } from '../ui/Icons';
-import { propertyMediaService, propertySubmissionService } from '../../services/api';
+import { propertyMediaService, propertySubmissionService, resolveMediaUrl } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
@@ -71,6 +71,9 @@ export const ASSET_LOOKUP = {
 export function resolvePropertyPhotoUrl(item) {
   if (!item) return '';
   if (item.fileData) return item.fileData;
+  if (item.file_url && (item.file_url.startsWith('/api/v1/public/media/') || item.file_url.startsWith('http'))) {
+    return resolveMediaUrl(item.file_url);
+  }
   if (item.file_name && ASSET_LOOKUP[item.file_name]) {
     return ASSET_LOOKUP[item.file_name];
   }
@@ -79,7 +82,7 @@ export function resolvePropertyPhotoUrl(item) {
     if (ASSET_LOOKUP[filename]) {
       return ASSET_LOOKUP[filename];
     }
-    return item.file_url;
+    return resolveMediaUrl(item.file_url);
   }
   return '';
 }

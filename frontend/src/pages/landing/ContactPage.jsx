@@ -6,11 +6,6 @@ import PublicTopNav from '../../components/public/PublicTopNav';
 import ClientInquiryPortal from '../../components/public/ClientInquiryPortal';
 import { contactService } from '../../services/api';
 
-// Curated Luxury Apartment Photography Assets
-import heroArchitecture from '../../assets/hero-architecture.jpg';
-import aptLivingLuxury from '../../assets/apt-living-luxury.jpg';
-import aptPenthouseView from '../../assets/apt-penthouse-view.jpg';
-
 import '../../styles/contact.css';
 
 export default function ContactPage() {
