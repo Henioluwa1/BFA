@@ -319,7 +319,7 @@ class PropertySubmissionsService {
     }
 
     const txResult = await pool.withTransaction(async (conn) => {
-      const lockedRows = await conn.query(
+      const [lockedRows] = await conn.query(
         'SELECT * FROM property_submissions WHERE id = ? FOR UPDATE',
         [id]
       );
@@ -553,7 +553,7 @@ class PropertySubmissionsService {
     }
 
     const submission = await pool.withTransaction(async (conn) => {
-      const lockedRows = await conn.query(
+      const [lockedRows] = await conn.query(
         'SELECT * FROM property_submissions WHERE id = ? FOR UPDATE',
         [id]
       );
