@@ -917,7 +917,7 @@
   gap: 0.75rem;
 }
 
-.bfa-unit-title {
+.bfa-unit-showcase-card .bfa-unit-title {
   margin: 0;
   font-family: var(--font-heading, 'Outfit', sans-serif);
   font-size: 1.25rem;
@@ -983,6 +983,7 @@
 /* Card Footer: Rate + 'View Apartment' Button + 'Reserve Now' Button */
 .bfa-unit-card-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   padding-top: 0.85rem;
@@ -1840,6 +1841,10 @@
     display: flex !important;
     flex-direction: column !important;
     min-height: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
     border-radius: 16px;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
   }

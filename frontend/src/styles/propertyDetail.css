@@ -16,7 +16,7 @@
 .bfa-property-main-content {
   position: relative;
   z-index: 10;
-  padding-top: 80px; /* Clears fixed transparent top nav */
+  padding-top: 0;
 }
 
 /* Loading & Error States */
@@ -1275,12 +1275,25 @@
   .bfa-building-switcher-bar {
     top: 55px;
     padding: 0.65rem 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+  .bfa-switcher-pills {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .bfa-category-toggle-pills {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: center;
   }
   .bfa-property-section-wrap {
     padding: 0 !important;
     margin: 1rem 0 !important;
     width: 100% !important;
     max-width: 100% !important;
+    overflow-x: hidden;
     scroll-margin-top: 100px;
   }
   .bfa-property-card-container {
@@ -1288,6 +1301,8 @@
     border-radius: 0 !important;
     border-left: none !important;
     border-right: none !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
   .bfa-room-types-catalog-grid {
     grid-template-columns: 1fr;

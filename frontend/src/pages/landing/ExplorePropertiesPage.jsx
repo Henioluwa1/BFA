@@ -116,19 +116,19 @@ export default function ExplorePropertiesPage() {
       return;
     }
 
+    const preloadedUnits = Array.isArray(property?.detailedUnits) ? property.detailedUnits : [];
+    if (preloadedUnits.length > 0) {
+      const firstAvailable = preloadedUnits.find((u) => u.status === 'AVAILABLE') || preloadedUnits[0];
+      setSelectedUnitForBooking(firstAvailable);
+      setBookingModalOpen(true);
+      return;
+    }
+
     try {
       const detailRes = await publicService.getPropertyById(property.id);
       const units = detailRes?.data?.units || [];
       const firstAvailable = units.find((u) => u.status === 'AVAILABLE') || units[0];
-      if (firstAvailable) {
-        setSelectedUnitForBooking({
-          id: firstAvailable.id,
-          unit_name: firstAvailable.unit_name || `${property.name} Suite`,
-          rate_per_night: firstAvailable.rate_per_night ? Number(firstAvailable.rate_per_night) : undefined,
-        });
-      } else {
-        setSelectedUnitForBooking(null);
-      }
+      setSelectedUnitForBooking(firstAvailable || null);
     } catch {
       setSelectedUnitForBooking(null);
     }
@@ -525,26 +525,18 @@ export default function ExplorePropertiesPage() {
         <ApartmentDetailModal
           isOpen={detailModalOpen}
           onClose={() => setDetailModalOpen(false)}
-          propertyId={detailPropertyId}
-          initialRoomType={selectedRoomTypeForModal}
-          onBookNow={(roomType) => {
-            const prop = properties.find((p) => p.id === detailPropertyId) || { id: detailPropertyId, name: 'BFA Residence' };
+          apartmentId={detailPropertyId}
+          propertyData={properties.find((p) => p.id === detailPropertyId) || null}
+          roomTypeData={selectedRoomTypeForModal}
+          onSelectUnitAndBook={(propId, unitId) => {
+            const prop = properties.find((p) => p.id === propId) || { id: propId, name: 'BFA Residence' };
             setDetailModalOpen(false);
-            const propRate = prop.starting_rate ? parseFloat(prop.starting_rate) : undefined;
             const matchingUnit =
-              prop.detailedUnits?.find(
-                (u) =>
-                  u.unit_type === roomType?.unitType ||
-                  (u.unit_name && roomType?.unitType && u.unit_name.toLowerCase().includes(roomType.unitType.toLowerCase()))
-              ) ||
+              prop.detailedUnits?.find((u) => String(u.id) === String(unitId)) ||
               prop.detailedUnits?.find((u) => u.status === 'AVAILABLE') ||
-              prop.detailedUnits?.[0];
-
-            handleOpenBooking(prop, matchingUnit ? {
-              id: matchingUnit.id,
-              unit_name: matchingUnit.unit_name || roomType?.unitType || `${prop.name} Suite`,
-              rate_per_night: matchingUnit.rate_per_night ? Number(matchingUnit.rate_per_night) : roomType?.startingRate || propRate,
-            } : null);
+              prop.detailedUnits?.[0] ||
+              { id: unitId, property_id: propId };
+            handleOpenBooking(prop, matchingUnit);
           }}
         />
       )}

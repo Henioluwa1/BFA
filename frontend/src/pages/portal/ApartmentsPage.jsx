@@ -930,13 +930,30 @@ export default function ApartmentsPage() {
                 value={unitForm.unit_type}
                 onChange={(e) => setUnitForm({ ...unitForm, unit_type: e.target.value })}
               >
-                <option value="Studio">Studio</option>
-                <option value="Standard">Standard</option>
-                <option value="Deluxe">Deluxe</option>
-                <option value="Executive">Executive</option>
-                <option value="One Bedroom">One Bedroom</option>
-                <option value="Two Bedroom">Two Bedroom</option>
-                <option value="Penthouse">Penthouse</option>
+                {[
+                  'Studio',
+                  'Studio Suite',
+                  'Standard',
+                  'Deluxe',
+                  'Executive',
+                  'One Bedroom',
+                  '1-Bedroom Luxury Suite',
+                  '1-Bedroom Executive Suite',
+                  'Two Bedroom',
+                  '2-Bedroom Luxury Suite',
+                  '3-Bedroom Luxury Suite',
+                  'Penthouse',
+                  'Presidential Penthouse',
+                ].concat(
+                  unitForm.unit_type && ![
+                    'Studio', 'Studio Suite', 'Standard', 'Deluxe', 'Executive',
+                    'One Bedroom', '1-Bedroom Luxury Suite', '1-Bedroom Executive Suite',
+                    'Two Bedroom', '2-Bedroom Luxury Suite', '3-Bedroom Luxury Suite',
+                    'Penthouse', 'Presidential Penthouse',
+                  ].includes(unitForm.unit_type) ? [unitForm.unit_type] : []
+                ).map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -1073,13 +1090,30 @@ export default function ApartmentsPage() {
                 value={unitForm.unit_type}
                 onChange={(e) => setUnitForm({ ...unitForm, unit_type: e.target.value })}
               >
-                <option value="Studio">Studio</option>
-                <option value="Standard">Standard</option>
-                <option value="Deluxe">Deluxe</option>
-                <option value="Executive">Executive</option>
-                <option value="One Bedroom">One Bedroom</option>
-                <option value="Two Bedroom">Two Bedroom</option>
-                <option value="Penthouse">Penthouse</option>
+                {[
+                  'Studio',
+                  'Studio Suite',
+                  'Standard',
+                  'Deluxe',
+                  'Executive',
+                  'One Bedroom',
+                  '1-Bedroom Luxury Suite',
+                  '1-Bedroom Executive Suite',
+                  'Two Bedroom',
+                  '2-Bedroom Luxury Suite',
+                  '3-Bedroom Luxury Suite',
+                  'Penthouse',
+                  'Presidential Penthouse',
+                ].concat(
+                  unitForm.unit_type && ![
+                    'Studio', 'Studio Suite', 'Standard', 'Deluxe', 'Executive',
+                    'One Bedroom', '1-Bedroom Luxury Suite', '1-Bedroom Executive Suite',
+                    'Two Bedroom', '2-Bedroom Luxury Suite', '3-Bedroom Luxury Suite',
+                    'Penthouse', 'Presidential Penthouse',
+                  ].includes(unitForm.unit_type) ? [unitForm.unit_type] : []
+                ).map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
               </select>
             </div>
             <div>

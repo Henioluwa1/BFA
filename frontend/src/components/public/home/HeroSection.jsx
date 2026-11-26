@@ -155,7 +155,6 @@ export default function HeroSection({
           src={currentSlide.image}
           alt={`${currentSlide.name} architectural facade in Akure`}
           className="bfa-hero-bg-img"
-          fetchPriority="high"
           decoding="async"
         />
         <div className="bfa-hero-scrim" />
