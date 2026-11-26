@@ -6,9 +6,9 @@
 .bfa-booking-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(11, 19, 43, 0.68);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  background: rgba(16, 28, 28, 0.74);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
   z-index: 10000;
   display: flex;
   align-items: center;
@@ -26,15 +26,15 @@
 .bfa-booking-modal-shell {
   position: relative;
   background: #ffffff;
-  color: #0f172a;
+  color: var(--bfa-lux-text-primary, #202625);
   width: 100%;
   max-width: 680px;
   max-height: 90vh;
-  border-radius: 20px;
-  border: 1.5px solid #cbd5e1;
+  border-radius: 18px;
+  border: 1px solid var(--bfa-lux-border-default, #dcd7ce);
   box-shadow:
-    0 28px 64px -15px rgba(11, 19, 43, 0.55),
-    0 8px 24px -4px rgba(15, 23, 42, 0.2);
+    0 28px 64px -15px rgba(16, 28, 28, 0.48),
+    0 8px 24px -4px rgba(25, 42, 42, 0.18);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -61,9 +61,9 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(11, 19, 43, 0.75);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(25, 42, 42, 0.8);
+  color: #f2eee5;
+  border: 1px solid rgba(185, 154, 112, 0.45);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -73,13 +73,14 @@
 }
 
 .bfa-booking-modal-close-btn:hover {
-  background: #dc2626;
-  border-color: #dc2626;
+  background: #9e2323;
+  border-color: #9e2323;
+  color: #ffffff;
   transform: rotate(90deg);
 }
 
 .bfa-booking-modal-close-btn:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #b99a70;
   outline-offset: 2px;
 }
 
@@ -95,7 +96,7 @@
 .bfa-booking-modal-banner-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(11, 19, 43, 0.35) 0%, rgba(11, 19, 43, 0.88) 100%);
+  background: linear-gradient(180deg, rgba(16, 28, 28, 0.35) 0%, rgba(16, 28, 28, 0.9) 100%);
 }
 
 .bfa-booking-modal-banner-content {
@@ -113,11 +114,11 @@
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #fef08a;
-  background: rgba(212, 175, 55, 0.2);
-  border: 1px solid rgba(212, 175, 55, 0.4);
-  padding: 0.15rem 0.55rem;
+  letter-spacing: 0.06em;
+  color: #f2eee5;
+  background: rgba(185, 154, 112, 0.28);
+  border: 1px solid rgba(185, 154, 112, 0.55);
+  padding: 0.18rem 0.6rem;
   border-radius: 9999px;
   margin-bottom: 0.35rem;
 }

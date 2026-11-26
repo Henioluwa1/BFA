@@ -77,7 +77,7 @@ export default function ExplorePropertiesPage() {
         const detailedProps = await Promise.all(
           propsData.map(async (prop) => {
             try {
-              const detailRes = await publicService.getProperty(prop.id);
+              const detailRes = await publicService.getPropertyById(prop.id);
               const units = detailRes?.data?.units || [];
               const availableUnits = units.filter((u) => u.status === 'AVAILABLE');
               const cheapestAvailable = availableUnits.length > 0
@@ -124,7 +124,7 @@ export default function ExplorePropertiesPage() {
     }
 
     try {
-      const detailRes = await publicService.getProperty(property.id);
+      const detailRes = await publicService.getPropertyById(property.id);
       const units = detailRes?.data?.units || [];
       const firstAvailable = units.find((u) => u.status === 'AVAILABLE') || units[0];
       if (firstAvailable) {

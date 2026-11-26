@@ -34,12 +34,12 @@
 }
 
 .bfa-track-card-title {
-  font-family: var(--bfa-lux-font-display, 'Outfit', 'Playfair Display', serif);
-  font-size: 1.85rem;
-  font-weight: 700;
+  font-family: var(--bfa-lux-font-serif, 'Instrument Serif', serif);
+  font-size: clamp(1.85rem, 3vw, 2.35rem);
+  font-weight: 400;
   color: #ffffff;
-  margin: 12px 0 10px;
-  line-height: 1.25;
+  margin: 8px 0 12px;
+  line-height: 1.05;
 }
 
 .bfa-track-card-desc {

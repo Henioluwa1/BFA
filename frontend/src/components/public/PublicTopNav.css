@@ -13,30 +13,32 @@
   left: 0;
   right: 0;
   z-index: 1000;
-  background: rgba(18, 30, 30, 0.32);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15);
+  background: rgba(25, 42, 42, 0.84);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-bottom: 1px solid rgba(242, 238, 229, 0.12);
+  box-shadow: 0 4px 24px rgba(16, 28, 28, 0.14);
   transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   width: 100%;
 }
 
 .bfa-public-nav--scrolled {
-  background: rgba(16, 28, 28, 0.55);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
+  background: rgba(16, 28, 28, 0.96);
+  box-shadow: 0 8px 30px rgba(10, 18, 18, 0.28);
   border-bottom: 1px solid rgba(185, 154, 112, 0.28);
 }
 
 .bfa-public-nav-container {
-  max-width: 1360px;
+  max-width: 1440px;
+  width: 100%;
   margin: 0 auto;
-  padding: 0 24px;
-  height: 72px;
+  padding: 0 clamp(16px, 3vw, 40px);
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  box-sizing: border-box;
 }
 
 /* Brand Mark & Text */
@@ -308,14 +310,16 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 12px 14px;
-  border-radius: 8px;
+  padding: 14px 16px;
+  border-radius: 10px;
   color: var(--bfa-lux-ivory, #f2eee5);
   text-decoration: none;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  min-height: 44px;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  font-family: var(--bfa-lux-font-serif, 'Instrument Serif', serif);
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 1.1;
+  min-height: 48px;
+  transition: background-color 0.2s cubic-bezier(0.76, 0, 0.24, 1), color 0.2s ease, transform 0.2s ease;
   background: none;
   border: none;
   width: 100%;

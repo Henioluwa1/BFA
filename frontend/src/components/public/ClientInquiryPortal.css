@@ -4,23 +4,27 @@
 }
 
 .bfa-client-portal-card {
-  background: rgba(15, 23, 42, 0.88);
+  background: rgba(25, 42, 42, 0.92);
   backdrop-filter: blur(14px);
-  border: 1px solid rgba(212, 175, 55, 0.28);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(185, 154, 112, 0.35);
   border-radius: 16px;
-  padding: 1.5rem;
-  color: #f8fafc;
+  padding: 1.75rem;
+  color: #f2eee5;
+  box-shadow: 0 16px 40px rgba(10, 18, 18, 0.28);
 }
 
 .bfa-client-portal-head h2 {
   margin: 0.25rem 0 0.35rem;
-  font-size: 1.3rem;
+  font-size: 1.35rem;
+  font-family: var(--bfa-lux-font-display, 'Outfit', serif);
+  color: #f2eee5;
 }
 
 .bfa-client-portal-head p {
-  margin: 0 0 1rem;
+  margin: 0 0 1.15rem;
   font-size: 0.88rem;
-  color: #94a3b8;
+  color: rgba(242, 238, 229, 0.72);
 }
 
 .bfa-cp-lookup-form {
@@ -39,34 +43,42 @@
 .bfa-cp-input-wrap label {
   font-size: 0.76rem;
   font-weight: 700;
-  color: #cbd5e1;
+  color: rgba(242, 238, 229, 0.85);
 }
 
 .bfa-cp-input-wrap input,
 .bfa-cp-composer textarea,
 .bfa-cp-feedback input,
 .bfa-cp-feedback select {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(185, 154, 112, 0.3);
   border-radius: 9px;
-  padding: 0.55rem 0.75rem;
+  padding: 0.6rem 0.8rem;
   color: #ffffff;
   font-size: 0.88rem;
+  min-height: 44px;
 }
 
 .bfa-cp-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  background: linear-gradient(135deg, #d4af37 0%, #b45309 100%);
-  color: #0f172a;
-  font-weight: 800;
-  font-size: 0.86rem;
-  padding: 0.6rem 1.1rem;
+  gap: 0.45rem;
+  background: #b99a70;
+  color: #101c1c;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 0.65rem 1.25rem;
+  min-height: 44px;
   border: none;
   border-radius: 9px;
   cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.bfa-cp-btn:hover:not(:disabled) {
+  background: #a8885e;
+  transform: translateY(-1px);
 }
 
 .bfa-cp-btn-outline {

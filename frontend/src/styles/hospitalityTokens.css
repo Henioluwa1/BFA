@@ -27,6 +27,7 @@
   --bfa-lux-champagne: #b99a70;
   --bfa-lux-champagne-rgb: 185, 154, 112;
   --bfa-lux-champagne-hover: #a8885e;
+  --bfa-lux-champagne-text: #70532c;
   --bfa-lux-champagne-dim: rgba(185, 154, 112, 0.12);
   --bfa-lux-champagne-border: rgba(185, 154, 112, 0.35);
 
@@ -77,6 +78,7 @@
   --bfa-lux-status-error-border: #f7c3c3;
 
   /* Typography Scale */
+  --bfa-lux-font-serif: 'Instrument Serif', 'Playfair Display', Georgia, serif;
   --bfa-lux-font-display: 'Outfit', 'Playfair Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', serif;
   --bfa-lux-font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --bfa-lux-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -146,5 +148,39 @@
 .bfa-hospitality-scope textarea:focus-visible {
   outline: none;
   box-shadow: var(--bfa-lux-focus-ring);
+}
+
+/* Editorial Motion & Skeleton Utilities */
+@keyframes bfaFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bfaSkeletonPulse {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.bfa-skeleton-block {
+  background: linear-gradient(90deg, #efebe2 25%, #f7f4ec 50%, #efebe2 75%);
+  background-size: 200% 100%;
+  animation: bfaSkeletonPulse 1.6s ease-in-out infinite;
+  border-radius: var(--bfa-lux-radius-sm, 8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bfa-skeleton-block {
+    animation: none;
+  }
 }
 

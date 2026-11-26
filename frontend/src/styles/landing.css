@@ -1,6 +1,7 @@
 
 /* ==========================================================================
-   0. 5-SECOND LUXURY BFA LOADER (Full Screen Overlay)
+   0. LUXURY HOSPITALITY BFA LOADER (Full Screen Overlay)
+   Aligned with BFA Deep Forest / Warm Ivory / Muted Champagne tokens
    ========================================================================== */
 .bfa-luxury-loader-overlay {
   position: fixed;
@@ -8,12 +9,12 @@
   width: 100vw;
   height: 100vh;
   z-index: 999999;
-  background: radial-gradient(ellipse at center, #1e293b 0%, #0a0f1d 100%);
+  background: radial-gradient(ellipse at center, #253d3d 0%, #192a2a 55%, #101c1c 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-body, 'Plus Jakarta Sans', sans-serif);
-  color: #ffffff;
+  font-family: var(--bfa-lux-font-body, 'Plus Jakarta Sans', sans-serif);
+  color: #f2eee5;
   transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
 }
@@ -36,8 +37,8 @@
 
 .bfa-loader-logo-wrap {
   position: relative;
-  width: 90px;
-  height: 90px;
+  width: 88px;
+  height: 88px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -47,34 +48,33 @@
 .bfa-loader-glow-ring {
   position: absolute;
   inset: -10px;
-  border-radius: 28px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.5) 0%, rgba(212, 175, 55, 0.35) 60%, transparent 100%);
+  border-radius: 26px;
+  background: radial-gradient(circle, rgba(185, 154, 112, 0.32) 0%, rgba(185, 154, 112, 0.08) 65%, transparent 100%);
   animation: bfaLoaderGlowPulse 2.4s infinite ease-in-out;
 }
 
 @keyframes bfaLoaderGlowPulse {
-  0% { transform: scale(0.92); opacity: 0.5; }
-  50% { transform: scale(1.14); opacity: 0.95; }
-  100% { transform: scale(0.92); opacity: 0.5; }
+  0% { transform: scale(0.94); opacity: 0.55; }
+  50% { transform: scale(1.1); opacity: 0.9; }
+  100% { transform: scale(0.94); opacity: 0.55; }
 }
 
 .bfa-loader-badge {
   position: relative;
-  width: 74px;
-  height: 74px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
-  border: 1.5px solid rgba(212, 175, 55, 0.7);
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #192a2a 0%, #101c1c 100%);
+  border: 1.5px solid rgba(185, 154, 112, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 24px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(242, 238, 229, 0.12);
 }
 
 .bfa-loader-grid-icon {
-  font-size: 2.2rem;
-  color: #fef08a;
-  text-shadow: 0 0 12px rgba(254, 240, 138, 0.6);
+  font-size: 2.1rem;
+  color: #b99a70;
   line-height: 1;
 }
 
@@ -83,20 +83,19 @@
 }
 
 .bfa-loader-brand-title {
-  font-family: var(--font-heading, 'Outfit', sans-serif);
-  font-size: 1.75rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #ffffff;
+  font-family: var(--bfa-lux-font-display, 'Outfit', serif);
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #f2eee5;
   margin: 0 0 0.35rem;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
 .bfa-loader-brand-sub {
-  font-size: 0.78rem;
-  font-weight: 800;
-  color: #60a5fa;
-  letter-spacing: 0.18em;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #b99a70;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   display: block;
   margin-bottom: 0.4rem;
@@ -104,28 +103,27 @@
 
 .bfa-loader-postcodes {
   font-size: 0.7rem;
-  color: #94a3b8;
-  letter-spacing: 0.12em;
+  color: rgba(242, 238, 229, 0.65);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   display: block;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .bfa-loader-progress-track {
   width: 280px;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.12);
+  height: 4px;
+  background: rgba(242, 238, 229, 0.14);
   border-radius: 9999px;
   overflow: hidden;
   margin-bottom: 0.85rem;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .bfa-loader-progress-fill {
   height: 100%;
   border-radius: 9999px;
-  background: linear-gradient(90deg, #d4af37 0%, #3b82f6 50%, #60a5fa 100%);
-  box-shadow: 0 0 10px rgba(96, 165, 250, 0.7);
+  background: linear-gradient(90deg, #b99a70 0%, #e4cca8 100%);
+  box-shadow: 0 0 10px rgba(185, 154, 112, 0.55);
   transition: width 0.05s linear;
 }
 
@@ -134,23 +132,23 @@
   align-items: center;
   justify-content: space-between;
   width: 280px;
-  font-size: 0.76rem;
-  color: #cbd5e1;
+  font-size: 0.75rem;
+  color: rgba(242, 238, 229, 0.75);
 }
 
 .bfa-loader-status-msg {
   font-weight: 500;
-  color: #94a3b8;
+  color: rgba(242, 238, 229, 0.72);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 230px;
+  max-width: 225px;
 }
 
 .bfa-loader-percent {
-  font-weight: 700;
-  color: #60a5fa;
-  font-family: monospace;
+  font-weight: 600;
+  color: #b99a70;
+  font-family: var(--bfa-lux-font-mono, monospace);
 }
 
 /* ==========================================================================

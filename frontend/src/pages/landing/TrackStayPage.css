@@ -10,13 +10,13 @@
   display: flex;
   flex-direction: column;
   color: var(--bfa-lux-text-primary, #202625);
-  padding-top: 72px;
+  padding-top: 80px;
   font-family: var(--bfa-lux-font-body, 'Plus Jakarta Sans', sans-serif);
 }
 
 .bfa-track-main {
   flex: 1;
-  padding-top: calc(80px + var(--bfa-lux-space-xl, 32px));
+  padding-top: var(--bfa-lux-space-xl, 32px);
   padding-bottom: var(--bfa-lux-space-4xl, 96px);
 }
 

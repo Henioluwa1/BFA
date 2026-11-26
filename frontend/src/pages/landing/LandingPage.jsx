@@ -170,7 +170,7 @@ export default function LandingPage() {
     setVerificationResult(null);
 
     try {
-      const res = await publicService.verifyReservation({
+      const res = await publicService.verifyBooking({
         referenceCode: verifyQuery.trim(),
         contact: verifyContact.trim() || undefined,
       });

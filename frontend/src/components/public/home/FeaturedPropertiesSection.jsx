@@ -23,6 +23,7 @@ import './FeaturedPropertiesSection.css';
  */
 export default function FeaturedPropertiesSection({
   properties = [],
+  loading = false,
   onOpenBooking,
 }) {
   const getPropertyPhoto = (id) => {
@@ -68,7 +69,21 @@ export default function FeaturedPropertiesSection({
 
         {/* Editorial Properties Grid */}
         <div className="bfa-featured-grid">
-          {properties.map((prop, idx) => {
+          {loading && properties.length === 0 ? (
+            [1, 2, 3].map((n) => (
+              <div key={n} className="bfa-featured-card-wrapper" aria-hidden="true">
+                <div className="bfa-featured-card" style={{ padding: 0 }}>
+                  <div className="bfa-skeleton-block" style={{ width: '100%', aspectRatio: '16 / 10', borderRadius: 0 }} />
+                  <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div className="bfa-skeleton-block" style={{ width: '60%', height: '14px' }} />
+                    <div className="bfa-skeleton-block" style={{ width: '85%', height: '22px' }} />
+                    <div className="bfa-skeleton-block" style={{ width: '100%', height: '42px' }} />
+                    <div className="bfa-skeleton-block" style={{ width: '50%', height: '28px', marginTop: '8px' }} />
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : properties.map((prop, idx) => {
             const photo = getPropertyPhoto(prop.id);
             const parsedRate = prop.starting_rate != null ? parseFloat(prop.starting_rate) : null;
             const hasAuthoritativeRate = parsedRate !== null && !isNaN(parsedRate) && parsedRate > 0;

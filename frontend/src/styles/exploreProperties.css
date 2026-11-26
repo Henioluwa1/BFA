@@ -15,7 +15,7 @@
 .bfa-explore-hero {
   background: linear-gradient(180deg, #f2eee5 0%, #fbf9f5 100%);
   border-bottom: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
-  padding: 120px 24px 48px;
+  padding: 56px 24px 44px;
   text-align: center;
 }
 
@@ -29,11 +29,11 @@
 }
 
 .bfa-explore-hero-title {
-  font-family: var(--bfa-lux-font-display, serif);
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  font-weight: 600;
+  font-family: var(--bfa-lux-font-serif, 'Instrument Serif', serif);
+  font-size: clamp(2.25rem, 4.5vw, 3.25rem);
+  font-weight: 400;
   color: var(--bfa-lux-forest, #192a2a);
-  line-height: 1.2;
+  line-height: 1.04;
   letter-spacing: -0.02em;
   margin: 8px 0;
 }

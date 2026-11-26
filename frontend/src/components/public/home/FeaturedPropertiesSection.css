@@ -1,46 +1,36 @@
 /* ==========================================================================
-   FeaturedPropertiesSection.css — Editorial Grid Layout
-   BFA Tokens: Warm Ivory, Deep Forest, Muted Champagne
+   FeaturedPropertiesSection.css — Asymmetric 1 + 2 Editorial Gallery
    ========================================================================== */
 
 .bfa-featured-section {
-  padding: 88px 0;
+  padding: clamp(64px, 8vw, 108px) 0;
   background-color: var(--bfa-lux-bg-page, #fbf9f5);
 }
 
 .bfa-featured-container {
-  max-width: 1280px;
+  max-width: 1360px;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 clamp(16px, 4vw, 40px);
 }
 
-/* Header */
 .bfa-featured-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   gap: 24px;
-  margin-bottom: 48px;
+  margin-bottom: 44px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
   flex-wrap: wrap;
 }
 
-.bfa-featured-header-left {
-  max-width: 680px;
-}
-
 .bfa-featured-title {
-  font-family: var(--bfa-lux-font-display, 'Outfit', 'Playfair Display', serif);
-  font-size: 2.25rem;
-  font-weight: 700;
+  font-family: var(--bfa-lux-font-serif, 'Instrument Serif', 'Playfair Display', serif);
+  font-size: clamp(2.2rem, 4vw, 3.2rem);
+  font-weight: 400;
   color: var(--bfa-lux-forest, #192a2a);
   letter-spacing: -0.02em;
-  margin: 12px 0 10px;
-}
-
-.bfa-featured-subtitle {
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--bfa-lux-text-secondary, #737a75);
+  line-height: 1;
   margin: 0;
 }
 
@@ -48,21 +38,19 @@
   text-decoration: none;
 }
 
-.bfa-view-all-link .bfa-lux-btn--primary {
-  font-weight: 600;
-  padding: 10px 22px;
-  box-shadow: 0 3px 10px rgba(185, 154, 112, 0.32);
-}
-
-/* Editorial Grid */
+/* Asymmetric 1 + 2 Editorial Grid */
 .bfa-featured-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 28px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
 }
 
 .bfa-featured-card-wrapper {
   display: flex;
+}
+
+.bfa-featured-card--lead {
+  grid-column: 1 / -1;
 }
 
 .bfa-featured-card {
@@ -70,65 +58,78 @@
   flex-direction: column;
   width: 100%;
   overflow: hidden;
-  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
-  border-radius: 12px;
+  border: 1px solid var(--bfa-lux-border-default, #dcd7ce);
+  border-radius: 6px;
   background-color: #ffffff;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
-/* Media Box */
+.bfa-featured-card--lead .bfa-featured-card {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+}
+
 .bfa-card-media-box {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   background-color: var(--bfa-lux-forest, #192a2a);
+}
+
+.bfa-featured-card--lead .bfa-card-media-box {
+  aspect-ratio: auto;
+  min-height: 410px;
+  height: 100%;
 }
 
 .bfa-card-media-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.4s ease;
+  object-position: center;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .bfa-featured-card:hover .bfa-card-media-img {
-  transform: scale(1.03);
+  transform: scale(1.04);
 }
 
 .bfa-card-media-overlay {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+  top: 14px;
+  left: 14px;
+  right: 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   pointer-events: none;
 }
 
 .bfa-card-vis-pill {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background: rgba(10, 15, 24, 0.78);
+  bottom: 12px;
+  right: 12px;
+  background: rgba(16, 28, 28, 0.82);
   backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #e2ded5;
+  border: 1px solid rgba(242, 238, 229, 0.16);
+  color: #f2eee5;
   font-size: 0.625rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  padding: 3px 8px;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
   border-radius: 4px;
   text-transform: uppercase;
   pointer-events: none;
 }
 
-/* Card Body */
 .bfa-card-body-box {
-  padding: 24px;
+  padding: clamp(22px, 3vw, 34px);
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   flex: 1;
 }
 
@@ -137,74 +138,60 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 10px;
-  font-size: 0.775rem;
+  margin-bottom: 12px;
+  font-size: 0.78rem;
   color: var(--bfa-lux-text-secondary, #737a75);
+  flex-wrap: wrap;
 }
 
-.bfa-card-loc {
-  display: flex;
+.bfa-card-loc,
+.bfa-card-checkin-time {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.bfa-card-loc svg {
+.bfa-card-loc svg,
+.bfa-card-checkin-time svg {
   color: var(--bfa-lux-champagne, #b99a70);
   flex-shrink: 0;
 }
 
-.bfa-card-checkin-time {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.725rem;
-  white-space: nowrap;
-}
-
 .bfa-card-name {
-  font-family: var(--bfa-lux-font-display, 'Outfit', 'Playfair Display', serif);
-  font-size: 1.35rem;
-  font-weight: 700;
+  font-family: var(--bfa-lux-font-serif, 'Instrument Serif', serif);
+  font-size: clamp(1.65rem, 2.5vw, 2.2rem);
+  font-weight: 400;
   color: var(--bfa-lux-forest, #192a2a);
-  margin: 0 0 10px;
-  letter-spacing: -0.01em;
+  margin: 0 0 12px;
+  line-height: 1.05;
 }
 
 .bfa-card-description {
-  font-size: 0.875rem;
-  line-height: 1.55;
+  font-size: 0.9375rem;
+  line-height: 1.65;
   color: var(--bfa-lux-text-secondary, #737a75);
-  margin: 0 0 18px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  margin: 0 0 20px;
 }
 
-/* Amenity Strip */
 .bfa-card-amenity-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 22px;
-  min-height: 28px;
+  gap: 8px;
+  margin-bottom: 24px;
 }
 
 .bfa-amenity-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 9px;
+  padding: 5px 10px;
   border-radius: 4px;
-  background-color: var(--bfa-lux-ivory, #f2eee5);
-  color: var(--bfa-lux-text-primary, #202625);
-  font-size: 0.725rem;
+  background-color: var(--bfa-lux-ivory-light, #f9f7f2);
+  border: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  font-size: 0.74rem;
   font-weight: 500;
-  letter-spacing: 0.01em;
+  color: var(--bfa-lux-forest, #192a2a);
 }
 
 .bfa-amenity-pill svg {
@@ -212,113 +199,72 @@
 }
 
 .bfa-amenity-neutral-pill {
-  font-size: 0.725rem;
-  color: var(--bfa-lux-text-muted, #8c948e);
+  font-size: 0.76rem;
+  color: var(--bfa-lux-text-secondary, #737a75);
   font-style: italic;
 }
 
-/* Footer Row */
 .bfa-card-footer-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 12px;
-  margin-top: auto;
-  padding-top: 16px;
+  gap: 16px;
+  padding-top: 20px;
   border-top: 1px solid var(--bfa-lux-border-subtle, #e7e4dc);
+  flex-wrap: wrap;
 }
 
 .bfa-card-price-group {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .bfa-card-price-label {
-  font-size: 0.625rem;
-  letter-spacing: 0.1em;
+  font-size: 0.65rem;
   font-weight: 700;
-  color: var(--bfa-lux-text-muted, #8c948e);
-  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--bfa-lux-text-secondary, #737a75);
 }
 
 .bfa-card-price-number {
   font-family: var(--bfa-lux-font-mono, monospace);
-  font-size: 1.175rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--bfa-lux-forest, #192a2a);
 }
 
 .bfa-card-price-unit {
   font-family: var(--bfa-lux-font-body, sans-serif);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 400;
   color: var(--bfa-lux-text-secondary, #737a75);
 }
 
 .bfa-card-price-note {
-  font-size: 0.6875rem;
-  color: var(--bfa-lux-text-secondary, #737a75);
-  font-weight: 500;
-  margin-top: 2px;
-  line-height: 1.2;
+  font-size: 0.72rem;
+  color: var(--bfa-lux-text-muted, #8c948e);
 }
 
 .bfa-card-price-inquire {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--bfa-lux-text-secondary, #737a75);
-  font-style: italic;
-}
-
-.bfa-card-buttons-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--bfa-lux-forest, #192a2a);
 }
 
 .bfa-card-explore-btn {
   text-decoration: none;
 }
 
-.bfa-card-explore-btn .bfa-lux-btn--primary {
-  font-weight: 600;
-  padding: 8px 18px;
-  box-shadow: 0 2px 8px rgba(185, 154, 112, 0.28);
-}
-
-/* Responsive */
-@media (max-width: 1080px) {
-  .bfa-featured-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 720px) {
-  .bfa-featured-section {
-    padding: 60px 0;
-  }
+@media (max-width: 960px) {
   .bfa-featured-grid {
     grid-template-columns: 1fr;
   }
-  .bfa-featured-title {
-    font-size: 1.85rem;
+  .bfa-featured-card--lead .bfa-featured-card {
+    grid-template-columns: 1fr;
   }
-  .bfa-card-footer-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 14px;
-  }
-  .bfa-card-buttons-group {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .bfa-card-buttons-group > * {
-    flex: 1;
-  }
-  .bfa-card-explore-btn button,
-  .bfa-card-buttons-group button {
-    width: 100%;
-    justify-content: center;
+  .bfa-featured-card--lead .bfa-card-media-box {
+    min-height: 260px;
+    aspect-ratio: 16 / 10;
   }
 }
-

@@ -44,44 +44,51 @@ export default function LoginPage() {
 
   return (
     <div
+      className="bfa-hospitality-scope"
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        background: 'linear-gradient(145deg, #192a2a 0%, #101c1c 60%, #162626 100%)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 'clamp(1rem, 3vw, 1.5rem)',
-        fontFamily: 'var(--font-body)',
+        padding: 'clamp(1rem, 3vw, 2rem)',
+        fontFamily: 'var(--bfa-lux-font-body, "Plus Jakarta Sans", sans-serif)',
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ maxWidth: '440px', width: '100%', marginBottom: '1.25rem', textAlign: 'center' }}>
-        <Link to="/" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.6rem' }}>
+      <div style={{ maxWidth: '440px', width: '100%', marginBottom: '1.5rem', textAlign: 'center' }}>
+        <Link to="/" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.7rem' }}>
           <div
             style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #2563eb, #1e3a8a)',
-              color: '#ffffff',
+              width: '44px',
+              height: '44px',
+              borderRadius: '11px',
+              background: '#192a2a',
+              border: '1.5px solid #b99a70',
+              color: '#b99a70',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '1.3rem',
-              boxShadow: '0 4px 10px rgba(37, 99, 235, 0.3)',
+              fontWeight: 700,
+              fontSize: '1.35rem',
+              boxShadow: '0 6px 18px rgba(0, 0, 0, 0.35)',
               flexShrink: 0,
             }}
           >
-            B
+            ⠿
           </div>
-          <span style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>
-            BFA APARTMENTS
-          </span>
+          <div style={{ textAlign: 'left' }}>
+            <span style={{ fontFamily: 'var(--bfa-lux-font-display, "Outfit", serif)', fontSize: '1.25rem', fontWeight: 700, letterSpacing: '0.08em', color: '#f2eee5', display: 'block', lineHeight: 1.15 }}>
+              BFA APARTMENTS
+            </span>
+            <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.14em', color: '#b99a70', textTransform: 'uppercase' }}>
+              Serviced Residences • Akure
+            </span>
+          </div>
         </Link>
-        <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '0.35rem' }}>
-          Single Unified Authentication Portal (Section 10)
+        <p style={{ color: 'rgba(242, 238, 229, 0.72)', fontSize: '0.84rem', marginTop: '0.65rem' }}>
+          Authorized Staff &amp; Management Operations Portal
         </p>
       </div>
 
@@ -89,36 +96,36 @@ export default function LoginPage() {
         style={{
           maxWidth: '440px',
           width: '100%',
-          background: '#ffffff',
+          background: '#fbf9f5',
           borderRadius: '16px',
-          border: '1px solid #e2e8f0',
-          boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.08)',
-          padding: 'clamp(1.15rem, 4vw, 2.25rem)',
+          border: '1px solid rgba(185, 154, 112, 0.35)',
+          boxShadow: '0 24px 56px rgba(0, 0, 0, 0.42)',
+          padding: 'clamp(1.25rem, 4vw, 2.25rem)',
           boxSizing: 'border-box',
         }}
       >
-        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.25rem' }}>
+        <h2 style={{ fontFamily: 'var(--bfa-lux-font-display, "Outfit", serif)', fontSize: '1.4rem', fontWeight: 700, color: '#192a2a', marginBottom: '0.25rem', marginTop: 0 }}>
           Welcome back
         </h2>
-        <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+        <p style={{ color: '#737a75', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
           Sign in to access your authorized role workspace.
         </p>
 
         {isExpired && (
-          <div style={{ padding: '0.75rem', borderRadius: '8px', background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
+          <div style={{ padding: '0.75rem', borderRadius: '8px', background: '#fdf8ee', border: '1px solid #f3dfb3', color: '#8c6014', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
             Session expired. Please log in again to continue.
           </div>
         )}
 
         {error && (
-          <div style={{ padding: '0.75rem', borderRadius: '8px', background: '#fef2f2', border: '1px solid #fecdd3', color: '#9f1239', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
+          <div role="alert" style={{ padding: '0.75rem', borderRadius: '8px', background: '#fcf1f1', border: '1px solid #f7c3c3', color: '#9e2323', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
             ✕ {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label" htmlFor="login-email">
+            <label className="form-label" htmlFor="login-email" style={{ color: '#202625' }}>
               Email Address
             </label>
             <input
@@ -133,7 +140,7 @@ export default function LoginPage() {
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="login-password">
+            <label className="form-label" htmlFor="login-password" style={{ color: '#202625' }}>
               Password
             </label>
             <input
@@ -152,16 +159,18 @@ export default function LoginPage() {
             disabled={loading}
             style={{
               width: '100%',
+              minHeight: '46px',
               padding: '0.85rem',
               borderRadius: '10px',
-              background: '#2563eb',
-              color: '#ffffff',
-              border: 'none',
-              fontWeight: 700,
+              background: '#192a2a',
+              color: '#f2eee5',
+              border: '1px solid #b99a70',
+              fontWeight: 600,
               fontSize: '0.95rem',
+              letterSpacing: '0.02em',
               cursor: loading ? 'wait' : 'pointer',
               marginTop: '0.75rem',
-              boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)',
+              boxShadow: '0 6px 18px rgba(25, 42, 42, 0.22)',
               transition: 'background 150ms ease',
             }}
           >
@@ -169,13 +178,13 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ marginTop: '1.75rem', borderTop: '1px solid #f1f5f9', paddingTop: '1rem', textAlign: 'center', fontSize: '0.75rem', color: '#64748b' }}>
+        <div style={{ marginTop: '1.75rem', borderTop: '1px solid #e7e4dc', paddingTop: '1rem', textAlign: 'center', fontSize: '0.75rem', color: '#737a75' }}>
           Authorized BFA Personnel Portal • Session security enforced via JWT
         </div>
       </div>
 
-      <div style={{ marginTop: '1.5rem', fontSize: '0.85rem', color: '#64748b' }}>
-        <Link to="/" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}>
+      <div style={{ marginTop: '1.5rem', fontSize: '0.85rem' }}>
+        <Link to="/" style={{ color: '#b99a70', textDecoration: 'none', fontWeight: 600 }}>
           ← Back to Public Website
         </Link>
       </div>
