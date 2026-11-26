@@ -100,16 +100,16 @@ export default function NotificationsPage() {
       </div>
 
       {/* Desktop Notifications Integration Card (Section 14 & 15) */}
-      <Card style={{ marginBottom: '1.25rem', background: 'linear-gradient(135deg, rgba(30,41,59,0.7), rgba(15,23,42,0.85))' }}>
+      <Card style={{ marginBottom: '1.25rem', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', border: '1px solid rgba(255,255,255,0.14)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-              <strong style={{ color: 'var(--text-primary)' }}>🖥️ Browser Desktop Notifications</strong>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+              <strong style={{ color: '#f8fafc' }}>🖥️ Browser Desktop Notifications</strong>
               <Badge status={permission === 'granted' ? 'success' : permission === 'denied' ? 'danger' : 'neutral'}>
                 {permission === 'granted' ? 'ENABLED' : permission === 'denied' ? 'BLOCKED IN BROWSER' : 'NOT CONFIGURED'}
               </Badge>
             </div>
-            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: '#cbd5e1' }}>
               {permission === 'granted'
                 ? 'Active: Your browser will display real-time desktop alerts for incoming bookings, staff memos, and critical facility events.'
                 : 'Enable native browser notifications to receive real-time alerts even when working in another tab or application.'}

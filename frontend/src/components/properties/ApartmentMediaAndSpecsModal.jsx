@@ -252,7 +252,7 @@ export default function ApartmentMediaAndSpecsModal({ isOpen, onClose, apartment
             ) : media.length === 0 ? (
               <div style={{ padding: '1.5rem', textAlign: 'center', color: '#94a3b8' }}>No photographs uploaded for this unit yet.</div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 210px), 1fr))', gap: '12px' }}>
                 {media.map((m, idx) => (
                   <div key={m.id} style={{ border: m.is_primary ? '2px solid #d4af37' : '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(0,0,0,0.35)' }}>
                     <div style={{ position: 'relative', aspectRatio: '16/10', background: '#0f172a' }}>
@@ -361,7 +361,7 @@ export default function ApartmentMediaAndSpecsModal({ isOpen, onClose, apartment
                   Pricing: {apartment.pricing_status || 'PENDING_APPROVAL'}
                 </Badge>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: '1rem' }}>
                 <div>
                   <label className="form-label">Manager-Entered Price (₦ NGN)</label>
                   <input
@@ -407,7 +407,7 @@ export default function ApartmentMediaAndSpecsModal({ isOpen, onClose, apartment
               <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#d4af37' }}>
                 Suite Technical Specifications
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))', gap: '1rem' }}>
                 <div>
                   <label className="form-label">Room Configuration</label>
                   <input type="text" className="input-field" placeholder="e.g. Open Living Salon + Master Ensuite" value={techSpecs.room_configuration} onChange={(e) => setTechSpecs({ ...techSpecs, room_configuration: e.target.value })} />

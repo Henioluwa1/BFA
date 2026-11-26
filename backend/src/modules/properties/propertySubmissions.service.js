@@ -314,164 +314,196 @@ class PropertySubmissionsService {
       throw new ForbiddenError('Only the Owner and Operations Manager are authorized to review or approve submissions.');
     }
 
-    const submission = await this.getSubmissionById(id, user);
-
-    if (submission.status === 'PUBLISHED') {
-      throw new ConflictError('Cannot review an already published submission.');
-    }
-
-    // Segregation of duties: submitter cannot approve their own submission
-    if (parseInt(submission.submitted_by_id, 10) === parseInt(user.id, 10)) {
-      throw new ForbiddenError('Self-approval violation: Submitters cannot review or approve their own submission.');
-    }
-
     if (['CHANGES_REQUESTED', 'REJECTED'].includes(action) && !String(decisionNotes || commentContent || '').trim()) {
       throw new ValidationError('A reason or comment is required when rejecting or requesting changes.');
     }
 
-    const isOwner = userRole === 'OWNER';
-    const isOps = userRole === 'OPERATIONS_MANAGER';
-
-    if (isOwner) {
-      if (submission.owner_review_status === 'APPROVED') {
-        throw new ConflictError('Owner approval has already been recorded for this submission.');
-      }
-    }
-
-    if (isOps) {
-      if (submission.owner_review_status !== 'APPROVED' && action === 'APPROVED') {
-        throw new ConflictError('Owner approval must be recorded before Operations Manager approval.');
-      }
-      if (submission.ops_review_status === 'APPROVED') {
-        throw new ConflictError('Operations Manager approval has already been recorded for this submission.');
-      }
-    }
-
-    const updates = [];
-    const params = [];
-
-    if (isOwner) {
-      updates.push('owner_review_status = ?', 'owner_reviewed_by_id = ?', 'owner_decision_notes = ?', 'owner_reviewed_at = NOW()');
-      params.push(action, user.id, decisionNotes || null);
-    } else {
-      updates.push('ops_review_status = ?', 'ops_reviewed_by_id = ?', 'ops_decision_notes = ?', 'ops_reviewed_at = NOW()');
-      params.push(action, user.id, decisionNotes || null);
-    }
-
-    const newOwnerStatus = isOwner ? action : (submission.owner_review_status || 'PENDING');
-    const newOpsStatus = isOps ? action : (submission.ops_review_status || 'PENDING');
-
-    let finalStatus = submission.status;
-    if (action === 'REJECTED') {
-      finalStatus = 'REJECTED';
-    } else if (action === 'CHANGES_REQUESTED') {
-      finalStatus = 'CHANGES_REQUESTED';
-    } else if (newOwnerStatus === 'APPROVED' && newOpsStatus === 'APPROVED') {
-      finalStatus = 'APPROVED';
-    } else if (newOwnerStatus === 'APPROVED') {
-      finalStatus = 'PENDING_OPS_APPROVAL';
-    } else {
-      finalStatus = 'PENDING_OWNER_APPROVAL';
-    }
-
-    updates.push('status = ?', 'updated_at = NOW()');
-    params.push(finalStatus, id);
-
-    await pool.query(`UPDATE property_submissions SET ${updates.join(', ')} WHERE id = ?`, params);
-
-    // Apply approval status to target property or apartment (without auto-publishing!)
-    const snap = submission.content_snapshot || {};
-    if (submission.entity_type === 'APARTMENT' && submission.apartment_id) {
-      if (finalStatus === 'APPROVED') {
-        const approvedRate = snap.entered_rate_per_night ?? snap.rate_per_night;
-        await pool.query(
-          `UPDATE apartments SET
-            unit_name = COALESCE(?, unit_name),
-            unit_type = COALESCE(?, unit_type),
-            description = COALESCE(?, description),
-            bedroom_count = COALESCE(?, bedroom_count),
-            bathroom_count = COALESCE(?, bathroom_count),
-            capacity = COALESCE(?, capacity),
-            rate_per_night = COALESCE(?, rate_per_night),
-            approved_rate_per_night = COALESCE(?, approved_rate_per_night),
-            entered_rate_per_night = COALESCE(?, entered_rate_per_night),
-            pricing_status = 'APPROVED',
-            approval_status = 'APPROVED',
-            approved_snapshot = ?
-           WHERE id = ?`,
-          [
-            snap.unit_name || null,
-            snap.unit_type || null,
-            snap.description || null,
-            snap.bedroom_count || null,
-            snap.bathroom_count || null,
-            snap.capacity || null,
-            approvedRate ?? null,
-            approvedRate ?? null,
-            approvedRate ?? null,
-            JSON.stringify(snap),
-            submission.apartment_id,
-          ]
-        );
-      } else {
-        await pool.query('UPDATE apartments SET approval_status = ? WHERE id = ?', [finalStatus, submission.apartment_id]);
-      }
-    } else {
-      if (finalStatus === 'APPROVED') {
-        await pool.query(
-          `UPDATE properties SET
-            name = COALESCE(?, name),
-            address = COALESCE(?, address),
-            location = COALESCE(?, location),
-            district = COALESCE(?, district),
-            city = COALESCE(?, city),
-            state = COALESCE(?, state),
-            country = COALESCE(?, country),
-            description = COALESCE(?, description),
-            environment_description = COALESCE(?, environment_description),
-            approval_status = 'APPROVED',
-            approved_snapshot = ?
-           WHERE id = ?`,
-          [
-            snap.name || null,
-            snap.address || null,
-            snap.location || null,
-            snap.district || null,
-            snap.city || null,
-            snap.state || null,
-            snap.country || null,
-            snap.description || null,
-            snap.environment_description || null,
-            JSON.stringify(snap),
-            submission.property_id,
-          ]
-        );
-      } else {
-        await pool.query('UPDATE properties SET approval_status = ? WHERE id = ?', [finalStatus, submission.property_id]);
-      }
-    }
-
-    // Record review comment if provided
-    const noteText = commentContent || decisionNotes;
-    if (noteText && noteText.trim()) {
-      await pool.query(
-        `INSERT INTO property_review_comments (
-          submission_id, property_id, author_id, author_role, target_type, target_id, comment_type, content
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          submission.property_id,
-          user.id,
-          userRole,
-          commentTargetType || submission.entity_type || 'PROPERTY',
-          commentTargetId || submission.apartment_id || submission.property_id,
-          commentType || (action === 'APPROVED' ? 'APPROVAL_NOTE' : 'CORRECTION_REQUIRED'),
-          noteText.trim(),
-        ]
+    const txResult = await pool.withTransaction(async (conn) => {
+      const lockedRows = await conn.query(
+        'SELECT * FROM property_submissions WHERE id = ? FOR UPDATE',
+        [id]
       );
-    }
+      if (lockedRows.length === 0) {
+        throw new NotFoundError(`Submission #${id} not found.`);
+      }
 
-    // Notify submitter on rejection/changes or full approval
+      const submission = {
+        ...lockedRows[0],
+        content_snapshot: typeof lockedRows[0].content_snapshot === 'string'
+          ? (() => { try { return JSON.parse(lockedRows[0].content_snapshot || '{}'); } catch { return {}; } })()
+          : (lockedRows[0].content_snapshot || {}),
+      };
+
+      if (
+        ['OPERATIONS_MANAGER', 'MANAGER'].includes(userRole) &&
+        user.propertyId &&
+        parseInt(user.propertyId, 10) !== parseInt(submission.property_id, 10)
+      ) {
+        throw new ForbiddenError('You are not authorized to review submissions for another property.');
+      }
+
+      if (submission.status === 'PUBLISHED') {
+        throw new ConflictError('Cannot review an already published submission.');
+      }
+      if (submission.status === 'REJECTED') {
+        throw new ConflictError('Submission has already been rejected.');
+      }
+      if (submission.status === 'APPROVED' && action === 'REJECTED') {
+        throw new ConflictError('Cannot reject a submission that has already received full approval.');
+      }
+
+      // Segregation of duties: submitter cannot approve their own submission
+      if (parseInt(submission.submitted_by_id, 10) === parseInt(user.id, 10)) {
+        throw new ForbiddenError('Self-approval violation: Submitters cannot review or approve their own submission.');
+      }
+
+      const isOwner = userRole === 'OWNER';
+      const isOps = userRole === 'OPERATIONS_MANAGER';
+
+      if (isOwner) {
+        if (submission.owner_review_status === 'APPROVED') {
+          throw new ConflictError('Owner approval has already been recorded for this submission.');
+        }
+      }
+
+      if (isOps) {
+        if (submission.owner_review_status !== 'APPROVED' && action === 'APPROVED') {
+          throw new ConflictError('Owner approval must be recorded before Operations Manager approval.');
+        }
+        if (submission.ops_review_status === 'APPROVED') {
+          throw new ConflictError('Operations Manager approval has already been recorded for this submission.');
+        }
+      }
+
+      const updates = [];
+      const params = [];
+
+      if (isOwner) {
+        updates.push('owner_review_status = ?', 'owner_reviewed_by_id = ?', 'owner_decision_notes = ?', 'owner_reviewed_at = NOW()');
+        params.push(action, user.id, decisionNotes || null);
+      } else {
+        updates.push('ops_review_status = ?', 'ops_reviewed_by_id = ?', 'ops_decision_notes = ?', 'ops_reviewed_at = NOW()');
+        params.push(action, user.id, decisionNotes || null);
+      }
+
+      const newOwnerStatus = isOwner ? action : (submission.owner_review_status || 'PENDING');
+      const newOpsStatus = isOps ? action : (submission.ops_review_status || 'PENDING');
+
+      let finalStatus = submission.status;
+      if (action === 'REJECTED') {
+        finalStatus = 'REJECTED';
+      } else if (action === 'CHANGES_REQUESTED') {
+        finalStatus = 'CHANGES_REQUESTED';
+      } else if (newOwnerStatus === 'APPROVED' && newOpsStatus === 'APPROVED') {
+        finalStatus = 'APPROVED';
+      } else if (newOwnerStatus === 'APPROVED') {
+        finalStatus = 'PENDING_OPS_APPROVAL';
+      } else {
+        finalStatus = 'PENDING_OWNER_APPROVAL';
+      }
+
+      updates.push('status = ?', 'updated_at = NOW()');
+      params.push(finalStatus, id);
+
+      await conn.query(`UPDATE property_submissions SET ${updates.join(', ')} WHERE id = ?`, params);
+
+      // Apply approval status to target property or apartment (without auto-publishing!)
+      const snap = submission.content_snapshot || {};
+      if (submission.entity_type === 'APARTMENT' && submission.apartment_id) {
+        if (finalStatus === 'APPROVED') {
+          const approvedRate = snap.entered_rate_per_night ?? snap.rate_per_night;
+          await conn.query(
+            `UPDATE apartments SET
+              unit_name = COALESCE(?, unit_name),
+              unit_type = COALESCE(?, unit_type),
+              description = COALESCE(?, description),
+              bedroom_count = COALESCE(?, bedroom_count),
+              bathroom_count = COALESCE(?, bathroom_count),
+              capacity = COALESCE(?, capacity),
+              rate_per_night = COALESCE(?, rate_per_night),
+              approved_rate_per_night = COALESCE(?, approved_rate_per_night),
+              entered_rate_per_night = COALESCE(?, entered_rate_per_night),
+              pricing_status = 'APPROVED',
+              approval_status = 'APPROVED',
+              approved_snapshot = ?
+             WHERE id = ?`,
+            [
+              snap.unit_name || null,
+              snap.unit_type || null,
+              snap.description || null,
+              snap.bedroom_count || null,
+              snap.bathroom_count || null,
+              snap.capacity || null,
+              approvedRate ?? null,
+              approvedRate ?? null,
+              approvedRate ?? null,
+              JSON.stringify(snap),
+              submission.apartment_id,
+            ]
+          );
+        } else {
+          await conn.query('UPDATE apartments SET approval_status = ? WHERE id = ?', [finalStatus, submission.apartment_id]);
+        }
+      } else {
+        if (finalStatus === 'APPROVED') {
+          await conn.query(
+            `UPDATE properties SET
+              name = COALESCE(?, name),
+              address = COALESCE(?, address),
+              location = COALESCE(?, location),
+              district = COALESCE(?, district),
+              city = COALESCE(?, city),
+              state = COALESCE(?, state),
+              country = COALESCE(?, country),
+              description = COALESCE(?, description),
+              environment_description = COALESCE(?, environment_description),
+              approval_status = 'APPROVED',
+              approved_snapshot = ?
+             WHERE id = ?`,
+            [
+              snap.name || null,
+              snap.address || null,
+              snap.location || null,
+              snap.district || null,
+              snap.city || null,
+              snap.state || null,
+              snap.country || null,
+              snap.description || null,
+              snap.environment_description || null,
+              JSON.stringify(snap),
+              submission.property_id,
+            ]
+          );
+        } else {
+          await conn.query('UPDATE properties SET approval_status = ? WHERE id = ?', [finalStatus, submission.property_id]);
+        }
+      }
+
+      const noteText = commentContent || decisionNotes;
+      if (noteText && noteText.trim()) {
+        await conn.query(
+          `INSERT INTO property_review_comments (
+            submission_id, property_id, author_id, author_role, target_type, target_id, comment_type, content
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            submission.property_id,
+            user.id,
+            userRole,
+            commentTargetType || submission.entity_type || 'PROPERTY',
+            commentTargetId || submission.apartment_id || submission.property_id,
+            commentType || (action === 'APPROVED' ? 'APPROVAL_NOTE' : 'CORRECTION_REQUIRED'),
+            noteText.trim(),
+          ]
+        );
+      }
+
+      return { submission, finalStatus, newOwnerStatus, newOpsStatus };
+    });
+
+    const { submission, finalStatus, newOwnerStatus, newOpsStatus } = txResult;
+
+    // Notify submitter on rejection/changes or full approval (outside transaction lock)
     if (['REJECTED', 'CHANGES_REQUESTED', 'APPROVED'].includes(finalStatus)) {
       try {
         await NotificationsService.dispatchNotification({
@@ -520,42 +552,65 @@ class PropertySubmissionsService {
       throw new ForbiddenError('You are not authorized to publish submissions.');
     }
 
-    const submission = await this.getSubmissionById(id, user);
+    const submission = await pool.withTransaction(async (conn) => {
+      const lockedRows = await conn.query(
+        'SELECT * FROM property_submissions WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (lockedRows.length === 0) {
+        throw new NotFoundError(`Submission #${id} not found.`);
+      }
+      const sub = lockedRows[0];
 
-    if (submission.owner_review_status !== 'APPROVED' || submission.ops_review_status !== 'APPROVED') {
-      throw new ConflictError(
-        `Publication blocked: Both Owner (${submission.owner_review_status}) and Operations Manager (${submission.ops_review_status}) approvals are required.`
-      );
-    }
+      if (
+        ['OPERATIONS_MANAGER', 'MANAGER'].includes(userRole) &&
+        user.propertyId &&
+        parseInt(user.propertyId, 10) !== parseInt(sub.property_id, 10)
+      ) {
+        throw new ForbiddenError('You are not authorized to publish submissions for another property.');
+      }
 
-    if (submission.status !== 'APPROVED' && submission.status !== 'PUBLISHED') {
-      throw new ConflictError(`Submission must be in APPROVED state before publishing (current: ${submission.status}).`);
-    }
+      if (sub.status === 'PUBLISHED') {
+        throw new ConflictError('Submission has already been published.');
+      }
 
-    await pool.query(
-      `UPDATE property_submissions SET status = 'PUBLISHED', published_at = NOW(), published_by_id = ?, updated_at = NOW() WHERE id = ?`,
-      [user.id, id]
-    );
+      if (sub.owner_review_status !== 'APPROVED' || sub.ops_review_status !== 'APPROVED') {
+        throw new ConflictError(
+          `Publication blocked: Both Owner (${sub.owner_review_status}) and Operations Manager (${sub.ops_review_status}) approvals are required.`
+        );
+      }
 
-    if (submission.entity_type === 'APARTMENT' && submission.apartment_id) {
-      await pool.query(
-        `UPDATE apartments SET is_active = 1, approval_status = 'PUBLISHED', published_at = NOW(), published_by_id = ? WHERE id = ?`,
-        [user.id, submission.apartment_id]
+      if (sub.status !== 'APPROVED') {
+        throw new ConflictError(`Submission must be in APPROVED state before publishing (current: ${sub.status}).`);
+      }
+
+      await conn.query(
+        `UPDATE property_submissions SET status = 'PUBLISHED', published_at = NOW(), published_by_id = ?, updated_at = NOW() WHERE id = ?`,
+        [user.id, id]
       );
-      await pool.query(
-        `UPDATE media_assets SET is_published = 1 WHERE (submission_id = ? OR (entity_type = 'APARTMENT' AND entity_id = ?))`,
-        [id, submission.apartment_id]
-      );
-    } else {
-      await pool.query(
-        `UPDATE properties SET status = 'ACTIVE', approval_status = 'PUBLISHED', published_at = NOW(), published_by_id = ? WHERE id = ?`,
-        [user.id, submission.property_id]
-      );
-      await pool.query(
-        `UPDATE media_assets SET is_published = 1 WHERE (submission_id = ? OR (entity_type = 'PROPERTY' AND entity_id = ?))`,
-        [id, submission.property_id]
-      );
-    }
+
+      if (sub.entity_type === 'APARTMENT' && sub.apartment_id) {
+        await conn.query(
+          `UPDATE apartments SET is_active = 1, approval_status = 'PUBLISHED', published_at = NOW(), published_by_id = ? WHERE id = ?`,
+          [user.id, sub.apartment_id]
+        );
+        await conn.query(
+          `UPDATE media_assets SET is_published = 1 WHERE (submission_id = ? OR (entity_type = 'APARTMENT' AND entity_id = ?))`,
+          [id, sub.apartment_id]
+        );
+      } else {
+        await conn.query(
+          `UPDATE properties SET status = 'ACTIVE', approval_status = 'PUBLISHED', published_at = NOW(), published_by_id = ? WHERE id = ?`,
+          [user.id, sub.property_id]
+        );
+        await conn.query(
+          `UPDATE media_assets SET is_published = 1 WHERE (submission_id = ? OR (entity_type = 'PROPERTY' AND entity_id = ?))`,
+          [id, sub.property_id]
+        );
+      }
+
+      return sub;
+    });
 
     await auditService.log({
       actorId: user.id,
