@@ -125,7 +125,7 @@ export default function GuestConvenienceSection({
               <div className="bfa-service-card-body">
                 <h3 className="bfa-service-card-title">Stay &amp; Check-In Guidelines</h3>
                 <ul className="bfa-guidelines-list">
-                  <li><strong>Check-in window:</strong> From 14:00 daily across all 3 enclaves.</li>
+                  <li><strong>Check-in window:</strong> From 14:00 daily across all properties.</li>
                   <li><strong>Check-out:</strong> By 11:00 on scheduled departure morning.</li>
                   <li><strong>Maximum Stay Rule:</strong> Strictly 1-night per reservation instance.</li>
                   <li><strong>Identification:</strong> Government-issued ID required for front-desk record.</li>

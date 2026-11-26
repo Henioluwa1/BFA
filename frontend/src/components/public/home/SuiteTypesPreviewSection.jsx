@@ -42,7 +42,7 @@ export default function SuiteTypesPreviewSection({ apartments = [] }) {
       title: 'Deluxe Executive Suites & Studios',
       category: 'Executive Stays',
       image: findPhotoForTier((a) => /studio|deluxe|executive/i.test(`${a.unit_type || ''} ${a.unit_name || ''}`), 2),
-      enclave: 'Available Across Our Enclaves',
+      enclave: 'Available Across Our Properties',
       specs: '1 King Bed • Dedicated Workspace • Spa Rain Shower',
       description:
         'Engineered for focused business travel, offering enterprise Wi-Fi 6, ergonomic work lounges, and restful king-size bedding.',

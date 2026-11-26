@@ -32,7 +32,7 @@ export default function PublicFooter({
 
           {/* Col 2: Enclave Locations */}
           <div className="bfa-footer-col">
-            <h4 className="bfa-footer-heading">Residential Enclaves</h4>
+            <h4 className="bfa-footer-heading">Residential Properties</h4>
             <ul className="bfa-footer-list">
               <li>
                 <Link to="/property/1" className="bfa-footer-link">

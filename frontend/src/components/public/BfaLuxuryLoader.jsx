@@ -49,7 +49,7 @@ export default function BfaLuxuryLoader({ onComplete, isReady = false }) {
         if (next < 35) {
           setStatusText('Connecting to Verified Residences in Akure...');
         } else if (next < 70) {
-          setStatusText('Curating Serviced Suites & Enclaves...');
+          setStatusText('Curating Serviced Suites & Properties...');
         } else {
           setStatusText('Welcome to BFA Serviced Residences.');
         }

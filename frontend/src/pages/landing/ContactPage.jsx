@@ -4,7 +4,7 @@ import FloatingChatWidget from '../../components/public/FloatingChatWidget';
 import Icons8Icon from '../../components/public/Icons8Icon';
 import PublicTopNav from '../../components/public/PublicTopNav';
 import ClientInquiryPortal from '../../components/public/ClientInquiryPortal';
-import { contactService } from '../../services/api';
+import { contactService, publicService, resolveMediaUrl } from '../../services/api';
 
 import '../../styles/contact.css';
 
@@ -26,11 +26,26 @@ export default function ContactPage() {
   const [openFaq, setOpenFaq] = useState(null);
 
   // Background wallpapers
-  const bgWallpapers = [aptLivingLuxury, heroArchitecture, aptPenthouseView];
+  const [bgWallpapers, setBgWallpapers] = useState([]);
   const [bgIndex, setBgIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    let mounted = true;
+    publicService.getProperties()
+      .then((res) => {
+        if (!mounted) return;
+        const urls = (res?.data || [])
+          .map((p) => resolveMediaUrl(p.primary_photo_url || p.main_photo))
+          .filter(Boolean);
+        setBgWallpapers(urls);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (bgWallpapers.length <= 1) return;
     const timer = setInterval(() => {
       setBgIndex((prev) => (prev + 1) % bgWallpapers.length);
     }, 9000);
