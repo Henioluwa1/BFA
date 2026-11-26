@@ -400,182 +400,197 @@ export default function EditPropertyModal({ isOpen, onClose, property, onPropert
           {/* TAB 1: PROPERTY INFORMATION */}
           {/* ───────────────────────────────────────────────────────────────── */}
           {activeTab === 'INFO' && (
-            <form onSubmit={handleSaveInfo} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">Property Code (Immutable)</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    disabled
-                    value={infoForm.code}
-                    style={{ opacity: 0.7, cursor: 'not-allowed' }}
-                  />
+            <form onSubmit={handleSaveInfo} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{ padding: '1.1rem', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#d4af37' }}>
+                  Building Identity &amp; Classification
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Property Code (Immutable)</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      disabled
+                      value={infoForm.code}
+                      style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label">Building Name *</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      required
+                      value={infoForm.name}
+                      onChange={(e) => setInfoForm({ ...infoForm, name: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label">Property Category</label>
+                    <select
+                      className="input-field"
+                      value={infoForm.category}
+                      onChange={(e) => setInfoForm({ ...infoForm, category: e.target.value })}
+                    >
+                      {PROPERTY_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c.replace(/_/g, ' ')}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ padding: '1.1rem', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#d4af37' }}>
+                  Location &amp; Address
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Location / Primary Area</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="e.g. Victoria Island, Lekki Phase 1"
+                      value={infoForm.location}
+                      onChange={(e) => setInfoForm({ ...infoForm, location: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label">District / Zone</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="e.g. Waterfront Enclave, Diplomatic Zone"
+                      value={infoForm.district}
+                      onChange={(e) => setInfoForm({ ...infoForm, district: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="form-label">Building Name *</label>
+                  <label className="form-label">Physical Street Address *</label>
                   <input
                     type="text"
                     className="input-field"
                     required
-                    value={infoForm.name}
-                    onChange={(e) => setInfoForm({ ...infoForm, name: e.target.value })}
+                    placeholder="Street number, building name, and road"
+                    value={infoForm.address}
+                    onChange={(e) => setInfoForm({ ...infoForm, address: e.target.value })}
                   />
                 </div>
 
-                <div>
-                  <label className="form-label">Property Category</label>
-                  <select
-                    className="input-field"
-                    value={infoForm.category}
-                    onChange={(e) => setInfoForm({ ...infoForm, category: e.target.value })}
-                  >
-                    {PROPERTY_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c.replace(/_/g, ' ')}
-                      </option>
-                    ))}
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">City *</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      required
+                      value={infoForm.city}
+                      onChange={(e) => setInfoForm({ ...infoForm, city: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label">State</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={infoForm.state}
+                      onChange={(e) => setInfoForm({ ...infoForm, state: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label">Country</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={infoForm.country}
+                      onChange={(e) => setInfoForm({ ...infoForm, country: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Location & District */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">Location / Primary Area</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="e.g. Victoria Island, Lekki Phase 1"
-                    value={infoForm.location}
-                    onChange={(e) => setInfoForm({ ...infoForm, location: e.target.value })}
-                  />
+              <div style={{ padding: '1.1rem', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#d4af37' }}>
+                  Operations &amp; Contact
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Check-In Time</label>
+                    <input
+                      type="time"
+                      className="input-field"
+                      value={infoForm.check_in_time}
+                      onChange={(e) => setInfoForm({ ...infoForm, check_in_time: e.target.value })}
+                    />
+                  </div>
 
-                <div>
-                  <label className="form-label">District / Zone</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="e.g. Waterfront Enclave, Diplomatic Zone"
-                    value={infoForm.district}
-                    onChange={(e) => setInfoForm({ ...infoForm, district: e.target.value })}
-                  />
-                </div>
-              </div>
+                  <div>
+                    <label className="form-label">Check-Out Time</label>
+                    <input
+                      type="time"
+                      className="input-field"
+                      value={infoForm.check_out_time}
+                      onChange={(e) => setInfoForm({ ...infoForm, check_out_time: e.target.value })}
+                    />
+                  </div>
 
-              {/* Physical Street Address */}
-              <div>
-                <label className="form-label">Physical Street Address *</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  required
-                  placeholder="Street number, building name, and road"
-                  value={infoForm.address}
-                  onChange={(e) => setInfoForm({ ...infoForm, address: e.target.value })}
-                />
-              </div>
+                  <div>
+                    <label className="form-label">Contact Phone</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={infoForm.contact_phone}
+                      onChange={(e) => setInfoForm({ ...infoForm, contact_phone: e.target.value })}
+                    />
+                  </div>
 
-              {/* City, State, Country */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">City *</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    required
-                    value={infoForm.city}
-                    onChange={(e) => setInfoForm({ ...infoForm, city: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label">State</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={infoForm.state}
-                    onChange={(e) => setInfoForm({ ...infoForm, state: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label">Country</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={infoForm.country}
-                    onChange={(e) => setInfoForm({ ...infoForm, country: e.target.value })}
-                  />
+                  <div>
+                    <label className="form-label">Contact Email</label>
+                    <input
+                      type="email"
+                      className="input-field"
+                      value={infoForm.contact_email}
+                      onChange={(e) => setInfoForm({ ...infoForm, contact_email: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Check-In / Check-Out */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+              <div style={{ padding: '1.1rem', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#d4af37' }}>
+                  Editorial Overview
+                </div>
                 <div>
-                  <label className="form-label">Check-In Time</label>
-                  <input
-                    type="time"
+                  <label className="form-label">Surrounding Neighborhood &amp; Environment Description</label>
+                  <textarea
                     className="input-field"
-                    value={infoForm.check_in_time}
-                    onChange={(e) => setInfoForm({ ...infoForm, check_in_time: e.target.value })}
+                    rows={2}
+                    placeholder="Describe proximity to commercial hubs, airports, waterfront, dining..."
+                    value={infoForm.environment_description}
+                    onChange={(e) => setInfoForm({ ...infoForm, environment_description: e.target.value })}
                   />
                 </div>
 
                 <div>
-                  <label className="form-label">Check-Out Time</label>
-                  <input
-                    type="time"
+                  <label className="form-label">Property Overview &amp; Operational Notes</label>
+                  <textarea
                     className="input-field"
-                    value={infoForm.check_out_time}
-                    onChange={(e) => setInfoForm({ ...infoForm, check_out_time: e.target.value })}
+                    rows={3}
+                    placeholder="Architectural design, guest service standard, security features..."
+                    value={infoForm.description}
+                    onChange={(e) => setInfoForm({ ...infoForm, description: e.target.value })}
                   />
                 </div>
-
-                <div>
-                  <label className="form-label">Contact Phone</label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={infoForm.contact_phone}
-                    onChange={(e) => setInfoForm({ ...infoForm, contact_phone: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label">Contact Email</label>
-                  <input
-                    type="email"
-                    className="input-field"
-                    value={infoForm.contact_email}
-                    onChange={(e) => setInfoForm({ ...infoForm, contact_email: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Surrounding Neighborhood & Operational Notes */}
-              <div>
-                <label className="form-label">Surrounding Neighborhood & Environment Description</label>
-                <textarea
-                  className="input-field"
-                  rows={2}
-                  placeholder="Describe proximity to commercial hubs, airports, waterfront, dining..."
-                  value={infoForm.environment_description}
-                  onChange={(e) => setInfoForm({ ...infoForm, environment_description: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Property Overview & Operational Notes</label>
-                <textarea
-                  className="input-field"
-                  rows={3}
-                  placeholder="Architectural design, guest service standard, security features..."
-                  value={infoForm.description}
-                  onChange={(e) => setInfoForm({ ...infoForm, description: e.target.value })}
-                />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginTop: '10px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>

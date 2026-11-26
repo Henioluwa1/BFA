@@ -92,6 +92,28 @@ export function getApartmentInternalSpaces(unit, propertyId) {
   return getUnitShowcasePhotos(unit, propertyId);
 }
 
+// Helper to always derive clear availability & readiness badge metadata
+export function getUnitReadinessMeta(unit = {}) {
+  const status = String(unit.status || 'AVAILABLE').toUpperCase();
+  const isInactive = unit.is_active === false || unit.is_active === 0;
+  if (isInactive) {
+    return { isReady: false, badgeClass: 'unavailable', fullLabel: '✕ Not Published / Not Ready', shortLabel: '✕ Not Ready' };
+  }
+  if (status === 'AVAILABLE' || status === 'READY') {
+    return { isReady: true, badgeClass: 'available', fullLabel: '✓ Ready & Available', shortLabel: '✓ Ready & Available' };
+  }
+  if (status === 'CLEANING' || status === 'DIRTY') {
+    return { isReady: false, badgeClass: 'unavailable', fullLabel: '🧹 Cleaning • Not Ready', shortLabel: '🧹 Cleaning • Not Ready' };
+  }
+  if (status === 'MAINTENANCE' || status === 'OUT_OF_SERVICE' || status === 'BLOCKED') {
+    return { isReady: false, badgeClass: 'unavailable', fullLabel: '🔧 Maintenance • Not Ready', shortLabel: '🔧 Maintenance • Not Ready' };
+  }
+  if (status === 'OCCUPIED') {
+    return { isReady: false, badgeClass: 'unavailable', fullLabel: '🔒 Occupied • Not Ready', shortLabel: '🔒 Occupied • Not Ready' };
+  }
+  return { isReady: false, badgeClass: 'unavailable', fullLabel: '✕ Reserved • Not Ready', shortLabel: '✕ Reserved • Not Ready' };
+}
+
 // Interactive Unit Showcase Card with Auto-Slideshow, Navigation Arrows & Space Details
 export function UnitShowcaseCard({ unit, building, onOpenBookingModal, onViewApartment }) {
   const photos = getUnitShowcasePhotos(unit, building.id);
@@ -108,7 +130,8 @@ export function UnitShowcaseCard({ unit, building, onOpenBookingModal, onViewApa
   }, [isPaused, photos.length]);
 
   const currentPhoto = photos[currentIndex] || photos[0];
-  const isAvail = unit.status === 'AVAILABLE';
+  const readiness = getUnitReadinessMeta(unit);
+  const isAvail = readiness.isReady;
 
   const handlePrev = (e) => {
     e.stopPropagation();
@@ -149,8 +172,8 @@ export function UnitShowcaseCard({ unit, building, onOpenBookingModal, onViewApa
           <span className="bfa-unit-visual-badge-type">
             {isApartmentCategory(unit) ? '🏢' : '🔑'} {unit.unit_type}
           </span>
-          <span className={`bfa-unit-visual-avail-badge ${isAvail ? 'available' : 'unavailable'}`}>
-            {isAvail ? '✓ Available' : '✕ Reserved'}
+          <span className={`bfa-unit-visual-avail-badge ${readiness.badgeClass}`}>
+            {readiness.shortLabel}
           </span>
           <span className="bfa-unit-vis-pill">Architectural Visualization</span>
         </div>
@@ -317,7 +340,8 @@ export function ApartmentFullScreenModal({
 
   const { unit, building, photos } = data;
   const currentPhoto = photos[activePhotoIdx] || photos[0];
-  const isAvail = unit.status === 'AVAILABLE';
+  const readiness = getUnitReadinessMeta(unit);
+  const isAvail = readiness.isReady;
 
   const handlePrev = (e) => {
     e.stopPropagation();
@@ -349,7 +373,7 @@ export function ApartmentFullScreenModal({
                 {isApartmentCategory(unit) ? '🏢' : '🔑'} {unit.unit_type}
               </span>
               <span className={`bfa-fullscreen-avail-pill ${isAvail ? 'avail' : 'res'}`}>
-                {isAvail ? '✓ Available for Stays' : '✕ Reserved / Inquire for Alternate Dates'}
+                {readiness.fullLabel}
               </span>
             </div>
           </div>

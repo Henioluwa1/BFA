@@ -320,33 +320,40 @@ export default function ApartmentMediaAndSpecsModal({ isOpen, onClose, apartment
         )}
 
         {activeTab === 'SPECS' && (
-          <form onSubmit={handleSaveSpecsAndVisibility} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '10px', borderRadius: '8px', background: 'rgba(255,255,255,0.04)' }}>
-              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-              <span style={{ fontWeight: 600 }}>Published on Public Website</span>
-              <Badge variant={isActive ? 'success' : 'warning'}>{isActive ? 'PUBLISHED' : 'HIDDEN'}</Badge>
-            </label>
+          <form onSubmit={handleSaveSpecsAndVisibility} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+            <div style={{ padding: '1rem 1.1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: 0 }}>
+                <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} style={{ width: '16px', height: '16px' }} />
+                <span style={{ fontWeight: 600, color: '#f8fafc' }}>Published on Public Website</span>
+                <Badge variant={isActive ? 'success' : 'warning'}>{isActive ? 'PUBLISHED' : 'HIDDEN'}</Badge>
+              </label>
+            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
-              <div>
-                <label className="form-label">Room Configuration</label>
-                <input type="text" className="input-field" placeholder="e.g. Open Living Salon + Master Ensuite" value={techSpecs.room_configuration} onChange={(e) => setTechSpecs({ ...techSpecs, room_configuration: e.target.value })} />
+            <div style={{ padding: '1.1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#d4af37' }}>
+                Suite Technical Specifications
               </div>
-              <div>
-                <label className="form-label">Equipment &amp; Appliances</label>
-                <input type="text" className="input-field" placeholder="e.g. Induction Hob, Wine Chiller, Espresso Bar" value={techSpecs.equipment_appliances} onChange={(e) => setTechSpecs({ ...techSpecs, equipment_appliances: e.target.value })} />
-              </div>
-              <div>
-                <label className="form-label">Climate &amp; Acoustics</label>
-                <input type="text" className="input-field" placeholder="e.g. Multi-Zone Inverter AC, Soundproof Glazing" value={techSpecs.climate_control} onChange={(e) => setTechSpecs({ ...techSpecs, climate_control: e.target.value })} />
-              </div>
-              <div>
-                <label className="form-label">Entertainment &amp; Wi-Fi</label>
-                <input type="text" className="input-field" placeholder="e.g. 75-inch 4K Smart TV, Dedicated Wi-Fi 6 AP" value={techSpecs.connectivity_entertainment} onChange={(e) => setTechSpecs({ ...techSpecs, connectivity_entertainment: e.target.value })} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <label className="form-label">Room Configuration</label>
+                  <input type="text" className="input-field" placeholder="e.g. Open Living Salon + Master Ensuite" value={techSpecs.room_configuration} onChange={(e) => setTechSpecs({ ...techSpecs, room_configuration: e.target.value })} />
+                </div>
+                <div>
+                  <label className="form-label">Equipment &amp; Appliances</label>
+                  <input type="text" className="input-field" placeholder="e.g. Induction Hob, Wine Chiller, Espresso Bar" value={techSpecs.equipment_appliances} onChange={(e) => setTechSpecs({ ...techSpecs, equipment_appliances: e.target.value })} />
+                </div>
+                <div>
+                  <label className="form-label">Climate &amp; Acoustics</label>
+                  <input type="text" className="input-field" placeholder="e.g. Multi-Zone Inverter AC, Soundproof Glazing" value={techSpecs.climate_control} onChange={(e) => setTechSpecs({ ...techSpecs, climate_control: e.target.value })} />
+                </div>
+                <div>
+                  <label className="form-label">Entertainment &amp; Wi-Fi</label>
+                  <input type="text" className="input-field" placeholder="e.g. 75-inch 4K Smart TV, Dedicated Wi-Fi 6 AP" value={techSpecs.connectivity_entertainment} onChange={(e) => setTechSpecs({ ...techSpecs, connectivity_entertainment: e.target.value })} />
+                </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.25rem' }}>
               <Button type="submit" variant="primary" disabled={saving}>{saving ? 'Saving...' : 'Save Specs & Visibility'}</Button>
             </div>
           </form>

@@ -365,16 +365,14 @@ export default function ExplorePropertiesPage() {
                         <BfaBadge variant="forest" size="sm" icon={<ShieldCheck size={12} />}>
                           {prop.code || 'BFA'} • Verified Enclave
                         </BfaBadge>
-                        {hasAvailabilityData && (
-                          availNum > 0 ? (
-                            <BfaBadge variant="success" size="sm">
-                              Units Available
-                            </BfaBadge>
-                          ) : (
-                            <BfaBadge variant="error" size="sm">
-                              Currently Unavailable
-                            </BfaBadge>
-                          )
+                        {hasAvailabilityData && availNum > 0 ? (
+                          <BfaBadge variant="success" size="sm">
+                            ✓ {availNum} {availNum === 1 ? 'Apartment' : 'Apartments'} Ready
+                          </BfaBadge>
+                        ) : (
+                          <BfaBadge variant="error" size="sm">
+                            ✕ Not Ready / Unavailable
+                          </BfaBadge>
                         )}
                       </div>
                       <span className="bfa-card-vis-pill">Architectural Visualization</span>

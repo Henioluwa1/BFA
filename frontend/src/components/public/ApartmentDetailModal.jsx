@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { formatNaira } from '../../utils/currency';
 import { publicService, resolveMediaUrl } from '../../services/api';
 import Icons8Icon from './Icons8Icon';
+import { getUnitReadinessMeta } from './PropertyPortfolioShowcase';
 import './ApartmentDetailModal.css';
 
 export default function ApartmentDetailModal({
@@ -369,9 +370,14 @@ export default function ApartmentDetailModal({
                           : 'linear-gradient(135deg, #0b1b15 0%, #163329 100%)',
                       }}
                     >
-                      <span className={`bfa-unit-status-pill ${unit.status === 'AVAILABLE' ? 'avail' : 'busy'}`}>
-                        {unit.status}
-                      </span>
+                      {(() => {
+                        const readiness = getUnitReadinessMeta(unit);
+                        return (
+                          <span className={`bfa-unit-status-pill ${readiness.isReady ? 'avail' : 'busy'}`}>
+                            {readiness.shortLabel}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="bfa-unit-card-content">
                       <h4>{unit.unitName}</h4>

@@ -107,16 +107,14 @@ export default function FeaturedPropertiesSection({
                         {prop.code || 'BFA'} • Verified Enclave
                       </BfaBadge>
 
-                      {hasAvailabilityData && (
-                        availNum > 0 ? (
-                          <BfaBadge variant="success" size="sm">
-                            {availNum} {availNum === 1 ? 'Unit' : 'Units'} Available
-                          </BfaBadge>
-                        ) : (
-                          <BfaBadge variant="neutral" size="sm">
-                            Fully Booked
-                          </BfaBadge>
-                        )
+                      {hasAvailabilityData && availNum > 0 ? (
+                        <BfaBadge variant="success" size="sm">
+                          ✓ {availNum} {availNum === 1 ? 'Apartment' : 'Apartments'} Ready
+                        </BfaBadge>
+                      ) : (
+                        <BfaBadge variant="warning" size="sm">
+                          ✕ Not Ready / Fully Booked
+                        </BfaBadge>
                       )}
                     </div>
                     <span className="bfa-card-vis-pill" title="Concept illustration representing property architecture">
