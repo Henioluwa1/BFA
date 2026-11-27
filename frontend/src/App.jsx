@@ -79,8 +79,17 @@ const InspectionPage = lazy(() => import('./pages/portal/InspectionPage'));
 const AuditPage = lazy(() => import('./pages/portal/AuditPage'));
 const TeamPage = lazy(() => import('./pages/portal/TeamPage'));
 const SettingsPage = lazy(() => import('./pages/portal/SettingsPage'));
-const StaffChatPage = lazy(() => import('./pages/portal/StaffChatPage'));
 const AccessControlPage = lazy(() => import('./pages/portal/AccessControlPage'));
+
+function ChatModalRedirect() {
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('bfa:open-chat'));
+    }, 80);
+    return () => clearTimeout(timer);
+  }, []);
+  return <Navigate to="/app/dashboard" replace />;
+}
 const CommunicationsPage = lazy(() => import('./pages/portal/CommunicationsPage'));
 const NotificationsPage = lazy(() => import('./pages/portal/NotificationsPage'));
 const AnnouncementsPage = lazy(() => import('./pages/portal/AnnouncementsPage'));
@@ -155,13 +164,13 @@ function App() {
                       <Route path="audit" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'OWNER', 'ADMIN']}><AuditPage /></ProtectedRoute>} />
                       <Route path="access-control" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN']}><AccessControlPage /></ProtectedRoute>} />
                       <Route path="communications" element={<CommunicationsPage />} />
-                      <Route path="staff-chat" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF']}><StaffChatPage /></ProtectedRoute>} />
-                      <Route path="chat" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'RECEPTIONIST', 'STAFF']}><StaffChatPage /></ProtectedRoute>} />
+                      <Route path="staff-chat" element={<ChatModalRedirect />} />
+                      <Route path="chat" element={<ChatModalRedirect />} />
                       <Route path="notifications" element={<NotificationsPage />} />
                       <Route path="announcements" element={<AnnouncementsPage />} />
                       <Route path="team" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><TeamPage /></ProtectedRoute>} />
                       <Route path="settings" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'OWNER']}><SettingsPage /></ProtectedRoute>} />
-                      <Route path="operations" element={<Navigate to="/app/staff-chat" replace />} />
+                      <Route path="operations" element={<ChatModalRedirect />} />
                       <Route path="404" element={<NotFoundPage />} />
                     </Route>
                   </Route>
