@@ -76,16 +76,23 @@ export default function StaffChatPage() {
   const [addingMember, setAddingMember] = useState(false);
 
   // --------------------------------------------------------------------------
-  // 1. Initial Load of Threads
+  // 1. Initial Load of Threads (stable callback — never re-fetches on DM switch)
   // --------------------------------------------------------------------------
+  const activeThreadIdRef = useRef(activeThreadId);
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadId;
+  }, [activeThreadId]);
+
+  const messagesCacheRef = useRef({});
+
   const loadThreads = useCallback(async () => {
     try {
-      setLoadingThreads(true);
+      setLoadingThreads((prev) => prev || false);
       const res = await chatService.getThreads();
       const raw = unpack(res);
       const list = Array.isArray(raw) ? raw : [];
       setThreads(list);
-      if (list.length > 0 && !activeThreadId) {
+      if (list.length > 0 && !activeThreadIdRef.current) {
         setActiveThreadId(list[0].id);
       }
     } catch (err) {
@@ -94,23 +101,33 @@ export default function StaffChatPage() {
     } finally {
       setLoadingThreads(false);
     }
-  }, [activeThreadId, addToast]);
+  }, [addToast]);
 
   useEffect(() => {
+    setLoadingThreads(true);
     loadThreads();
   }, [loadThreads]);
 
   // --------------------------------------------------------------------------
-  // 2. Load Messages for Active Thread
+  // 2. Load Messages for Active Thread (instant cache + silent background sync)
   // --------------------------------------------------------------------------
   const loadMessages = useCallback(async (threadId) => {
     if (!threadId) return;
-    try {
+    const cached = messagesCacheRef.current[threadId];
+    if (cached) {
+      setMessages(cached);
+      setLoadingMessages(false);
+    } else {
       setLoadingMessages(true);
+    }
+    try {
       const res = await chatService.getThreadHistory(threadId, { limit: 50 });
       const raw = unpack(res);
       const msgs = Array.isArray(raw) ? raw : [];
-      setMessages(msgs);
+      messagesCacheRef.current[threadId] = msgs;
+      if (activeThreadIdRef.current === threadId) {
+        setMessages(msgs);
+      }
 
       // Auto mark latest message as read
       if (msgs.length > 0) {
@@ -128,7 +145,9 @@ export default function StaffChatPage() {
     } catch (err) {
       console.error('[CHAT] Failed to load messages:', err);
     } finally {
-      setLoadingMessages(false);
+      if (activeThreadIdRef.current === threadId) {
+        setLoadingMessages(false);
+      }
     }
   }, []);
 
@@ -648,7 +667,7 @@ export default function StaffChatPage() {
 
             {/* Scrollable Message History with Distinct Visual Layouts */}
             <div className="chat-messages-container">
-              {loadingMessages && (
+              {loadingMessages && messages.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.85rem' }}>
                   Loading message history...
                 </div>
@@ -664,7 +683,7 @@ export default function StaffChatPage() {
                 </div>
               )}
 
-              {!loadingMessages &&
+              {messages.length > 0 &&
                 messages.map((msg, idx) => {
                   const prevMsg = idx > 0 ? messages[idx - 1] : null;
                   const prevSenderId = prevMsg ? (prevMsg.sender?.id || prevMsg.senderId) : null;

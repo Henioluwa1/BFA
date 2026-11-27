@@ -289,20 +289,35 @@ export default function FloatingStaffChatModal() {
   // ───────────────────────────────────────────────────────────────────────────
   // Load Messages for Active Thread
   // ───────────────────────────────────────────────────────────────────────────
+  const messagesCacheRef = useRef({});
+  const activeThreadIdRef = useRef(activeThreadId);
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadId;
+  }, [activeThreadId]);
+
   const loadMessages = useCallback(
     async (threadId) => {
       if (!threadId || !isEligible) return;
-      try {
+      const cached = messagesCacheRef.current[threadId];
+      if (cached) {
+        setMessages(cached);
+        setLoadingMessages(false);
+      } else {
         setLoadingMessages(true);
+      }
+      try {
         const res = await chatService.getThreadHistory(threadId, { limit: 50 });
         const raw = unpack(res);
         const msgs = Array.isArray(raw) ? raw : [];
-        setMessages(msgs);
+        messagesCacheRef.current[threadId] = msgs;
+        if (activeThreadIdRef.current === threadId) {
+          setMessages(msgs);
+        }
 
         // Auto mark as read
         if (msgs.length > 0) {
           const latestId = msgs[msgs.length - 1].id;
-          chatService.markRead(threadId, latestId).catch(() => {});
+          chatService.markAsRead(threadId, latestId).catch(() => {});
           setThreads((prev) =>
             prev.map((t) => (t.id === threadId ? { ...t, unread_count: 0 } : t))
           );
@@ -311,7 +326,9 @@ export default function FloatingStaffChatModal() {
       } catch (err) {
         console.warn('[FloatingChat] Message load error:', err.message);
       } finally {
-        setLoadingMessages(false);
+        if (activeThreadIdRef.current === threadId) {
+          setLoadingMessages(false);
+        }
       }
     },
     [isEligible, fetchUnread]
@@ -1335,7 +1352,7 @@ export default function FloatingStaffChatModal() {
                       gap: '10px',
                     }}
                   >
-                    {loadingMessages && (
+                    {loadingMessages && messages.length === 0 && (
                       <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', padding: '20px' }}>
                         Loading message history...
                       </div>
