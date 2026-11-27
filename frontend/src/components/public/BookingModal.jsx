@@ -126,7 +126,7 @@ export default function BookingModal({
     setLoadingCatalogue(true);
     setCatalogueError('');
     try {
-      const res = await publicService.getPropertyDetail(resolvedPropId);
+      const res = await publicService.getPropertyById(resolvedPropId);
       const payload = res.data?.data || res.data || {};
       const propObj = payload.property || payload || property || null;
       const unitsList = Array.isArray(payload.units) ? payload.units : [];
