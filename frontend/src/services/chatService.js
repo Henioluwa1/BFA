@@ -19,6 +19,18 @@ export const chatService = {
   createGroupThread: (data) =>
     api.post('/chat/threads/group', data),
 
+  deleteGroupThread: (threadId, reason = null) =>
+    api.delete(`/chat/threads/${threadId}`, { data: { reason } }),
+
+  getMessageReaders: (messageId) =>
+    api.get(`/chat/messages/${messageId}/readers`),
+
+  syncEventReadState: (payload) =>
+    api.post('/chat/events/sync-read', payload),
+
+  sendSubmissionFeedback: (submissionId, payload) =>
+    api.post(`/chat/submissions/${submissionId}/feedback`, payload),
+
   getThreadParticipants: (threadId) =>
     api.get(`/chat/threads/${threadId}/participants`),
 

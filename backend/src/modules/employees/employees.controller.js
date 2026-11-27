@@ -6,6 +6,8 @@ const EmployeeActivitiesService = require('./employeeActivities.service');
 const EmployeeEvaluationsService = require('./employeeEvaluations.service');
 const EmployeeIdCardsService = require('./employeeIdCards.service');
 const EmployeeIdCardsRepository = require('./employeeIdCards.repository');
+const EmployeeOnboardingService = require('./employeeOnboarding.service');
+const pool = require('../../db/pool');
 
 class EmployeesController {
   // === EMPLOYEES CRUD ===
@@ -106,21 +108,110 @@ class EmployeesController {
 
   static async getPhoto(req, res, next) {
     try {
-      const uploadsDir = path.resolve(__dirname, '../../../uploads/employees');
-      if (fs.existsSync(uploadsDir)) {
-        const files = fs.readdirSync(uploadsDir);
-        const match = files.find((f) => f.startsWith(`emp_${req.params.id}_`));
-        if (match) {
-          const filePath = path.join(uploadsDir, match);
-          const ext = path.extname(match).toLowerCase();
-          const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
-          res.setHeader('Content-Type', mime);
-          return fs.createReadStream(filePath).pipe(res);
+      const rawId = String(req.params.id || '');
+      if (rawId.startsWith('user-')) {
+        const userId = parseInt(rawId.slice(5), 10);
+        if (userId) {
+          const rows = await pool.query('SELECT photo_data, photo_mime FROM users WHERE id = ? LIMIT 1', [userId]);
+          if (rows[0]?.photo_data) {
+            res.setHeader('Content-Type', rows[0].photo_mime || 'image/jpeg');
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+            return res.send(rows[0].photo_data);
+          }
+        }
+      } else {
+        const uploadsDir = path.resolve(__dirname, '../../../uploads/employees');
+        if (fs.existsSync(uploadsDir)) {
+          const files = fs.readdirSync(uploadsDir);
+          const match = files.find((f) => f.startsWith(`emp_${rawId}_`));
+          if (match) {
+            const filePath = path.join(uploadsDir, match);
+            const ext = path.extname(match).toLowerCase();
+            const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+            res.setHeader('Content-Type', mime);
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+            return fs.createReadStream(filePath).pipe(res);
+          }
+        }
+        const empId = parseInt(rawId, 10);
+        if (empId) {
+          const rows = await pool.query('SELECT photo_data, photo_mime FROM employees WHERE id = ? LIMIT 1', [empId]);
+          if (rows[0]?.photo_data) {
+            res.setHeader('Content-Type', rows[0].photo_mime || 'image/jpeg');
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+            return res.send(rows[0].photo_data);
+          }
         }
       }
       res.status(404).json({
         success: false,
         message: 'No photo configured for this employee.',
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async uploadMyPhoto(req, res, next) {
+    try {
+      const updated = await EmployeesService.uploadMyPhoto(req.body, req);
+      res.status(200).json({
+        success: true,
+        message: 'Profile photograph updated successfully.',
+        data: updated,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async dismissWelcomePopup(req, res, next) {
+    try {
+      const result = await EmployeesService.dismissWelcomePopup(req);
+      res.status(200).json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async createOnboardingRequest(req, res, next) {
+    try {
+      const data = await EmployeeOnboardingService.createRequest(req.body, req.user, req);
+      res.status(201).json({
+        success: true,
+        message: 'Employee onboarding request submitted for Admin approval.',
+        data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async listOnboardingRequests(req, res, next) {
+    try {
+      const data = await EmployeeOnboardingService.listRequests(req.query, req.user);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getOnboardingRequest(req, res, next) {
+    try {
+      const data = await EmployeeOnboardingService.getRequestById(req.params.id, req.user);
+      res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async reviewOnboardingRequest(req, res, next) {
+    try {
+      const data = await EmployeeOnboardingService.reviewRequest(req.params.id, req.body, req.user, req);
+      res.status(200).json({
+        success: true,
+        message: `Employee onboarding request ${data.status.toLowerCase()}.`,
+        data,
       });
     } catch (err) {
       next(err);

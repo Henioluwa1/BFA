@@ -311,13 +311,6 @@ function initializeChatSocket(io) {
         if (typeof ack === 'function') {
           ack({ success: true, data: result });
         }
-
-        // Broadcast receipt update to thread room
-        io.to(`thread:${threadId}`).emit('message:receipt_updated', {
-          threadId,
-          userId: user.id,
-          lastReadMessageId: messageId,
-        });
       } catch (err) {
         logger.warn(`[CHAT_SOCKET] message:read error for user #${user.id}: ${err.message}`);
         if (typeof ack === 'function') {
@@ -326,6 +319,63 @@ function initializeChatSocket(io) {
             error: {
               code: err.code || 'ERR_READ_FAILED',
               message: err.message || 'Failed to update read watermark.',
+            },
+          });
+        }
+      }
+    });
+
+    // ------------------------------------------------------------------------
+    // Event: thread:create_group (RBAC-enforced: Manager/Owner/Admin only)
+    // ------------------------------------------------------------------------
+    socket.on('thread:create_group', async (data, ack) => {
+      try {
+        const group = await ChatService.createGroupThread(user, {
+          title: data?.title,
+          participantIds: data?.participantIds || [],
+        });
+        socket.join(`thread:${group.id}`);
+        if (typeof ack === 'function') {
+          ack({ success: true, data: group });
+        }
+      } catch (err) {
+        logger.warn(`[CHAT_SOCKET] thread:create_group rejected for user #${user.id}: ${err.message}`);
+        if (typeof ack === 'function') {
+          ack({
+            success: false,
+            error: {
+              code: err.statusCode === 403 ? 'ERR_FORBIDDEN' : (err.code || 'ERR_GROUP_CREATE_FAILED'),
+              message: err.message || 'Failed to create group.',
+            },
+          });
+        }
+      }
+    });
+
+    // ------------------------------------------------------------------------
+    // Event: thread:delete (RBAC-enforced soft delete / archive)
+    // ------------------------------------------------------------------------
+    socket.on('thread:delete', async (data, ack) => {
+      try {
+        const threadId = parseInt(data?.threadId, 10);
+        if (!threadId || isNaN(threadId)) {
+          if (typeof ack === 'function') {
+            ack({ success: false, error: { code: 'ERR_INVALID_PAYLOAD', message: 'Valid threadId is required.' } });
+          }
+          return;
+        }
+        const deleted = await ChatService.deleteGroupThread(threadId, user, data?.reason || null);
+        if (typeof ack === 'function') {
+          ack({ success: true, data: deleted });
+        }
+      } catch (err) {
+        logger.warn(`[CHAT_SOCKET] thread:delete rejected for user #${user.id}: ${err.message}`);
+        if (typeof ack === 'function') {
+          ack({
+            success: false,
+            error: {
+              code: err.statusCode === 403 ? 'ERR_FORBIDDEN' : (err.code || 'ERR_GROUP_DELETE_FAILED'),
+              message: err.message || 'Failed to delete group.',
             },
           });
         }

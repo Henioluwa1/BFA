@@ -11,10 +11,18 @@ router.get('/verify-id-card/:token', EmployeesController.verifyIdCardToken);
 // 2. Authenticated Self-Service Routes (Gate 11.14)
 router.get('/me/profile', requireAuth, EmployeesController.getMyProfile);
 router.put('/me/profile', requireAuth, EmployeesController.updateMyProfile);
+router.post('/me/photo', requireAuth, EmployeesController.uploadMyPhoto);
+router.post('/me/welcome-dismiss', requireAuth, EmployeesController.dismissWelcomePopup);
 router.get('/me/performance', requireAuth, EmployeesController.getMyPerformance);
 router.get('/me/activities', requireAuth, EmployeesController.getMyActivities);
 router.get('/me/evaluations', requireAuth, EmployeesController.getMyEvaluations);
 router.get('/me/id-card', requireAuth, EmployeesController.getMyIdCard);
+
+// 2b. Controlled Employee Onboarding Workflow (Manager creates -> Admin approves -> Owner notified)
+router.get('/onboarding-requests', requireAuth, requireRoles('SUPER_ADMIN', 'ADMIN', 'OWNER', 'MANAGER', 'OPERATIONS_MANAGER'), EmployeesController.listOnboardingRequests);
+router.post('/onboarding-requests', requireAuth, requireRoles('SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER'), EmployeesController.createOnboardingRequest);
+router.get('/onboarding-requests/:id', requireAuth, requireRoles('SUPER_ADMIN', 'ADMIN', 'OWNER', 'MANAGER', 'OPERATIONS_MANAGER'), EmployeesController.getOnboardingRequest);
+router.post('/onboarding-requests/:id/review', requireAuth, requireRoles('SUPER_ADMIN', 'ADMIN'), EmployeesController.reviewOnboardingRequest);
 
 // 3. Evaluation Criteria Templates
 router.get('/evaluation-criteria', requireAuth, EmployeesController.getCriteria);

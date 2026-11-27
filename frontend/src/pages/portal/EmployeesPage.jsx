@@ -35,6 +35,9 @@ export default function EmployeesPage() {
 
   // Data
   const [employees, setEmployees] = useState([]);
+  const [onboardingRequests, setOnboardingRequests] = useState([]);
+  const isAdminReviewer = ['SUPER_ADMIN', 'ADMIN'].includes(String(user?.role || '').toUpperCase());
+  const isManagerSubmitter = ['MANAGER', 'OPERATIONS_MANAGER'].includes(String(user?.role || '').toUpperCase());
   const [stats, setStats] = useState({
     totalEmployees: 0,
     activeEmployees: 0,
@@ -94,7 +97,7 @@ export default function EmployeesPage() {
     setLoading(true);
     try {
       const propParam = propertyFilter !== 'all' ? propertyFilter : undefined;
-      const [empRes, statsRes] = await Promise.all([
+      const [empRes, statsRes, onboardRes] = await Promise.all([
         employeeService.getAll({
           propertyId: propParam,
           department: deptFilter !== 'ALL' ? deptFilter : undefined,
@@ -103,11 +106,13 @@ export default function EmployeesPage() {
           limit: 100,
         }),
         employeeService.getStats({ propertyId: propParam }),
+        employeeService.listOnboardingRequests().catch(() => ({ data: [] })),
       ]);
 
       const rawList = empRes.data?.employees || empRes.employees || empRes.data?.data || empRes.data || [];
       const empList = Array.isArray(rawList) ? rawList : (Array.isArray(empRes) ? empRes : []);
       setEmployees(empList);
+      setOnboardingRequests(Array.isArray(onboardRes?.data?.data) ? onboardRes.data.data : (Array.isArray(onboardRes?.data) ? onboardRes.data : []));
       if (statsRes.data?.data || statsRes.data) {
         setStats(statsRes.data?.data || statsRes.data);
       }
@@ -178,6 +183,19 @@ export default function EmployeesPage() {
       if (isEditMode && selectedEmployee) {
         await employeeService.update(selectedEmployee.id, payload);
         addToast(`Employee '${form.first_name} ${form.last_name}' updated successfully.`, 'success');
+      } else if (isManagerSubmitter) {
+        await employeeService.createOnboardingRequest({
+          fullName: `${form.first_name || ''} ${form.last_name || ''}`.trim(),
+          email: form.email,
+          phone: form.phone,
+          proposedRole: form.department === 'FRONT_DESK' ? 'RECEPTIONIST' : 'STAFF',
+          department: form.department,
+          jobTitle: form.job_title,
+          propertyId: payload.property_id,
+          reportingManagerId: payload.manager_id || user?.id,
+          notes: form.bio_notes || undefined,
+        });
+        addToast(`Employee onboarding request for '${form.first_name} ${form.last_name}' submitted for Admin approval.`, 'success');
       } else {
         await employeeService.create(payload);
         addToast(`Employee '${form.first_name} ${form.last_name}' registered successfully.`, 'success');
@@ -350,6 +368,99 @@ export default function EmployeesPage() {
           </div>
         </Card>
       </div>
+
+      {/* Onboarding Approvals Queue */}
+      {onboardingRequests.length > 0 && (
+        <Card style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Employee Onboarding Approvals
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                Manager-submitted staff awaiting Admin review & Owner notification
+              </p>
+            </div>
+            <Badge variant="warning">
+              {onboardingRequests.filter((r) => r.status === 'PENDING_ADMIN_APPROVAL').length} Pending
+            </Badge>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            {onboardingRequests.slice(0, 10).map((reqItem) => (
+              <div
+                key={reqItem.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                }}
+              >
+                <div style={{ minWidth: '220px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                    {reqItem.full_name} <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>({reqItem.proposed_role})</span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    {reqItem.email} {reqItem.phone ? `• ${reqItem.phone}` : ''} • {reqItem.property_name || 'Global'} • Submitted by {reqItem.submitted_by_name || 'Manager'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <Badge variant={reqItem.status === 'APPROVED' ? 'success' : reqItem.status === 'REJECTED' ? 'danger' : 'warning'}>
+                    {reqItem.status}
+                  </Badge>
+                  {isAdminReviewer && reqItem.status === 'PENDING_ADMIN_APPROVAL' && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={actionLoading}
+                        onClick={async () => {
+                          setActionLoading(true);
+                          try {
+                            await employeeService.reviewOnboardingRequest(reqItem.id, { action: 'APPROVE', notes: 'Approved by Admin' });
+                            addToast(`Approved ${reqItem.full_name}. Account activated & Owner notified.`, 'success');
+                            fetchData();
+                          } catch (err) {
+                            addToast(err.response?.data?.error?.message || err.message, 'error');
+                          } finally {
+                            setActionLoading(false);
+                          }
+                        }}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={actionLoading}
+                        onClick={async () => {
+                          setActionLoading(true);
+                          try {
+                            await employeeService.reviewOnboardingRequest(reqItem.id, { action: 'REJECT', notes: 'Rejected by Admin' });
+                            addToast(`Rejected onboarding request for ${reqItem.full_name}.`, 'info');
+                            fetchData();
+                          } catch (err) {
+                            addToast(err.response?.data?.error?.message || err.message, 'error');
+                          } finally {
+                            setActionLoading(false);
+                          }
+                        }}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Filter Bar */}
       <Card style={{ marginBottom: '1.5rem' }}>

@@ -476,6 +476,11 @@ export const employeeService = {
     return api.put(`/employees/${id}/status`, payload);
   },
   uploadPhoto: (id, data) => api.post(`/employees/${id}/photo`, data),
+  uploadMyPhoto: (data) => api.post('/employees/me/photo', data),
+  dismissWelcomePopup: () => api.post('/employees/me/welcome-dismiss'),
+  listOnboardingRequests: (params) => api.get('/employees/onboarding-requests', { params }),
+  createOnboardingRequest: (data) => api.post('/employees/onboarding-requests', data),
+  reviewOnboardingRequest: (id, data) => api.post(`/employees/onboarding-requests/${id}/review`, data),
   getPerformance: (id, params) => api.get(`/employees/${id}/performance`, { params }),
   getEmployeePerformance: (id, params) => api.get(`/employees/${id}/performance`, { params }),
   getEvaluations: (arg1, arg2) => {

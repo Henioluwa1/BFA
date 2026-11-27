@@ -99,7 +99,7 @@ class ChatRepository {
 
     const placeholders = ELIGIBLE_ROLES.map(() => '?').join(', ');
     let sql = `
-      SELECT u.id, u.name, u.email, u.role, u.property_id AS propertyId, p.name AS propertyName
+      SELECT u.id, u.name, u.email, u.role, u.property_id AS propertyId, u.photo_url AS photoUrl, p.name AS propertyName
       FROM users u
       LEFT JOIN properties p ON u.property_id = p.id
       WHERE u.status = 'ACTIVE'
@@ -144,6 +144,7 @@ class ChatRepository {
           role: contact.role,
           propertyId: contact.propertyId,
           propertyName: contact.propertyName || 'Global Headquarters',
+          photoUrl: contact.photoUrl || contact.photourl || contact.photo_url || null,
           existingThreadId: threadRow?.id || null,
         };
       })
@@ -451,7 +452,7 @@ class ChatRepository {
     const sql = `
       SELECT p.id, p.thread_id AS threadId, p.user_id AS userId, p.role AS participantRole,
              p.joined_at AS joinedAt, u.name, u.email, u.role AS userRole,
-             u.property_id AS propertyId, prop.name AS propertyName
+             u.property_id AS propertyId, u.photo_url AS photoUrl, prop.name AS propertyName
       FROM chat_thread_participants p
       JOIN users u ON p.user_id = u.id
       LEFT JOIN properties prop ON u.property_id = prop.id
@@ -732,7 +733,7 @@ class ChatRepository {
 
         if (threadType === 'DIRECT') {
           const [other] = await pool.query(
-            `SELECT u.id, u.name, u.email, u.role, u.property_id
+            `SELECT u.id, u.name, u.email, u.role, u.property_id, u.photo_url
              FROM chat_thread_participants p
              JOIN users u ON p.user_id = u.id
              WHERE p.thread_id = ? AND p.user_id != ? AND p.left_at IS NULL
@@ -747,6 +748,7 @@ class ChatRepository {
               email: other.email,
               role: other.role,
               propertyId: other.property_id || other.propertyid || other.propertyId,
+              photoUrl: other.photo_url || null,
             };
           }
         }
@@ -866,16 +868,19 @@ class ChatRepository {
     const tId = Number(threadId);
     const uId = Number(userId);
 
+    const [thread] = await pool.query('SELECT thread_type, property_id, title, status, deleted_at FROM chat_threads WHERE id = ?', [tId]);
+    if (!thread) {
+      throw new NotFoundError(`Chat thread #${tId} does not exist.`);
+    }
+    if (thread.status !== 'ACTIVE' || thread.deleted_at) {
+      throw new ConflictError(`Chat thread #${tId} has been deleted or archived and is no longer active.`);
+    }
+
     const [part] = await pool.query(
       'SELECT id, last_read_message_id FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL',
       [tId, uId]
     );
     if (part) return part;
-
-    const [thread] = await pool.query('SELECT thread_type, property_id, title FROM chat_threads WHERE id = ?', [tId]);
-    if (!thread) {
-      throw new NotFoundError(`Chat thread #${tId} does not exist.`);
-    }
 
     let uRole = role ? role.toUpperCase() : null;
     if (!uRole) {
@@ -922,7 +927,10 @@ class ChatRepository {
              m.content, m.priority, m.context_entity_type AS contextEntityType,
              m.context_entity_id AS contextEntityId, m.is_edited AS isEdited,
              m.is_deleted AS isDeleted, m.created_at AS createdAt,
-             u.name AS senderName, u.role AS senderRole,
+             m.event_type AS eventType, m.event_reference_id AS eventReferenceId,
+             m.deep_link_url AS deepLinkUrl, m.metadata_json AS metadataJson,
+             m.reply_to_message_id AS replyToMessageId, m.feedback_type AS feedbackType,
+             u.name AS senderName, u.role AS senderRole, u.photo_url AS senderPhotoUrl,
              cma.acknowledged_at AS acknowledgedAt
       FROM chat_messages m
       LEFT JOIN users u ON m.sender_id = u.id
@@ -969,6 +977,49 @@ class ChatRepository {
       });
     }
 
+    // Batch-fetch read receipts for these messages (zero N+1 queries)
+    let receiptsMap = {};
+    let activeParticipantCount = 0;
+    if (msgIds.length > 0) {
+      const [partCountRow] = await pool.query(
+        'SELECT COUNT(*) AS cnt FROM chat_thread_participants WHERE thread_id = ? AND left_at IS NULL',
+        [tId]
+      );
+      activeParticipantCount = parseInt(partCountRow?.cnt || 0, 10);
+
+      const rPlaceholders = msgIds.map(() => '?').join(', ');
+      const receiptRows = await pool.query(
+        `SELECT r.message_id, r.user_id, r.status, r.delivered_at, r.read_at,
+                u.name AS reader_name, u.role AS reader_role, u.photo_url AS reader_photo_url
+         FROM chat_message_receipts r
+         JOIN users u ON r.user_id = u.id
+         WHERE r.message_id IN (${rPlaceholders})
+         ORDER BY r.read_at ASC NULLS LAST, r.id ASC`,
+        msgIds
+      );
+
+      for (const rr of receiptRows) {
+        const mId = Number(rr.message_id);
+        if (!receiptsMap[mId]) {
+          receiptsMap[mId] = { readCount: 0, deliveredCount: 0, readers: [] };
+        }
+        const st = String(rr.status || '').toUpperCase();
+        if (st === 'READ') {
+          receiptsMap[mId].readCount += 1;
+          receiptsMap[mId].deliveredCount += 1;
+          receiptsMap[mId].readers.push({
+            userId: Number(rr.user_id),
+            name: rr.reader_name,
+            role: rr.reader_role,
+            photoUrl: rr.reader_photo_url || null,
+            readAt: rr.read_at || null,
+          });
+        } else if (st === 'DELIVERED') {
+          receiptsMap[mId].deliveredCount += 1;
+        }
+      }
+    }
+
     const formatted = sliced.map((msg) => {
       const mId = Number(msg.id);
       const isMsgDeleted = Boolean(msg.is_deleted !== undefined ? msg.is_deleted : msg.isdeleted);
@@ -976,10 +1027,20 @@ class ChatRepository {
       const msgType = msg.message_type || msg.messagetype || msg.messageType || 'TEXT';
       const senderName = msg.sendername || msg.senderName || msg.sender_name || 'System';
       const senderRole = msg.senderrole || msg.senderRole || msg.sender_role || 'STAFF';
+      const senderPhotoUrl = msg.senderphotourl || msg.senderPhotoUrl || msg.sender_photo_url || null;
       const senderId = Number(msg.sender_id || msg.senderid || msg.senderId || 0);
 
       const ctxType = msg.context_entity_type || msg.contextEntityType || msg.contextentitytype || null;
       const ctxId = msg.context_entity_id || msg.contextEntityId || msg.contextentityid || null;
+      const rInfo = receiptsMap[mId] || { readCount: 0, deliveredCount: 0, readers: [] };
+      const totalRecipients = Math.max(0, activeParticipantCount - 1);
+      const receiptStatus =
+        rInfo.readCount > 0 ? 'READ' : rInfo.deliveredCount > 0 ? 'DELIVERED' : 'SENT';
+
+      let parsedMeta = msg.metadatajson || msg.metadataJson || msg.metadata_json || null;
+      if (typeof parsedMeta === 'string') {
+        try { parsedMeta = JSON.parse(parsedMeta); } catch { parsedMeta = null; }
+      }
 
       return {
         id: mId,
@@ -989,6 +1050,7 @@ class ChatRepository {
           id: senderId,
           name: senderName,
           role: senderRole,
+          photoUrl: senderPhotoUrl,
         },
         messageType: msgType,
         content: isMsgDeleted ? 'This message was deleted' : msg.content,
@@ -1001,6 +1063,16 @@ class ChatRepository {
           : null,
         contextEntityType: ctxType,
         contextEntityId: ctxId,
+        eventType: msg.eventtype || msg.eventType || msg.event_type || null,
+        eventReferenceId: msg.eventreferenceid || msg.eventReferenceId || msg.event_reference_id || null,
+        deepLinkUrl: msg.deeplinkurl || msg.deepLinkUrl || msg.deep_link_url || null,
+        metadata: parsedMeta,
+        replyToMessageId: msg.replytomessageid || msg.replyToMessageId || msg.reply_to_message_id || null,
+        feedbackType: msg.feedbacktype || msg.feedbackType || msg.feedback_type || null,
+        readCount: rInfo.readCount,
+        totalRecipients,
+        receiptStatus,
+        readers: rInfo.readers.slice(0, 12),
         isEdited: isMsgEdited,
         isDeleted: isMsgDeleted,
         priority: msg.priority || 'NORMAL',
@@ -1035,6 +1107,12 @@ class ChatRepository {
     contextEntityType = null,
     contextEntityId = null,
     attachment = null,
+    eventType = null,
+    eventReferenceId = null,
+    deepLinkUrl = null,
+    metadata = null,
+    replyToMessageId = null,
+    feedbackType = null,
   }) {
     const tId = Number(threadId);
     const sId = Number(senderId);
@@ -1114,13 +1192,67 @@ class ChatRepository {
         }
       }
 
+      // 1b. Event-reference idempotency check (prevents duplicate system messages on retries)
+      if (eventReferenceId) {
+        const [existingEvt] = await conn.query(
+          'SELECT * FROM chat_messages WHERE thread_id = ? AND event_reference_id = ? LIMIT 1',
+          [tId, String(eventReferenceId)]
+        );
+        if (existingEvt && existingEvt.length > 0) {
+          const prev = existingEvt[0];
+          const [senderRows] = await conn.query('SELECT name, role, photo_url FROM users WHERE id = ?', [prev.sender_id]);
+          const sRow = senderRows && senderRows[0] ? senderRows[0] : null;
+          return {
+            id: prev.id,
+            threadId: prev.thread_id,
+            clientTempId: prev.client_temp_id,
+            senderId: prev.sender_id,
+            senderName: sRow?.name || 'System',
+            senderRole: sRow?.role || senderRole,
+            senderPhotoUrl: sRow?.photo_url || null,
+            messageType: prev.message_type,
+            content: prev.content,
+            contextEntityType: prev.context_entity_type,
+            contextEntityId: prev.context_entity_id,
+            eventType: prev.event_type,
+            eventReferenceId: prev.event_reference_id,
+            deepLinkUrl: prev.deep_link_url,
+            metadata: prev.metadata_json,
+            replyToMessageId: prev.reply_to_message_id,
+            feedbackType: prev.feedback_type,
+            isEdited: Boolean(prev.is_edited),
+            isDeleted: Boolean(prev.is_deleted),
+            createdAt: prev.created_at,
+            idempotentReplay: true,
+          };
+        }
+      }
+
       // 2. Insert new message
+      const metaJsonStr = metadata ? (typeof metadata === 'string' ? metadata : JSON.stringify(metadata)) : null;
       const [result] = await conn.query(
         `INSERT INTO chat_messages (
            thread_id, sender_id, client_temp_id, message_type, content,
-           context_entity_type, context_entity_id, priority
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [tId, sId, tempId, computedMessageType, cleanContent, contextEntityType || null, contextEntityId || null, priority || 'NORMAL']
+           context_entity_type, context_entity_id, priority,
+           event_type, event_reference_id, deep_link_url, metadata_json,
+           reply_to_message_id, feedback_type
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          tId,
+          sId,
+          tempId,
+          computedMessageType,
+          cleanContent,
+          contextEntityType || null,
+          contextEntityId || null,
+          priority || 'NORMAL',
+          eventType || null,
+          eventReferenceId || null,
+          deepLinkUrl || null,
+          metaJsonStr,
+          replyToMessageId ? Number(replyToMessageId) : null,
+          feedbackType || null,
+        ]
       );
       const messageId = result.insertId;
 
@@ -1191,33 +1323,24 @@ class ChatRepository {
         [messageId, tId, sId]
       );
 
-      // 6. Direct receipts if DIRECT thread
-      const [threadRow] = await conn.query('SELECT thread_type FROM chat_threads WHERE id = ?', [tId]);
-      if (threadRow && threadRow.thread_type === 'DIRECT') {
-        const [other] = await conn.query(
-          'SELECT user_id FROM chat_thread_participants WHERE thread_id = ? AND user_id != ? AND left_at IS NULL LIMIT 1',
-          [tId, sId]
+      // 6. Initialize SENT receipts for all active recipients in thread (1-to-1 and Group)
+      const [recipientRows] = await conn.query(
+        'SELECT user_id FROM chat_thread_participants WHERE thread_id = ? AND user_id != ? AND left_at IS NULL',
+        [tId, sId]
+      );
+      for (const r of recipientRows || []) {
+        const recUid = Number(r.user_id || r.userid || r.userId);
+        if (!recUid) continue;
+        await conn.query(
+          `INSERT INTO chat_message_receipts (message_id, user_id, status)
+           VALUES (?, ?, 'DELIVERED')
+           ON CONFLICT (message_id, user_id) DO NOTHING`,
+          [messageId, recUid]
         );
-        if (other) {
-          if (pool.isPostgres()) {
-            await conn.query(
-              `INSERT INTO chat_message_receipts (message_id, user_id, status)
-               VALUES (?, ?, 'SENT')
-               ON CONFLICT (message_id, user_id) DO UPDATE SET status = EXCLUDED.status`,
-              [messageId, other.user_id]
-            );
-          } else {
-            await conn.query(
-              `INSERT INTO chat_message_receipts (message_id, user_id, status)
-               VALUES (?, ?, 'SENT')
-               ON DUPLICATE KEY UPDATE status = VALUES(status)`,
-              [messageId, other.user_id]
-            );
-          }
-        }
       }
 
-      const [sender] = await conn.query('SELECT name, role FROM users WHERE id = ?', [sId]);
+      const [senderRows] = await conn.query('SELECT name, role, photo_url FROM users WHERE id = ?', [sId]);
+      const sender = senderRows && senderRows[0] ? senderRows[0] : null;
       const [saved] = await conn.query('SELECT created_at FROM chat_messages WHERE id = ?', [messageId]);
 
       return {
@@ -1227,11 +1350,22 @@ class ChatRepository {
         senderId: sId,
         senderName: sender?.name || 'Staff',
         senderRole: sender?.role || senderRole,
+        senderPhotoUrl: sender?.photo_url || null,
         messageType: computedMessageType,
         content: cleanContent,
         attachment: createdAttachment,
         contextEntityType,
         contextEntityId,
+        eventType: eventType || null,
+        eventReferenceId: eventReferenceId || null,
+        deepLinkUrl: deepLinkUrl || null,
+        metadata: metadata || null,
+        replyToMessageId: replyToMessageId ? Number(replyToMessageId) : null,
+        feedbackType: feedbackType || null,
+        readCount: 0,
+        totalRecipients: (recipientRows || []).length,
+        receiptStatus: 'DELIVERED',
+        readers: [],
         priority: priority || 'NORMAL',
         isEdited: false,
         isDeleted: false,
@@ -1276,7 +1410,7 @@ class ChatRepository {
       throw new BadRequestError(`Message #${mId} does not belong to thread #${tId}.`);
     }
 
-    const part = await this.assertOrAutoEnrollParticipant(tId, uId);
+    await this.assertOrAutoEnrollParticipant(tId, uId);
 
     return pool.withTransaction(async (conn) => {
       await conn.query(
@@ -1287,18 +1421,146 @@ class ChatRepository {
         [mId, tId, uId]
       );
 
+      // Idempotent upsert of READ receipts for all messages in this thread up to mId (excluding user's own messages)
       await conn.query(
-        `UPDATE chat_message_receipts
-         SET status = 'READ', read_at = CURRENT_TIMESTAMP
-         WHERE user_id = ? AND message_id <= ? AND status != 'READ'`,
-        [uId, mId]
+        `INSERT INTO chat_message_receipts (message_id, user_id, status, delivered_at, read_at)
+         SELECT m.id, ?, 'READ', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+         FROM chat_messages m
+         WHERE m.thread_id = ? AND m.id <= ? AND (m.sender_id IS NULL OR m.sender_id != ?)
+         ON CONFLICT (message_id, user_id) DO UPDATE
+         SET status = 'READ',
+             read_at = COALESCE(chat_message_receipts.read_at, CURRENT_TIMESTAMP)`,
+        [uId, tId, mId, uId]
       );
+
+      const [readerRows] = await conn.query(
+        'SELECT id, name, role, photo_url FROM users WHERE id = ? LIMIT 1',
+        [uId]
+      );
+      const reader = readerRows && readerRows[0] ? readerRows[0] : null;
 
       return {
         success: true,
         threadId: tId,
         userId: uId,
+        readerName: reader?.name || null,
+        readerRole: reader?.role || null,
+        readerPhotoUrl: reader?.photo_url || null,
         lastReadMessageId: mId,
+        readAt: new Date().toISOString(),
+      };
+    });
+  }
+
+  /**
+   * Get detailed readers list for a specific message (with membership verification)
+   */
+  static async getMessageReaders(messageId, user) {
+    const mId = Number(messageId);
+    const uId = Number(user.id);
+    const [msg] = await pool.query('SELECT id, thread_id, sender_id FROM chat_messages WHERE id = ? LIMIT 1', [mId]);
+    if (!msg) {
+      throw new NotFoundError(`Message #${mId} does not exist.`);
+    }
+
+    await this.assertOrAutoEnrollParticipant(msg.thread_id, uId, user.role);
+
+    const readers = await pool.query(
+      `SELECT r.user_id AS userId, u.name, u.role, u.photo_url AS photoUrl,
+              r.status, r.delivered_at AS deliveredAt, r.read_at AS readAt
+       FROM chat_message_receipts r
+       JOIN users u ON r.user_id = u.id
+       WHERE r.message_id = ? AND r.status = 'READ'
+       ORDER BY r.read_at ASC NULLS LAST, u.name ASC`,
+      [mId]
+    );
+
+    const [partCountRow] = await pool.query(
+      'SELECT COUNT(*) AS cnt FROM chat_thread_participants WHERE thread_id = ? AND left_at IS NULL AND user_id != ?',
+      [msg.thread_id, msg.sender_id || 0]
+    );
+
+    return {
+      messageId: mId,
+      threadId: Number(msg.thread_id),
+      totalRecipients: parseInt(partCountRow?.cnt || 0, 10),
+      readCount: readers.length,
+      readers,
+    };
+  }
+
+  /**
+   * Soft-delete / archive a group conversation (authorized owners/managers/admins/creators only)
+   */
+  static async deleteGroupThread(threadId, user, reason = null) {
+    const tId = Number(threadId);
+    const uId = Number(user.id);
+    const uRole = String(user.role || '').toUpperCase();
+
+    return pool.withTransaction(async (conn) => {
+      const [tRows] = await conn.query('SELECT * FROM chat_threads WHERE id = ? FOR UPDATE', [tId]);
+      if (!tRows || tRows.length === 0) {
+        throw new NotFoundError(`Chat thread #${tId} does not exist.`);
+      }
+      const thread = tRows[0];
+
+      if (!['GROUP', 'PROPERTY_CHANNEL'].includes(thread.thread_type)) {
+        throw new BadRequestError('Only group conversations or property channels can be deleted.');
+      }
+      if (thread.title === 'General Group') {
+        throw new ForbiddenError('The company-wide General Group cannot be deleted.');
+      }
+      if (thread.status !== 'ACTIVE' || thread.deleted_at) {
+        throw new ConflictError(`Group "${thread.title}" has already been deleted.`);
+      }
+
+      // Check participant role / creator / RBAC
+      const [partRows] = await conn.query(
+        'SELECT role FROM chat_thread_participants WHERE thread_id = ? AND user_id = ? AND left_at IS NULL LIMIT 1',
+        [tId, uId]
+      );
+      const partRole = partRows && partRows[0] ? String(partRows[0].role || '').toUpperCase() : null;
+
+      const isGlobalExec = ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(uRole);
+      const isScopedManager =
+        ['MANAGER', 'OPERATIONS_MANAGER'].includes(uRole) &&
+        (!user.propertyId || !thread.property_id || Number(user.propertyId) === Number(thread.property_id));
+      const isCreatorOrGroupAdmin =
+        !['STAFF', 'RECEPTIONIST'].includes(uRole) &&
+        (Number(thread.created_by) === uId || partRole === 'ADMIN');
+
+      if (!isGlobalExec && !isScopedManager && !isCreatorOrGroupAdmin) {
+        throw new ForbiddenError('You are not authorized to delete this group conversation.');
+      }
+
+      // Collect active participants before archiving so we can notify open clients via Socket.IO
+      const [activeParts] = await conn.query(
+        'SELECT user_id FROM chat_thread_participants WHERE thread_id = ? AND left_at IS NULL',
+        [tId]
+      );
+      const participantUserIds = (activeParts || []).map((p) => Number(p.user_id));
+
+      await conn.query(
+        `UPDATE chat_threads
+         SET status = 'ARCHIVED',
+             deleted_by = ?,
+             deleted_at = CURRENT_TIMESTAMP,
+             deletion_reason = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [uId, reason ? String(reason).trim().slice(0, 255) : null, tId]
+      );
+
+      return {
+        id: tId,
+        title: thread.title,
+        threadType: thread.thread_type,
+        propertyId: thread.property_id,
+        status: 'ARCHIVED',
+        deletedBy: uId,
+        deletedByName: user.name,
+        deletedAt: new Date().toISOString(),
+        participantUserIds,
       };
     });
   }

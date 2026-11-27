@@ -76,6 +76,30 @@ class ChatController {
     }
   }
 
+  static async deleteGroupThread(req, res, next) {
+    try {
+      const deleted = await ChatService.deleteGroupThread(req.params.id, req.user, req.body?.reason || null);
+      return ApiResponse.success(res, {
+        message: `Group "${deleted.title}" deleted successfully`,
+        data: deleted,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getMessageReaders(req, res, next) {
+    try {
+      const data = await ChatService.getMessageReaders(req.params.id, req.user);
+      return ApiResponse.success(res, {
+        message: 'Message readers retrieved successfully',
+        data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async getThreadParticipants(req, res, next) {
     try {
       const participants = await ChatService.getThreadParticipants(req.params.id, req.user);
@@ -287,6 +311,33 @@ class ChatController {
       return ApiResponse.created(res, {
         message: 'Owner circular broadcasted successfully',
         data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async syncEventReadState(req, res, next) {
+    try {
+      const data = await ChatService.syncEventReadState(req.user, req.body || {});
+      return ApiResponse.success(res, {
+        message: 'Event read state synchronized successfully',
+        data,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async sendSubmissionFeedback(req, res, next) {
+    try {
+      const data = await ChatService.sendSubmissionFeedback(req.user, {
+        ...(req.body || {}),
+        submissionId: req.params.id,
+      });
+      return ApiResponse.created(res, {
+        message: 'Submission feedback posted to management chat',
+        data,
       });
     } catch (err) {
       next(err);

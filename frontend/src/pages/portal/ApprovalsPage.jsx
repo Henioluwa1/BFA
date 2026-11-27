@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import { propertySubmissionService, resolveMediaUrl } from '../../services/api';
+import chatService from '../../services/chatService';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { formatNaira } from '../../utils/currency';
@@ -66,6 +67,8 @@ export default function ApprovalsPage() {
     try {
       const res = await propertySubmissionService.getSubmissionDocument(submissionId);
       setDocData(res?.data || null);
+      // Synchronize chat read receipt and notification state when reviewer opens the submission details
+      chatService.syncEventReadState({ submissionId }).catch(() => {});
     } catch (err) {
       addToast(err.message || 'Failed to load submission document.', 'error');
       setDocModalOpen(false);

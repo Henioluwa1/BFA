@@ -392,9 +392,13 @@ class EmployeesService {
     const employee = await this.getEmployeeById(id, req);
     const user = req?.user;
 
-    // Self or authorized manager check
-    const isSelf = employee.user_id && user && employee.user_id === user.id;
+    // Self or authorized management role check (STAFF/RECEPTIONIST can NEVER replace another employee's photo)
+    const isSelf = employee.user_id && user && Number(employee.user_id) === Number(user.id);
     if (!isSelf) {
+      const roleUpper = String(user?.role || '').toUpperCase();
+      if (!['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(roleUpper)) {
+        throw new ForbiddenError('You are not authorized to replace another employee\'s profile photograph.');
+      }
       const capCheck = await AccessControlService.canAccess(user, 'EMPLOYEE_UPDATE');
       if (!capCheck.allowed) {
         throw new ForbiddenError(`Photo upload requires authorized capability (${capCheck.reason}).`);
@@ -436,8 +440,18 @@ class EmployeesService {
     const filePath = path.join(uploadsDir, randomName);
     fs.writeFileSync(filePath, buffer);
 
-    const photoUrl = `/api/v1/employees/${employee.id}/photo`;
-    await EmployeesRepository.update(id, { photo_url: photoUrl });
+    const photoUrl = `/api/v1/employees/${employee.id}/photo?v=${Date.now()}`;
+    await pool.query(
+      'UPDATE employees SET photo_url = ?, photo_data = ?, photo_mime = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [photoUrl, buffer, mimeType, id]
+    );
+    if (employee.user_id) {
+      await pool.query(
+        'UPDATE users SET photo_url = ?, photo_data = ?, photo_mime = ? WHERE id = ?',
+        [photoUrl, buffer, mimeType, employee.user_id]
+      );
+    }
+    await this.syncProfileCompletion(employee.user_id || null, id);
     const updated = await EmployeesRepository.findById(id);
 
     await EmployeeActivitiesService.recordActivity({
@@ -464,6 +478,110 @@ class EmployeesService {
     return updated;
   }
 
+  static computeProfileCompletion(profile, userRow = null) {
+    const fullName = String(profile?.full_name || userRow?.name || '').trim();
+    const photoUrl = profile?.photo_url || userRow?.photo_url || null;
+    const phone = String(profile?.phone || '').trim();
+    const jobTitle = String(profile?.job_title || userRow?.role || '').trim();
+
+    const missingFields = [];
+    if (!fullName) missingFields.push('full_name');
+    if (!photoUrl) missingFields.push('photo');
+    if (!profile?.is_user_profile && !phone) missingFields.push('phone');
+    if (!jobTitle) missingFields.push('job_title');
+
+    const totalChecks = profile?.is_user_profile ? 3 : 4;
+    const passedChecks = totalChecks - missingFields.length;
+    const percentage = Math.max(0, Math.min(100, Math.round((passedChecks / totalChecks) * 100)));
+    const isComplete = missingFields.length === 0;
+    const needsOnboarding = Boolean(userRow?.needs_onboarding);
+    const showWelcomePopup = needsOnboarding && !isComplete;
+
+    return {
+      isComplete,
+      percentage,
+      missingFields,
+      needsOnboarding,
+      showWelcomePopup,
+    };
+  }
+
+  static async syncProfileCompletion(userId = null, employeeId = null) {
+    let emp = null;
+    let uRow = null;
+    if (employeeId) {
+      emp = await EmployeesRepository.findById(employeeId);
+      if (emp?.user_id && !userId) userId = emp.user_id;
+    } else if (userId) {
+      emp = await EmployeesRepository.findByUserId(userId);
+    }
+    if (userId) {
+      const uRows = await pool.query(
+        'SELECT id, name, role, photo_url, needs_onboarding, profile_completed FROM users WHERE id = ? LIMIT 1',
+        [userId]
+      );
+      uRow = uRows[0] || null;
+    }
+
+    const comp = this.computeProfileCompletion(emp || { is_user_profile: true, full_name: uRow?.name, photo_url: uRow?.photo_url, job_title: uRow?.role }, uRow);
+    if (emp && emp.id) {
+      await pool.query(
+        'UPDATE employees SET profile_completed = ?, profile_completed_at = CASE WHEN ? THEN COALESCE(profile_completed_at, CURRENT_TIMESTAMP) ELSE NULL END WHERE id = ?',
+        [comp.isComplete, comp.isComplete, emp.id]
+      );
+    }
+    if (userId) {
+      await pool.query(
+        'UPDATE users SET profile_completed = ?, profile_completed_at = CASE WHEN ? THEN COALESCE(profile_completed_at, CURRENT_TIMESTAMP) ELSE NULL END, needs_onboarding = CASE WHEN ? THEN FALSE ELSE needs_onboarding END WHERE id = ?',
+        [comp.isComplete, comp.isComplete, comp.isComplete, userId]
+      );
+    }
+    return comp;
+  }
+
+  static async uploadMyPhoto(photoData, req) {
+    const user = req?.user;
+    if (!user || !user.id) {
+      throw new ForbiddenError('Authentication required.');
+    }
+
+    const employee = await EmployeesRepository.findByUserId(user.id);
+    if (employee) {
+      await this.uploadPhoto(employee.id, photoData, req);
+      return this.getMyProfile(req);
+    }
+
+    const rawPayload = photoData?.photo_base64 || photoData?.photoBase64;
+    if (!rawPayload || typeof rawPayload !== 'string') {
+      throw new BadRequestError('Invalid image payload: photo_base64 or photoBase64 is required.');
+    }
+
+    const { buffer, mimeType } = validateImageUpload({
+      fileData: rawPayload,
+      fileType: photoData?.mimeType || 'image/jpeg',
+      fileName: photoData?.fileName || '',
+      maxSizeBytes: MAX_PHOTO_SIZE_BYTES,
+      label: 'Profile photo',
+    });
+
+    const photoUrl = `/api/v1/employees/user-${user.id}/photo?v=${Date.now()}`;
+    await pool.query(
+      'UPDATE users SET photo_url = ?, photo_data = ?, photo_mime = ? WHERE id = ?',
+      [photoUrl, buffer, mimeType, user.id]
+    );
+    await this.syncProfileCompletion(user.id, null);
+    return this.getMyProfile(req);
+  }
+
+  static async dismissWelcomePopup(req) {
+    const user = req?.user;
+    if (!user || !user.id) {
+      throw new ForbiddenError('Authentication required.');
+    }
+    await pool.query('UPDATE users SET welcome_dismissed_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+    return { dismissed: true };
+  }
+
   /**
    * Employee Self-Service: Get current logged-in employee profile (Gate 11.14)
    */
@@ -473,24 +591,30 @@ class EmployeesService {
       throw new ForbiddenError('Authentication required.');
     }
 
-    const employee = await EmployeesRepository.findByUserId(user.id);
-    if (employee) {
-      return employee;
-    }
-
-    // Synthesize profile for system administrators / non-staff users
     const userRows = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role, u.property_id, u.status, u.created_at, p.name as property_name
+      `SELECT u.id, u.name, u.email, u.role, u.property_id, u.status, u.created_at,
+              u.photo_url, u.needs_onboarding, u.profile_completed, p.name as property_name
        FROM users u
        LEFT JOIN properties p ON u.property_id = p.id
        WHERE u.id = ? LIMIT 1`,
       [user.id]
     );
+    const uRow = userRows[0] || null;
 
-    if (userRows && userRows.length > 0) {
-      const u = userRows[0];
+    const employee = await EmployeesRepository.findByUserId(user.id);
+    if (employee) {
+      if (!employee.photo_url && uRow?.photo_url) {
+        employee.photo_url = uRow.photo_url;
+      }
+      employee.profileCompletion = this.computeProfileCompletion(employee, uRow);
+      return employee;
+    }
+
+    // Synthesize profile for system administrators / non-staff users
+    if (uRow) {
+      const u = uRow;
       const nameParts = (u.name || 'System User').trim().split(' ');
-      return {
+      const synthesized = {
         id: `user-${u.id}`,
         user_id: u.id,
         is_user_profile: true,
@@ -500,6 +624,7 @@ class EmployeesService {
         full_name: u.name,
         email: u.email,
         phone: '',
+        photo_url: u.photo_url || null,
         department: ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(u.role) ? 'EXECUTIVE' : 'ADMINISTRATION',
         job_title: (u.role || 'USER').replace(/_/g, ' '),
         employment_status: u.status || 'ACTIVE',
@@ -507,6 +632,8 @@ class EmployeesService {
         property_name: u.property_name || 'All Properties (Global)',
         hire_date: u.created_at || new Date().toISOString(),
       };
+      synthesized.profileCompletion = this.computeProfileCompletion(synthesized, uRow);
+      return synthesized;
     }
 
     throw new NotFoundError('No employee record associated with your user account.');
@@ -552,8 +679,6 @@ class EmployeesService {
       );
     });
 
-    const updated = await EmployeesRepository.findById(myProfile.id);
-
     await AuditService.record({
       req,
       actorId: req.user.id,
@@ -564,7 +689,8 @@ class EmployeesService {
       entityId: String(myProfile.id),
     });
 
-    return updated;
+    await this.syncProfileCompletion(req.user.id, myProfile.id);
+    return this.getMyProfile(req);
   }
 
   /**

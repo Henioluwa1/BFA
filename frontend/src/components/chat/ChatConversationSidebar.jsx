@@ -36,6 +36,7 @@ export default function ChatConversationSidebar({
   activeTab = 'ALL',
   onTabChange,
   canInitiateOperation = false,
+  canCreateGroup = false,
   onOpenOperationModal,
   onOpenNewDirectModal,
   onOpenNewGroupModal,
@@ -91,15 +92,17 @@ export default function ChatConversationSidebar({
               <Plus size={13} />
               <span>DM</span>
             </button>
-            <button
-              type="button"
-              className="chat-btn-action"
-              onClick={onOpenNewGroupModal}
-              title="Create a new team group"
-            >
-              <Plus size={13} />
-              <span>Group</span>
-            </button>
+            {canCreateGroup && (
+              <button
+                type="button"
+                className="chat-btn-action"
+                onClick={onOpenNewGroupModal}
+                title="Create a new team group"
+              >
+                <Plus size={13} />
+                <span>Group</span>
+              </button>
+            )}
           </div>
         </div>
 

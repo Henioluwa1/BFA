@@ -96,7 +96,7 @@ async function login({ email, password, ipAddress, userAgent, requestId }) {
   }
 
   const rows = await db.query(
-    'SELECT id, name, email, password_hash, role, property_id, agent_id, status FROM users WHERE email = ? LIMIT 1',
+    'SELECT id, name, email, password_hash, role, property_id, agent_id, status, photo_url, needs_onboarding, profile_completed FROM users WHERE email = ? LIMIT 1',
     [email.toLowerCase().trim()]
   );
 
@@ -190,6 +190,9 @@ async function login({ email, password, ipAddress, userAgent, requestId }) {
       propertyId: user.property_id,
       property_id: user.property_id,
       agentId: user.agent_id,
+      photoUrl: user.photo_url || null,
+      needsOnboarding: Boolean(user.needs_onboarding),
+      profileCompleted: Boolean(user.profile_completed),
       permissions: getRolePermissions(user.role),
     },
   };

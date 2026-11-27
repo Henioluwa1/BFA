@@ -8,6 +8,7 @@ const {
 } = require('../../core/errors/apiError');
 const logger = require('../../utils/logger');
 const { validateDocumentOrImageUpload } = require('../../utils/fileSignatureValidator');
+const { getIO } = require('../../core/socket/socketEmitter');
 
 const ELIGIBLE_ROLES = [
   'SUPER_ADMIN',
@@ -17,6 +18,14 @@ const ELIGIBLE_ROLES = [
   'OWNER',
   'RECEPTIONIST',
   'STAFF',
+];
+
+const GROUP_CREATION_ROLES = [
+  'SUPER_ADMIN',
+  'ADMIN',
+  'OWNER',
+  'OPERATIONS_MANAGER',
+  'MANAGER',
 ];
 
 class ChatService {
@@ -77,10 +86,37 @@ class ChatService {
   }
 
   /**
-   * Create group thread with multiple staff participants
+   * Create group thread with multiple staff participants (Manager/Owner/Admin/Super Admin only)
    */
   static async createGroupThread(creatorUser, { title, participantIds }) {
     this.assertEligibleRole(creatorUser.role);
+    const roleUpper = String(creatorUser.role || '').toUpperCase();
+    if (!GROUP_CREATION_ROLES.includes(roleUpper)) {
+      throw new ForbiddenError('Only Managers, Operations Managers, Owners, and Admins are authorized to create group chats.');
+    }
+
+    // Organizational/property scope check for property-scoped Managers
+    if (['MANAGER', 'OPERATIONS_MANAGER'].includes(roleUpper) && creatorUser.propertyId) {
+      const cleanIds = Array.from(
+        new Set((participantIds || []).map((id) => Number(id)).filter((id) => id > 0 && id !== Number(creatorUser.id)))
+      );
+      if (cleanIds.length > 0) {
+        const placeholders = cleanIds.map(() => '?').join(', ');
+        const candidates = await pool.query(
+          `SELECT id, role, property_id FROM users WHERE id IN (${placeholders})`,
+          cleanIds
+        );
+        const outOfScope = candidates.filter((c) => {
+          const cRole = String(c.role || '').toUpperCase();
+          if (['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(cRole)) return false;
+          return c.property_id && Number(c.property_id) !== Number(creatorUser.propertyId);
+        });
+        if (outOfScope.length > 0) {
+          throw new ForbiddenError('Managers can only add staff within their authorized property or global executive scope.');
+        }
+      }
+    }
+
     const group = await ChatRepository.createGroupThread(creatorUser, title, participantIds);
 
     await AuditService.record({
@@ -93,7 +129,55 @@ class ChatService {
       newValues: { title: group.title, threadType: 'GROUP' },
     });
 
+    const io = getIO();
+    if (io && Array.isArray(group.participants)) {
+      for (const p of group.participants) {
+        io.to(`user:${p.userId}`).emit('thread:created', { thread: group });
+      }
+    }
+
     return group;
+  }
+
+  /**
+   * Soft-delete / archive group thread and notify active participants in real time
+   */
+  static async deleteGroupThread(threadId, user, reason = null) {
+    this.assertEligibleRole(user.role);
+    const deleted = await ChatRepository.deleteGroupThread(threadId, user, reason);
+
+    await AuditService.record({
+      actorId: user.id,
+      actorEmail: user.email,
+      actorRole: user.role,
+      action: 'CHAT_GROUP_DELETED',
+      entityType: 'chat_thread',
+      entityId: String(deleted.id),
+      newValues: {
+        title: deleted.title,
+        status: deleted.status,
+        deletedBy: user.id,
+        deletedAt: deleted.deletedAt,
+        reason: reason || null,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      const payload = {
+        threadId: deleted.id,
+        title: deleted.title,
+        deletedBy: deleted.deletedBy,
+        deletedByName: deleted.deletedByName,
+        deletedAt: deleted.deletedAt,
+      };
+      io.to(`thread:${deleted.id}`).emit('thread:deleted', payload);
+      for (const uid of deleted.participantUserIds || []) {
+        io.to(`user:${uid}`).emit('thread:deleted', payload);
+      }
+    }
+
+    return deleted;
   }
 
   /**
@@ -242,11 +326,34 @@ class ChatService {
   }
 
   /**
-   * Mark messages as read (monotonically)
+   * Mark messages as read (monotonically) and broadcast real-time receipt update
    */
   static async markAsRead(user, threadId, messageId) {
     this.assertEligibleRole(user.role);
-    return ChatRepository.updateReadWatermark(threadId, user.id, messageId);
+    const result = await ChatRepository.updateReadWatermark(threadId, user.id, messageId);
+
+    const io = getIO();
+    if (io) {
+      io.to(`thread:${Number(threadId)}`).emit('message:receipt_updated', {
+        threadId: Number(threadId),
+        userId: Number(user.id),
+        readerName: result.readerName,
+        readerRole: result.readerRole,
+        readerPhotoUrl: result.readerPhotoUrl,
+        lastReadMessageId: Number(messageId),
+        readAt: result.readAt,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Get detailed readers list for a message
+   */
+  static async getMessageReaders(messageId, user) {
+    this.assertEligibleRole(user.role);
+    return ChatRepository.getMessageReaders(messageId, user);
   }
 
   /**
@@ -717,6 +824,329 @@ class ChatService {
     });
 
     return updated;
+  }
+
+  /**
+   * Publish an idempotent system-generated chat event message & broadcast in real time
+   */
+  static async publishSystemEventMessage({
+    threadId,
+    actorUser,
+    eventType,
+    eventReferenceId,
+    content,
+    contextEntityType = null,
+    contextEntityId = null,
+    deepLinkUrl = null,
+    metadata = null,
+    priority = 'HIGH',
+  }) {
+    const saved = await ChatRepository.persistMessage({
+      threadId,
+      senderId: actorUser.id,
+      senderRole: actorUser.role,
+      clientTempId: eventReferenceId ? `evt:${threadId}:${eventReferenceId}` : undefined,
+      messageType: 'SYSTEM_EVENT',
+      content,
+      priority,
+      contextEntityType,
+      contextEntityId,
+      eventType,
+      eventReferenceId,
+      deepLinkUrl,
+      metadata,
+    });
+
+    if (!saved.idempotentReplay) {
+      const io = getIO();
+      if (io) {
+        io.to(`thread:${threadId}`).emit('message:delivered', { threadId, message: saved });
+        const participants = await ChatRepository.getThreadParticipants(threadId);
+        for (const p of participants) {
+          if (Number(p.userId) !== Number(actorUser.id)) {
+            io.to(`user:${p.userId}`).emit('message:new_incoming', { threadId, message: saved });
+          }
+        }
+      }
+    }
+
+    return saved;
+  }
+
+  /**
+   * Notify the authorized Management Group (Manager, Owner, Admin, Ops Manager) on property/apartment submission events
+   */
+  static async notifyManagementGroupOnSubmission({
+    submission,
+    propertyName,
+    apartmentName = null,
+    submittedByUser,
+    eventType = 'SUBMITTED',
+    proposedRate = null,
+  }) {
+    const recipientRows = await pool.query(
+      `SELECT id, name, role, property_id
+       FROM users
+       WHERE status = 'ACTIVE'
+         AND (
+           role IN ('OWNER', 'ADMIN', 'SUPER_ADMIN')
+           OR (role IN ('OPERATIONS_MANAGER', 'MANAGER') AND (property_id IS NULL OR property_id = ?))
+         )`,
+      [submission.property_id]
+    );
+
+    const recipientIds = Array.from(
+      new Set([
+        ...recipientRows.map((r) => Number(r.id)),
+        Number(submittedByUser.id),
+      ])
+    ).filter((id) => id > 0);
+
+    const groupThread = await ChatRepository.findOrCreateManagementGroupThread(submittedByUser, recipientIds);
+    const existingParts = await ChatRepository.getThreadParticipants(groupThread.id);
+    const existingIds = new Set(existingParts.map((p) => Number(p.userId)));
+    const missingIds = recipientIds.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      try {
+        await ChatRepository.addParticipants(groupThread.id, missingIds, submittedByUser);
+      } catch (_) {}
+    }
+
+    const isApt = submission.entity_type === 'APARTMENT';
+    const subject = isApt
+      ? `${propertyName} — ${apartmentName || 'Apartment Unit'}`
+      : propertyName;
+    const evtKey = String(eventType || 'SUBMITTED').toUpperCase();
+    const eventReferenceId = `SUBMISSION:${submission.id}:${evtKey}`;
+    const deepLinkUrl = `/app/approvals?submission=${submission.id}`;
+
+    let heading = isApt
+      ? 'NEW APARTMENT SUBMITTED — APPROVAL REQUIRED'
+      : 'NEW PROPERTY SUBMITTED — APPROVAL REQUIRED';
+    let bodyText =
+      'A new apartment has been submitted for review. Please open the apartment approval details to inspect the information, review the proposed rate, and take the required action.';
+
+    if (evtKey === 'APPROVED') {
+      heading = `${isApt ? 'APARTMENT' : 'PROPERTY'} SUBMISSION APPROVED`;
+      bodyText = `Both Owner and Operations Manager have approved ${subject}. Ready for authorized publication.`;
+    } else if (evtKey === 'PUBLISHED') {
+      heading = `${isApt ? 'APARTMENT' : 'PROPERTY'} PUBLISHED TO PUBLIC WEBSITE`;
+      bodyText = `${subject} is now published and live for public booking.`;
+    } else if (evtKey === 'CHANGES_REQUESTED') {
+      heading = `CHANGES REQUESTED — ${subject}`;
+      bodyText = `Reviewer requested changes on ${subject}. Please review the feedback and update the submission.`;
+    } else if (evtKey === 'REJECTED') {
+      heading = `SUBMISSION REJECTED — ${subject}`;
+      bodyText = `Submission ${submission.submission_code} for ${subject} was rejected.`;
+    } else if (!isApt) {
+      bodyText = 'A new property submission is awaiting Owner and Operations Manager review.';
+    }
+
+    const content = [
+      heading,
+      bodyText,
+      `Subject: ${subject}`,
+      `Submitted By: ${submittedByUser.name || 'Portal Manager'}`,
+      `Status: ${submission.status}`,
+      proposedRate != null ? `Proposed Rate: NGN ${Number(proposedRate).toLocaleString('en-NG')}/night` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    return this.publishSystemEventMessage({
+      threadId: groupThread.id,
+      actorUser: submittedByUser,
+      eventType: `SUBMISSION_${evtKey}`,
+      eventReferenceId,
+      content,
+      contextEntityType: isApt ? 'APARTMENT_SUBMISSION' : 'PROPERTY_SUBMISSION',
+      contextEntityId: Number(submission.id),
+      deepLinkUrl,
+      priority: 'HIGH',
+      metadata: {
+        heading,
+        submissionId: Number(submission.id),
+        submissionCode: submission.submission_code,
+        entityType: submission.entity_type,
+        propertyId: Number(submission.property_id),
+        propertyName,
+        apartmentId: submission.apartment_id ? Number(submission.apartment_id) : null,
+        apartmentName: apartmentName || null,
+        submittedByName: submittedByUser.name || 'Portal Manager',
+        submittedAt: submission.submitted_at || new Date().toISOString(),
+        approvalStatus: submission.status,
+        proposedRate: proposedRate != null ? Number(proposedRate) : null,
+        actionLabel: isApt ? 'VIEW APARTMENT DETAILS' : 'VIEW PROPERTY DETAILS',
+        deepLinkUrl,
+      },
+    });
+  }
+
+  /**
+   * Synchronize read receipt for a system event message and its corresponding notification
+   */
+  static async syncEventReadState(user, { eventReferenceId = null, submissionId = null, messageId = null } = {}) {
+    this.assertEligibleRole(user.role);
+
+    let messages = [];
+    if (messageId) {
+      messages = await pool.query('SELECT id, thread_id, context_entity_id FROM chat_messages WHERE id = ? LIMIT 1', [Number(messageId)]);
+    } else if (eventReferenceId) {
+      messages = await pool.query('SELECT id, thread_id, context_entity_id FROM chat_messages WHERE event_reference_id = ?', [String(eventReferenceId)]);
+    } else if (submissionId) {
+      messages = await pool.query(
+        "SELECT id, thread_id, context_entity_id FROM chat_messages WHERE context_entity_type IN ('APARTMENT_SUBMISSION', 'PROPERTY_SUBMISSION') AND context_entity_id = ?",
+        [Number(submissionId)]
+      );
+    }
+
+    const syncedMessages = [];
+    for (const m of messages) {
+      try {
+        const res = await this.markAsRead(user, m.thread_id, m.id);
+        syncedMessages.push(res);
+      } catch (_) {}
+    }
+
+    const targetSubId = submissionId || messages[0]?.context_entity_id || null;
+    if (targetSubId) {
+      await pool.query(
+        `UPDATE notifications
+         SET is_read = TRUE, read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+         WHERE recipient_id = ?
+           AND source_entity_type = 'property_submission'
+           AND source_entity_id = ?
+           AND is_read = FALSE`,
+        [user.id, String(targetSubId)]
+      ).catch(() => {});
+    }
+
+    return {
+      syncedCount: syncedMessages.length,
+      syncedMessages,
+      submissionId: targetSubId ? Number(targetSubId) : null,
+    };
+  }
+
+  /**
+   * Submit authorized reviewer feedback / change request in chat linked to an apartment/property submission
+   * (Never approves or publishes the submission!)
+   */
+  static async sendSubmissionFeedback(user, { submissionId, threadId = null, replyToMessageId = null, feedbackType = 'GENERAL_FEEDBACK', content }) {
+    this.assertEligibleRole(user.role);
+    const roleUpper = String(user.role || '').toUpperCase();
+    if (!['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(roleUpper)) {
+      throw new ForbiddenError('Only authorized management reviewers can submit submission feedback.');
+    }
+
+    const subId = parseInt(submissionId, 10);
+    if (!subId || isNaN(subId)) {
+      throw new BadRequestError('Valid submissionId is required.');
+    }
+    const cleanText = String(content || '').trim();
+    if (!cleanText) {
+      throw new BadRequestError('Feedback content is required.');
+    }
+
+    const validFeedbackTypes = ['GENERAL_FEEDBACK', 'REQUEST_CHANGES', 'APPROVAL_CLARIFICATION', 'REJECTION_EXPLANATION'];
+    const normFeedbackType = validFeedbackTypes.includes(String(feedbackType || '').toUpperCase())
+      ? String(feedbackType).toUpperCase()
+      : 'GENERAL_FEEDBACK';
+
+    const subRows = await pool.query(
+      `SELECT ps.*, p.name AS property_name, a.unit_name AS apartment_name
+       FROM property_submissions ps
+       JOIN properties p ON ps.property_id = p.id
+       LEFT JOIN apartments a ON ps.apartment_id = a.id
+       WHERE ps.id = ? LIMIT 1`,
+      [subId]
+    );
+    if (!subRows || subRows.length === 0) {
+      throw new NotFoundError(`Submission #${subId} does not exist.`);
+    }
+    const sub = subRows[0];
+
+    let targetThreadId = threadId ? parseInt(threadId, 10) : null;
+    if (!targetThreadId) {
+      const msgRows = await pool.query(
+        "SELECT id, thread_id FROM chat_messages WHERE context_entity_type IN ('APARTMENT_SUBMISSION', 'PROPERTY_SUBMISSION') AND context_entity_id = ? ORDER BY id DESC LIMIT 1",
+        [subId]
+      );
+      if (msgRows && msgRows[0]) {
+        targetThreadId = Number(msgRows[0].thread_id);
+        if (!replyToMessageId) replyToMessageId = Number(msgRows[0].id);
+      } else {
+        const group = await ChatRepository.findOrCreateManagementGroupThread(user, [Number(sub.submitted_by_id)]);
+        targetThreadId = Number(group.id);
+      }
+    }
+
+    const isApt = sub.entity_type === 'APARTMENT';
+    const deepLinkUrl = `/app/approvals?submission=${subId}`;
+    const saved = await ChatRepository.persistMessage({
+      threadId: targetThreadId,
+      senderId: user.id,
+      senderRole: user.role,
+      messageType: 'FEEDBACK',
+      content: cleanText,
+      priority: normFeedbackType === 'REQUEST_CHANGES' ? 'HIGH' : 'NORMAL',
+      contextEntityType: isApt ? 'APARTMENT_SUBMISSION' : 'PROPERTY_SUBMISSION',
+      contextEntityId: subId,
+      deepLinkUrl,
+      replyToMessageId,
+      feedbackType: normFeedbackType,
+      metadata: {
+        submissionId: subId,
+        submissionCode: sub.submission_code,
+        feedbackType: normFeedbackType,
+        propertyName: sub.property_name,
+        apartmentName: sub.apartment_name || null,
+        deepLinkUrl,
+      },
+    });
+
+    await pool.query(
+      `INSERT INTO property_review_comments (
+         submission_id, property_id, author_id, author_role, target_type, target_id, comment_type, content
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        subId,
+        sub.property_id,
+        user.id,
+        roleUpper,
+        sub.entity_type || 'PROPERTY',
+        sub.apartment_id || sub.property_id,
+        normFeedbackType === 'REQUEST_CHANGES' ? 'CORRECTION_REQUIRED' : 'APPROVAL_NOTE',
+        cleanText,
+      ]
+    ).catch(() => {});
+
+    const io = getIO();
+    if (io) {
+      io.to(`thread:${targetThreadId}`).emit('message:delivered', { threadId: targetThreadId, message: saved });
+      const parts = await ChatRepository.getThreadParticipants(targetThreadId);
+      for (const p of parts) {
+        if (Number(p.userId) !== Number(user.id)) {
+          io.to(`user:${p.userId}`).emit('message:new_incoming', { threadId: targetThreadId, message: saved });
+        }
+      }
+    }
+
+    if (sub.submitted_by_id && Number(sub.submitted_by_id) !== Number(user.id)) {
+      const NotificationsService = require('../notifications/notifications.service');
+      await NotificationsService.dispatchNotification({
+        recipientId: sub.submitted_by_id,
+        title: `CHAT FEEDBACK (${normFeedbackType.replace(/_/g, ' ')}): ${sub.submission_code}`,
+        message: `${user.name || roleUpper}: ${cleanText.slice(0, 180)}`,
+        category: 'APPROVAL',
+        priority: normFeedbackType === 'REQUEST_CHANGES' ? 'HIGH' : 'NORMAL',
+        sourceEntityType: 'property_submission',
+        sourceEntityId: String(subId),
+        linkUrl: deepLinkUrl,
+      }).catch(() => {});
+    }
+
+    return saved;
   }
 }
 

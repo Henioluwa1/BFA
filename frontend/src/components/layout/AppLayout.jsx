@@ -5,6 +5,7 @@ import Topbar from './Topbar';
 import ErrorBoundary from '../ui/ErrorBoundary';
 import GlobalBookingAlertModal from '../frontOffice/GlobalBookingAlertModal';
 import FloatingStaffChatModal from '../chat/FloatingStaffChatModal';
+import EmployeeWelcomeModal from '../portal/EmployeeWelcomeModal';
 import { useAuth } from '../../context/AuthContext';
 
 function ContentLoader() {
@@ -114,6 +115,8 @@ export default function AppLayout() {
       </div>
       {/* Floating Staff Team Chat: Available across all authorized staff roles */}
       <FloatingStaffChatModal />
+      {/* First-Login Employee Onboarding Welcome Popup */}
+      <EmployeeWelcomeModal />
     </div>
   );
 }

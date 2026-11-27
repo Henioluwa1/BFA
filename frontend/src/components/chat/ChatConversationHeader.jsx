@@ -8,6 +8,7 @@ import {
   Clock,
   Sparkles,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
 import { parseConversationTitle } from './chatMessageParser';
 
@@ -16,8 +17,10 @@ export default function ChatConversationHeader({
   currentUser,
   onlineUserIds = new Set(),
   canInitiateOperation = false,
+  canDeleteGroup = false,
   onOpenOperationModal,
   onOpenGroupDetailsModal,
+  onDeleteGroup,
   onBackToList,
 }) {
   if (!thread) {
@@ -264,6 +267,23 @@ export default function ChatConversationHeader({
           >
             <Users size={14} />
             <span>Members</span>
+          </button>
+        )}
+
+        {(isGroup || isPropertyChannel) && canDeleteGroup && onDeleteGroup && thread.title !== 'General Group' && (
+          <button
+            type="button"
+            className="chat-btn-header"
+            onClick={() => onDeleteGroup(thread)}
+            title="Delete this group conversation"
+            style={{
+              borderColor: 'rgba(239, 68, 68, 0.45)',
+              color: '#f87171',
+              background: 'rgba(239, 68, 68, 0.12)',
+            }}
+          >
+            <Trash2 size={14} />
+            <span>Delete</span>
           </button>
         )}
       </div>

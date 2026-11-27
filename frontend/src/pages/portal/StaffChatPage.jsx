@@ -55,6 +55,9 @@ export default function StaffChatPage() {
   const canInitiateOperation = Boolean(
     user && ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(user.role)
   );
+  const canCreateGroup = canInitiateOperation;
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState(null);
+  const [deletingGroup, setDeletingGroup] = useState(false);
 
   // Contacts for Modals
   const [contacts, setContacts] = useState([]);
@@ -256,12 +259,45 @@ export default function StaffChatPage() {
     };
 
     const handleReceiptUpdated = (data) => {
-      if (data?.threadId === activeThreadId) {
+      if (data?.threadId === activeThreadId && Number(data.userId) !== Number(user?.id)) {
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id <= data.lastReadMessageId ? { ...m, isRead: true } : m
-          )
+          prev.map((m) => {
+            if (m.id > data.lastReadMessageId) return m;
+            const existingReaders = Array.isArray(m.readers) ? m.readers : [];
+            const alreadyIn = existingReaders.some((r) => Number(r.userId) === Number(data.userId));
+            const nextReaders = alreadyIn
+              ? existingReaders
+              : [
+                  ...existingReaders,
+                  {
+                    userId: data.userId,
+                    name: data.readerName || 'Team Member',
+                    role: data.readerRole || 'STAFF',
+                    photoUrl: data.readerPhotoUrl || null,
+                    readAt: data.readAt || new Date().toISOString(),
+                  },
+                ];
+            return {
+              ...m,
+              isRead: true,
+              receiptStatus: 'READ',
+              readCount: Math.max(m.readCount || 0, nextReaders.length),
+              readers: nextReaders,
+            };
+          })
         );
+      }
+    };
+
+    const handleThreadDeleted = (data) => {
+      const delId = Number(data?.threadId);
+      if (!delId) return;
+      setThreads((prev) => prev.filter((t) => Number(t.id) !== delId));
+      if (Number(activeThreadId) === delId) {
+        setActiveThreadId(null);
+        setMessages([]);
+        setMobileView('LIST');
+        addToast(`Group "${data.title || 'Conversation'}" was deleted by ${data.deletedByName || 'an administrator'}.`, 'info');
       }
     };
 
@@ -271,6 +307,7 @@ export default function StaffChatPage() {
     socket.on('message:new_incoming', handleNewIncoming);
     socket.on('typing:status', handleTypingStatus);
     socket.on('message:receipt_updated', handleReceiptUpdated);
+    socket.on('thread:deleted', handleThreadDeleted);
 
     // Join active thread room
     if (activeThreadId) {
@@ -284,6 +321,7 @@ export default function StaffChatPage() {
       socket.off('message:new_incoming', handleNewIncoming);
       socket.off('typing:status', handleTypingStatus);
       socket.off('message:receipt_updated', handleReceiptUpdated);
+      socket.off('thread:deleted', handleThreadDeleted);
       if (activeThreadId) {
         socket.emit('thread:leave', { threadId: activeThreadId });
       }
@@ -575,6 +613,7 @@ export default function StaffChatPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         canInitiateOperation={canInitiateOperation}
+        canCreateGroup={canCreateGroup}
         onOpenOperationModal={() => setOperationModalOpen(true)}
         onOpenNewDirectModal={openNewDirectModal}
         onOpenNewGroupModal={openNewGroupModal}
@@ -593,8 +632,10 @@ export default function StaffChatPage() {
               currentUser={user}
               onlineUserIds={onlineUserIds}
               canInitiateOperation={canInitiateOperation}
+              canDeleteGroup={canCreateGroup}
               onOpenOperationModal={() => setOperationModalOpen(true)}
               onOpenGroupDetailsModal={openGroupDetailsModal}
+              onDeleteGroup={(th) => setDeleteGroupTarget(th)}
               onBackToList={() => setMobileView('LIST')}
             />
 
@@ -638,7 +679,9 @@ export default function StaffChatPage() {
                       key={msg.id || msg.clientTempId || idx}
                       message={msg}
                       currentUser={user}
+                      isGroupThread={['GROUP', 'PROPERTY_CHANNEL'].includes(activeThread?.threadType || activeThread?.thread_type)}
                       isPreviousSameSender={isSameSender}
+                      onFeedbackSent={() => loadMessages(activeThreadId)}
                       onViewOperation={(opId) => {
                         setViewingOperationId(opId || msg.context_entity_id);
                       }}
@@ -1071,6 +1114,78 @@ export default function StaffChatPage() {
           }
         }}
       />
+
+      {/* Delete Group Confirmation Modal */}
+      {deleteGroupTarget && (
+        <div
+          className="chat-modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(10, 12, 18, 0.72)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            className="chat-modal-card"
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              background: '#111827',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '14px',
+              padding: '20px',
+              color: '#f8fafc',
+            }}
+          >
+            <h3 style={{ margin: '0 0 8px', color: '#f87171' }}>Delete Group Conversation</h3>
+            <p style={{ margin: '0 0 16px', fontSize: '0.88rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+              Are you sure you want to delete <strong>{deleteGroupTarget.title}</strong>? Active members will no longer
+              see this group or be able to send messages to it. Audit history is preserved.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                className="chat-btn-header"
+                onClick={() => setDeleteGroupTarget(null)}
+                disabled={deletingGroup}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="chat-btn-action"
+                disabled={deletingGroup}
+                style={{ background: '#dc2626', borderColor: '#ef4444', color: '#fff' }}
+                onClick={async () => {
+                  setDeletingGroup(true);
+                  try {
+                    await chatService.deleteGroupThread(deleteGroupTarget.id);
+                    setThreads((prev) => prev.filter((t) => Number(t.id) !== Number(deleteGroupTarget.id)));
+                    if (Number(activeThreadId) === Number(deleteGroupTarget.id)) {
+                      setActiveThreadId(null);
+                      setMessages([]);
+                    }
+                    addToast(`Group "${deleteGroupTarget.title}" deleted.`, 'success');
+                    setDeleteGroupTarget(null);
+                  } catch (err) {
+                    addToast(err.response?.data?.error?.message || err.message || 'Failed to delete group.', 'error');
+                  } finally {
+                    setDeletingGroup(false);
+                  }
+                }}
+              >
+                {deletingGroup ? 'Deleting...' : 'Delete Group'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

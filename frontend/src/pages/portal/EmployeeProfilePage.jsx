@@ -223,10 +223,17 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
     if (!photoBase64 || !employee) return;
     setActionLoading(true);
     try {
-      await employeeService.uploadPhoto(employee.id, {
-        photoBase64,
-        mimeType: photoMime,
-      });
+      if (effectiveIsSelf) {
+        await employeeService.uploadMyPhoto({
+          photoBase64,
+          mimeType: photoMime,
+        });
+      } else {
+        await employeeService.uploadPhoto(employee.id, {
+          photoBase64,
+          mimeType: photoMime,
+        });
+      }
       addToast('Profile photograph updated successfully.', 'success');
       setIsPhotoModalOpen(false);
       setPhotoPreview(null);

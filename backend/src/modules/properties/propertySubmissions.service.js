@@ -1,6 +1,7 @@
 const pool = require('../../db/pool');
 const auditService = require('../../core/audit/audit.service');
 const NotificationsService = require('../notifications/notifications.service');
+const ChatService = require('../chat/chat.service');
 const { ValidationError, ForbiddenError, NotFoundError, ConflictError } = require('../../core/errors/apiError');
 
 class PropertySubmissionsService {
@@ -44,6 +45,26 @@ class PropertySubmissionsService {
       } catch (err) {
         console.warn(`Failed to dispatch approval notification to ${role}:`, err.message);
       }
+    }
+
+    // Publish idempotent system-generated notification to the Management Chat Group
+    try {
+      const snap = submission.content_snapshot || {};
+      const proposedRate = snap.entered_rate_per_night ?? snap.rate_per_night ?? null;
+      await ChatService.notifyManagementGroupOnSubmission({
+        submission,
+        propertyName,
+        apartmentName,
+        submittedByUser: {
+          id: submission.submitted_by_id,
+          name: submittedByName || 'Portal Manager',
+          role: 'OPERATIONS_MANAGER',
+        },
+        eventType: 'SUBMITTED',
+        proposedRate,
+      });
+    } catch (chatErr) {
+      console.warn('Failed to publish submission event to management chat:', chatErr.message);
     }
   }
 
@@ -519,6 +540,22 @@ class PropertySubmissionsService {
       } catch (err) {
         console.warn('Submitter notification warning:', err.message);
       }
+
+      // Also publish status change to management chat group
+      try {
+        const metaRows = await pool.query(
+          'SELECT p.name AS property_name, a.unit_name AS apartment_name FROM property_submissions ps JOIN properties p ON ps.property_id = p.id LEFT JOIN apartments a ON ps.apartment_id = a.id WHERE ps.id = ? LIMIT 1',
+          [id]
+        );
+        const meta = metaRows[0] || {};
+        await ChatService.notifyManagementGroupOnSubmission({
+          submission: { ...submission, status: finalStatus },
+          propertyName: meta.property_name || `Property #${submission.property_id}`,
+          apartmentName: meta.apartment_name || null,
+          submittedByUser: user,
+          eventType: finalStatus,
+        });
+      } catch (_) {}
     }
 
     await auditService.log({
@@ -539,6 +576,21 @@ class PropertySubmissionsService {
       requestId: req?.id,
       ipAddress: req?.ip,
     });
+
+    try {
+      const metaRows = await pool.query(
+        'SELECT p.name AS property_name, a.unit_name AS apartment_name FROM property_submissions ps JOIN properties p ON ps.property_id = p.id LEFT JOIN apartments a ON ps.apartment_id = a.id WHERE ps.id = ? LIMIT 1',
+        [id]
+      );
+      const meta = metaRows[0] || {};
+      await ChatService.notifyManagementGroupOnSubmission({
+        submission: { ...submission, status: 'PUBLISHED' },
+        propertyName: meta.property_name || `Property #${submission.property_id}`,
+        apartmentName: meta.apartment_name || null,
+        submittedByUser: user,
+        eventType: 'PUBLISHED',
+      });
+    } catch (_) {}
 
     return this.getSubmissionById(id, user);
   }
@@ -628,6 +680,21 @@ class PropertySubmissionsService {
       requestId: req?.id,
       ipAddress: req?.ip,
     });
+
+    try {
+      const metaRows = await pool.query(
+        'SELECT p.name AS property_name, a.unit_name AS apartment_name FROM property_submissions ps JOIN properties p ON ps.property_id = p.id LEFT JOIN apartments a ON ps.apartment_id = a.id WHERE ps.id = ? LIMIT 1',
+        [id]
+      );
+      const meta = metaRows[0] || {};
+      await ChatService.notifyManagementGroupOnSubmission({
+        submission: { ...submission, status: 'PUBLISHED' },
+        propertyName: meta.property_name || `Property #${submission.property_id}`,
+        apartmentName: meta.apartment_name || null,
+        submittedByUser: user,
+        eventType: 'PUBLISHED',
+      });
+    } catch (_) {}
 
     return this.getSubmissionById(id, user);
   }

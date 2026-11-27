@@ -1010,14 +1010,16 @@ export default function FloatingStaffChatModal() {
                   >
                     <Plus size={13} /> DM
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenGroupModal}
-                    className="chat-btn-glass"
-                    style={{ flex: 1, justifyContent: 'center' }}
-                  >
-                    <Users size={13} /> Group
-                  </button>
+                  {['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(String(user?.role || '').toUpperCase()) && (
+                    <button
+                      type="button"
+                      onClick={handleOpenGroupModal}
+                      className="chat-btn-glass"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    >
+                      <Users size={13} /> Group
+                    </button>
+                  )}
                 </div>
 
                 {/* Search Bar */}

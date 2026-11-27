@@ -26,7 +26,12 @@ router.get('/unread-count', ChatController.getUnreadCount);
 router.get('/threads', ChatController.getThreads);
 router.get('/threads/:id', ChatController.getThreadById);
 router.post('/threads/direct', ChatController.createDirectThread);
-router.post('/threads/group', ChatController.createGroupThread);
+router.post(
+  '/threads/group',
+  requireRoles('SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'),
+  ChatController.createGroupThread
+);
+router.delete('/threads/:id', ChatController.deleteGroupThread);
 
 // Property team channels (Admin / Manager)
 router.post(
@@ -47,6 +52,7 @@ router.delete('/threads/:id/participants/:userId', ChatController.removeParticip
 router.get('/threads/:id/history', ChatController.getThreadHistory);
 router.post('/threads/:id/messages', ChatController.sendMessage);
 router.post('/threads/:id/read', ChatController.markAsRead);
+router.get('/messages/:id/readers', ChatController.getMessageReaders);
 router.delete('/messages/:id', ChatController.deleteMessage);
 
 // 5. Secure authenticated attachment retrieval and download streaming
@@ -64,5 +70,13 @@ router.put('/retention', requireRoles('SUPER_ADMIN', 'ADMIN'), ChatController.up
 router.get('/important-pending', ChatController.getPendingImportantMessages);
 router.post('/messages/:id/acknowledge', ChatController.acknowledgeMessage);
 router.post('/circulars', requireRoles('SUPER_ADMIN', 'ADMIN', 'OWNER'), ChatController.broadcastOwnerCircular);
+
+// 9. System Event Read Sync & Submission Feedback in Chat
+router.post('/events/sync-read', ChatController.syncEventReadState);
+router.post(
+  '/submissions/:id/feedback',
+  requireRoles('SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'),
+  ChatController.sendSubmissionFeedback
+);
 
 module.exports = router;
