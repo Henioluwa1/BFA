@@ -4,7 +4,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { propertyService, propertyMediaService } from '../../services/api';
+import { propertyService, propertyMediaService, resolveMediaUrl } from '../../services/api';
 import { useProperty } from '../../context/PropertyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -14,6 +14,8 @@ import PropertyUploadWizard from '../../components/properties/PropertyUploadWiza
 import PropertyApprovalReviewModal from '../../components/properties/PropertyApprovalReviewModal';
 import AddUnitsToPropertyModal from '../../components/properties/AddUnitsToPropertyModal';
 import EditPropertyModal from '../../components/properties/EditPropertyModal';
+import PropertyDetailModal from '../../components/properties/PropertyDetailModal';
+import ApartmentMediaAndSpecsModal from '../../components/properties/ApartmentMediaAndSpecsModal';
 import { Building, Layers, Image as ImageIcon } from '../../components/ui/Icons';
 
 export default function PropertiesPage() {
@@ -24,11 +26,14 @@ export default function PropertiesPage() {
   const { addToast } = useToast();
 
   const canManageProperties = ['SUPER_ADMIN', 'ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER'].includes(user?.role);
+  const canArchiveProperties = ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(user?.role);
 
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const prevSearchParamRef = useRef(searchParams.get('search'));
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [approvalFilter, setApprovalFilter] = useState('ALL');
+  const [unitMediaSpecsTarget, setUnitMediaSpecsTarget] = useState(null);
 
   // Synchronize URL search parameter changes while component remains mounted
   useEffect(() => {
@@ -51,6 +56,15 @@ export default function PropertiesPage() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [reviewProperty, setReviewProperty] = useState(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
+  // Property Detail Modal
+  const [detailProperty, setDetailProperty] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // Archive Confirmation
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [archiveConfirmText, setArchiveConfirmText] = useState('');
+  const [isArchiving, setIsArchiving] = useState(false);
 
   // Property units quick view modal
   const [unitsModalProperty, setUnitsModalProperty] = useState(null);
@@ -103,9 +117,31 @@ export default function PropertiesPage() {
         prop.city?.toLowerCase().includes(search.toLowerCase());
 
       const matchesStatus = statusFilter === 'ALL' || prop.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesApproval =
+        approvalFilter === 'ALL' ||
+        (approvalFilter === 'PENDING' &&
+          ['PENDING_OWNER_APPROVAL', 'PENDING_OPERATIONS_APPROVAL', 'PENDING_APPROVAL'].includes(prop.approval_status)) ||
+        (approvalFilter === 'APPROVED' && ['APPROVED', 'PUBLISHED'].includes(prop.approval_status)) ||
+        (approvalFilter === 'PUBLISHED' && (prop.status === 'PUBLISHED' || prop.approval_status === 'PUBLISHED'));
+      return matchesSearch && matchesStatus && matchesApproval;
     });
-  }, [properties, search, statusFilter]);
+  }, [properties, search, statusFilter, approvalFilter]);
+
+  // Dashboard stats
+  const stats = useMemo(() => {
+    const total = properties.length;
+    const active = properties.filter((p) => p.status === 'ACTIVE').length;
+    const archived = properties.filter((p) => p.status === 'ARCHIVED' || p.is_archived).length;
+    const published = properties.filter((p) => p.status === 'PUBLISHED' || p.approval_status === 'PUBLISHED').length;
+    const pendingApproval = properties.filter((p) =>
+      ['PENDING_APPROVAL', 'PENDING_OWNER_APPROVAL', 'PENDING_OPERATIONS_APPROVAL'].includes(p.status) ||
+      ['PENDING_OWNER_APPROVAL', 'PENDING_OPERATIONS_APPROVAL'].includes(p.approval_status)
+    ).length;
+    const totalUnits = properties.reduce((sum, p) => sum + (Number(p.total_units) || Number(p.unit_count) || 0), 0);
+    const pendingUnits = properties.reduce((sum, p) => sum + (Number(p.pending_approval_units) || 0), 0);
+    const publishedUnits = properties.reduce((sum, p) => sum + (Number(p.published_units) || 0), 0);
+    return { total, active, archived, published, pendingApproval, totalUnits, pendingUnits, publishedUnits };
+  }, [properties]);
 
   // Handlers for Add Property
   const handleOpenAdd = () => {
@@ -263,6 +299,23 @@ export default function PropertiesPage() {
     navigate(`/app/apartments?propertyId=${propertyId}`);
   };
 
+  // Archive / Delete property handler
+  const handleArchiveProperty = async (mode = 'archive') => {
+    if (!archiveTarget) return;
+    setIsArchiving(true);
+    try {
+      const res = await propertyService.archive(archiveTarget.id, mode);
+      addToast(res?.message || `Property "${archiveTarget.name}" updated successfully.`, 'success');
+      setArchiveTarget(null);
+      setArchiveConfirmText('');
+      refreshProperties();
+    } catch (err) {
+      addToast(`Operation failed: ${err.message}`, 'error');
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
   // Quick Units inspection for property
   const handleOpenUnitsModal = async (prop) => {
     setUnitsModalProperty(prop);
@@ -327,6 +380,44 @@ export default function PropertiesPage() {
         </div>
       </div>
 
+      {/* 1b. Portfolio KPI Strip */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
+          gap: '0.75rem',
+          marginBottom: '1.25rem',
+        }}
+      >
+        {[
+          { label: 'Total Properties', value: stats.total, color: 'var(--text-primary)' },
+          { label: 'Active', value: stats.active, color: '#10b981' },
+          { label: 'Pending Approval', value: stats.pendingApproval, color: '#f59e0b' },
+          { label: 'Published', value: stats.published, color: '#38bdf8' },
+          { label: 'Archived', value: stats.archived, color: '#94a3b8' },
+          { label: 'Total Apartments', value: stats.totalUnits, color: 'var(--accent-gold, #d4af37)' },
+          { label: 'Pending Apts', value: stats.pendingUnits, color: '#f59e0b' },
+          { label: 'Published Apts', value: stats.publishedUnits, color: '#10b981' },
+        ].map((kpi) => (
+          <div
+            key={kpi.label}
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.75rem 0.9rem',
+            }}
+          >
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+              {kpi.label}
+            </div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: kpi.color, marginTop: '0.15rem' }}>
+              {kpi.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* 2. Filters & Search Toolbar */}
       <div
         style={{
@@ -352,18 +443,18 @@ export default function PropertiesPage() {
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>Status:</span>
-          {['ALL', 'ACTIVE', 'INACTIVE', 'MAINTENANCE'].map((status) => (
+        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>Status:</span>
+          {['ALL', 'ACTIVE', 'PUBLISHED', 'PENDING_APPROVAL', 'MAINTENANCE', 'INACTIVE', 'ARCHIVED'].map((status) => (
             <button
               key={status}
               type="button"
               onClick={() => setStatusFilter(status)}
               className={`filter-pill ${statusFilter === status ? 'active' : ''}`}
               style={{
-                padding: '0.35rem 0.75rem',
+                padding: '0.3rem 0.65rem',
                 borderRadius: '9999px',
-                fontSize: '0.8rem',
+                fontSize: '0.76rem',
                 fontWeight: 600,
                 border: statusFilter === status ? '1px solid var(--accent-gold)' : '1px solid var(--border-color)',
                 background: statusFilter === status ? 'rgba(212, 175, 55, 0.15)' : 'transparent',
@@ -371,7 +462,30 @@ export default function PropertiesPage() {
                 cursor: 'pointer',
               }}
             >
-              {status}
+              {status.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>Approval:</span>
+          {['ALL', 'PENDING', 'APPROVED', 'PUBLISHED'].map((ap) => (
+            <button
+              key={ap}
+              type="button"
+              onClick={() => setApprovalFilter(ap)}
+              style={{
+                padding: '0.3rem 0.65rem',
+                borderRadius: '9999px',
+                fontSize: '0.76rem',
+                fontWeight: 600,
+                border: approvalFilter === ap ? '1px solid #38bdf8' : '1px solid var(--border-color)',
+                background: approvalFilter === ap ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                color: approvalFilter === ap ? '#38bdf8' : 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              {ap}
             </button>
           ))}
         </div>
@@ -419,9 +533,10 @@ export default function PropertiesPage() {
           </div>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '1.5rem' }}>
           {filteredProperties.map((prop) => {
             const isCurrentlySelected = String(activePropertyId) === String(prop.id);
+            const coverPhotoUrl = resolveMediaUrl(prop.primary_photo_url || prop.main_photo);
             const amenitiesList = Array.isArray(prop.amenities)
               ? prop.amenities
               : typeof prop.amenities === 'string'
@@ -441,7 +556,30 @@ export default function PropertiesPage() {
                 >
                   {/* Top info */}
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                    {coverPhotoUrl && (
+                      <div
+                        onClick={() => {
+                          setDetailProperty(prop);
+                          setIsDetailModalOpen(true);
+                        }}
+                        style={{
+                          width: '100%',
+                          height: '150px',
+                          borderRadius: 'var(--radius-md)',
+                          overflow: 'hidden',
+                          marginBottom: '0.85rem',
+                          cursor: 'pointer',
+                          border: '1px solid var(--border-color)',
+                        }}
+                      >
+                        <img
+                          src={coverPhotoUrl}
+                          alt={prop.name}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        />
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                       <span
                         style={{
                           background: 'rgba(212, 175, 55, 0.15)',
@@ -455,7 +593,7 @@ export default function PropertiesPage() {
                       >
                         {prop.code}
                       </span>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
                         {isCurrentlySelected && (
                           <span
                             style={{
@@ -472,15 +610,28 @@ export default function PropertiesPage() {
                         )}
                         <Badge
                           status={
-                            prop.status === 'ACTIVE'
+                            prop.status === 'ACTIVE' || prop.status === 'PUBLISHED'
                               ? 'success'
-                              : prop.status === 'MAINTENANCE'
+                              : prop.status === 'MAINTENANCE' || prop.status === 'PENDING_APPROVAL'
                               ? 'warning'
                               : 'neutral'
                           }
                         >
                           {prop.status}
                         </Badge>
+                        {prop.approval_status && (
+                          <Badge
+                            status={
+                              ['APPROVED', 'PUBLISHED'].includes(prop.approval_status)
+                                ? 'success'
+                                : ['REJECTED', 'CHANGES_REQUESTED'].includes(prop.approval_status)
+                                ? 'danger'
+                                : 'warning'
+                            }
+                          >
+                            {prop.approval_status.replace(/_/g, ' ')}
+                          </Badge>
+                        )}
                       </div>
                     </div>
 
@@ -583,8 +734,19 @@ export default function PropertiesPage() {
                     <Button
                       size="sm"
                       variant="primary"
-                      onClick={() => handleViewApartments(prop.id)}
+                      onClick={() => {
+                        setDetailProperty(prop);
+                        setIsDetailModalOpen(true);
+                      }}
                       style={{ flex: '1 1 auto' }}
+                      title="Open complete property overview and manage its apartments"
+                    >
+                      View Details
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleViewApartments(prop.id)}
                       title="Filter and manage all apartments in this building"
                     >
                       Units
@@ -596,22 +758,6 @@ export default function PropertiesPage() {
                       title="Quick inspection of units inside this building"
                     >
                       Quick List
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(`/app/maintenance?propertyId=${prop.id}`)}
-                      title="View maintenance work orders for this property"
-                    >
-                      Maintenance
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(`/app/inspections?propertyId=${prop.id}`)}
-                      title="View unit inspections for this property"
-                    >
-                      Inspections
                     </Button>
                     <Button
                       size="sm"
@@ -655,6 +801,20 @@ export default function PropertiesPage() {
                           Edit
                         </Button>
                       </>
+                    )}
+                    {canArchiveProperties && prop.status !== 'ARCHIVED' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        style={{ borderColor: '#ef4444', color: '#ef4444' }}
+                        onClick={() => {
+                          setArchiveTarget(prop);
+                          setArchiveConfirmText('');
+                        }}
+                        title="Archive or safely delete this property"
+                      >
+                        Archive / Delete
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -854,6 +1014,127 @@ export default function PropertiesPage() {
           onSuccess={() => refreshProperties()}
         />
       )}
+
+      {/* Property Detail & Associated Apartments Modal */}
+      {isDetailModalOpen && detailProperty && (
+        <PropertyDetailModal
+          isOpen={isDetailModalOpen}
+          onClose={() => {
+            setIsDetailModalOpen(false);
+            setDetailProperty(null);
+          }}
+          property={detailProperty}
+          canManage={canManageProperties}
+          canArchive={canArchiveProperties}
+          onEditProperty={(p) => handleOpenEdit(p)}
+          onOpenGallery={(p) => handleOpenGalleryModal(p)}
+          onOpenReview={(p) => {
+            setReviewProperty(p);
+            setIsReviewModalOpen(true);
+          }}
+          onAddUnits={(p) => {
+            setPropertyForAddUnits(p);
+            setIsAddUnitsModalOpen(true);
+          }}
+          onArchiveProperty={(p) => {
+            setArchiveTarget(p);
+            setArchiveConfirmText('');
+          }}
+          onInspectUnit={(u) => navigate(`/app/apartments?unitId=${u.id}&propertyId=${u.property_id}`)}
+          onOpenUnitMediaSpecs={(u) => setUnitMediaSpecsTarget(u)}
+          onRefresh={refreshProperties}
+        />
+      )}
+
+      {/* Unit Media & Specs Modal (opened from Property Detail) */}
+      <ApartmentMediaAndSpecsModal
+        isOpen={Boolean(unitMediaSpecsTarget)}
+        onClose={() => setUnitMediaSpecsTarget(null)}
+        apartment={unitMediaSpecsTarget}
+        onUpdated={refreshProperties}
+      />
+
+      {/* Safe Property Archive / Delete Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(archiveTarget)}
+        onClose={() => {
+          if (!isArchiving) {
+            setArchiveTarget(null);
+            setArchiveConfirmText('');
+          }
+        }}
+        title={`Archive / Delete Property — ${archiveTarget?.name || ''}`}
+      >
+        {archiveTarget && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div
+              style={{
+                padding: '0.9rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: 'var(--text-primary)',
+                fontSize: '0.86rem',
+                lineHeight: 1.55,
+              }}
+            >
+              <strong>Consequences:</strong>
+              <ul style={{ margin: '0.4rem 0 0 1.15rem', padding: 0 }}>
+                <li>Archiving removes <strong>{archiveTarget.name}</strong> from public discovery and blocks all new public bookings.</li>
+                <li>All historical reservations, payments, and audit logs remain <strong>100% preserved</strong>.</li>
+                <li>Properties with active/upcoming reservations cannot be archived or deleted.</li>
+                <li>Permanent deletion is only permitted if the property has zero apartments, reservations, and submissions.</li>
+              </ul>
+            </div>
+
+            <div>
+              <label className="form-label">
+                Type <strong>{archiveTarget.code}</strong> to confirm:
+              </label>
+              <input
+                type="text"
+                className="input-field"
+                value={archiveConfirmText}
+                onChange={(e) => setArchiveConfirmText(e.target.value)}
+                placeholder={archiveTarget.code}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setArchiveTarget(null);
+                  setArchiveConfirmText('');
+                }}
+                disabled={isArchiving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                style={{ borderColor: '#f59e0b', color: '#f59e0b' }}
+                disabled={isArchiving || archiveConfirmText.trim().toUpperCase() !== String(archiveTarget.code || '').toUpperCase()}
+                onClick={() => handleArchiveProperty('archive')}
+              >
+                {isArchiving ? 'Processing...' : 'Archive Property'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                style={{ borderColor: '#ef4444', color: '#ef4444' }}
+                disabled={isArchiving || archiveConfirmText.trim().toUpperCase() !== String(archiveTarget.code || '').toUpperCase()}
+                onClick={() => handleArchiveProperty('delete')}
+              >
+                {isArchiving ? 'Processing...' : 'Delete Permanently (If Empty)'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

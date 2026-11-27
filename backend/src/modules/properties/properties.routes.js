@@ -36,5 +36,6 @@ router.post('/', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER',
 router.put('/:id', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.update);
 router.patch('/:id/status', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.updateStatus);
 router.post('/:id/submit-approval', requireRoles('ADMIN', 'OWNER', 'OPERATIONS_MANAGER', 'MANAGER', 'SUPER_ADMIN'), PropertiesController.submitForApproval);
+router.delete('/:id', requireRoles('ADMIN', 'OWNER', 'SUPER_ADMIN'), PropertiesController.archiveOrDelete);
 
 module.exports = router;

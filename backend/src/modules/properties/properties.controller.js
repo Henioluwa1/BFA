@@ -231,6 +231,24 @@ class PropertiesController {
       next(err);
     }
   }
+  static async archiveOrDelete(req, res, next) {
+    try {
+      const mode = req.query.mode === 'delete' ? 'delete' : 'archive';
+      const result = await PropertiesService.archiveOrDeleteProperty(
+        req.params.id,
+        req.user,
+        req,
+        { mode }
+      );
+      return ApiResponse.success(res, {
+        message: result.message,
+        data: result.data,
+        action: result.action,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = PropertiesController;

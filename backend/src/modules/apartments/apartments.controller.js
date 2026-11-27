@@ -263,6 +263,16 @@ class ApartmentsController {
       next(err);
     }
   }
+
+  static async archive(req, res, next) {
+    try {
+      const mode = req.query.mode === 'delete' ? 'delete' : 'archive';
+      const result = await ApartmentsService.archiveApartment(req.params.id, req.user, req, { mode });
+      return ApiResponse.success(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = ApartmentsController;

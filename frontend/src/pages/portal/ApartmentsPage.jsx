@@ -7,6 +7,7 @@ import Table from '../../components/ui/Table';
 import Modal from '../../components/ui/Modal';
 import { propertyService, apartmentService, reservationService, maintenanceService, inspectionService } from '../../services/api';
 import { useProperty } from '../../context/PropertyContext';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { formatNaira } from '../../utils/currency';
 import ApartmentReadinessModal from '../../components/portal/ApartmentReadinessModal';
@@ -16,7 +17,9 @@ export default function ApartmentsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { properties, activePropertyId, setActivePropertyId, refreshProperties } = useProperty();
+  const { user } = useAuth();
   const { addToast } = useToast();
+  const canArchiveUnit = ['SUPER_ADMIN', 'ADMIN', 'OWNER'].includes(user?.role);
 
   const [apartments, setApartments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -44,6 +47,25 @@ export default function ApartmentsPage() {
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
   const [mediaSpecsUnit, setMediaSpecsUnit] = useState(null);
+  const [archiveUnitTarget, setArchiveUnitTarget] = useState(null);
+  const [isArchivingUnit, setIsArchivingUnit] = useState(false);
+
+  const handleConfirmArchiveUnit = async (mode = 'archive') => {
+    if (!archiveUnitTarget) return;
+    setIsArchivingUnit(true);
+    try {
+      const res = await apartmentService.archive(archiveUnitTarget.id, mode);
+      addToast(res?.message || `Apartment #${archiveUnitTarget.unit_number} updated.`, 'success');
+      setArchiveUnitTarget(null);
+      setIsDetailModalOpen(false);
+      fetchApartments();
+      refreshProperties();
+    } catch (err) {
+      addToast(`Failed to ${mode} apartment: ${err.message}`, 'error');
+    } finally {
+      setIsArchivingUnit(false);
+    }
+  };
 
   // Form states
   const [propertyForm, setPropertyForm] = useState({
@@ -444,6 +466,16 @@ export default function ApartmentsPage() {
           <Button size="sm" variant="ghost" onClick={() => handleOpenEditUnit(row)}>
             Edit
           </Button>
+          {canArchiveUnit && row.status !== 'OUT_OF_SERVICE' && (
+            <Button
+              size="sm"
+              variant="outline"
+              style={{ borderColor: '#ef4444', color: '#ef4444' }}
+              onClick={() => setArchiveUnitTarget(row)}
+            >
+              Archive
+            </Button>
+          )}
         </div>
       ),
     },
@@ -1475,6 +1507,16 @@ export default function ApartmentsPage() {
                 >
                   Schedule Inspection
                 </Button>
+                {canArchiveUnit && selectedUnit.status !== 'OUT_OF_SERVICE' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    style={{ borderColor: '#ef4444', color: '#ef4444' }}
+                    onClick={() => setArchiveUnitTarget(selectedUnit)}
+                  >
+                    Archive / Delete Unit
+                  </Button>
+                )}
               </div>
 
               <Button variant="secondary" onClick={() => setIsDetailModalOpen(false)}>
@@ -1491,6 +1533,64 @@ export default function ApartmentsPage() {
         apartment={mediaSpecsUnit}
         onUpdated={fetchApartments}
       />
+
+      {/* Safe Archive / Delete Apartment Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(archiveUnitTarget)}
+        onClose={() => {
+          if (!isArchivingUnit) setArchiveUnitTarget(null);
+        }}
+        title={`Archive / Delete Apartment — #${archiveUnitTarget?.unit_number || ''} (${archiveUnitTarget?.unit_name || ''})`}
+      >
+        {archiveUnitTarget && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div
+              style={{
+                padding: '0.85rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                fontSize: '0.86rem',
+                lineHeight: 1.55,
+              }}
+            >
+              <div>
+                <strong>Parent Property:</strong> {archiveUnitTarget.property_name || `Property #${archiveUnitTarget.property_id}`}
+              </div>
+              <ul style={{ margin: '0.45rem 0 0 1.15rem', padding: 0 }}>
+                <li>Archiving removes this suite from public discovery and blocks all new bookings.</li>
+                <li>All historical reservations, payments, and check-in/out logs remain <strong>100% preserved</strong>.</li>
+                <li>Units with active or upcoming reservations cannot be archived or deleted.</li>
+                <li>Permanent deletion is only permitted if this apartment has zero historical reservations.</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <Button type="button" variant="ghost" onClick={() => setArchiveUnitTarget(null)} disabled={isArchivingUnit}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                style={{ borderColor: '#f59e0b', color: '#f59e0b' }}
+                disabled={isArchivingUnit}
+                onClick={() => handleConfirmArchiveUnit('archive')}
+              >
+                {isArchivingUnit ? 'Processing...' : 'Archive Unit'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                style={{ borderColor: '#ef4444', color: '#ef4444' }}
+                disabled={isArchivingUnit}
+                onClick={() => handleConfirmArchiveUnit('delete')}
+              >
+                {isArchivingUnit ? 'Processing...' : 'Delete Permanently (If Unused)'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

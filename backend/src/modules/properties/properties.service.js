@@ -255,6 +255,91 @@ class PropertiesService {
   }
 
   /**
+   * Archive or safely delete a property.
+   * - Blocks if active/upcoming reservations exist.
+   * - If zero dependent records (apartments, reservations, submissions) and mode === 'delete', physically deletes.
+   * - Otherwise archives (status = 'ARCHIVED', is_archived = true), preserving all history.
+   */
+  static async archiveOrDeleteProperty(id, user, req = null, { mode = 'archive' } = {}) {
+    const ARCHIVE_ROLES = ['ADMIN', 'OWNER', 'SUPER_ADMIN'];
+    if (!ARCHIVE_ROLES.includes((user?.role || '').toUpperCase())) {
+      throw new ForbiddenError('Only Admins and Owners may archive or delete properties.');
+    }
+
+    this.validatePropertyScope(user, id);
+    const property = await this.getPropertyById(id);
+
+    const activeCount = await PropertiesRepository.getActiveReservationsCount(id);
+    if (activeCount > 0) {
+      throw new ConflictError(
+        `Cannot archive or delete Property #${id} (${property.name}). There are ${activeCount} active or upcoming reservation(s) assigned to this property.`
+      );
+    }
+
+    const [aptRows, resRows, subRows] = await Promise.all([
+      pool.query('SELECT COUNT(*) AS cnt FROM apartments WHERE property_id = ?', [id]),
+      pool.query('SELECT COUNT(*) AS cnt FROM reservations WHERE property_id = ?', [id]),
+      pool.query('SELECT COUNT(*) AS cnt FROM property_submissions WHERE property_id = ?', [id]).catch(() => [{ cnt: 0 }]),
+    ]);
+
+    const aptCount = parseInt(aptRows[0]?.cnt || 0, 10);
+    const resCount = parseInt(resRows[0]?.cnt || 0, 10);
+    const subCount = parseInt(subRows[0]?.cnt || 0, 10);
+
+    if (mode === 'delete' && aptCount === 0 && resCount === 0 && subCount === 0) {
+      await pool.query("DELETE FROM media_assets WHERE entity_type = 'PROPERTY' AND entity_id = ?", [id]);
+      await pool.query('DELETE FROM property_amenities WHERE property_id = ?', [id]).catch(() => {});
+      await pool.query('DELETE FROM properties WHERE id = ?', [id]);
+
+      await AuditService.record({
+        req,
+        actorId: user?.id,
+        actorEmail: user?.email,
+        actorRole: user?.role,
+        action: 'PROPERTY_DELETED',
+        entityType: 'property',
+        entityId: String(id),
+        oldValues: { name: property.name, code: property.code },
+        newValues: null,
+      });
+
+      return {
+        action: 'DELETED',
+        message: `Property "${property.name}" had no dependent apartments or reservations and was permanently deleted.`,
+        data: null,
+      };
+    }
+
+    await PropertiesRepository.update(id, {
+      status: 'ARCHIVED',
+      is_archived: true,
+      updated_by: user?.id || null,
+    });
+    const updated = await PropertiesRepository.findById(id);
+
+    await AuditService.record({
+      req,
+      actorId: user?.id,
+      actorEmail: user?.email,
+      actorRole: user?.role,
+      action: 'PROPERTY_ARCHIVED',
+      entityType: 'property',
+      entityId: String(id),
+      oldValues: { status: property.status, is_archived: property.is_archived },
+      newValues: { status: 'ARCHIVED', is_archived: true },
+    });
+
+    return {
+      action: 'ARCHIVED',
+      message:
+        aptCount > 0 || resCount > 0
+          ? `Property "${property.name}" has dependent records (${aptCount} apartments, ${resCount} reservations) and was safely archived instead of deleted.`
+          : `Property "${property.name}" has been archived and removed from public availability.`,
+      data: updated,
+    };
+  }
+
+  /**
    * Get units for property
    */
   static async getPropertyApartments(propertyId, user = null) {

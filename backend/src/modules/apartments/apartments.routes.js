@@ -35,6 +35,7 @@ router.post('/', requireRoles(...MANAGER_ROLES), ApartmentsController.create);
 router.put('/:id', requireRoles(...MANAGER_ROLES), ApartmentsController.update);
 router.patch('/:id/status', requireRoles(...STAFF_ROLES), ApartmentsController.updateStatus);
 router.patch('/:id/readiness', requireRoles(...STAFF_ROLES), ApartmentsController.updateReadiness);
+router.delete('/:id', requireRoles('ADMIN', 'OWNER', 'SUPER_ADMIN'), ApartmentsController.archive);
 
 // Operational Blocked Periods
 router.get('/:id/blocked-periods', requireRoles(...STAFF_ROLES), ApartmentsController.getBlockedPeriods);

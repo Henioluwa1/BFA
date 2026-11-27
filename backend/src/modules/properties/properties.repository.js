@@ -7,11 +7,14 @@ class PropertiesRepository {
   static async findAll({ search, status, user } = {}) {
     let sql = `
       SELECT p.*,
+             (SELECT m.file_url FROM media_assets m WHERE m.entity_type = 'PROPERTY' AND m.entity_id = p.id ORDER BY m.is_primary DESC, m.display_order ASC, m.id ASC LIMIT 1) as primary_photo_url,
              COUNT(DISTINCT a.id) as total_units,
              COUNT(DISTINCT a.id) as unit_count,
              COUNT(DISTINCT CASE WHEN a.status = 'AVAILABLE' AND a.is_active = TRUE THEN a.id END) as available_units,
              COUNT(DISTINCT CASE WHEN a.status = 'OCCUPIED' THEN a.id END) as occupied_units,
              COUNT(DISTINCT CASE WHEN a.status IN ('MAINTENANCE', 'DIRTY', 'OUT_OF_SERVICE', 'BLOCKED') THEN a.id END) as maintenance_units,
+             COUNT(DISTINCT CASE WHEN a.approval_status IN ('PENDING_OWNER_APPROVAL', 'PENDING_OPERATIONS_APPROVAL', 'PENDING_APPROVAL') THEN a.id END) as pending_approval_units,
+             COUNT(DISTINCT CASE WHEN a.approval_status IN ('APPROVED', 'PUBLISHED') AND a.is_active = TRUE THEN a.id END) as published_units,
              COUNT(DISTINCT CASE WHEN r.status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING', 'PENDING_REVIEW', 'CLAIMED', 'AWAITING_ASSIGNMENT') AND r.check_in_date >= CURRENT_DATE THEN r.id END) as active_reservations
       FROM properties p
       LEFT JOIN apartments a ON a.property_id = p.id
@@ -47,11 +50,14 @@ class PropertiesRepository {
   static async findById(id) {
     const sql = `
       SELECT p.*,
+             (SELECT m.file_url FROM media_assets m WHERE m.entity_type = 'PROPERTY' AND m.entity_id = p.id ORDER BY m.is_primary DESC, m.display_order ASC, m.id ASC LIMIT 1) as primary_photo_url,
              COUNT(DISTINCT a.id) as total_units,
              COUNT(DISTINCT a.id) as unit_count,
              COUNT(DISTINCT CASE WHEN a.status = 'AVAILABLE' AND a.is_active = TRUE THEN a.id END) as available_units,
              COUNT(DISTINCT CASE WHEN a.status = 'OCCUPIED' THEN a.id END) as occupied_units,
              COUNT(DISTINCT CASE WHEN a.status IN ('MAINTENANCE', 'DIRTY', 'OUT_OF_SERVICE', 'BLOCKED') THEN a.id END) as maintenance_units,
+             COUNT(DISTINCT CASE WHEN a.approval_status IN ('PENDING_OWNER_APPROVAL', 'PENDING_OPERATIONS_APPROVAL', 'PENDING_APPROVAL') THEN a.id END) as pending_approval_units,
+             COUNT(DISTINCT CASE WHEN a.approval_status IN ('APPROVED', 'PUBLISHED') AND a.is_active = TRUE THEN a.id END) as published_units,
              COUNT(DISTINCT CASE WHEN r.status IN ('CONFIRMED', 'CHECKED_IN', 'PENDING', 'PENDING_REVIEW', 'CLAIMED', 'AWAITING_ASSIGNMENT') AND r.check_in_date >= CURRENT_DATE THEN r.id END) as active_reservations
       FROM properties p
       LEFT JOIN apartments a ON a.property_id = p.id

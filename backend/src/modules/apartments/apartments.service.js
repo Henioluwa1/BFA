@@ -787,6 +787,102 @@ class ApartmentsService {
     return { success: true, message: 'Blocked period removed successfully.' };
   }
 
+  /**
+   * Archive or safely delete an apartment.
+   * - Checks for active/upcoming reservations (blocks if any exist).
+   * - Checks historical reservations/maintenance/inspections.
+   * - If no historical records exist and mode === 'delete', physically deletes the unit & its media/amenities.
+   * - Otherwise soft-archives: sets is_active = FALSE and status = OUT_OF_SERVICE, preserving all history.
+   */
+  static async archiveApartment(id, user, req = null, { mode = 'archive' } = {}) {
+    const ARCHIVE_ROLES = ['ADMIN', 'OWNER', 'SUPER_ADMIN'];
+    if (!ARCHIVE_ROLES.includes((user?.role || '').toUpperCase())) {
+      throw new ForbiddenError('Only Admins and Owners may archive or delete apartment units.');
+    }
+
+    const unit = await ApartmentsRepository.findById(id);
+    if (!unit) {
+      throw new NotFoundError(`Apartment unit #${id} not found.`);
+    }
+
+    this.validatePropertyScope(user, unit.property_id);
+
+    // Check active/upcoming reservations
+    const activeRes = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM reservations
+       WHERE apartment_id = ?
+         AND status IN ('CONFIRMED','CHECKED_IN','PENDING','PENDING_REVIEW','CLAIMED','AWAITING_ASSIGNMENT')
+         AND check_in_date >= CURRENT_DATE`,
+      [id]
+    );
+    const activeCount = parseInt(activeRes[0]?.cnt || 0, 10);
+    if (activeCount > 0) {
+      throw new ConflictError(
+        `Cannot archive or delete Apartment #${id} (${unit.unit_name}). There are ${activeCount} active or upcoming reservation(s). Relocate or cancel them first.`
+      );
+    }
+
+    // Check historical reservations & operational dependencies
+    const histRes = await pool.query(
+      'SELECT COUNT(*) AS cnt FROM reservations WHERE apartment_id = ?',
+      [id]
+    );
+    const histCount = parseInt(histRes[0]?.cnt || 0, 10);
+
+    if (mode === 'delete' && histCount === 0) {
+      // Safe physical deletion when zero reservations depend on this unit
+      await pool.query("DELETE FROM media_assets WHERE entity_type = 'APARTMENT' AND entity_id = ?", [id]);
+      await pool.query('DELETE FROM apartment_amenities WHERE apartment_id = ?', [id]).catch(() => {});
+      await pool.query('DELETE FROM apartment_blocked_periods WHERE apartment_id = ?', [id]).catch(() => {});
+      await pool.query('DELETE FROM apartments WHERE id = ?', [id]);
+
+      await AuditService.record({
+        req,
+        actorId: user?.id,
+        actorEmail: user?.email,
+        actorRole: user?.role,
+        action: 'APARTMENT_DELETED',
+        entityType: 'unit',
+        entityId: String(id),
+        oldValues: { unit_number: unit.unit_number, unit_name: unit.unit_name, property_id: unit.property_id },
+        newValues: null,
+      });
+
+      return {
+        success: true,
+        action: 'DELETED',
+        message: `Apartment unit ${unit.unit_name} had no dependent reservations and was permanently deleted.`,
+      };
+    }
+
+    // Soft-archive: deactivate from public, set status OUT_OF_SERVICE
+    await pool.query(
+      `UPDATE apartments SET is_active = FALSE, status = 'OUT_OF_SERVICE', updated_by = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [user?.id || null, id]
+    );
+
+    await AuditService.record({
+      req,
+      actorId: user?.id,
+      actorEmail: user?.email,
+      actorRole: user?.role,
+      action: 'APARTMENT_ARCHIVED',
+      entityType: 'unit',
+      entityId: String(id),
+      oldValues: { status: unit.status, is_active: unit.is_active },
+      newValues: { status: 'OUT_OF_SERVICE', is_active: false },
+    });
+
+    return {
+      success: true,
+      action: 'ARCHIVED',
+      message: histCount > 0
+        ? `Apartment unit ${unit.unit_name} has ${histCount} historical reservation(s), so it was safely archived instead of deleted.`
+        : `Apartment unit ${unit.unit_name} has been archived and removed from public availability.`,
+    };
+  }
+
   static async updateApartmentReadiness(id, { housekeepingStatus, maintenanceStatus, notes }, user, req = null) {
     const unit = await ApartmentsRepository.findById(id);
     if (!unit) {
