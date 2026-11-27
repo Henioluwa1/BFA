@@ -235,8 +235,10 @@ function translateSql(sql, targetEngine = null) {
 
   // --- Post-Lexing PostgreSQL Syntax Normalizations ---
 
-  // 1. Function normalizations: CURRENT_DATE() -> CURRENT_DATE
+  // 1. Function normalizations: CURRENT_DATE() / CURDATE() -> CURRENT_DATE, LOCK IN SHARE MODE -> FOR SHARE
   out = out.replace(/\bCURRENT_DATE\s*\(\s*\)/gi, 'CURRENT_DATE');
+  out = out.replace(/\bCURDATE\s*\(\s*\)/gi, 'CURRENT_DATE');
+  out = out.replace(/\bLOCK\s+IN\s+SHARE\s+MODE\b/gi, 'FOR SHARE');
 
   // 2. Double-quoted enum/status literals mistakenly used in SQL
   // e.g., SET status = "DIRTY" -> SET status = 'DIRTY'

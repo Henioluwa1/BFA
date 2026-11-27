@@ -545,57 +545,6 @@ class ApartmentsService {
   }
 
   /**
-   * Update decoupled unit readiness status (housekeeping and maintenance)
-   * Independent of occupancy status
-   */
-  static async updateApartmentReadiness(id, { housekeepingStatus, maintenanceStatus, notes }, user, req = null) {
-    const unit = await ApartmentsRepository.findById(id);
-    if (!unit) {
-      throw new NotFoundError(`Apartment unit #${id} not found.`);
-    }
-
-    this.validatePropertyScope(user, unit.property_id);
-
-    const validHousekeeping = ['DIRTY', 'CLEANING_IN_PROGRESS', 'CLEANED', 'INSPECTED_READY'];
-    const validMaintenance = ['OPERATIONAL', 'INSPECTION_REQUIRED', 'UNDER_REPAIR', 'OUT_OF_ORDER'];
-
-    if (housekeepingStatus && !validHousekeeping.includes(String(housekeepingStatus).toUpperCase())) {
-      throw new ValidationError(`Invalid housekeeping status '${housekeepingStatus}'. Must be one of: ${validHousekeeping.join(', ')}`);
-    }
-
-    if (maintenanceStatus && !validMaintenance.includes(String(maintenanceStatus).toUpperCase())) {
-      throw new ValidationError(`Invalid maintenance status '${maintenanceStatus}'. Must be one of: ${validMaintenance.join(', ')}`);
-    }
-
-    const normHk = housekeepingStatus ? String(housekeepingStatus).toUpperCase() : null;
-    const normMaint = maintenanceStatus ? String(maintenanceStatus).toUpperCase() : null;
-
-    await ApartmentsRepository.updateReadiness(id, { housekeepingStatus: normHk, maintenanceStatus: normMaint }, user?.id || null);
-    const updated = await ApartmentsRepository.findById(id);
-
-    await AuditService.record({
-      req,
-      actorId: user?.id,
-      actorEmail: user?.email,
-      actorRole: user?.role,
-      action: 'APARTMENT_READINESS_UPDATED',
-      entityType: 'unit',
-      entityId: String(id),
-      oldValues: {
-        housekeeping_status: unit.housekeeping_status,
-        maintenance_status: unit.maintenance_status,
-      },
-      newValues: {
-        housekeeping_status: updated.housekeeping_status,
-        maintenance_status: updated.maintenance_status,
-        notes: notes || null,
-      },
-    });
-
-    return updated;
-  }
-
-  /**
    * Update operational status of apartment unit
    */
   static async updateApartmentStatus(id, status, user, req = null) {

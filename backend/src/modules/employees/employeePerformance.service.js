@@ -83,7 +83,7 @@ class EmployeePerformanceService {
          WHERE assigned_staff_id = ? AND DATE(accepted_at) >= ? AND DATE(accepted_at) <= ?`,
         [employee.user_id, fromStr, toStr]
       );
-      clientsAccepted = Math.max(clientsAccepted, parseInt(acceptedRows[0]?.count || 0, 10));
+      clientsAccepted = Math.max(clientsAccepted, parseInt(acceptedRows?.count || 0, 10));
     }
 
     // Direct activities categorized
@@ -96,7 +96,7 @@ class EmployeePerformanceService {
     );
     actRows.forEach((r) => {
       if (r.activity_type === 'GUEST_CHECKED_IN') frontOfficeCheckIns += parseInt(r.count, 10);
-      if (r.activity_type === 'CLIENT_ACCEPTED') clientsAccepted += parseInt(r.count, 10);
+      if (r.activity_type === 'CLIENT_ACCEPTED' || r.activity_type === 'CLIENT_CLAIMED') clientsAccepted += parseInt(r.count, 10);
       if (r.activity_type === 'MAINTENANCE_RESOLVED' && maintenanceResolved === 0) maintenanceResolved += parseInt(r.count, 10);
       if (r.activity_type === 'INSPECTION_COMPLETED' && inspectionsCompleted === 0) inspectionsCompleted += parseInt(r.count, 10);
       if (r.activity_type === 'RESERVATION_CREATED' && reservationsCreated === 0) reservationsCreated += parseInt(r.count, 10);

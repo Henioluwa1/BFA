@@ -1019,7 +1019,7 @@ class ReservationsService {
            WHERE apartment_id = ? 
              AND status NOT IN ('RESOLVED', 'CANCELLED') 
              AND (blocking_unit = 1 OR priority = 'CRITICAL') 
-           LIMIT 1 LOCK IN SHARE MODE`,
+           LIMIT 1 FOR SHARE`,
           [apt.id]
         );
         if (blockingMaint && blockingMaint.length > 0) {
@@ -1038,9 +1038,9 @@ class ReservationsService {
              AND status = 'CHECKED_IN' 
              AND (
                (check_in_date < ? AND check_out_date > ?)
-               OR (check_in_date <= CURDATE() AND check_out_date > CURDATE())
+               OR (check_in_date <= CURRENT_DATE AND check_out_date > CURRENT_DATE)
              )
-           LIMIT 1 LOCK IN SHARE MODE`,
+           LIMIT 1 FOR SHARE`,
           [apt.id, id, reservation.check_out_date, reservation.check_in_date]
         );
         if (overlappingStays && overlappingStays.length > 0) {
@@ -1515,6 +1515,11 @@ class ReservationsService {
       const reservation = resRows[0];
 
       this.validatePropertyScope(callerUser || req?.user, reservation.property_id);
+
+      // Reject terminal / non-claimable booking statuses
+      if (['CANCELLED', 'DECLINED', 'NO_SHOW', 'COMPLETED', 'CHECKED_OUT', 'CHECKED_IN'].includes(reservation.status)) {
+        throw new ConflictError(`Cannot claim reservation #${id}: Current status is '${reservation.status}'.`);
+      }
 
       // Strict Concurrency Lock: Check if already claimed by someone else
       if (reservation.assigned_staff_id && reservation.assigned_staff_id !== userId) {
