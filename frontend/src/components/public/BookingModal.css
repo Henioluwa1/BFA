@@ -1110,3 +1110,181 @@
   }
 }
 
+
+/* ==========================================================================
+   APARTMENT SELECT DROPDOWN + SELECTED UNIT PREVIEW PANEL
+   ========================================================================== */
+
+/* Dropdown wrapper — positions the chevron icon */
+.bfa-apt-select-dropdown-wrap {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.bfa-apt-select-dropdown {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.72rem 2.4rem 0.72rem 0.95rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  box-sizing: border-box;
+  line-height: 1.4;
+}
+
+.bfa-apt-select-dropdown:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.bfa-apt-dropdown-chevron {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #64748b;
+}
+
+/* Selected apartment preview panel */
+.bfa-apt-selected-panel {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+/* Gallery */
+.bfa-apt-panel-gallery {
+  position: relative;
+  background: #0f172a;
+  overflow: hidden;
+}
+
+.bfa-apt-panel-gallery-main {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  display: block;
+  transition: opacity 0.2s;
+}
+
+.bfa-apt-panel-gallery-thumbs {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+
+.bfa-apt-panel-gallery-thumbs::-webkit-scrollbar {
+  height: 4px;
+}
+.bfa-apt-panel-gallery-thumbs::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.3);
+  border-radius: 4px;
+}
+
+.bfa-apt-panel-thumb-btn {
+  flex-shrink: 0;
+  width: 52px;
+  height: 38px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background: none;
+  opacity: 0.6;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.bfa-apt-panel-thumb-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.bfa-apt-panel-thumb-btn.active,
+.bfa-apt-panel-thumb-btn:hover {
+  opacity: 1;
+  border-color: #10b981;
+}
+
+/* Info section below gallery */
+.bfa-apt-panel-info {
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.bfa-apt-panel-info-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.1rem;
+}
+
+.bfa-apt-panel-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.bfa-apt-panel-sub {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.bfa-apt-panel-price {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.bfa-apt-panel-price span:first-child {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bfa-apt-panel-price-label {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.bfa-apt-panel-desc {
+  margin: 0.4rem 0 0;
+  font-size: 0.84rem;
+  color: #334155;
+  line-height: 1.55;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .bfa-apt-panel-gallery-main {
+    height: 180px;
+  }
+
+  .bfa-apt-select-dropdown {
+    font-size: 0.82rem;
+    padding: 0.65rem 2.2rem 0.65rem 0.8rem;
+  }
+}

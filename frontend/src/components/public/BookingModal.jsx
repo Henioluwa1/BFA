@@ -79,6 +79,7 @@ export default function BookingModal({
   const [propertyExpanded, setPropertyExpanded] = useState(false);
   const [detailUnit, setDetailUnit] = useState(null);
   const [activeGalleryUrl, setActiveGalleryUrl] = useState('');
+  const [activeGalleryIdx, setActiveGalleryIdx] = useState(0);
 
   // Live Pricing & Availability
   const [quoteData, setQuoteData] = useState(null);
@@ -143,6 +144,7 @@ export default function BookingModal({
         const firstAvail = unitsList.find((u) => u.status === 'AVAILABLE') || unitsList[0];
         return firstAvail ? firstAvail.id : null;
       });
+      setActiveGalleryIdx(0);
     } catch (err) {
       setCatalogueError(
         err?.response?.data?.error?.message ||
@@ -797,74 +799,123 @@ export default function BookingModal({
                     No publicly bookable apartments are currently available at this property.
                   </div>
                 ) : (
-                  <div className="bfa-apt-selector-grid">
-                    {propertyUnits.map((apt) => {
-                      const isSelected = Number(selectedUnit?.id) === Number(apt.id);
-                      const aptThumb = resolveMediaUrl(apt.main_photo || apt.photos?.[0]?.file_url || propPhoto);
-                      const aptAmenities = normalizeAmenitiesList(apt);
-                      const aptAvailable = apt.status === 'AVAILABLE';
+                  <>
+                    {/* SELECT DROPDOWN */}
+                    <div className="bfa-apt-select-dropdown-wrap">
+                      <select
+                        className="bfa-apt-select-dropdown"
+                        value={selectedUnitId ?? ''}
+                        onChange={(e) => {
+                          setSelectedUnitId(Number(e.target.value));
+                          setActiveGalleryIdx(0);
+                        }}
+                        aria-label="Choose an apartment"
+                      >
+                        {propertyUnits.map((apt) => (
+                          <option key={apt.id} value={apt.id}>
+                            {apt.unit_name} (#{apt.unit_number}) — {apt.unit_type || 'Suite'} •{' '}
+                            {formatNaira(apt.rate_per_night)}/night •{' '}
+                            {apt.status === 'AVAILABLE' ? '✓ Available' : apt.status}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={16} className="bfa-apt-dropdown-chevron" />
+                    </div>
+
+                    {/* SELECTED APARTMENT PREVIEW PANEL */}
+                    {selectedUnit && (() => {
+                      const gallery = [
+                        resolveMediaUrl(selectedUnit.main_photo || selectedUnit.primary_photo_url),
+                        ...(selectedUnit.photos || []).map((p) => resolveMediaUrl(p.file_url)),
+                        ...(selectedUnit.internal_spaces || []).flatMap((sp) =>
+                          (sp.photos || []).map((p) => resolveMediaUrl(p.file_url))
+                        ),
+                      ].filter(Boolean);
+                      const uniqueGallery = Array.from(new Set(gallery));
+                      const safeIdx = Math.min(activeGalleryIdx, uniqueGallery.length - 1);
+                      const aptAmenities = normalizeAmenitiesList(selectedUnit);
+                      const aptAvailable = selectedUnit.status === 'AVAILABLE';
 
                       return (
-                        <div
-                          key={apt.id}
-                          className={`bfa-apt-select-card ${isSelected ? 'selected' : ''} ${!aptAvailable ? 'unavailable' : ''}`}
-                        >
-                          <div className="bfa-apt-select-top">
-                            {aptThumb && <img src={aptThumb} alt={apt.unit_name} className="bfa-apt-select-thumb" />}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div className="bfa-apt-select-title-row">
-                                <strong className="bfa-apt-select-name">{apt.unit_name}</strong>
-                                <span className={`bfa-apt-status-pill ${aptAvailable ? 'avail' : 'busy'}`}>
-                                  {aptAvailable ? 'Available' : apt.status}
-                                </span>
-                              </div>
-                              <div className="bfa-apt-select-sub">
-                                Unit #{apt.unit_number} • {apt.unit_type || 'Suite'}
-                              </div>
-                              <div className="bfa-apt-select-price">
-                                {formatNaira(apt.rate_per_night)} <span>/ night</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="bfa-apt-select-specs">
-                            <span><Bed size={12} /> {apt.bedroom_count || 1} Bed</span>
-                            <span><Bath size={12} /> {apt.bathroom_count || 1} Bath</span>
-                            <span><Users size={12} /> {apt.capacity || 2} Guests</span>
-                          </div>
-
-                          {apt.description && (
-                            <p className="bfa-apt-select-desc">{apt.description}</p>
-                          )}
-
-                          {aptAmenities.length > 0 && (
-                            <div className="bfa-modal-amenity-chips" style={{ marginBottom: '0.55rem' }}>
-                              {aptAmenities.slice(0, 3).map((a) => (
-                                <span key={a} className="bfa-modal-amenity-chip">{a}</span>
-                              ))}
+                        <div className="bfa-apt-selected-panel">
+                          {/* Gallery */}
+                          {uniqueGallery.length > 0 && (
+                            <div className="bfa-apt-panel-gallery">
+                              <img
+                                src={uniqueGallery[safeIdx]}
+                                alt={`${selectedUnit.unit_name} — view ${safeIdx + 1}`}
+                                className="bfa-apt-panel-gallery-main"
+                              />
+                              {uniqueGallery.length > 1 && (
+                                <div className="bfa-apt-panel-gallery-thumbs">
+                                  {uniqueGallery.map((url, i) => (
+                                    <button
+                                      key={url + i}
+                                      type="button"
+                                      className={`bfa-apt-panel-thumb-btn${i === safeIdx ? ' active' : ''}`}
+                                      onClick={() => setActiveGalleryIdx(i)}
+                                      aria-label={`View image ${i + 1}`}
+                                    >
+                                      <img src={url} alt={`${selectedUnit.unit_name} thumb ${i + 1}`} />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
 
-                          <div className="bfa-apt-select-actions">
-                            <button
-                              type="button"
-                              className={`bfa-apt-choose-btn ${isSelected ? 'active' : ''}`}
-                              onClick={() => setSelectedUnitId(apt.id)}
-                            >
-                              {isSelected ? <><Check size={13} /> Selected</> : 'Select Suite'}
-                            </button>
+                          {/* Info row */}
+                          <div className="bfa-apt-panel-info">
+                            <div className="bfa-apt-panel-info-top">
+                              <div>
+                                <div className="bfa-apt-panel-name">
+                                  {selectedUnit.unit_name}
+                                  <span className={`bfa-apt-status-pill ${aptAvailable ? 'avail' : 'busy'}`}>
+                                    {aptAvailable ? 'Available' : selectedUnit.status}
+                                  </span>
+                                </div>
+                                <div className="bfa-apt-panel-sub">
+                                  Unit #{selectedUnit.unit_number} • {selectedUnit.unit_type || 'Suite'}
+                                  {selectedUnit.floor ? ` • ${selectedUnit.floor}` : ''}
+                                </div>
+                              </div>
+                              <div className="bfa-apt-panel-price">
+                                <span>{formatNaira(selectedUnit.rate_per_night)}</span>
+                                <span className="bfa-apt-panel-price-label">/ night</span>
+                              </div>
+                            </div>
+
+                            <div className="bfa-apt-select-specs" style={{ margin: '0.5rem 0' }}>
+                              <span><Bed size={12} /> {selectedUnit.bedroom_count || 1} Bed</span>
+                              <span><Bath size={12} /> {selectedUnit.bathroom_count || 1} Bath</span>
+                              <span><Users size={12} /> {selectedUnit.capacity || 2} Guests</span>
+                            </div>
+
+                            {selectedUnit.description && (
+                              <p className="bfa-apt-panel-desc">{selectedUnit.description}</p>
+                            )}
+
+                            {aptAmenities.length > 0 && (
+                              <div className="bfa-modal-amenity-chips" style={{ marginTop: '0.4rem' }}>
+                                {aptAmenities.map((a) => (
+                                  <span key={a} className="bfa-modal-amenity-chip">{a}</span>
+                                ))}
+                              </div>
+                            )}
+
                             <button
                               type="button"
                               className="bfa-apt-details-btn"
-                              onClick={() => handleOpenApartmentDetail(apt)}
+                              style={{ marginTop: '0.65rem', alignSelf: 'flex-start' }}
+                              onClick={() => handleOpenApartmentDetail(selectedUnit)}
                             >
-                              <Eye size={13} /> View Details
+                              <Eye size={13} /> Full Details &amp; More Photos
                             </button>
                           </div>
                         </div>
                       );
-                    })}
-                  </div>
+                    })()}
+                  </>
                 )}
               </div>
 
