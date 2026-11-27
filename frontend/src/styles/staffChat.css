@@ -32,6 +32,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-bottom: 0.85rem;
 }
 
@@ -45,7 +47,8 @@
 
 .chat-action-buttons {
   display: flex;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .chat-btn-action {
@@ -283,6 +286,9 @@
 /* --- Main Active Chat Pane --- */
 .chat-main-pane {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   background: rgba(10, 10, 14, 0.95);
@@ -295,6 +301,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   background: rgba(12, 12, 16, 0.95);
 }
 
@@ -323,7 +331,8 @@
 .chat-header-actions {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  flex-wrap: wrap;
+  gap: 0.45rem;
 }
 
 .chat-btn-header {

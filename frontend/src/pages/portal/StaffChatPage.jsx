@@ -132,17 +132,24 @@ export default function StaffChatPage() {
     }
   }, []);
 
-  // Update activeThread details when activeThreadId changes
+  // Update activeThread details when activeThreadId or threads change
   useEffect(() => {
     if (!activeThreadId) {
       setActiveThread(null);
-      setMessages([]);
       return;
     }
     const th = threads.find((t) => t.id === activeThreadId);
     setActiveThread(th || null);
+  }, [activeThreadId, threads]);
+
+  // Load messages ONLY when activeThreadId changes (prevents re-fetching when unreadCount updates)
+  useEffect(() => {
+    if (!activeThreadId) {
+      setMessages([]);
+      return;
+    }
     loadMessages(activeThreadId);
-  }, [activeThreadId, threads, loadMessages]);
+  }, [activeThreadId, loadMessages]);
 
   // Scroll to bottom when messages update
   useEffect(() => {

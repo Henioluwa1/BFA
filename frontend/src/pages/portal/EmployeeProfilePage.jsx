@@ -944,7 +944,7 @@ export default function EmployeeProfilePage({ isSelf = false, isSelfService = fa
               accept="image/jpeg,image/png,image/webp"
               onChange={handlePhotoFileChange}
               className="form-control"
-              style={{ fontSize: '0.82rem', padding: '0.45rem' }}
+              style={{ fontSize: '0.82rem', padding: '0.45rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.06)' }}
             />
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.4rem', textAlign: 'center' }}>
               JPG, PNG, or WebP • Max 5 MB • Square aspect ratio recommended

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { getSocket } from '../../services/socket';
@@ -62,6 +63,7 @@ function formatThreadTime(isoString) {
 }
 
 export default function FloatingStaffChatModal() {
+  const location = useLocation();
   const { user } = useAuth();
   const { addToast } = useToast();
 
@@ -656,7 +658,9 @@ export default function FloatingStaffChatModal() {
     setMobileView('LIST');
   };
 
-  if (!isEligible) {
+  const isOnFullChatPage = ['/app/staff-chat', '/app/chat', '/portal/staff-chat', '/portal/chat'].includes(location.pathname);
+
+  if (!isEligible || isOnFullChatPage) {
     return null;
   }
 
