@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   X,
   Check,
@@ -14,14 +14,30 @@ import {
   Users,
   CreditCard,
   UploadCloud,
-  FileText,
   Clock,
   AlertTriangle,
   Sparkles,
+  MapPin,
+  ChevronDown,
+  ChevronUp,
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  RefreshCw,
 } from 'lucide-react';
 import { formatNaira } from '../../utils/currency';
 import { publicService, resolveMediaUrl } from '../../services/api';
 import './BookingModal.css';
+
+function normalizeAmenitiesList(unitOrProp) {
+  const rich = unitOrProp?.apartment_amenities || unitOrProp?.property_amenities || [];
+  const raw = Array.isArray(unitOrProp?.amenities) ? unitOrProp.amenities : [];
+  const names = [
+    ...rich.map((a) => a?.name).filter(Boolean),
+    ...raw.map((a) => (typeof a === 'string' ? a : a?.name)).filter(Boolean),
+  ];
+  return Array.from(new Set(names));
+}
 
 export default function BookingModal({
   isOpen,
@@ -38,6 +54,7 @@ export default function BookingModal({
     return tomorrow.toISOString().split('T')[0];
   });
 
+  // Persistent Guest Form State (preserved across internal modal views)
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
@@ -50,9 +67,24 @@ export default function BookingModal({
   const [proofPreviewUrl, setProofPreviewUrl] = useState('');
   const [proofError, setProofError] = useState('');
 
+  // Dynamic Property & Apartment Catalogue State
+  const resolvedPropId = property?.id || unit?.property_id || unit?.propertyId || null;
+  const [liveProperty, setLiveProperty] = useState(property || null);
+  const [propertyUnits, setPropertyUnits] = useState(() => (unit?.id ? [unit] : []));
+  const [loadingCatalogue, setLoadingCatalogue] = useState(false);
+  const [catalogueError, setCatalogueError] = useState('');
+  const [selectedUnitId, setSelectedUnitId] = useState(unit?.id || null);
+
+  // Internal Modal Navigation & Preview State
+  const [propertyExpanded, setPropertyExpanded] = useState(false);
+  const [detailUnit, setDetailUnit] = useState(null);
+  const [activeGalleryUrl, setActiveGalleryUrl] = useState('');
+
   // Live Pricing & Availability
   const [quoteData, setQuoteData] = useState(null);
   const [checkingQuote, setCheckingQuote] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
+  const [priceUpdateAck, setPriceUpdateAck] = useState(true);
   const [availabilityResult, setAvailabilityResult] = useState(null);
   const [paymentConfig, setPaymentConfig] = useState(null);
 
@@ -65,69 +97,140 @@ export default function BookingModal({
 
   const modalRef = useRef(null);
 
-  // Sync initial check-in date
   useEffect(() => {
     if (initialCheckInDate) {
       setCheckInDate(initialCheckInDate);
     }
   }, [initialCheckInDate]);
 
+  useEffect(() => {
+    if (unit?.id) {
+      setSelectedUnitId(unit.id);
+    }
+  }, [unit?.id]);
+
   // Fetch Payment Configuration
   useEffect(() => {
     publicService
       .getPaymentConfig()
       .then((res) => {
-        if (res.data?.data) {
-          setPaymentConfig(res.data.data);
-        } else if (res.data) {
-          setPaymentConfig(res.data);
-        }
+        if (res.data?.data) setPaymentConfig(res.data.data);
+        else if (res.data) setPaymentConfig(res.data);
       })
-      .catch((err) => console.warn('Payment configuration load notice:', err));
+      .catch(() => {});
   }, []);
 
-  // Fetch Authoritative Server Quote & Availability
-  useEffect(() => {
-    if (!isOpen || !unit?.id || !checkInDate) return;
+  // Load authoritative public property details & its approved/published apartments
+  const loadPropertyCatalogue = useCallback(async () => {
+    if (!isOpen || !resolvedPropId) return;
+    setLoadingCatalogue(true);
+    setCatalogueError('');
+    try {
+      const res = await publicService.getPropertyDetail(resolvedPropId);
+      const payload = res.data?.data || res.data || {};
+      const propObj = payload.property || payload || property || null;
+      const unitsList = Array.isArray(payload.units) ? payload.units : [];
+      setLiveProperty(propObj);
+      setPropertyUnits(unitsList);
 
-    let isMounted = true;
-    setCheckingQuote(true);
-    setSubmitError('');
-
-    async function loadQuoteAndAvail() {
-      try {
-        const [availRes, quoteRes] = await Promise.all([
-          publicService.checkAvailability({
-            apartmentId: unit.id,
-            checkInDate,
-          }).catch(() => ({ data: { isAvailable: true } })),
-          publicService.getQuote({
-            apartmentId: unit.id,
-            checkInDate,
-            propertyId: property?.id,
-          }).catch(() => null),
-        ]);
-
-        if (!isMounted) return;
-
-        if (availRes?.data) {
-          setAvailabilityResult(availRes.data);
+      setSelectedUnitId((prevId) => {
+        if (prevId && unitsList.some((u) => Number(u.id) === Number(prevId))) {
+          return prevId;
         }
-        if (quoteRes?.data) {
-          setQuoteData(quoteRes.data);
+        if (unit?.id && unitsList.some((u) => Number(u.id) === Number(unit.id))) {
+          return unit.id;
         }
-      } catch (err) {
-        if (isMounted) {
-          console.warn('Quote load notice:', err);
-        }
-      } finally {
-        if (isMounted) setCheckingQuote(false);
-      }
+        const firstAvail = unitsList.find((u) => u.status === 'AVAILABLE') || unitsList[0];
+        return firstAvail ? firstAvail.id : null;
+      });
+    } catch (err) {
+      setCatalogueError(
+        err?.response?.data?.error?.message ||
+          err?.message ||
+          'Unable to load property and apartment availability.'
+      );
+    } finally {
+      setLoadingCatalogue(false);
     }
+  }, [isOpen, resolvedPropId, property, unit?.id]);
 
+  useEffect(() => {
+    if (isOpen) {
+      setDetailUnit(null);
+      setPropertyExpanded(false);
+      loadPropertyCatalogue();
+    }
+  }, [isOpen, loadPropertyCatalogue]);
+
+  const selectedUnit = useMemo(() => {
+    if (selectedUnitId && propertyUnits.length > 0) {
+      const found = propertyUnits.find((u) => Number(u.id) === Number(selectedUnitId));
+      if (found) return found;
+    }
+    if (unit && (!resolvedPropId || Number(unit.property_id) === Number(resolvedPropId))) {
+      return unit;
+    }
+    return propertyUnits[0] || null;
+  }, [selectedUnitId, propertyUnits, unit, resolvedPropId]);
+
+  // Fetch Authoritative Server Quote & Availability for selected apartment + date
+  const loadQuoteAndAvail = useCallback(async () => {
+    if (!isOpen || !selectedUnit?.id || !checkInDate) return;
+    setCheckingQuote(true);
+    setQuoteError('');
+    setSubmitError('');
+    try {
+      const [availRes, quoteRes] = await Promise.all([
+        publicService
+          .checkAvailability({
+            apartmentId: selectedUnit.id,
+            checkInDate,
+          })
+          .catch((err) => ({
+            data: { isAvailable: false, reason: err?.response?.data?.error?.message || err?.message },
+          })),
+        publicService
+          .getQuote({
+            apartmentId: selectedUnit.id,
+            checkInDate,
+            propertyId: liveProperty?.id || resolvedPropId,
+          })
+          .catch((err) => {
+            setQuoteError(
+              err?.response?.data?.error?.message ||
+                err?.message ||
+                'Unable to verify current apartment rate.'
+            );
+            return null;
+          }),
+      ]);
+
+      const availPayload = availRes?.data?.data || availRes?.data || null;
+      if (availPayload) {
+        setAvailabilityResult(availPayload);
+      }
+
+      const qPayload = quoteRes?.data?.data || quoteRes?.data || null;
+      if (qPayload) {
+        setQuoteData(qPayload);
+        const serverRate = Number(qPayload?.breakdown?.ratePerNight ?? qPayload?.quote?.ratePerNight);
+        const cardRate = Number(selectedUnit?.rate_per_night);
+        if (Number.isFinite(serverRate) && Number.isFinite(cardRate) && serverRate !== cardRate) {
+          setPriceUpdateAck(false);
+        } else {
+          setPriceUpdateAck(true);
+        }
+      } else {
+        setQuoteData(null);
+      }
+    } finally {
+      setCheckingQuote(false);
+    }
+  }, [isOpen, selectedUnit?.id, selectedUnit?.rate_per_night, checkInDate, liveProperty?.id, resolvedPropId]);
+
+  useEffect(() => {
     loadQuoteAndAvail();
-    return () => { isMounted = false; };
-  }, [isOpen, unit?.id, checkInDate, property?.id]);
+  }, [loadQuoteAndAvail]);
 
   // Live Polling when booking request is submitted
   useEffect(() => {
@@ -153,7 +256,7 @@ export default function BookingModal({
             clearInterval(pollInterval);
           }
         }
-      } catch (pollErr) {
+      } catch {
         // Polling retry
       }
     }, 4000);
@@ -164,30 +267,31 @@ export default function BookingModal({
     };
   }, [submittedBooking, guestEmail, onBookingConfirmed]);
 
-  // Keyboard accessibility: Escape to close
-  useEffect(() => {
-    function handleKeyDown(e) {
-      if (e.key === 'Escape' && isOpen) {
-        handleAttemptClose();
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, proofFile, guestName, submittedBooking]);
-
-  const handleAttemptClose = () => {
-    // If request already submitted, safe to close
+  const handleAttemptClose = useCallback(() => {
     if (submittedBooking) {
       onClose();
       return;
     }
-    // If unsaved data present, confirm before discarding
     if (proofFile || guestName.trim() || guestEmail.trim()) {
       const confirmDiscard = window.confirm('Discard unsaved reservation details and close?');
       if (!confirmDiscard) return;
     }
     onClose();
-  };
+  }, [submittedBooking, proofFile, guestName, guestEmail, onClose]);
+
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape' && isOpen) {
+        if (detailUnit) {
+          setDetailUnit(null);
+        } else {
+          handleAttemptClose();
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, detailUnit, handleAttemptClose]);
 
   const handleCopyText = (text, fieldName) => {
     if (!text) return;
@@ -206,7 +310,7 @@ export default function BookingModal({
       return;
     }
 
-    const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+    const MAX_SIZE = 5 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       setProofError(`File exceeds 5MB limit (${(file.size / (1024 * 1024)).toFixed(2)} MB). Please select a smaller receipt.`);
       return;
@@ -229,10 +333,25 @@ export default function BookingModal({
     setProofError('');
   };
 
+  const handleOpenApartmentDetail = (apt) => {
+    setDetailUnit(apt);
+    const firstPhoto =
+      apt?.main_photo ||
+      apt?.photos?.[0]?.file_url ||
+      liveProperty?.main_photo ||
+      liveProperty?.primary_photo_url ||
+      '';
+    setActiveGalleryUrl(resolveMediaUrl(firstPhoto));
+  };
+
   const handleSubmitBooking = async (e) => {
     e.preventDefault();
     setSubmitError('');
 
+    if (!selectedUnit?.id) {
+      setSubmitError('Please select an available apartment within this property before submitting.');
+      return;
+    }
     const cleanName = guestName.trim();
     const cleanEmail = guestEmail.trim();
     const cleanPhone = guestPhone.trim();
@@ -254,10 +373,17 @@ export default function BookingModal({
       return;
     }
     if (!isAvailable) {
-      setSubmitError('This unit is currently unavailable for the selected date.');
+      setSubmitError('This apartment is currently unavailable for the selected date.');
       return;
     }
-
+    if (!quoteData?.quoteToken) {
+      setSubmitError('Authoritative price quote is unavailable. Please refresh the quote and try again.');
+      return;
+    }
+    if (!priceUpdateAck) {
+      setSubmitError('The approved nightly price was updated. Please review and confirm the refreshed quote.');
+      return;
+    }
     if (paymentOption === 'BANK_TRANSFER' && !proofBase64) {
       setSubmitError('Please attach your bank transfer payment proof receipt before submitting.');
       return;
@@ -266,7 +392,6 @@ export default function BookingModal({
     setIsSubmitting(true);
 
     try {
-      // 1. Upload proof file via backend upload endpoint only after validation passes
       let serverProofUrl = null;
       let serverFilePath = null;
 
@@ -280,10 +405,9 @@ export default function BookingModal({
         serverFilePath = uploadRes.data?.filePath || uploadRes?.filePath;
       }
 
-      // 2. Submit reservation request with explicit propertyId derived from property/unit
       const res = await publicService.createBooking({
-        apartmentId: unit.id,
-        propertyId: property?.id || unit?.property_id || unit?.propertyId,
+        apartmentId: selectedUnit.id,
+        propertyId: liveProperty?.id || resolvedPropId,
         guestName: cleanName,
         guestEmail: cleanEmail,
         guestPhone: cleanPhone,
@@ -302,24 +426,45 @@ export default function BookingModal({
       setSubmittedBooking(res.data);
       setLiveTracking(res.data);
     } catch (err) {
-      setSubmitError(err.message || err.response?.data?.message || err.response?.data?.error?.message || 'Unable to submit reservation request. Please try again.');
+      const msg =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err.message ||
+        'Unable to submit reservation request. Please try again.';
+      setSubmitError(msg);
+      loadQuoteAndAvail();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!isOpen || !unit) return null;
+  if (!isOpen || (!resolvedPropId && !selectedUnit)) return null;
 
-  const unitPhoto = resolveMediaUrl(
-    unit.main_photo ||
-    unit.primary_photo_url ||
-    property?.main_photo ||
-    property?.primary_photo_url
+  const activeProp = liveProperty || property || {};
+  const propPhoto = resolveMediaUrl(
+    activeProp.main_photo || activeProp.primary_photo_url || activeProp.photos?.[0]?.file_url
   );
-  const nightlyRate = quoteData?.quote?.ratePerNight || unit.rate_per_night || '160000';
-  const cautionDeposit = quoteData?.quote?.cautionDeposit || 0;
-  const totalAmount = quoteData?.quote?.totalAmount || nightlyRate;
-  const isAvailable = availabilityResult?.isAvailable !== false;
+  const unitPhoto = resolveMediaUrl(
+    selectedUnit?.main_photo ||
+      selectedUnit?.primary_photo_url ||
+      selectedUnit?.photos?.[0]?.file_url ||
+      propPhoto
+  );
+
+  const breakdown = quoteData?.breakdown || quoteData?.quote || {};
+  const nightlyRate = breakdown.ratePerNight ?? selectedUnit?.rate_per_night ?? null;
+  const cautionDeposit = Number(breakdown.cautionDeposit || 0);
+  const totalAmount = breakdown.totalAmount ?? nightlyRate;
+  const isAvailable =
+    Boolean(selectedUnit?.id) &&
+    selectedUnit?.status === 'AVAILABLE' &&
+    availabilityResult?.isAvailable !== false &&
+    !quoteError;
+
+  const propLocationLabel = [activeProp.location, activeProp.district, activeProp.city, activeProp.state]
+    .filter(Boolean)
+    .join(' • ');
+  const propAmenities = normalizeAmenitiesList(activeProp);
 
   return (
     <div
@@ -331,8 +476,7 @@ export default function BookingModal({
       aria-modal="true"
       aria-labelledby="booking-modal-title"
     >
-      <div className="bfa-booking-modal-shell" ref={modalRef}>
-        {/* Accessible Close Button (Top-Right, Always Visible) */}
+      <div className="bfa-booking-modal-shell bfa-booking-modal-shell--wide" ref={modalRef}>
         <button
           type="button"
           className="bfa-booking-modal-close-btn"
@@ -346,33 +490,41 @@ export default function BookingModal({
         {/* Header Visual Banner */}
         <div
           className="bfa-booking-modal-banner"
-          style={{ backgroundImage: `url(${unitPhoto})` }}
+          style={{ backgroundImage: `url(${detailUnit ? activeGalleryUrl || unitPhoto : unitPhoto || propPhoto})` }}
         >
           <div className="bfa-booking-modal-banner-overlay" />
           <div className="bfa-booking-modal-banner-content">
             <span className="bfa-booking-modal-building-tag">
-              <Building2 size={12} /> {property?.name || 'BFA Serviced Residences'}
+              <Building2 size={12} /> {activeProp.name || 'BFA Serviced Residences'}
             </span>
             <h2 id="booking-modal-title" className="bfa-booking-modal-title">
-              {unit.unit_name} (#{unit.unit_number})
+              {detailUnit
+                ? `${detailUnit.unit_name} (#${detailUnit.unit_number})`
+                : selectedUnit
+                ? `${selectedUnit.unit_name} (#${selectedUnit.unit_number})`
+                : activeProp.name || 'Direct Suite Reservation'}
             </h2>
             <div className="bfa-booking-modal-specs">
-              <span><Bed size={13} style={{ verticalAlign: 'middle' }} /> {unit.unit_type || 'Executive Suite'}</span>
-              <span>•</span>
-              <span><Users size={13} style={{ verticalAlign: 'middle' }} /> Max {unit.capacity || 2} Guests</span>
-              <span>•</span>
-              <span><Bath size={13} style={{ verticalAlign: 'middle' }} /> {unit.bathroom_count || 1} Spa Bath</span>
+              {selectedUnit ? (
+                <>
+                  <span><Bed size={13} style={{ verticalAlign: 'middle' }} /> {selectedUnit.unit_type || 'Serviced Suite'}</span>
+                  <span>•</span>
+                  <span><Users size={13} style={{ verticalAlign: 'middle' }} /> Max {selectedUnit.capacity || 2} Guests</span>
+                  <span>•</span>
+                  <span><Bath size={13} style={{ verticalAlign: 'middle' }} /> {selectedUnit.bathroom_count || 1} Bath</span>
+                </>
+              ) : (
+                <span><MapPin size={13} style={{ verticalAlign: 'middle' }} /> {propLocationLabel || 'Akure, Nigeria'}</span>
+              )}
             </div>
           </div>
         </div>
 
         {/* Modal Body */}
         <div className="bfa-booking-modal-body">
-          {/* Post-Submission Live Verification State */}
           {submittedBooking ? (
             <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
               {liveTracking?.isApproved && liveTracking?.isVerified ? (
-                /* Celebration State */
                 <div>
                   <div className="bfa-celebration-checkmark">✓</div>
                   <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.4rem' }}>
@@ -381,18 +533,11 @@ export default function BookingModal({
                   <p style={{ color: '#334155', fontSize: '0.88rem', margin: '0 0 1.25rem' }}>
                     Welcome to BFA Luxury Residences, <strong style={{ color: '#0f172a' }}>{liveTracking.guestName || guestName}</strong>! Your 1-night stay has been confirmed in our official registry.
                   </p>
-
-                  {/* Check-In Passcode Box */}
                   <div className="bfa-passcode-reveal-box">
                     <div style={{ fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8' }}>
                       Official Check-In Passcode
                     </div>
-                    <div className="bfa-passcode-val">
-                      {liveTracking.authCode || 'BFA-AUTH-GENERATED'}
-                    </div>
-                    <p style={{ fontSize: '0.78rem', color: '#cbd5e1', margin: '0.35rem 0 0.75rem' }}>
-                      Present this passcode upon arrival at the concierge desk for instant smart key collection.
-                    </p>
+                    <div className="bfa-passcode-val">{liveTracking.authCode || 'BFA-AUTH-GENERATED'}</div>
                     <button
                       type="button"
                       className="bfa-modal-copy-btn"
@@ -402,184 +547,331 @@ export default function BookingModal({
                       {copiedField === 'authCode' ? 'Passcode Copied!' : 'Copy Check-In Passcode'}
                     </button>
                   </div>
-
-                  <div className="bfa-modal-section-card" style={{ textAlign: 'left', marginBottom: '1.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                      <span style={{ color: '#475569', fontWeight: 600 }}>Reference Code:</span>
-                      <strong style={{ fontFamily: 'monospace', color: '#1d4ed8' }}>{liveTracking.reservationCode}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                      <span style={{ color: '#475569', fontWeight: 600 }}>Residence & Suite:</span>
-                      <strong style={{ color: '#0f172a' }}>{liveTracking.propertyName} — Unit {liveTracking.unitNumber}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                      <span style={{ color: '#475569', fontWeight: 600 }}>Stay Period:</span>
-                      <strong style={{ color: '#0f172a' }}>{liveTracking.checkInDate} ➔ {liveTracking.checkOutDate}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.45rem', marginTop: '0.45rem' }}>
-                      <span style={{ color: '#0f172a', fontWeight: 700 }}>Total Stay Valuation:</span>
-                      <strong style={{ color: '#047857', fontSize: '1.05rem' }}>{formatNaira(liveTracking.totalAmount)}</strong>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="bfa-modal-submit-btn"
-                    style={{ width: '100%', justifyContent: 'center' }}
-                    onClick={onClose}
-                  >
-                    Done / Return to Experience
-                  </button>
-                </div>
-              ) : liveTracking?.status === 'DECLINED' ? (
-                /* Declined State */
-                <div style={{ background: '#fef2f2', border: '1px solid #fecdd3', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
-                  <AlertTriangle size={36} color="#dc2626" style={{ margin: '0 auto 0.75rem' }} />
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#991b1b', margin: '0 0 0.5rem' }}>
-                    Payment Verification Declined
-                  </h3>
-                  <p style={{ color: '#7f1d1d', fontSize: '0.88rem', margin: '0 0 1.25rem' }}>
-                    {liveTracking.declineReason || 'Our front desk could not verify your transfer with the bank statement. Please verify the amount or re-submit proof.'}
-                  </p>
-                  <button
-                    type="button"
-                    className="bfa-modal-submit-btn"
-                    style={{ background: '#dc2626', width: '100%', justifyContent: 'center' }}
-                    onClick={() => {
-                      setSubmittedBooking(null);
-                      setLiveTracking(null);
-                    }}
-                  >
-                    Re-Submit Payment Proof
-                  </button>
                 </div>
               ) : (
-                /* In-Progress Review State (2–5 Minutes Window) */
                 <div>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: '#fef3c7', color: '#92400e', padding: '0.35rem 0.85rem', borderRadius: '9999px', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1rem' }}>
-                    <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#d97706', animation: 'bfaPulseRing 2s infinite' }}></span>
+                    <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#d97706' }}></span>
                     {liveTracking?.assignedStaffName ? `Claimed by ${liveTracking.assignedStaffName}` : 'Pending Front Desk Verification'}
                   </div>
-
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem' }}>
-                    {paymentOption === 'PAY_AT_PROPERTY'
-                      ? 'Booking Request Registered — Pay on Arrival'
-                      : 'Payment Proof Dispatched to Front Desk'}
+                    {paymentOption === 'PAY_AT_PROPERTY' ? 'Booking Request Registered — Pay on Arrival' : 'Payment Proof Dispatched to Front Desk'}
                   </h3>
-                  <p style={{ color: '#334155', fontSize: '0.85rem', margin: '0 0 1.25rem' }}>
-                    {paymentOption === 'PAY_AT_PROPERTY' ? (
-                      <span>
-                        Thank you, <strong>{guestName}</strong>. Your reservation request is in our official queue.
-                        Please settle payment at the concierge desk upon check-in.
-                      </span>
-                    ) : (
-                      <span>
-                        Thank you, <strong>{guestName}</strong>. Our front desk team is matching your transfer with our
-                        bank statement.
-                      </span>
-                    )}
-                  </p>
-
-                  <div className="bfa-modal-section-card" style={{ textAlign: 'left', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                  <div className="bfa-modal-section-card" style={{ textAlign: 'left', margin: '1rem 0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
                       <span style={{ color: '#475569', fontWeight: 600 }}>Booking Reference:</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#1d4ed8', fontSize: '0.95rem' }}>
-                          {submittedBooking.reservationCode}
-                        </span>
-                        <button
-                          type="button"
-                          className="bfa-modal-copy-btn"
-                          style={{ padding: '0.15rem 0.45rem', fontSize: '0.7rem', color: '#1e40af', background: '#eff6ff', border: '1px solid #bfdbfe' }}
-                          onClick={() => handleCopyText(submittedBooking.reservationCode, 'refCode')}
-                        >
-                          {copiedField === 'refCode' ? <Check size={11} /> : <Copy size={11} />}
-                          {copiedField === 'refCode' ? 'Copied' : 'Copy'}
-                        </button>
-                      </div>
+                      <strong style={{ fontFamily: 'monospace', color: '#1d4ed8' }}>{submittedBooking.reservationCode}</strong>
                     </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#475569', fontWeight: 600 }}>Assigned Officer:</span>
-                      <strong style={{ color: liveTracking?.assignedStaffName ? '#0f172a' : '#b45309' }}>
-                        {liveTracking?.assignedStaffName ? `👤 ${liveTracking.assignedStaffName}` : '⏳ Awaiting receptionist pickup...'}
-                      </strong>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#475569', fontWeight: 600 }}>Estimated Review Window:</span>
-                      <strong style={{ color: '#1d4ed8' }}>2 – 5 Minutes</strong>
-                    </div>
-
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.82rem' }}>
                       <span style={{ color: '#475569', fontWeight: 600 }}>Residence & Suite:</span>
-                      <strong style={{ color: '#0f172a' }}>{property?.name || 'BFA Residences'} — Unit {unit.unit_number} ({unit.unit_name})</strong>
+                      <strong style={{ color: '#0f172a' }}>{activeProp.name} — Unit {selectedUnit?.unit_number} ({selectedUnit?.unit_name})</strong>
                     </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem', fontSize: '0.82rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
                       <span style={{ color: '#475569', fontWeight: 600 }}>Stay Period:</span>
                       <strong style={{ color: '#0f172a' }}>{checkInDate} (1 Night Stay)</strong>
                     </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.45rem', marginTop: '0.45rem', fontSize: '0.82rem' }}>
-                      <span style={{ color: '#0f172a', fontWeight: 700 }}>Total Quoted Stay Amount:</span>
-                      <strong style={{ color: '#047857', fontSize: '0.95rem' }}>{formatNaira(totalAmount)}</strong>
-                    </div>
-
-                    <p style={{ margin: '0.5rem 0 0', fontSize: '0.76rem', color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.5rem 0.7rem', borderRadius: '6px' }}>
-                      ℹ️ Live verification status refreshes automatically every 4 seconds. Your check-in passcode will unlock upon front desk confirmation.
-                    </p>
                   </div>
-
-                  {/* 4-Step Timeline */}
-                  <div className="bfa-tracking-timeline" style={{ textAlign: 'left', marginBottom: '1.25rem' }}>
-                    {(liveTracking?.timeline || [
-                      { step: 1, title: 'Booking Request Submitted', status: 'COMPLETED', detail: 'Receipt proof recorded.' },
-                      { step: 2, title: 'Front Desk Claim & Assignment', status: liveTracking?.assignedStaffName ? 'COMPLETED' : 'IN_PROGRESS', detail: liveTracking?.assignedStaffName ? `Assigned to ${liveTracking.assignedStaffName}` : 'Awaiting front desk pickup (2–5 mins)' },
-                      { step: 3, title: 'Bank Transfer Verification', status: 'IN_PROGRESS', detail: 'Matching payment proof with bank statement.' },
-                      { step: 4, title: 'Approval & Key Card Passcode', status: 'PENDING', detail: 'Passcode unlocks upon verification.' },
-                    ]).map((s) => (
-                      <div key={s.step} className="bfa-timeline-step">
-                        <div className={`bfa-timeline-dot ${s.status === 'COMPLETED' ? 'completed' : s.status === 'IN_PROGRESS' ? 'in-progress' : 'pending'}`}>
-                          {s.status === 'COMPLETED' ? '✓' : s.step}
-                        </div>
-                        <div className="bfa-timeline-content">
-                          <div className="bfa-timeline-title">{s.title}</div>
-                          <div className="bfa-timeline-desc">{s.detail || s.description}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <a
-                      href={`/track?ref=${encodeURIComponent(submittedBooking.reservationCode)}&email=${encodeURIComponent(guestEmail)}`}
-                      className="bfa-modal-submit-btn"
-                      style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box' }}
-                    >
-                      <span>Open Full Stay Tracker &amp; Receipt</span>
-                      <ArrowRight size={14} />
-                    </a>
-
-                    <button
-                      type="button"
-                      className="bfa-modal-cancel-btn"
-                      style={{ width: '100%' }}
-                      onClick={onClose}
-                    >
-                      Keep Tracking in Background &amp; Close
-                    </button>
-                  </div>
+                  <a
+                    href={`/track?ref=${encodeURIComponent(submittedBooking.reservationCode)}&email=${encodeURIComponent(guestEmail)}`}
+                    className="bfa-modal-submit-btn"
+                    style={{ width: '100%', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box', marginBottom: '0.5rem' }}
+                  >
+                    <span>Open Full Stay Tracker &amp; Receipt</span>
+                    <ArrowRight size={14} />
+                  </a>
+                  <button type="button" className="bfa-modal-cancel-btn" style={{ width: '100%' }} onClick={onClose}>
+                    Keep Tracking in Background &amp; Close
+                  </button>
                 </div>
               )}
             </div>
+          ) : detailUnit ? (
+            /* NESTED APARTMENT DETAIL VIEW (Preserves booking form state) */
+            <div className="bfa-modal-detail-panel">
+              <div className="bfa-modal-detail-topbar">
+                <button
+                  type="button"
+                  className="bfa-modal-back-btn"
+                  onClick={() => setDetailUnit(null)}
+                >
+                  <ArrowLeft size={15} />
+                  <span>Back to Booking Form</span>
+                </button>
+                <span className={`bfa-modal-avail-badge ${detailUnit.status === 'AVAILABLE' ? 'available' : 'unavailable'}`}>
+                  {detailUnit.status === 'AVAILABLE' ? '✓ Available' : detailUnit.status}
+                </span>
+              </div>
+
+              {/* Photo Gallery */}
+              {(() => {
+                const gallery = [
+                  ...(detailUnit.photos || []).map((p) => resolveMediaUrl(p.file_url)),
+                  ...(detailUnit.internal_spaces || []).flatMap((sp) => (sp.photos || []).map((p) => resolveMediaUrl(p.file_url))),
+                ].filter(Boolean);
+                const uniqueGallery = Array.from(new Set([activeGalleryUrl, ...gallery].filter(Boolean)));
+                return (
+                  <div className="bfa-modal-gallery-wrap">
+                    {uniqueGallery[0] && (
+                      <img src={activeGalleryUrl || uniqueGallery[0]} alt={detailUnit.unit_name} className="bfa-modal-gallery-main" />
+                    )}
+                    {uniqueGallery.length > 1 && (
+                      <div className="bfa-modal-gallery-thumbs">
+                        {uniqueGallery.map((url, i) => (
+                          <button
+                            key={url + i}
+                            type="button"
+                            className={`bfa-modal-gallery-thumb-btn ${url === activeGalleryUrl ? 'active' : ''}`}
+                            onClick={() => setActiveGalleryUrl(url)}
+                          >
+                            <img src={url} alt={`${detailUnit.unit_name} view ${i + 1}`} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div className="bfa-modal-section-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+                      {detailUnit.unit_name} (#{detailUnit.unit_number})
+                    </h3>
+                    <div style={{ fontSize: '0.82rem', color: '#475569', marginTop: '2px' }}>
+                      {detailUnit.unit_type || 'Serviced Suite'} {detailUnit.floor ? `• ${detailUnit.floor}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+                      {formatNaira(detailUnit.rate_per_night)}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Approved Rate / Night</div>
+                  </div>
+                </div>
+
+                <div className="bfa-modal-detail-specs-row">
+                  <span><Bed size={14} /> {detailUnit.bedroom_count || 1} Bedroom(s)</span>
+                  <span><Bath size={14} /> {detailUnit.bathroom_count || 1} Bathroom(s)</span>
+                  <span><Users size={14} /> Max {detailUnit.capacity || 2} Guests</span>
+                </div>
+
+                {detailUnit.description && (
+                  <p style={{ margin: '0.75rem 0', fontSize: '0.86rem', color: '#334155', lineHeight: 1.55 }}>
+                    {detailUnit.description}
+                  </p>
+                )}
+
+                {(() => {
+                  const ams = normalizeAmenitiesList(detailUnit);
+                  return ams.length > 0 ? (
+                    <div style={{ marginTop: '0.75rem' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                        Suite Amenities &amp; Facilities
+                      </div>
+                      <div className="bfa-modal-amenity-chips">
+                        {ams.map((a) => (
+                          <span key={a} className="bfa-modal-amenity-chip">{a}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+
+              <div className="bfa-booking-modal-footer" style={{ padding: '0.5rem 0 0', background: 'transparent' }}>
+                <button type="button" className="bfa-modal-cancel-btn" onClick={() => setDetailUnit(null)}>
+                  Back to Form
+                </button>
+                <button
+                  type="button"
+                  className="bfa-modal-submit-btn"
+                  disabled={detailUnit.status !== 'AVAILABLE'}
+                  onClick={() => {
+                    setSelectedUnitId(detailUnit.id);
+                    setDetailUnit(null);
+                  }}
+                >
+                  <Check size={16} />
+                  <span>Select This Apartment &amp; Continue</span>
+                </button>
+              </div>
+            </div>
           ) : (
-            /* Active Booking Form Wizard */
-            <form onSubmit={handleSubmitBooking} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {/* 1. Stay Date & Server Pricing Breakdown */}
+            /* MAIN BOOKING FORM VIEW */
+            <form onSubmit={handleSubmitBooking} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              {/* 1. PROPERTY PREVIEW CARD */}
+              <div className="bfa-modal-section-card bfa-prop-preview-card">
+                <div className="bfa-prop-preview-header">
+                  {propPhoto && (
+                    <img src={propPhoto} alt={activeProp.name} className="bfa-prop-preview-thumb" />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="bfa-prop-preview-eyebrow">Selected Residence</div>
+                    <h3 className="bfa-prop-preview-name">{activeProp.name || 'BFA Residence'}</h3>
+                    {propLocationLabel && (
+                      <div className="bfa-prop-preview-loc">
+                        <MapPin size={12} />
+                        <span>{propLocationLabel}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="bfa-prop-expand-btn"
+                    onClick={() => setPropertyExpanded((v) => !v)}
+                  >
+                    <span>{propertyExpanded ? 'Hide Details' : 'Property Info'}</span>
+                    {propertyExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                </div>
+
+                {activeProp.description && !propertyExpanded && (
+                  <p className="bfa-prop-preview-desc-short">{activeProp.description}</p>
+                )}
+
+                {propAmenities.length > 0 && !propertyExpanded && (
+                  <div className="bfa-modal-amenity-chips" style={{ marginTop: '0.5rem' }}>
+                    {propAmenities.slice(0, 5).map((a) => (
+                      <span key={a} className="bfa-modal-amenity-chip">{a}</span>
+                    ))}
+                    {propAmenities.length > 5 && (
+                      <span className="bfa-modal-amenity-chip">+{propAmenities.length - 5} more</span>
+                    )}
+                  </div>
+                )}
+
+                {propertyExpanded && (
+                  <div className="bfa-prop-expanded-body">
+                    {activeProp.description && (
+                      <p style={{ margin: '0 0 0.6rem', fontSize: '0.84rem', color: '#334155', lineHeight: 1.55 }}>
+                        {activeProp.description}
+                      </p>
+                    )}
+                    {activeProp.environment_description && (
+                      <p style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', color: '#475569', lineHeight: 1.5 }}>
+                        <strong>Neighborhood:</strong> {activeProp.environment_description}
+                      </p>
+                    )}
+                    <div className="bfa-modal-detail-specs-row" style={{ marginBottom: '0.6rem' }}>
+                      {activeProp.check_in_time && <span>Check-in: {activeProp.check_in_time}</span>}
+                      {activeProp.check_out_time && <span>Check-out: {activeProp.check_out_time}</span>}
+                      {activeProp.address && <span>{activeProp.address}</span>}
+                    </div>
+                    {propAmenities.length > 0 && (
+                      <div className="bfa-modal-amenity-chips">
+                        {propAmenities.map((a) => (
+                          <span key={a} className="bfa-modal-amenity-chip">{a}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. APARTMENT SELECTION WITHIN THIS PROPERTY */}
+              <div className="bfa-modal-section-card">
+                <div className="bfa-modal-section-title" style={{ justifyContent: 'space-between' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Bed size={15} /> 1. Choose an Apartment at {activeProp.name || 'this Property'}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                    {propertyUnits.length} {propertyUnits.length === 1 ? 'Suite' : 'Suites'}
+                  </span>
+                </div>
+
+                {loadingCatalogue ? (
+                  <div className="bfa-apt-skeleton-grid">
+                    <div className="bfa-apt-skeleton-card" />
+                    <div className="bfa-apt-skeleton-card" />
+                  </div>
+                ) : catalogueError ? (
+                  <div className="bfa-modal-error-notice" style={{ justifyContent: 'space-between' }}>
+                    <span>{catalogueError}</span>
+                    <button type="button" className="bfa-prop-expand-btn" onClick={loadPropertyCatalogue}>
+                      <RefreshCw size={12} /> Retry
+                    </button>
+                  </div>
+                ) : propertyUnits.length === 0 ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                    No publicly bookable apartments are currently available at this property.
+                  </div>
+                ) : (
+                  <div className="bfa-apt-selector-grid">
+                    {propertyUnits.map((apt) => {
+                      const isSelected = Number(selectedUnit?.id) === Number(apt.id);
+                      const aptThumb = resolveMediaUrl(apt.main_photo || apt.photos?.[0]?.file_url || propPhoto);
+                      const aptAmenities = normalizeAmenitiesList(apt);
+                      const aptAvailable = apt.status === 'AVAILABLE';
+
+                      return (
+                        <div
+                          key={apt.id}
+                          className={`bfa-apt-select-card ${isSelected ? 'selected' : ''} ${!aptAvailable ? 'unavailable' : ''}`}
+                        >
+                          <div className="bfa-apt-select-top">
+                            {aptThumb && <img src={aptThumb} alt={apt.unit_name} className="bfa-apt-select-thumb" />}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className="bfa-apt-select-title-row">
+                                <strong className="bfa-apt-select-name">{apt.unit_name}</strong>
+                                <span className={`bfa-apt-status-pill ${aptAvailable ? 'avail' : 'busy'}`}>
+                                  {aptAvailable ? 'Available' : apt.status}
+                                </span>
+                              </div>
+                              <div className="bfa-apt-select-sub">
+                                Unit #{apt.unit_number} • {apt.unit_type || 'Suite'}
+                              </div>
+                              <div className="bfa-apt-select-price">
+                                {formatNaira(apt.rate_per_night)} <span>/ night</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bfa-apt-select-specs">
+                            <span><Bed size={12} /> {apt.bedroom_count || 1} Bed</span>
+                            <span><Bath size={12} /> {apt.bathroom_count || 1} Bath</span>
+                            <span><Users size={12} /> {apt.capacity || 2} Guests</span>
+                          </div>
+
+                          {apt.description && (
+                            <p className="bfa-apt-select-desc">{apt.description}</p>
+                          )}
+
+                          {aptAmenities.length > 0 && (
+                            <div className="bfa-modal-amenity-chips" style={{ marginBottom: '0.55rem' }}>
+                              {aptAmenities.slice(0, 3).map((a) => (
+                                <span key={a} className="bfa-modal-amenity-chip">{a}</span>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="bfa-apt-select-actions">
+                            <button
+                              type="button"
+                              className={`bfa-apt-choose-btn ${isSelected ? 'active' : ''}`}
+                              onClick={() => setSelectedUnitId(apt.id)}
+                            >
+                              {isSelected ? <><Check size={13} /> Selected</> : 'Select Suite'}
+                            </button>
+                            <button
+                              type="button"
+                              className="bfa-apt-details-btn"
+                              onClick={() => handleOpenApartmentDetail(apt)}
+                            >
+                              <Eye size={13} /> View Details
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. STAY DATE, BOOKING SUMMARY & SERVER PRICING */}
               <div className="bfa-modal-section-card primary-accent">
                 <div className="bfa-modal-section-title">
-                  <Calendar size={15} /> 1. Stay Date & Authoritative Pricing
+                  <Calendar size={15} /> 2. Stay Date &amp; Booking Summary
                 </div>
 
                 <div className="bfa-modal-date-row" style={{ marginBottom: '0.75rem' }}>
@@ -592,35 +884,61 @@ export default function BookingModal({
                     required
                   />
                   <div className={`bfa-modal-avail-badge ${isAvailable ? 'available' : 'unavailable'}`}>
-                    {isAvailable ? '✓ Available for 1 Night' : '✕ Reserved / In Maintenance'}
+                    {isAvailable ? '✓ Available for 1 Night' : '✕ Unavailable on Date'}
                   </div>
                 </div>
 
                 {!isAvailable && (
+                  <div className="bfa-modal-error-notice" style={{ marginBottom: '0.75rem' }}>
+                    <AlertTriangle size={14} />
+                    <span>
+                      {availabilityResult?.reason || quoteError || `This apartment is unavailable on ${checkInDate}. Please choose another suite or date.`}
+                    </span>
+                  </div>
+                )}
+
+                {!priceUpdateAck && (
                   <div
                     style={{
                       padding: '0.65rem 0.85rem',
-                      background: '#fff1f2',
-                      border: '1px solid #fecdd3',
+                      background: '#fffbeb',
+                      border: '1px solid #fcd34d',
                       borderRadius: '8px',
-                      color: '#be123c',
+                      color: '#92400e',
                       fontSize: '0.82rem',
                       marginBottom: '0.75rem',
                       display: 'flex',
+                      justifyContent: 'space-between',
                       alignItems: 'center',
                       gap: '0.5rem',
-                      fontWeight: 600,
+                      flexWrap: 'wrap',
                     }}
                   >
-                    <span>✕</span>
-                    <span>This room is currently reserved on {checkInDate}. Please select another check-in date above.</span>
+                    <span>
+                      <strong>Approved Price Updated:</strong> The nightly rate is now {formatNaira(nightlyRate)}.
+                    </span>
+                    <button
+                      type="button"
+                      className="bfa-prop-expand-btn"
+                      onClick={() => setPriceUpdateAck(true)}
+                    >
+                      Confirm Updated Price
+                    </button>
                   </div>
                 )}
 
                 <div className="bfa-modal-pricing-grid">
                   <div className="bfa-modal-pricing-row">
-                    <span>Nightly Rate (1 Night):</span>
-                    <strong>{formatNaira(nightlyRate)}</strong>
+                    <span>Selected Property:</span>
+                    <strong>{activeProp.name || '—'}</strong>
+                  </div>
+                  <div className="bfa-modal-pricing-row">
+                    <span>Selected Apartment:</span>
+                    <strong>{selectedUnit ? `${selectedUnit.unit_name} (#${selectedUnit.unit_number})` : 'Select an apartment above'}</strong>
+                  </div>
+                  <div className="bfa-modal-pricing-row">
+                    <span>Approved Nightly Rate (1 Night Stay):</span>
+                    <strong>{nightlyRate != null ? formatNaira(nightlyRate) : '—'}</strong>
                   </div>
                   {cautionDeposit > 0 && (
                     <div className="bfa-modal-pricing-row">
@@ -629,18 +947,18 @@ export default function BookingModal({
                     </div>
                   )}
                   <div className="bfa-modal-pricing-row total">
-                    <span>Total Stay Valuation:</span>
+                    <span>Total Booking Amount (1 Night):</span>
                     <span className="total-val">
-                      {checkingQuote ? 'Calculating...' : formatNaira(totalAmount)}
+                      {checkingQuote ? 'Verifying Quote...' : totalAmount != null ? formatNaira(totalAmount) : '—'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* 2. Guest Information Form */}
+              {/* 4. GUEST INFORMATION FORM */}
               <div className="bfa-modal-section-card">
                 <div className="bfa-modal-section-title">
-                  <User size={15} /> 2. Guest Information & Concierge Notes
+                  <User size={15} /> 3. Guest Information &amp; Concierge Notes
                 </div>
 
                 <div className="bfa-modal-form-grid">
@@ -701,16 +1019,14 @@ export default function BookingModal({
                 </div>
               </div>
 
-              {/* 3. Payment Method & Instructions */}
+              {/* 5. PAYMENT METHOD & PROOF UPLOAD */}
               <div className="bfa-modal-section-card">
                 <div className="bfa-modal-section-title">
-                  <CreditCard size={15} /> 3. Payment Settlement Method
+                  <CreditCard size={15} /> 4. Payment Settlement Method
                 </div>
 
                 <div className="bfa-modal-payment-options">
-                  <label
-                    className={`bfa-modal-payment-card ${paymentOption === 'BANK_TRANSFER' ? 'selected' : ''}`}
-                  >
+                  <label className={`bfa-modal-payment-card ${paymentOption === 'BANK_TRANSFER' ? 'selected' : ''}`}>
                     <input
                       type="radio"
                       name="paymentOption"
@@ -725,9 +1041,7 @@ export default function BookingModal({
                     </div>
                   </label>
 
-                  <label
-                    className={`bfa-modal-payment-card ${paymentOption === 'PAY_AT_PROPERTY' ? 'selected' : ''}`}
-                  >
+                  <label className={`bfa-modal-payment-card ${paymentOption === 'PAY_AT_PROPERTY' ? 'selected' : ''}`}>
                     <input
                       type="radio"
                       name="paymentOption"
@@ -743,7 +1057,6 @@ export default function BookingModal({
                   </label>
                 </div>
 
-                {/* Bank Account Details Card (When Bank Transfer Selected) */}
                 {paymentOption === 'BANK_TRANSFER' && (
                   <div>
                     <div className="bfa-modal-bank-card">
@@ -751,7 +1064,6 @@ export default function BookingModal({
                         <span>Official BFA Settlement Account</span>
                         <ShieldCheck size={14} color="#d4af37" />
                       </div>
-
                       <div className="bfa-modal-bank-acct-row">
                         <div>
                           <div style={{ fontSize: '0.74rem', color: '#e2e8f0', fontWeight: 600 }}>
@@ -770,14 +1082,12 @@ export default function BookingModal({
                           {copiedField === 'acct' ? 'Copied' : 'Copy'}
                         </button>
                       </div>
-
                       <div className="bfa-modal-bank-details">
                         <span>Beneficiary: <strong>{paymentConfig?.accountName || 'BFA APARTMENTS LIMITED'}</strong></span>
-                        <span>Amount: <strong>{formatNaira(totalAmount)}</strong></span>
+                        <span>Amount: <strong>{totalAmount != null ? formatNaira(totalAmount) : '—'}</strong></span>
                       </div>
                     </div>
 
-                    {/* Receipt Upload Dropzone */}
                     {proofPreviewUrl ? (
                       <div className="bfa-modal-proof-preview">
                         <img src={proofPreviewUrl} alt="Receipt preview" className="bfa-modal-preview-thumb" />
@@ -787,32 +1097,22 @@ export default function BookingModal({
                             ✓ {proofFile ? `${(proofFile.size / (1024 * 1024)).toFixed(2)} MB` : 'Receipt Attached'}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          className="bfa-modal-remove-proof-btn"
-                          onClick={handleRemoveProof}
-                        >
+                        <button type="button" className="bfa-modal-remove-proof-btn" onClick={handleRemoveProof}>
                           Remove
                         </button>
                       </div>
                     ) : (
-                      <div>
-                        <label className="bfa-modal-dropzone">
-                          <UploadCloud size={24} className="bfa-modal-dropzone-icon" />
-                          <div className="bfa-modal-dropzone-prompt">
-                            Click to Upload Transfer Proof / Receipt
-                          </div>
-                          <div className="bfa-modal-dropzone-sub">
-                            Supports JPG, PNG, or WebP screenshots up to 5 MB
-                          </div>
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            style={{ display: 'none' }}
-                            onChange={(e) => handleProofSelect(e.target.files?.[0])}
-                          />
-                        </label>
-                      </div>
+                      <label className="bfa-modal-dropzone">
+                        <UploadCloud size={24} className="bfa-modal-dropzone-icon" />
+                        <div className="bfa-modal-dropzone-prompt">Click to Upload Transfer Proof / Receipt</div>
+                        <div className="bfa-modal-dropzone-sub">Supports JPG, PNG, or WebP screenshots up to 5 MB</div>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleProofSelect(e.target.files?.[0])}
+                        />
+                      </label>
                     )}
 
                     {proofError && (
@@ -830,21 +1130,14 @@ export default function BookingModal({
                 </div>
               )}
 
-              {/* Footer Actions */}
               <div className="bfa-booking-modal-footer" style={{ padding: '0.9rem 0 0 0', borderTop: '1px solid #cbd5e1', background: 'transparent' }}>
-                <button
-                  type="button"
-                  className="bfa-modal-cancel-btn"
-                  onClick={handleAttemptClose}
-                  disabled={isSubmitting}
-                >
+                <button type="button" className="bfa-modal-cancel-btn" onClick={handleAttemptClose} disabled={isSubmitting}>
                   Cancel
                 </button>
-
                 <button
                   type="submit"
                   className="bfa-modal-submit-btn"
-                  disabled={isSubmitting || !isAvailable || checkingQuote}
+                  disabled={isSubmitting || !isAvailable || checkingQuote || !quoteData?.quoteToken || !priceUpdateAck}
                 >
                   {isSubmitting ? (
                     'Dispatching Request...'
@@ -863,4 +1156,3 @@ export default function BookingModal({
     </div>
   );
 }
-

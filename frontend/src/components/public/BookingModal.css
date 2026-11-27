@@ -722,3 +722,374 @@
   }
 }
 
+/* ==========================================================================
+   DIRECT BOOKING MODAL UPGRADE: Property Preview, Apartment Selector & Detail
+   ========================================================================== */
+.bfa-booking-modal-shell--wide {
+  max-width: 780px;
+  box-sizing: border-box;
+}
+
+.bfa-booking-modal-body {
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.bfa-prop-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.bfa-prop-preview-thumb {
+  width: 64px;
+  height: 52px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+}
+
+.bfa-prop-preview-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b45309;
+}
+
+.bfa-prop-preview-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.bfa-prop-preview-loc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.bfa-prop-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bfa-prop-preview-desc-short {
+  margin: 0.55rem 0 0;
+  font-size: 0.82rem;
+  color: #475569;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bfa-prop-expanded-body {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.bfa-modal-amenity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.bfa-modal-amenity-chip {
+  font-size: 0.71rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.bfa-apt-skeleton-grid,
+.bfa-apt-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.bfa-apt-skeleton-card {
+  height: 150px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: bfaSkeletonPulse 1.3s infinite;
+}
+
+@keyframes bfaSkeletonPulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.bfa-apt-select-card {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.bfa-apt-select-card.selected {
+  border-color: #b45309;
+  background: #fffdf7;
+  box-shadow: 0 4px 14px rgba(180, 83, 9, 0.14);
+}
+
+.bfa-apt-select-card.unavailable {
+  opacity: 0.72;
+}
+
+.bfa-apt-select-top {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.bfa-apt-select-thumb {
+  width: 64px;
+  height: 54px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.bfa-apt-select-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.bfa-apt-select-name {
+  font-size: 0.88rem;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bfa-apt-status-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.bfa-apt-status-pill.avail {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.bfa-apt-status-pill.busy {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.bfa-apt-select-sub {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.bfa-apt-select-price {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-top: 2px;
+}
+
+.bfa-apt-select-price span {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.bfa-apt-select-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.73rem;
+  color: #475569;
+  margin-bottom: 0.4rem;
+}
+
+.bfa-apt-select-specs span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.bfa-apt-select-desc {
+  margin: 0 0 0.55rem;
+  font-size: 0.76rem;
+  color: #475569;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bfa-apt-select-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: auto;
+}
+
+.bfa-apt-choose-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0.42rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #0f172a;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bfa-apt-choose-btn.active {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.bfa-apt-details-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.42rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bfa-modal-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.bfa-modal-detail-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bfa-modal-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bfa-modal-gallery-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bfa-modal-gallery-main {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.bfa-modal-gallery-thumbs {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.bfa-modal-gallery-thumb-btn {
+  width: 64px;
+  height: 48px;
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.bfa-modal-gallery-thumb-btn.active {
+  border-color: #b45309;
+}
+
+.bfa-modal-gallery-thumb-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bfa-modal-detail-specs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  font-size: 0.8rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+.bfa-modal-detail-specs-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@media (max-width: 680px) {
+  .bfa-apt-skeleton-grid,
+  .bfa-apt-selector-grid {
+    grid-template-columns: 1fr;
+  }
+  .bfa-booking-modal-shell--wide {
+    max-width: 100%;
+    max-height: 95vh;
+  }
+  .bfa-modal-gallery-main {
+    height: 170px;
+  }
+}
+
