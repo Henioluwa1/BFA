@@ -1071,15 +1071,15 @@ export default function PropertiesPage() {
               style={{
                 padding: '0.9rem 1rem',
                 borderRadius: 'var(--radius-md)',
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: 'var(--text-primary)',
+                background: 'rgba(127, 29, 29, 0.35)',
+                border: '1px solid rgba(248, 113, 113, 0.45)',
+                color: '#f8fafc',
                 fontSize: '0.86rem',
                 lineHeight: 1.55,
               }}
             >
-              <strong>Consequences:</strong>
-              <ul style={{ margin: '0.4rem 0 0 1.15rem', padding: 0 }}>
+              <strong style={{ color: '#fecaca' }}>Consequences:</strong>
+              <ul style={{ margin: '0.4rem 0 0 1.15rem', padding: 0, color: '#f1f5f9' }}>
                 <li>Archiving removes <strong>{archiveTarget.name}</strong> from public discovery and blocks all new public bookings.</li>
                 <li>All historical reservations, payments, and audit logs remain <strong>100% preserved</strong>.</li>
                 <li>Properties with active/upcoming reservations cannot be archived or deleted.</li>

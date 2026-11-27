@@ -138,9 +138,9 @@ export default function PropertyDetailModal({
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: '0.75rem 1rem',
-            background: 'var(--bg-surface)',
+            background: 'rgba(15, 23, 42, 0.75)',
             borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-color)',
+            border: '1px solid rgba(148, 163, 184, 0.25)',
           }}
         >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', alignItems: 'center' }}>
@@ -270,15 +270,15 @@ export default function PropertyDetailModal({
             )}
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem' }}>
-              <div style={{ background: 'var(--bg-surface)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>CHECK-IN / CHECK-OUT</div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '2px' }}>
+              <div style={{ background: 'rgba(15, 23, 42, 0.75)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(148, 163, 184, 0.25)' }}>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700 }}>CHECK-IN / CHECK-OUT</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '2px' }}>
                   <Clock size={13} /> {prop.check_in_time || '14:00'} / {prop.check_out_time || '11:00'}
                 </div>
               </div>
-              <div style={{ background: 'var(--bg-surface)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>CONTACT</div>
-                <div style={{ fontSize: '0.82rem', fontWeight: 600, marginTop: '2px', wordBreak: 'break-word' }}>
+              <div style={{ background: 'rgba(15, 23, 42, 0.75)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(148, 163, 184, 0.25)' }}>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700 }}>CONTACT</div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f8fafc', marginTop: '2px', wordBreak: 'break-word' }}>
                   {prop.contact_phone || prop.contact_email || 'Not configured'}
                 </div>
               </div>
@@ -289,14 +289,14 @@ export default function PropertyDetailModal({
                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                   Building Amenities &amp; Facilities
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                   {amenitiesList.map((a, idx) => (
                     <span
                       key={idx}
                       style={{
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-color)',
-                        color: 'var(--text-secondary)',
+                        background: 'rgba(15, 23, 42, 0.75)',
+                        border: '1px solid rgba(148, 163, 184, 0.25)',
+                        color: '#e2e8f0',
                         fontSize: '0.75rem',
                         padding: '0.2rem 0.55rem',
                         borderRadius: '4px',
@@ -357,14 +357,14 @@ export default function PropertyDetailModal({
                     flexWrap: 'wrap',
                     gap: '0.75rem',
                     padding: '0.8rem 1rem',
-                    background: 'var(--bg-surface)',
+                    background: 'rgba(15, 23, 42, 0.75)',
                     borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-color)',
+                    border: '1px solid rgba(148, 163, 184, 0.25)',
                   }}
                 >
                   <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                      <strong style={{ color: '#f8fafc', fontSize: '0.95rem' }}>
                         {u.unit_name} (#{u.unit_number})
                       </strong>
                       <Badge status={u.status === 'AVAILABLE' ? 'success' : u.status === 'OUT_OF_SERVICE' ? 'neutral' : 'warning'}>
@@ -375,7 +375,7 @@ export default function PropertyDetailModal({
                       </Badge>
                       {!u.is_active && <Badge status="neutral">Unpublished</Badge>}
                     </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
+                    <div style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: '0.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
                       <span><Bed size={12} style={{ verticalAlign: 'middle' }} /> {u.unit_type || 'Suite'}</span>
                       <span><Users size={12} style={{ verticalAlign: 'middle' }} /> Max {u.capacity || 2}</span>
                       <span><Bath size={12} style={{ verticalAlign: 'middle' }} /> {u.bathroom_count || 1} Bath</span>
